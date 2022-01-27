@@ -21,7 +21,7 @@
    supportedFilesystems = [ "btrfs" ]; 
    cleanTmpDir = true;
    
-   kernelPackages = pkgs.linuxPackages_lqx;
+   kernelPackages = pkgs.linuxPackages_xanmod;
    kernelModules = [ "kvm-amd" "wl" ];
    extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
    
@@ -36,7 +36,7 @@
         version = 2;
         devices = [ "nodev" ];
         efiSupport = true;
-        useOSProber = false;
+        useOSProber = false; # Dualboot
       };
 
       efi = { canTouchEfiVariables = true; };
@@ -63,7 +63,7 @@
       automatic = true;
       persistent = true;
       dates = "weekly";
-      options = "--delete-older-than 10d";
+      options = "--delete-older-than 7d";
     };
 
     optimise.automatic = true;
@@ -100,6 +100,7 @@
       };
     };
   };
+
   pipewire = {
    enable = true;
    alsa.enable = true;
