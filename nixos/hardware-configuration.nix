@@ -1,20 +1,3 @@
-# Mount system
-# mount /dev/sdaX /mnt
-
-# Create subvolumen
-# btrfs su cr /mnt/@root
-# btrfs su cr /mnt/@home
-# btrfs su cr /mnt/@var
-# btrfs su cr /mnt/@tmp
-# umount -R /mnt
-
-# Mount system with subvolumens
-# mount -o noatime,compress=zstd,space_cache=v2,subvol=@root /dev/sdaX /mnt
-# mkdir -p /mnt/{home,boot,var,tmp,}
-# mount -o noatime,compress=zstd,space_cache=v2,subvol=@home /dev/sdaX /home
-# mount -o noatime,compress=zstd,space_cache=v2,subvol=@tmp /dev/sdaX /tmp
-# mount -o nodatacow,subvol=@var /dev/sdaX /mnt/var
-
 { config, lib, pkgs, modulesPath, ... }:
 
 {
@@ -22,28 +5,41 @@
     [ (modulesPath + "/installer/scan/not-detected.nix")
     ];
 
+  boot = {
+   supportedFilesystems = [ "zfs" ]; 
+   zfs.enableUnstable = true; 
+   cleanTmpDir = true;
+   
+   kernelPackages = pkgs.linuxPackages_xanmod; # Kernel
+   kernelModules = [ "kvm-amd" "wl" ];
+   extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Driver
+   
+    initrd = {
+    availableKernelModules = [ "xhci_pci" "ahci" "ehci_pci" "usbhid" "usb_storage" "sd_mod" "sr_mod" "rtsx_pci_sdmmc" ];
+    kernelModules = [ "amdgpu" "wl" ];
+    };
+    
+    loader = {
+      grub = {
+        enable = true;
+        version = 2;
+        devices = [ "nodev" ];
+        efiSupport = true;
+        useOSProber = false;
+      };
+
+      efi = { canTouchEfiVariables = true; };
+    };
+  };
+
   fileSystems."/" =
-    { device = "/dev/sda7";
-      fsType = "btrfs";
-      options = [ "subvol=@rootfs" "noatime" "compress=zstd" "space_cache=v2" "discard=async" "autodefrag" ];
+    { device = "rpool/root/nixos";
+      fsType = "zfs";
     };
 
   fileSystems."/home" =
-    { device = "/dev/sda7";
-      fsType = "btrfs";
-      options = [ "subvol=@home" "noatime" "compress=zstd" "space_cache=v2" "discard=async" "autodefrag" ];
-    };
-
-  fileSystems."/tmp" =
-    { device = "/dev/sda7";
-      fsType = "btrfs";
-      options = [ "subvol=@tmp" "noatime" "compress=zstd" "space_cache=v2" "discard=async" "autodefrag" ];
-    };
-
-  fileSystems."/var" =
-    { device = "/dev/sda7";
-      fsType = "btrfs";
-      options = [ "subvol=@var" "nodatacow" "discard=async" "autodefrag" ];
+    { device = "rpool/home";
+      fsType = "zfs";
     };
 
   fileSystems."/boot" =
@@ -51,7 +47,13 @@
       fsType = "vfat";
     };
 
-  swapDevices = [ ];
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 50;
+    priority = 5;
+  };
 
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
 }

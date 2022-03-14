@@ -1,60 +1,47 @@
-# HBlanqueto's cofig
-# I'm new using NixOS, my configuration isn't the best. Please do not use this as a template.
+# This configuration file needs to be used on a ZFS.
 
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
   imports =
     [
-      # Modules & partitions.
+      # - Modules & partitions. -
       ./hardware-configuration.nix
-      ./default-session.nix
 
-      # GPU and Hardware Aceleration configuration.
-      ./gpu/amd.nix
-      #./gpu/nvidia.nix
+      # - Desktop Enviroment. -
+      ./sys/gnome.nix
+
+      # - GPU and Hardware Aceleration. -
+      ./sys/gpu/amd.nix
+      #./sys/gpu/intel.nix
+      #./sys/gpu/nvidia.nix
     ];
   
   system.stateVersion = "22.05";
 
-  boot = {
-   supportedFilesystems = [ "btrfs" ]; 
-   cleanTmpDir = true;
-   
-   kernelPackages = pkgs.linuxPackages_xanmod;
-   kernelModules = [ "kvm-amd" "wl" ];
-   extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
-   
-    initrd = {
-    availableKernelModules = [ "xhci_pci" "ahci" "ehci_pci" "usbhid" "usb_storage" "sd_mod" "sr_mod" "rtsx_pci_sdmmc" ];
-    kernelModules = [ "amdgpu" "wl" ];
-    };
-    
-    loader = {
-      grub = {
-        enable = true;
-        version = 2;
-        devices = [ "nodev" ];
-        efiSupport = true;
-        useOSProber = false; # Dualboot
-      };
-
-      efi = { canTouchEfiVariables = true; };
-    };
+  programs.zsh = {
+    enable = true;
+    autosuggestions.enable = true;
+    syntaxHighlighting.enable = true;
+    ohMyZsh.enable = true;
+    ohMyZsh.plugins = [ "git" ];
+    ohMyZsh.theme = "frisk";
   };
-
-  programs.zsh.enable = true;
   
   users = {
-  
-  mutableUsers = true;
-  defaultUserShell = pkgs.zsh;
+    mutableUsers = true;
+    defaultUserShell = pkgs.zsh;
 
   users.hblanqueto = {
     isNormalUser = true;
     description = "Humberto Blanqueto";
     home = "/home/hblanqueto";
-    extraGroups = [ "wheel" ];
+    extraGroups = [ 
+      "wheel" 
+      "networkmanager"
+      "audio"
+      "video"
+      ];
     };   
   };
 
@@ -67,79 +54,101 @@
     };
 
     optimise.automatic = true;
-    useSandbox = false;
+    settings.sandbox = false;
   };
 
-  networking.hostName = "HP-23-q025la"; 
-  
-  networking.networkmanager.enable = true;
+  networking = {
+    hostId = "c39e1dae";
+    hostName = "HP-23-q025la"; 
+    networkmanager.enable = true;
+    firewall.enable = true;
+    useDHCP = false;
 
-  time.timeZone = "America/Mexico_City";
-  
-  time.hardwareClockInLocalTime = true;
+  };
 
   i18n.defaultLocale = "en_US.UTF-8";
-   
-  hardware.pulseaudio.enable = false;
+
+  time = {
+    timeZone = "America/Mexico_City";
+    hardwareClockInLocalTime = true;
+  };
 
   services = {
-
-  blueman.enable = true;
-  printing.enable = false;
+    blueman.enable = true;
+    printing.enable = false;
 
   xserver = {
     enable = true;
     layout = "es";
- 
-  displayManager = {
-    gdm = {
-     enable = true;
-     autoSuspend = true;
-     wayland = true;
-     #nvidiaWayland = true;
+    libinput.enable = true;
+
+  # Use this If you only use Gnome
+  displayManager = {  
+   gdm = {
+      enable = true;
+      autoSuspend = true;
+      wayland = true;
+      #nvidiaWayland = true;   
       };
+   defaultSession = "gnome";
     };
+  
   };
 
   pipewire = {
-   enable = true;
-   alsa.enable = true;
-   alsa.support32Bit = true;
-   pulse.enable = true;
-   #jack.enable = true;
-   #media-session.enable = true;
+    enable = true;
+
+    alsa = {     
+      enable = true;
+      #support32Bit = true;    
+    };
+
+      pulse.enable = true;
+      jack.enable = true;
     };
   }; 
   
+  hardware.pulseaudio.enable = false;
+
   console = {
-     font = "Lat2-Terminus16";
-     keyMap = "es";
+    font = "Lat2-Terminus16";
+    keyMap = "es";
   };
   
   nixpkgs.config.allowUnfree = true;
   
-  documentation.enable = false;
-  documentation.nixos.enable = false;
-  programs.command-not-found.enable = false;
-  
   environment.systemPackages = with pkgs; [ 
-  firefox-wayland
-  #google-chrome
-  tdesktop
-  gnome.gnome-terminal
-  gnome.nautilus
-  # wezterm
-  nano
-  wget
-  man 
-  btrfs-progs
-  zstd
+    firefox-wayland
+    tdesktop
+    gnome.gnome-terminal
+    gnome.nautilus
+    nano
+    wget
+    man 
+    zstd
   ];
   
   fonts.fonts = with pkgs; [
-  noto-fonts-emoji-blob-bin
-  ipafont
-  #cantarell-fonts
-  #inter
+    noto-fonts-emoji-blob-bin
+    noto-fonts
+    noto-fonts-cjk
+    powerline-fonts
+    ipafont
+    #cantarell-fonts
+    #inter
+
+  (nerdfonts.override {
+      fonts = [
+        "FiraCode"
+        "JetBrainsMono"
+        "Mononoki"
+        "SourceCodePro"
+      ];
+    })
   ];
+
+  documentation.enable = false;
+  documentation.nixos.enable = false;
+  programs.command-not-found.enable = false;
+
 }

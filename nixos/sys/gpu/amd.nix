@@ -1,11 +1,9 @@
-
 { config, pkgs, lib, ... }:
 
 {
-
-  # Xserver configuration
   services.xserver = {
     videoDrivers = [ "amdgpu" ];
+
     extraConfig = ''
       Section "Device"
         Identifier "Radeon"
@@ -20,20 +18,23 @@
     '';
   };
 
+  hardware = {  
 
-  # Hardware Aceleration
-  hardware.opengl = {
-  enable = true;
-  extraPackages = with pkgs; [
-      rocm-opencl-icd
-      rocm-opencl-runtime
-      vaapiVdpau
-      libvdpau-va-gl
-    ];
-  };
+   cpu = {
+     amd.updateMicrocode = true;
+   };
 
-  hardware.opengl.driSupport = true;
-  # For 32 bit applications
-  #hardware.opengl.driSupport32Bit = true;
-
+   opengl = {
+     driSupport = true;
+     #driSupport32Bit = true;  
+     enable = true;
+   
+   extraPackages = with pkgs; [
+     rocm-opencl-icd
+     rocm-opencl-runtime
+     vaapiVdpau
+     libvdpau-va-gl
+     ];
+   };
+ };
 }
