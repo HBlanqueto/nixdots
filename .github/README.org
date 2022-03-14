@@ -1,5 +1,9 @@
 #+author: HBlanqueto
 #+date:   2022-03-10
+#+EMAIL:  humbertoblanqueto@outlook.com
+#+DESCRIPTION: This document has the documentation and explanation of my dotfiles
+#+KEYWORDS:  nixos, nix, zfs, wayland, dotfiles
+#+LANGUAGE:  en
 
 #+HTML:<div align=center>
 * Nixdots
@@ -7,51 +11,46 @@
 
 *What the hell is this?*
 
-#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="160"  align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="150"  align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
 
-こんにちは、ようこそ! I like ricing on r/unixporn and meaby You're looking for this dots. Here you will find my base NixOS system configuration for my day-to-day, these files are thought for easy and compatible uses for my HP-23-q025la. By default I'm using gnome, wayland, pipewire and zfs, this is important to mention beacause most part of the files depends on them. Oh yeah, I want to understand what [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]] are. 
-
-Now, feel free to take a look whatever you want here. I'm glad you already reading this section.
+Hello Peter! I like ricing on r/unixporn and meaby you're looking for this dots. Here you will find my base NixOS system configuration for my day-to-day, these files are thought for easy and compatible uses for my =HP-23-q025la= and have been thought to be managed by Nix. By default I'm using gnome, wayland, pipewire and zfs, this is important to mention beacause most part of the files depends on them. Oh yeah, I want to understand what [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]] are. 
 
 ** Table of contents :TOC_3_gh:QUOTE:
 #+BEGIN_QUOTE
 - [[#nixdots][Nixdots]]
-  - [[#why-nixos][Why NixOS?]]
-  - [[#setup][Setup]]
-    - [[#using-zfs][Using ZFS]]
-    - [[#installing-the-system][Installing the System]]
-    - [[#nixos-unstable][NixOS Unstable]]
+  - [[#setup-for-nixos][Setup for NixOS]]
+    - [[#zfs-partitions-][ZFS Partitions]]
+    - [[#installing-the-system-%EF%B8%8F][Installing the System]]
+    - [[#unstable-channel-%EF%B8%8F][Unstable Channel]]
   - [[#special-thanks][Special Thanks]]
 #+END_QUOTE
 
-** Why NixOS?
-
-    - *Reproducible*
-        - Nix builds packages in isolation from each other. This ensures that they are reproducible and don't have undeclared dependencies, so if a package works on one machine, it will also work on another.
-    - *Declarative*
-        - Nix makes it trivial to share development and build environments for your projects, regardless of what programming languages and tools you’re using.
-    - *Reliable*
-        - Nix ensures that installing or upgrading one package cannot break other packages. It allows you to roll back to previous versions, and ensures that no package is in an inconsistent state during an upgrade.
-
-** Setup
+** Setup for NixOS
 
 - Get the latest [[https://nixos.org/download.html#nixos-iso][ISO]] and boot into the enviroment.
 - If you plan using ZFS for your whole disk, be careful and read an article
 
-*** Using ZFS
+*** ZFS Partitions 💽
 
-I had to base on Arch Linux wiki's and this [[https://cheat.readthedocs.io/en/latest/nixos/zfs_install.html][tutorial]] to make my partitions in this way. I decided moving to this filesystem as a personal experiment, I won't recoomend you to try this if you're new on linux. 
+I had to base on Arch Linux wiki's and this [[https://cheat.readthedocs.io/en/latest/nixos/zfs_install.html][tutorial]] to make my partitions in this way. I decided moving to this filesystem as a personal experiment, I won't recommend you to try this if you're new on linux. 
 
 #+begin_src sh
 
 # Create your partitions. For this you'll only need two of them.
 cfdisk /dev/sda
 
-# Create the EFI partition. In my case I'd use /dev/sda6
-mkfs.vfat /dev/sda6
-
-# Prepare the disk. /dev/sda7 could be changed to another number, I'm explaining this part for my dual boot.
-zpool create -O mountpoint=none -O noatime=on -O atime=off -O compression=zstd -O xattr=sa -O acltype=posixacl -o ashift=12 -R /mnt rpool /dev/sda7
+# Prepare ZFS on /dev/sda7. It could be changed to another number
+# I'm explaining this part for my dual boot.
+# More information on: https://wiki.archlinux.org/title/Install_Arch_Linux_on_ZFS
+zpool create -f -O mountpoint=none \
+-O noatime=on \ 
+-O atime=off \ 
+-O compression=zstd \ 
+-O xattr=sa \ 
+-O acltype=posixacl \
+-o ashift=12 \
+-R /mnt \
+rpool /dev/sda7
 
 # Create the filesystems. This layout is designed so that /home is separate from the root.
 zfs create -o mountpoint=none rpool/root
@@ -63,13 +62,14 @@ mount -t zfs rpool/root/nixos /mnt
 mkdir /mnt/home
 mount -t zfs rpool/home /mnt/home
 
-# Mount boot.
+# Create and mount /boot. In my case I'd use /dev/sda6
+mkfs.vfat /dev/sda6
 mkdir /mnt/boot
 mount /dev/sda6 /mnt/boot
 
 #+end_src
 
-*** Installing the System
+*** Installing the System ❄️
 
 In the case you didn't decide to use the previous steps you'll have to regenerate =hardware-configuration.nix= and configure the bootloader and any other thing my file has. 
 
@@ -85,7 +85,7 @@ cp ~/nixdots/nixos /mnt/etc/
 nixos-install --root /mnt
 #+end_src
 
-*** NixOS Unstable
+*** Unstable Channel ☃️
 
 I like using the 22.05 version of the system, activate unstable on NixOS is as easier as following the next commands with sudo:
 
