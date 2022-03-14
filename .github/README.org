@@ -1,68 +1,106 @@
+#+author: HBlanqueto
+#+date:   2022-03-10
+
 #+HTML:<div align=center>
-
 * Nixdots
-Welcome, my =$HOME= is your =$HOME=
-
 #+HTML:</div>
 
-*What is this?*
+*What the hell is this?*
 
+#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="160"  align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
 
-#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="150"  align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+こんにちは、ようこそ! I like ricing on r/unixporn and meaby You're looking for this dots. Here you will find my base NixOS system configuration for my day-to-day, these files are thought for easy and compatible uses for my HP-23-q025la. By default I'm using gnome, wayland, pipewire and zfs, this is important to mention beacause most part of the files depends on them. Oh yeah, I want to understand what [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]] are. 
 
-こんにちは、ようこそ! This is my special repository, which you'll find several of my configurations that I use in my day-to-day life on my NixOS system. You probably come for the themes and for any rice that I uploaded to r/unixporn, well feel free to use my files. My main goal is to get to use it perfectly and understand [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]]. 
-
-I am a newbie using this system, the configuration of my nix files is for a =HP 23-q025la= computer. Use my settings as a template at your own risk.
+Now, feel free to take a look whatever you want here. I'm glad you already reading this section.
 
 ** Table of contents :TOC_3_gh:QUOTE:
 #+BEGIN_QUOTE
 - [[#nixdots][Nixdots]]
   - [[#why-nixos][Why NixOS?]]
   - [[#setup][Setup]]
-    - [[#install-nixos][Install NixOS]]
+    - [[#using-zfs][Using ZFS]]
+    - [[#installing-the-system][Installing the System]]
     - [[#nixos-unstable][NixOS Unstable]]
   - [[#special-thanks][Special Thanks]]
 #+END_QUOTE
 
 ** Why NixOS?
-Nix is a powerful package manager for Linux and other Unix systems that makes package management reliable and reproducible. One of the reasons why I like it the most is because of the fact that it makes my dotfiles with its nix files as well as being able to quickly make backups of everything.
 
-=Ah, yeah. Also I'm masoquist.=
+    - *Reproducible*
+        - Nix builds packages in isolation from each other. This ensures that they are reproducible and don't have undeclared dependencies, so if a package works on one machine, it will also work on another.
+    - *Declarative*
+        - Nix makes it trivial to share development and build environments for your projects, regardless of what programming languages and tools you’re using.
+    - *Reliable*
+        - Nix ensures that installing or upgrading one package cannot break other packages. It allows you to roll back to previous versions, and ensures that no package is in an inconsistent state during an upgrade.
 
 ** Setup
 
-*** Install NixOS
-- Get the [[https://nixos.org/download.html#nixos-iso][ISO]] and boot into the enviroment.
-- Mount the system and make the partitions. Also generate the basic configuration. 
-- Follow these commands:
-#+begin_src markdown
-# Get git.
+- Get the latest [[https://nixos.org/download.html#nixos-iso][ISO]] and boot into the enviroment.
+- If you plan using ZFS for your whole disk, be careful and read an article
+
+*** Using ZFS
+
+I had to base on Arch Linux wiki's and this [[https://cheat.readthedocs.io/en/latest/nixos/zfs_install.html][tutorial]] to make my partitions in this way. I decided moving to this filesystem as a personal experiment, I won't recoomend you to try this if you're new on linux. 
+
+#+begin_src sh
+
+# Create your partitions. For this you'll only need two of them.
+cfdisk /dev/sda
+
+# Create the EFI partition. In my case I'd use /dev/sda6
+mkfs.vfat /dev/sda6
+
+# Prepare the disk. /dev/sda7 could be changed to another number, I'm explaining this part for my dual boot.
+zpool create -O mountpoint=none -O noatime=on -O atime=off -O compression=zstd -O xattr=sa -O acltype=posixacl -o ashift=12 -R /mnt rpool /dev/sda7
+
+# Create the filesystems. This layout is designed so that /home is separate from the root.
+zfs create -o mountpoint=none rpool/root
+zfs create -o mountpoint=legacy rpool/root/nixos
+zfs create -o mountpoint=legacy rpool/home
+
+# Mount the root and home.
+mount -t zfs rpool/root/nixos /mnt
+mkdir /mnt/home
+mount -t zfs rpool/home /mnt/home
+
+# Mount boot.
+mkdir /mnt/boot
+mount /dev/sda6 /mnt/boot
+
+#+end_src
+
+*** Installing the System
+
+In the case you didn't decide to use the previous steps you'll have to regenerate =hardware-configuration.nix= and configure the bootloader and any other thing my file has. 
+
+#+begin_src sh
+# Get git. 
 nix-shell -p git
 
-# Clone the repository.
+# Clone the repository & copy the files.
 git clone https://github.com/HBlanqueto/nixdots.git --depth 1
 cp ~/nixdots/nixos /mnt/etc/
-
-# Generate the hardware configuration according your hardware
-rm -rf /mnt/etc/nixos/hardware-configuration.nix
-nixos-generate-config --root /mnt
 
 # Install NixOS
 nixos-install --root /mnt
 #+end_src
 
-- Add the root password, reboot the system.
-- Log in as your normal user & enjoy the system.
-
 *** NixOS Unstable
-Already you are in your system, If you're interested in using NixOS Unstable, the way to use It'll be: 
-#+begin_src markdown
-# Execute this commands in root. 
+
+I like using the 22.05 version of the system, activate unstable on NixOS is as easier as following the next commands with sudo:
+
+#+begin_src sh
+# Not using sudo only affects users (user packages).
 nix-channel --add https://nixos.org/channels/nixos-unstable nixos
+
+# Update the channel.
 nix-channel --update
+
+# Rebuild the system.
 nixos-rebuild switch --upgrade
 #+end_src
 
 ** Special Thanks
 - [[https://github.com/JavaCafe01/dotfiles][dotfiles]] by *javacafe01*
 - [[https://github.com/Leznom/VitalConfig][VitalConfig]] by *Leznom*
+- [[https://github.com/jx11r/nixdots][nixdots]] by *jx11r*
