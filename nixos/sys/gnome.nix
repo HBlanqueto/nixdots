@@ -11,7 +11,7 @@
    };  
  };
  
- services.gnome.core-utilities.enable = false; # Minimal Gnome
+ services.gnome.core-utilities.enable = false; #
  
  xdg.portal.wlr.enable = true;
  

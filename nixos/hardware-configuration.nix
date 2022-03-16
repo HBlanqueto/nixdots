@@ -20,8 +20,15 @@
     };
     
     loader = {
-      grub = {
+
+      systemd-boot = {
         enable = true;
+        consoleMode = "max";
+        configurationLimit = 3;
+      };
+
+      grub = {
+        enable = false;
         version = 2;
         devices = [ "nodev" ];
         efiSupport = true;
@@ -29,6 +36,7 @@
       };
 
       efi = { canTouchEfiVariables = true; };
+      efiSysMountPoint = "/boot";
     };
   };
 
@@ -50,7 +58,7 @@
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 50;
+    memoryPercent = 30;
     priority = 5;
   };
 
