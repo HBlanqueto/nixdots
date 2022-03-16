@@ -22,21 +22,23 @@
     loader = {
 
       systemd-boot = {
-        enable = true;
+        enable = false;
         consoleMode = "max";
         configurationLimit = 3;
       };
 
       grub = {
-        enable = false;
+        enable = true;
         version = 2;
         devices = [ "nodev" ];
         efiSupport = true;
         useOSProber = false;
       };
 
-      efi = { canTouchEfiVariables = true; };
-      efiSysMountPoint = "/boot";
+      efi = { 
+        canTouchEfiVariables = true;
+        efiSysMountPoint = "/boot";
+      };
     };
   };
 

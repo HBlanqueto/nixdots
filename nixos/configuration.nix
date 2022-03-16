@@ -1,4 +1,5 @@
 # This configuration file needs to be used on a ZFS.
+# This configuration was thought for NixOS 22.05
 
 { config, lib, pkgs, ... }:
 
@@ -54,14 +55,13 @@
     };
 
     optimise.automatic = true;
-    settings.sandbox = false;
+    #settings.sandbox = false;
   };
 
   networking = {
     hostId = "c39e1dae";
     hostName = "HP-23-q025la"; 
     networkmanager.enable = true;
-    wireless.enable = true;
     firewall.enable = true;
     useDHCP = false;
 
@@ -98,7 +98,7 @@
 
   pipewire = {
     enable = true;
-    wireplumber.enable = true;
+    #wireplumber.enable = true;
 
     alsa = {     
       enable = true;

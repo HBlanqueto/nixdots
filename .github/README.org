@@ -42,8 +42,7 @@ cfdisk /dev/sda
 # Prepare ZFS on /dev/sda7. It could be changed to another number
 # I'm explaining this part for my dual boot.
 # More information on: https://wiki.archlinux.org/title/Install_Arch_Linux_on_ZFS
-zpool create -f -O mountpoint=none \
--O noatime=on \ 
+zpool create -f -O mountpoint=none \ 
 -O atime=off \ 
 -O compression=zstd \ 
 -O xattr=sa \ 
