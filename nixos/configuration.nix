@@ -61,6 +61,7 @@
     hostId = "c39e1dae";
     hostName = "HP-23-q025la"; 
     networkmanager.enable = true;
+    wireless.enable = true;
     firewall.enable = true;
     useDHCP = false;
 
