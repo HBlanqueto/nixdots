@@ -10,7 +10,7 @@
    zfs.enableUnstable = true; 
    cleanTmpDir = true;
    
-   kernelPackages = pkgs.linuxPackages_xanmod; # Kernel
+   kernelPackages = pkgs.linuxPackages_lqx; # Kernel
    kernelModules = [ "kvm-amd" "wl" ];
    extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Driver
    
@@ -33,6 +33,7 @@
         devices = [ "nodev" ];
         efiSupport = true;
         useOSProber = false;
+        theme = null;
       };
 
       efi = { 

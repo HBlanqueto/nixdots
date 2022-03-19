@@ -1,5 +1,4 @@
 # This configuration file needs to be used on a ZFS.
-# This configuration was thought for NixOS 22.05
 
 { config, lib, pkgs, ... }:
 
@@ -26,7 +25,7 @@
     syntaxHighlighting.enable = true;
     ohMyZsh.enable = true;
     ohMyZsh.plugins = [ "git" ];
-    ohMyZsh.theme = "frisk";
+    ohMyZsh.theme = "gentoo";
   };
   
   users = {
@@ -55,7 +54,7 @@
     };
 
     optimise.automatic = true;
-    #settings.sandbox = false;
+    settings.sandbox = false;
   };
 
   networking = {
@@ -75,12 +74,14 @@
   };
 
   services = {
-    blueman.enable = true;
-    printing.enable = false;
+   blueman.enable = true;
+   printing.enable = false;  
+   zfs.autoScrub.enable = true;
 
   xserver = {
     enable = true;
     layout = "es";
+    desktopManager.xterm.enable = false;
     libinput.enable = true;
 
   # Use this If you only use Gnome
@@ -90,15 +91,14 @@
       autoSuspend = true;
       wayland = true;
       #nvidiaWayland = true;   
-      };
+     };
    defaultSession = "gnome";
     };
-  
   };
 
   pipewire = {
     enable = true;
-    #wireplumber.enable = true;
+    wireplumber.enable = true;
 
     alsa = {     
       enable = true;
@@ -115,6 +115,25 @@
   console = {
     font = "Lat2-Terminus16";
     keyMap = "es";
+    colors = [
+    "000000"
+    "dc322f"
+    "859900"
+    "b58900"
+    "268bd2"
+    "d33682"
+    "2aa198"
+    "F6F2ED"
+    "9AA3A6"
+    "dc322f"
+    "859900"
+    "b58900"
+    "268bd2"
+    "d33682"
+    "2aa198"
+    "7F7762"
+
+    ];
   };
   
   nixpkgs.config.allowUnfree = true;
@@ -141,10 +160,7 @@
 
   (nerdfonts.override {
       fonts = [
-        "FiraCode"
         "JetBrainsMono"
-        "Mononoki"
-        "SourceCodePro"
       ];
     })
   ];
