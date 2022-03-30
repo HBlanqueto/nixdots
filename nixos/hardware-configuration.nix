@@ -11,12 +11,12 @@
    cleanTmpDir = true;
    
    kernelPackages = pkgs.linuxPackages_lqx; # Kernel
-   kernelModules = [ "kvm-amd" "wl" ];
-   extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Driver
+   kernelModules = [ "kvm-intel" ]; # "kmd-ad" "wl"
+   #extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Drive
    
     initrd = {
-    availableKernelModules = [ "xhci_pci" "ahci" "ehci_pci" "usbhid" "usb_storage" "sd_mod" "sr_mod" "rtsx_pci_sdmmc" ];
-    kernelModules = [ "amdgpu" "wl" ];
+    availableKernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
+    #kernelModules = [ "amdgpu" "wl" ];
     };
     
     loader = {
@@ -61,10 +61,12 @@
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 30;
-    priority = 5;
+    memoryPercent = 60;
+    priority = 10;
   };
 
-  hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+  hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+  # hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
 
 }

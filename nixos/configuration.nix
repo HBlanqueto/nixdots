@@ -1,4 +1,6 @@
-# This configuration file needs to be used on a ZFS.
+# Feel free to modify whatever you want. These files are totally based on anothers.
+# Help is available in the configuration.nix(5) man page and in the NixOS manual 
+# (accessible by running ‘nixos-help’).
 
 { config, lib, pkgs, ... }:
 
@@ -12,8 +14,8 @@
       ./sys/gnome.nix
 
       # - GPU and Hardware Aceleration. -
-      ./sys/gpu/amd.nix
-      #./sys/gpu/intel.nix
+      #./sys/gpu/amd.nix
+      ./sys/gpu/intel.nix
       #./sys/gpu/nvidia.nix
     ];
   
@@ -54,12 +56,14 @@
     };
 
     optimise.automatic = true;
-    settings.sandbox = false;
+    #settings.sandbox = false;
   };
 
   networking = {
+    # generate the hostID through executing:
+    # $ head -c4 /dev/urandom | od -A none -t x4
     hostId = "c39e1dae";
-    hostName = "HP-23-q025la"; 
+    hostName = "ASUS-C400SA"; 
     networkmanager.enable = true;
     firewall.enable = true;
     useDHCP = false;
@@ -70,7 +74,7 @@
 
   time = {
     timeZone = "America/Mexico_City";
-    hardwareClockInLocalTime = true;
+    hardwareClockInLocalTime = true; # Dualboot
   };
 
   services = {
@@ -98,7 +102,7 @@
 
   pipewire = {
     enable = true;
-    wireplumber.enable = true;
+    #wireplumber.enable = true;
 
     alsa = {     
       enable = true;
@@ -116,33 +120,39 @@
     font = "Lat2-Terminus16";
     keyMap = "es";
     colors = [
-    "000000"
-    "dc322f"
-    "859900"
-    "b58900"
-    "268bd2"
-    "d33682"
-    "2aa198"
-    "F6F2ED"
-    "9AA3A6"
-    "dc322f"
-    "859900"
-    "b58900"
-    "268bd2"
-    "d33682"
-    "2aa198"
-    "7F7762"
-
+    "0D1117"
+    "FA7970"
+    "7CE38B"
+    "FAA356"
+    "AFDBFF"
+    "CEA5FB"
+    "77BDFB"
+    "C6CDD5"
+    "89929B"
+    "FA7970"
+    "7CE38B"
+    "FAA356"
+    "AFDBFF"
+    "CEA5FB"
+    "77BDFB"
+    "ECF2F8"
     ];
   };
   
-  nixpkgs.config.allowUnfree = true;
-  
-  environment.systemPackages = with pkgs; [ 
-    firefox-wayland
+  nixpkgs.config = {
+    allowUnfree = true;
+    allowBroken = true;
+  };
+
+  environment.systemPackages = with pkgs; [
+    #chromium
+    firefox
     tdesktop
-    gnome.gnome-terminal
+
+    #gnome.gnome-terminal
+    gnome-console
     gnome.nautilus
+
     nano
     wget
     man 

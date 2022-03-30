@@ -9,11 +9,11 @@
 * Nixdots
 #+HTML:</div>
 
-*What the hell is this?*
+*Where am I? Who are you?*
 
-#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="150"  align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="150" align="right" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
 
-Hello Peter! I like ricing on r/unixporn and meaby you're looking for this dots. Here you will find my base NixOS system configuration for my day-to-day, these files are thought for easy and compatible uses for my =HP-23-q025la= and have been thought to be managed by Nix. By default I'm using gnome, wayland, pipewire and zfs, this is important to mention beacause most part of the files depends on them. Oh yeah, I want to understand what [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]] are. 
+Hello Stranger! These files are my personal NixOS settings thought for any computer. By default I like using Gnome (Wayland) & Pipewire; importance of mentioning It's due to most part of my files depend on them. That's why during the installation you must modify =configuration.nix= & =hardware-configuration.nix= in accordance with your hardware. Oh yeah, I'm concerned about what [[https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.][flakes]] are, I want to implement it on my dotfiles but I don't comprehend at all. 
 
 ** Table of contents :TOC_3_gh:QUOTE:
 #+BEGIN_QUOTE
@@ -27,66 +27,71 @@ Hello Peter! I like ricing on r/unixporn and meaby you're looking for this dots.
 
 ** Setup for NixOS
 
-- Get the latest [[https://nixos.org/download.html#nixos-iso][ISO]] and boot into the enviroment.
-- If you plan using ZFS for your whole disk, be careful and read an article
+- Get the latest [[https://nixos.org/download.html#nixos-iso][ISO]] and boot into the enviroment. I'd recommend any ISO with a GUI.
+- If you plan using ZFS for your whole disk, be careful and follow the next steps:
 
 *** ZFS Partitions 💽
 
-I had to base on Arch Linux wiki's and this [[https://cheat.readthedocs.io/en/latest/nixos/zfs_install.html][tutorial]] to make my partitions in this way. I decided moving to this filesystem as a personal experiment, I won't recommend you to try this if you're new on linux. 
+I took as a reference this [[https://cheat.readthedocs.io/en/latest/nixos/zfs_install.html][Dan's Cheat Sheets]] to take the leap on this filesystem as a personal experiment. Don't come to the Dark Side.
 
 #+begin_src sh
 
-# Create your partitions. For this you'll only need two of them.
+# Create 2 partitions.
 cfdisk /dev/sda
 
-# Prepare ZFS on /dev/sda7. It could be changed to another number
-# I'm explaining this part for my dual boot.
-# More information on: https://wiki.archlinux.org/title/Install_Arch_Linux_on_ZFS
+# Prepare ZFS on /dev/sdaX. "X" could be changed to another number.
 zpool create -f -O mountpoint=none \ 
 -O atime=off \ 
--O compression=zstd \ 
+-O compression=zstd \
 -O xattr=sa \ 
 -O acltype=posixacl \
 -o ashift=12 \
 -R /mnt \
-rpool /dev/sda7
+rpool /dev/sdaX
 
-# Create the filesystems. This layout is designed so that /home is separate from the root.
+# Create /root & /home subvolumes.
 zfs create -o mountpoint=none rpool/root
 zfs create -o mountpoint=legacy rpool/root/nixos
 zfs create -o mountpoint=legacy rpool/home
 
-# Mount the root and home.
+# Mount the /root and /home.
 mount -t zfs rpool/root/nixos /mnt
 mkdir /mnt/home
 mount -t zfs rpool/home /mnt/home
 
-# Create and mount /boot. In my case I'd use /dev/sda6
-mkfs.vfat /dev/sda6
+# Create and mount /boot.
+mkfs.vfat /dev/sdaX
 mkdir /mnt/boot
-mount /dev/sda6 /mnt/boot
+mount /dev/sdaX /mnt/boot
 
 #+end_src
 
 *** Installing the System ❄️
 
-In the case you didn't decide to use the previous steps you'll have to regenerate =hardware-configuration.nix= and configure the bootloader and any other thing my file has. 
-
 #+begin_src sh
-# Get git. 
+
+# Generate initial configuration.
+nixos-generate-config --root /mnt
+
+# Copy the hardware-configuration.nix file to ~/
+# This is totally necesary for the next steps.
+cp /mnt/etc/nixos/hardware-configuration.nix ~/
+
+# # Get into a Nix shell with git.
 nix-shell -p git
 
 # Clone the repository & copy the files.
+# Remember to change modules and drivers relative to hardaware's file you have in ~/
 git clone https://github.com/HBlanqueto/nixdots.git --depth 1
-cp ~/nixdots/nixos /mnt/etc/
+cp -r ~/nixdots/nixos /mnt/etc/
 
-# Install NixOS
+# Once you modified the files. Install the OS.
 nixos-install --root /mnt
 #+end_src
 
 *** Unstable Channel ☃️
 
-I like using the 22.05 version of the system, activate unstable on NixOS is as easier as following the next commands with sudo:
+Upgrading NixOS to Unstable version, It's easy as the next steps here.
 
 #+begin_src sh
 # Not using sudo only affects users (user packages).
