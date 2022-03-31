@@ -7,7 +7,7 @@
 {
   imports =
     [
-      # - Modules & partitions. -
+      # - Modules & bootloader. -
       ./hardware-configuration.nix
 
       # - Desktop Enviroment. -
@@ -56,13 +56,13 @@
     };
 
     optimise.automatic = true;
-    #settings.sandbox = false;
+    settings.sandbox = false;
   };
 
   networking = {
     # generate the hostID through executing:
     # $ head -c4 /dev/urandom | od -A none -t x4
-    hostId = "c39e1dae";
+    hostId = "cafebabe";
     hostName = "ASUS-C400SA"; 
     networkmanager.enable = true;
     firewall.enable = true;
@@ -74,43 +74,48 @@
 
   time = {
     timeZone = "America/Mexico_City";
-    hardwareClockInLocalTime = true; # Dualboot
+    hardwareClockInLocalTime = true;
   };
 
   services = {
-   blueman.enable = true;
-   printing.enable = false;  
+   blueman.enable = false;
+   printing.enable = false;
+   #fprintd.enable = true;
+   #upower.enable = true;
+   #gvfs.enable = true;
    zfs.autoScrub.enable = true;
 
   xserver = {
     enable = true;
     layout = "es";
-    desktopManager.xterm.enable = false;
     libinput.enable = true;
 
   # Use this If you only use Gnome
   displayManager = {  
+
    gdm = {
       enable = true;
       autoSuspend = true;
       wayland = true;
       #nvidiaWayland = true;   
      };
-   defaultSession = "gnome";
+ 
+  defaultSession = "gnome";
+
     };
   };
 
   pipewire = {
     enable = true;
-    #wireplumber.enable = true;
+    wireplumber.enable = true;
 
     alsa = {     
       enable = true;
       #support32Bit = true;    
-    };
+     };
 
-      pulse.enable = true;
-      jack.enable = true;
+    pulse.enable = true;
+    jack.enable = true;
     };
   }; 
   
@@ -148,11 +153,9 @@
     #chromium
     firefox
     tdesktop
-
-    #gnome.gnome-terminal
-    gnome-console
+    gnome.gnome-terminal
+    #gnome-console
     gnome.nautilus
-
     nano
     wget
     man 

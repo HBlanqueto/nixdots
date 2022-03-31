@@ -22,6 +22,7 @@ Hello Stranger! These files are my personal NixOS settings thought for any compu
     - [[#zfs-partitions-][ZFS Partitions]]
     - [[#installing-the-system-%EF%B8%8F][Installing the System]]
     - [[#unstable-channel-%EF%B8%8F][Unstable Channel]]
+  - [[#gallery][Gallery]]
   - [[#special-thanks][Special Thanks]]
 #+END_QUOTE
 
@@ -103,6 +104,12 @@ nix-channel --update
 # Rebuild the system.
 nixos-rebuild switch --upgrade
 #+end_src
+
+** Gallery
+
+#+HTML:<img alt="Screenshot" align="center" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+
+#+HTML:<img alt="Screenshot" align="center" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
 
 ** Special Thanks
 - [[https://github.com/JavaCafe01/dotfiles][dotfiles]] by *javacafe01*
