@@ -6,7 +6,11 @@
 #+LANGUAGE:  en
 
 #+HTML:<div align=center>
-* Nixdots
+
+#+HTML:<a href="https://nixos.org/"><img alt="NixOS Logo" height="190" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/laptop.png"></a>
+
+* ⛄ Nixdots ❄️
+
 #+HTML:</div>
 
 *Where am I? Who are you?*
