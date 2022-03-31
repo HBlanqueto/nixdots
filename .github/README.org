@@ -107,9 +107,9 @@ nixos-rebuild switch --upgrade
 
 ** Gallery
 
-#+HTML:<img alt="Screenshot" align="center" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/gnome%20desktop%2001.png"></a>
 
-#+HTML:<img alt="Screenshot" align="center" src="https://github.com/NixOS/nixos-artwork/blob/master/logo/nix-snowflake.svg"></a>
+#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/gnome%20desktop%2002.png"></a>
 
 ** Special Thanks
 - [[https://github.com/JavaCafe01/dotfiles][dotfiles]] by *javacafe01*
