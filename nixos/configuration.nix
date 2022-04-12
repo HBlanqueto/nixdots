@@ -1,6 +1,4 @@
-# Feel free to modify whatever you want. These files are totally based on anothers.
-# Help is available in the configuration.nix(5) man page and in the NixOS manual 
-# (accessible by running ‘nixos-help’).
+# This configuration file needs to be used on a ZFS.
 
 { config, lib, pkgs, ... }:
 
@@ -11,7 +9,8 @@
       ./hardware-configuration.nix
 
       # - Desktop Enviroment. -
-      ./sys/gnome.nix
+      #./sys/gnome.nix
+      ./sys/awesome.nix
 
       # - GPU and Hardware Aceleration. -
       #./sys/gpu/amd.nix
@@ -43,6 +42,7 @@
       "networkmanager"
       "audio"
       "video"
+      "sudo"
       ];
     };   
   };
@@ -60,13 +60,14 @@
   };
 
   networking = {
+
+    networkmanager.enable = true;
     # generate the hostID through executing:
     # $ head -c4 /dev/urandom | od -A none -t x4
     hostId = "cafebabe";
-    hostName = "ASUS-C400SA"; 
-    networkmanager.enable = true;
+    hostName = "ASUS-C400SA";
     firewall.enable = true;
-    useDHCP = false;
+    useDHCP = false; 
 
   };
 
@@ -77,37 +78,40 @@
     hardwareClockInLocalTime = true;
   };
 
+  security.rtkit.enable = true;
+
   services = {
-   blueman.enable = false;
-   printing.enable = false;
+   #blueman.enable = true;
+   #printing.enable = true;
    #fprintd.enable = true;
    #upower.enable = true;
    #gvfs.enable = true;
+   gnome.gnome-keyring.enable = true; 
    zfs.autoScrub.enable = true;
-
+   dbus.enable = true;    
+  
   xserver = {
     enable = true;
     layout = "es";
     libinput.enable = true;
-
-  # Use this If you only use Gnome
-  displayManager = {  
+    
+   displayManager = {
 
    gdm = {
       enable = true;
-      autoSuspend = true;
+      autoSuspend = false;
       wayland = true;
       #nvidiaWayland = true;   
      };
  
-  defaultSession = "gnome";
+      defaultSession = "none+awesome";
 
     };
   };
 
   pipewire = {
     enable = true;
-    wireplumber.enable = true;
+    wireplumber.enable = false;
 
     alsa = {     
       enable = true;
@@ -116,6 +120,10 @@
 
     pulse.enable = true;
     jack.enable = true;
+    
+    config = import ./sys/pipewire;
+     media-session.config = import ./sys/pipewire/media-session.nix;
+     media-session.enable = true;
     };
   }; 
   
@@ -125,22 +133,12 @@
     font = "Lat2-Terminus16";
     keyMap = "es";
     colors = [
-    "0D1117"
-    "FA7970"
-    "7CE38B"
-    "FAA356"
-    "AFDBFF"
-    "CEA5FB"
-    "77BDFB"
-    "C6CDD5"
-    "89929B"
-    "FA7970"
-    "7CE38B"
-    "FAA356"
-    "AFDBFF"
-    "CEA5FB"
-    "77BDFB"
-    "ECF2F8"
+    
+    "010409"  "FF958E" "9DFAAA" "FCBE87" 
+    "CEE9FF" "E3C9FF" "A5D5FF" "C6CDD5"
+    "363B42" "FA7970" "7CE38B" "FAA356" 
+    "CEE9FF" "E3C9FF" "A5D5FF" "F6FAFD"
+    
     ];
   };
   
@@ -151,11 +149,21 @@
 
   environment.systemPackages = with pkgs; [
     #chromium
-    firefox
+    google-chrome-dev
+    #firefox
     tdesktop
-    gnome.gnome-terminal
+    
+    #gnome.gnome-terminal
+    wezterm
     #gnome-console
-    gnome.nautilus
+    
+    #gnome.nautilus
+    xfce.thunar
+
+    rofi
+    pamixer
+    #nm-tray
+    polkit_gnome
     nano
     wget
     man 
@@ -165,10 +173,10 @@
   fonts.fonts = with pkgs; [
     noto-fonts-emoji-blob-bin
     noto-fonts
-    noto-fonts-cjk
+    #noto-fonts-cjk
     powerline-fonts
-    ipafont
-    #cantarell-fonts
+    #ipafont
+    cantarell-fonts
     #inter
 
   (nerdfonts.override {

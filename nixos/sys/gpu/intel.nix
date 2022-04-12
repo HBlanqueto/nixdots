@@ -15,24 +15,27 @@
     };
   };
 
-  hardware = { 
-  
+  hardware = {
    cpu = {
-     intel.updateMicrocode = true;
-    };
-
-    opengl = {
-      enable = true;
-      driSupport = true;
-      #driSupport32Bit = true;
-      #extraPackages32 = with pkgs.pkgsi686Linux; [ vaapiIntel ];
+      intel.updateMicrocode = true;
+   };
+  
+   opengl = {
+    enable = true;
+    driSupport = true;
 
     extraPackages = with pkgs; [
       intel-media-driver
       vaapiIntel
       vaapiVdpau
       libvdpau-va-gl
-     ];
+      ];
     };
   };
+
+  # For 32 bit applications
+  # hardware.opengl = {
+  #   driSupport32Bit = true;
+  #   extraPackages32 = with pkgs.pkgsi686Linux; [ vaapiIntel ];
+  # };
 }

@@ -10,13 +10,13 @@
    zfs.enableUnstable = true; 
    cleanTmpDir = true;
    
-   kernelPackages = pkgs.linuxPackages_lqx; # Kernel
+   kernelPackages = pkgs.linuxPackages_xanmod; # Kernel _xanmod
    kernelModules = [ "kvm-intel" ]; # "kmd-ad" "wl"
-   #extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Drive
+   # extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Driver
    
     initrd = {
     availableKernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
-    #kernelModules = [ "amdgpu" "wl" ];
+    # kernelModules = [ "amdgpu" "wl" ];
     };
     
     loader = {
@@ -32,7 +32,7 @@
         version = 2;
         devices = [ "nodev" ];
         efiSupport = true;
-        useOSProber = false;
+        useOSProber = true;
         theme = null;
       };
 
@@ -54,7 +54,7 @@
     };
 
   fileSystems."/boot" =
-    { device = "/dev/sda6";
+    { device = "/dev/disk/by-uuid/6A77-97E0";
       fsType = "vfat";
     };
 
@@ -67,6 +67,5 @@
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   # hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
-
 
 }
