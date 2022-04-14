@@ -5,10 +5,18 @@ local beautiful = require("beautiful")
 local dpi = xresources.apply_dpi
 local xrdb = xresources.get_current_theme()
 
+local gears = require("gears")
 local gfs = require("gears.filesystem")
 
 local theme = {}
 
+-- [ Images ] 
+--theme.wallpaper = gfs.get_configuration_dir() .. "theme/images/space-dark.png"
+theme.me = gfs.get_configuration_dir() .. "theme/images/me.png"
+--theme.me = gears.surface.load_uncached(gfs.get_configuration_dir() .. "images/me.png")
+
+-- [ Xresources ]
+-- But I don't use them, heh.
 theme.xbackground = "#010409"
 theme.xforeground = "#C6CDD5"
 
@@ -30,62 +38,36 @@ theme.xcolor14 = "#A5D5FF"
 theme.xcolor15 = "#C6CDD5"
 theme.xcolor16 = "#30363d"
 
---theme.wallpaper = gfs.get_configuration_dir() .. "theme/images/space-dark.png"
+-- [ Exitscreen ]
+theme.exit_screen_fg = theme.xcolor15
+theme.exit_screen_bg = theme.xcolor8
 
-theme.nerd_font_name = "JetBrainsMono Nerd Font "
+-- [ Lockscreen ]
+theme.widget_border_radius = dpi(7)
+
+-- [ Fonts ]
+theme.icon_font_name = "JetBrainsMono Nerd Font "
 theme.font_name      = "Cantarell "
-theme.font           = theme.font_name .. "10"
+theme.font           = theme.font_name .. "9"
+theme.titlebar_font  = theme.font_name .. "9"
+theme.fg_normal      = theme.xcolor15
+theme.fg_focus       = theme.xcolor7
+theme.fg_urgent      = theme.xcolor7
+theme.fg_minimize    = theme.xcolor7
 
+-- [ Windows ]
 theme.bg_focus      = theme.xcolor0
 theme.bg_normal     = theme.xcolor8
 theme.bg_urgent     = theme.xcolor8
 theme.bg_minimize   = theme.xcolor0
-
-theme.fg_normal     = theme.xcolor15
-theme.fg_focus      = theme.xcolor7
-theme.fg_urgent     = theme.xcolor7
-theme.fg_minimize   = theme.xcolor7
-
-theme.useless_gap   = dpi(7)
-theme.border_width  = dpi(1) 
 theme.border_normal = theme.xcolor16
 theme.border_focus  = theme.xcolor16
 theme.border_marked = theme.xcolor16
+theme.useless_gap   = dpi(7)
+theme.border_width  = dpi(1) 
 
 theme.menu_height = dpi(20)
 theme.menu_width  = dpi(140)
-
--- tabbar general
-theme.tabbar_ontop = false
-theme.tabbar_radius = 0 -- border radius of the tabbar
-theme.tabbar_style = "default" -- style of the tabbar ("default", "boxes" or "modern")
-theme.tabbar_font = "Sans 11" -- font of the tabbar
-theme.tabbar_size = 40 -- size of the tabbar
-theme.tabbar_position = "top" -- position of the tabbar
-theme.tabbar_bg_normal = "#000000" -- background color of the focused client on the tabbar
-theme.tabbar_fg_normal = "#ffffff" -- foreground color of the focused client on the tabbar
-theme.tabbar_bg_focus = "#1A2026" -- background color of unfocused clients on the tabbar
-theme.tabbar_fg_focus = "#ff0000" -- foreground color of unfocused clients on the tabbar
-
--- mstab
-theme.mstab_bar_ontop = false -- whether you want to allow the bar to be ontop of clients
-theme.mstab_dont_resize_slaves = false -- whether the tabbed stack windows should be smaller than the
--- currently focused stack window (set it to true if you use
--- transparent terminals. False if you use shadows on solid ones
-theme.mstab_bar_padding = "default" -- how much padding there should be between clients and your tabbar
--- by default it will adjust based on your useless gaps. 
--- If you want a custom value. Set it to the number of pixels (int)
-theme.mstab_border_radius = 0 -- border radius of the tabbar
-theme.mstab_bar_height = 40 -- height of the tabbar
-theme.mstab_tabbar_position = "top" -- position of the tabbar (mstab currently does not support left,right)
-theme.mstab_tabbar_style = "default" -- style of the tabbar ("default", "boxes" or "modern")
--- defaults to the tabbar_style so only change if you want a
--- different style for mstab and tabbed
-
--- the following variables are currently only for the "modern" tabbar style 
-theme.tabbar_color_close = "#f9929b" -- chnges the color of the close button
-theme.tabbar_color_min = "#fbdf90" -- chnges the color of the minimize button
-theme.tabbar_color_float = "#ccaced" -- chnges the color of the float button
 
 -- Generate taglist squares:
 local taglist_square_size = dpi(7)

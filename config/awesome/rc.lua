@@ -14,6 +14,7 @@ local bling = require("modules.bling")
 
 -- All configurations.
 require("configuration")
+require('ui')
 
 
 beautiful.init(gfs.get_configuration_dir() .. "theme/theme.lua")

@@ -208,7 +208,7 @@ function helpers.move_to_edge(c, direction)
         awful.placement.right(c, {
             honor_padding = true,
             honor_workarea = true,
-            honor_padding = true 
+            honor_padding = true
         })
         c.y = old_y
         -- c:geometry({ x = workarea.width + workarea.x - client_geometry.width - beautiful.screen_margin * 2 - beautiful.border_width * 2, nil, nil, nil })

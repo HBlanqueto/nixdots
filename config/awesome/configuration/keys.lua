@@ -34,6 +34,11 @@ group = "tabs"}),
 
 
 -- [ AwesomeWM ]
+     awful.key({ ctrl, altkey }, "f", function()
+      exit_screen_show() end, {description = "Show exit screen", group = "Awesome"}),
+
+    awful.key({ ctrl, altkey }, "r", function() lock_screen_show() end, {description = "Show exit screen", group = "Awesome"}),
+   
     awful.key({ modkey, }, "s", hotkeys_popup.show_help,
        {description="Show help", group="Awesome"}),
 
