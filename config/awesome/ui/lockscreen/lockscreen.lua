@@ -7,7 +7,6 @@
 -- A SIMPLE AWESOMEWM RELOAD CAN BREAK THROUGH. I USE THIS BECAUSE I DONT CARE
 -- ABOUT MY LAPTOP'S SECURITY.
 --
--- Me: Si
 local awful = require("awful")
 local gears = require("gears")
 local wibox = require("wibox")
@@ -50,7 +49,7 @@ local gradient = {
     stops = {{0.4, beautiful.xcolor5}, {0.9, beautiful.xcolor4}}
 }
 
-lock_screen_box.bg = gradient
+lock_screen_box.bg = beautiful.exit_screen_bg .. "50" --gradient
 
 -- Add lockscreen gradient to each screen
 awful.screen.connect_for_each_screen(function(s)

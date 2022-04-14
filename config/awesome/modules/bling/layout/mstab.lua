@@ -8,7 +8,7 @@ local mylayout = {}
 
 mylayout.name = "mstab"
 
-local tabbar_ontop = beautiful.mstab_bar_ontop or false
+local tabbar_ontop = beautiful.mstab_bar_ontop or true
 local tabbar_padding = beautiful.mstab_bar_padding or "modern"
 local border_radius = beautiful.mstab_border_radius or 
                             beautiful.border_radius or 0

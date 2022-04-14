@@ -1,11 +1,17 @@
 local gears = require("gears")
 local awful = require("awful")
 local hotkeys_popup = require("awful.hotkeys_popup")
-local beautiful = require("beautiful")
+--local beautiful = require("beautiful")
 local bling = require("modules.bling")
 
-globalkeys = gears.table.join(
+-- Right Click shows 'dropmenu'
+root.buttons(gears.table.join(
+    awful.button({ }, 3, function () mymainmenu:toggle() end),
+    awful.button({ }, 4, awful.tag.viewnext),
+    awful.button({ }, 5, awful.tag.viewprev)
+))
 
+globalkeys = gears.table.join(
 
  -- [ Volume ]
     awful.key({ }, "XF86AudioRaiseVolume", function ()

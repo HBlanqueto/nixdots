@@ -25,8 +25,8 @@
       backend = "glx";
       vSync = true;
       shadow = true;
-      shadowOffsets = [ (-18) (-18) ];
-      shadowOpacity = 0.8;
+      shadowOffsets = [ (-20) (-20) ];
+      shadowOpacity = 0.9;
 
       shadowExclude = [
         #"class_g = 'slop'"
@@ -39,7 +39,7 @@
       ];
 
       opacityRules = [
-        "85:class_g = 'splash'"
+        #"85:class_g = 'splash'"
       ];
 
       wintypes = {
@@ -54,15 +54,15 @@
 
         corner-radius = 7;
         rounded-corners-exclude = [
-          
+         "window_type = 'dock'"  
         ];
 
         blur-method = "dual_kawase";
         blur-strength = 8.0;
         kernel = "11x11gaussian";
         blur-background = false;
-        blur-background-frame = false;
-        blur-background-fixed = false;
+        blur-background-frame = true;
+        blur-background-fixed = true;
 
         blur-background-exclude = [
           "!window_type = 'splash'"

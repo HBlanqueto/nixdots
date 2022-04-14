@@ -2,12 +2,6 @@ local gears = require("gears")
 local awful = require("awful")
 local beautiful = require("beautiful")
 
-local gfs = require("gears.filesystem")
-local themes_path = gfs.get_configuration_dir()
-
--- Initialize selected theme.
-beautiful.init(themes_path .. "theme/theme.lua")
-
 awful.rules.rules = {
 
    { rule = { },
@@ -68,7 +62,7 @@ awful.rules.rules = {
     }, 
     
         properties = { 
-            titlebars_enabled = true 
+            titlebars_enabled = true
       }
     },
 

@@ -93,7 +93,7 @@ local lock = create_button(lock_text_icon, beautiful.xcolor5, "Lock",
 exit_screen = wibox({visible = false, ontop = true, type = "splash"})
 awful.placement.maximize(exit_screen)
 
-exit_screen.bg = beautiful.exit_screen_bg .. "80"
+exit_screen.bg = beautiful.exit_screen_bg .. "50"
 exit_screen.fg = beautiful.exit_screen_fg
 
 local exit_screen_grabber

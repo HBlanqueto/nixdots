@@ -7,13 +7,15 @@ local xrdb = xresources.get_current_theme()
 
 local gears = require("gears")
 local gfs = require("gears.filesystem")
+local bling = require("modules.bling")
 
 local theme = {}
 
 -- [ Images ] 
---theme.wallpaper = gfs.get_configuration_dir() .. "theme/images/space-dark.png"
-theme.me = gfs.get_configuration_dir() .. "theme/images/me.png"
+--theme.wallpaper = gfs.get_configuration_dir() .. "theme/images/bladerunner.png"
+theme.me = gfs.get_configuration_dir() .. "theme/images/me.jpg"
 --theme.me = gears.surface.load_uncached(gfs.get_configuration_dir() .. "images/me.png")
+
 
 -- [ Xresources ]
 -- But I don't use them, heh.
@@ -21,7 +23,7 @@ theme.xbackground = "#010409"
 theme.xforeground = "#C6CDD5"
 
 theme.xcolor0  = "#010409"
-theme.xcolor1  = "#FF958E"
+theme.xcolor1  = "#F78166"
 theme.xcolor2  = "#9DFAAA"
 theme.xcolor3  = "#FBDF90"
 theme.xcolor4  = "#CEE9FF"
@@ -36,24 +38,21 @@ theme.xcolor12 = "#CEE9FF"
 theme.xcolor13 = "#E3C9FF"
 theme.xcolor14 = "#A5D5FF"
 theme.xcolor15 = "#C6CDD5"
+
 theme.xcolor16 = "#30363d"
+theme.xcolor17 = "#4c5b75"
 
--- [ Exitscreen ]
-theme.exit_screen_fg = theme.xcolor15
-theme.exit_screen_bg = theme.xcolor8
-
--- [ Lockscreen ]
-theme.widget_border_radius = dpi(7)
 
 -- [ Fonts ]
 theme.icon_font_name = "JetBrainsMono Nerd Font "
-theme.font_name      = "Cantarell "
+theme.font_name      = "Inter "
 theme.font           = theme.font_name .. "9"
 theme.titlebar_font  = theme.font_name .. "9"
 theme.fg_normal      = theme.xcolor15
 theme.fg_focus       = theme.xcolor7
 theme.fg_urgent      = theme.xcolor7
 theme.fg_minimize    = theme.xcolor7
+
 
 -- [ Windows ]
 theme.bg_focus      = theme.xcolor0
@@ -68,6 +67,16 @@ theme.border_width  = dpi(1)
 
 theme.menu_height = dpi(20)
 theme.menu_width  = dpi(140)
+
+
+-- [ Exitscreen ]
+theme.exit_screen_fg = theme.xcolor15
+theme.exit_screen_bg = theme.xcolor8
+
+
+-- [ Lockscreen ]
+theme.widget_border_radius = dpi(7)
+
 
 -- Generate taglist squares:
 local taglist_square_size = dpi(7)
@@ -95,11 +104,14 @@ theme.layout_cornerne   = gfs.get_configuration_dir() .. "theme/layouts/cornerne
 theme.layout_cornersw   = gfs.get_configuration_dir() .. "theme/layouts/cornersww.png"
 theme.layout_cornerse   = gfs.get_configuration_dir() .. "theme/layouts/cornersew.png"
 
-theme.awesome_icon = 
+-- [ Awesome Icon ]
+theme.awesome_icon =
+
   theme_assets.awesome_icon(
+
     theme.menu_height,
-    theme.bg_focus,
-    theme.fg_focus
+    theme.xcolor8,
+    theme.xcolor1
 )
 
 theme.icon_theme = nil
