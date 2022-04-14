@@ -1,6 +1,8 @@
 local gears = require("gears")
 local awful = require("awful")
 local hotkeys_popup = require("awful.hotkeys_popup")
+local beautiful = require("beautiful")
+local bling = require("modules.bling")
 
 globalkeys = gears.table.join(
 
@@ -15,6 +17,16 @@ globalkeys = gears.table.join(
     awful.key({ }, "XF86AudioMute", function ()  
        awful.util.spawn("pamixer -t") end, {description = "Mute Volume", group = "Volume"}),
 
+-- [ Tabbs ]
+    awful.key({altkey}, "a", function() 
+       bling.module.tabbed.pick_with_dmenu() end, {description = "pick client to add to tab group", group = "tabs"}),
+
+    awful.key({altkey}, "s", function() 
+       bling.module.tabbed.iter() end, {description = "iterate through tabbing group", group = "tabs"}),
+
+    awful.key({altkey}, "d", function() 
+      bling.module.tabbed.pop() end, {description = "remove focused client from tabbing group",
+group = "tabs"}),
 
 -- [ Rofi ]
     awful.key({ altkey, }, "space", function () 

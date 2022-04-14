@@ -16,7 +16,7 @@ local gears = require("gears")
 local beautiful = require("beautiful")
 local helpers = require(tostring(...):match(".*bling") .. ".helpers")
 
-local bar_style = beautiful.tabbar_style or "default"
+local bar_style = beautiful.tabbar_style or "modern"
 local bar = require(tostring(...):match(".*bling") .. ".widget.tabbar." ..
                         bar_style)
 

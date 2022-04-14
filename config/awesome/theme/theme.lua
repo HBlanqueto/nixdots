@@ -30,11 +30,11 @@ theme.xcolor14 = "#A5D5FF"
 theme.xcolor15 = "#C6CDD5"
 theme.xcolor16 = "#30363d"
 
---theme.wallpaper = gfs.get_configuration_dir() .. "images/space-dark.png"
+--theme.wallpaper = gfs.get_configuration_dir() .. "theme/images/space-dark.png"
 
 theme.nerd_font_name = "JetBrainsMono Nerd Font "
-theme.font_name      = "Cantarel "
-theme.font           = theme.font_name .. "9"
+theme.font_name      = "Cantarell "
+theme.font           = theme.font_name .. "10"
 
 theme.bg_focus      = theme.xcolor0
 theme.bg_normal     = theme.xcolor8
@@ -52,17 +52,49 @@ theme.border_normal = theme.xcolor16
 theme.border_focus  = theme.xcolor16
 theme.border_marked = theme.xcolor16
 
+theme.menu_height = dpi(20)
+theme.menu_width  = dpi(140)
+
+-- tabbar general
+theme.tabbar_ontop = false
+theme.tabbar_radius = 0 -- border radius of the tabbar
+theme.tabbar_style = "default" -- style of the tabbar ("default", "boxes" or "modern")
+theme.tabbar_font = "Sans 11" -- font of the tabbar
+theme.tabbar_size = 40 -- size of the tabbar
+theme.tabbar_position = "top" -- position of the tabbar
+theme.tabbar_bg_normal = "#000000" -- background color of the focused client on the tabbar
+theme.tabbar_fg_normal = "#ffffff" -- foreground color of the focused client on the tabbar
+theme.tabbar_bg_focus = "#1A2026" -- background color of unfocused clients on the tabbar
+theme.tabbar_fg_focus = "#ff0000" -- foreground color of unfocused clients on the tabbar
+
+-- mstab
+theme.mstab_bar_ontop = false -- whether you want to allow the bar to be ontop of clients
+theme.mstab_dont_resize_slaves = false -- whether the tabbed stack windows should be smaller than the
+-- currently focused stack window (set it to true if you use
+-- transparent terminals. False if you use shadows on solid ones
+theme.mstab_bar_padding = "default" -- how much padding there should be between clients and your tabbar
+-- by default it will adjust based on your useless gaps. 
+-- If you want a custom value. Set it to the number of pixels (int)
+theme.mstab_border_radius = 0 -- border radius of the tabbar
+theme.mstab_bar_height = 40 -- height of the tabbar
+theme.mstab_tabbar_position = "top" -- position of the tabbar (mstab currently does not support left,right)
+theme.mstab_tabbar_style = "default" -- style of the tabbar ("default", "boxes" or "modern")
+-- defaults to the tabbar_style so only change if you want a
+-- different style for mstab and tabbed
+
+-- the following variables are currently only for the "modern" tabbar style 
+theme.tabbar_color_close = "#f9929b" -- chnges the color of the close button
+theme.tabbar_color_min = "#fbdf90" -- chnges the color of the minimize button
+theme.tabbar_color_float = "#ccaced" -- chnges the color of the float button
+
 -- Generate taglist squares:
-local taglist_square_size = dpi(4)
+local taglist_square_size = dpi(7)
 theme.taglist_squares_sel = theme_assets.taglist_squares_sel(
     taglist_square_size, theme.fg_normal
 )
 theme.taglist_squares_unsel = theme_assets.taglist_squares_unsel(
     taglist_square_size, theme.fg_normal
 )
-
-theme.menu_height = dpi(20)
-theme.menu_width  = dpi(140)
 
 theme.layout_fairh      = gfs.get_configuration_dir() .. "theme/layouts/fairhw.png"
 theme.layout_fairv      = gfs.get_configuration_dir() .. "theme/layouts/fairvw.png"

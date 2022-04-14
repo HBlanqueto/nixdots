@@ -13,6 +13,8 @@ ctrl = "Control"
 
 require('configuration.keys')
 
+require('configuration.titlebars')
+
 require('configuration.rules')
 
 

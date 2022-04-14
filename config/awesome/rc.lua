@@ -35,8 +35,6 @@ awful.screen.connect_for_each_screen(function(s)
         zickzack = true
     })
 end)
---]]
-
 
 -- Check if awesome encountered an error during startup and fell back to.
 if awesome.startup_errors then
@@ -147,7 +145,7 @@ local tasklist_buttons = gears.table.join(
 
 awful.screen.connect_for_each_screen(function(s)
 
-    set_wallpaper(s)
+    --set_wallpaper(s)
 
     -- Each screen has its own tag table.
     awful.tag({ "1", "2", "3", "4", "5" }, s, awful.layout.layouts[1])

@@ -72,4 +72,14 @@ awful.rules.rules = {
       }
     },
 
+    { rule = { 
+      class = 
+      "Code"
+    },
+
+       properties = { 
+         titlebars_enabled = false 
+      } 
+    },
+
 }
