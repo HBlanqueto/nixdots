@@ -9,8 +9,8 @@
       ./hardware-configuration.nix
 
       # - Desktop Enviroment. -
-      #./sys/gnome.nix
-      ./sys/awesome.nix
+      ./sys/gnome.nix
+      #./sys/awesome.nix
 
       # - GPU and Hardware Aceleration. -
       #./sys/gpu/amd.nix
@@ -60,14 +60,13 @@
   };
 
   networking = {
-
-    networkmanager.enable = true;
     # generate the hostID through executing:
     # $ head -c4 /dev/urandom | od -A none -t x4
     hostId = "cafebabe";
-    hostName = "ASUS-C400SA";
+    hostName = "ASUS-C400SA"; 
+    networkmanager.enable = true;
     firewall.enable = true;
-    useDHCP = false; 
+    useDHCP = false;
 
   };
 
@@ -85,7 +84,7 @@
    #printing.enable = true;
    #fprintd.enable = true;
    #upower.enable = true;
-   #gvfs.enable = true;
+   gvfs.enable = true;
    gnome.gnome-keyring.enable = true; 
    zfs.autoScrub.enable = true;
    dbus.enable = true;    
@@ -134,7 +133,7 @@
     keyMap = "es";
     colors = [
     
-    "010409"  "FF958E" "9DFAAA" "FCBE87" 
+    "010409"  "FF958E" "9DFAAA" "FBDF90" 
     "CEE9FF" "E3C9FF" "A5D5FF" "C6CDD5"
     "363B42" "FA7970" "7CE38B" "FAA356" 
     "CEE9FF" "E3C9FF" "A5D5FF" "F6FAFD"
@@ -157,11 +156,13 @@
     wezterm
     #gnome-console
     
-    #gnome.nautilus
-    xfce.thunar
+    gnome.nautilus
+    #xfce.thunar
 
     rofi
     pamixer
+    git
+    lxappearance
     #nm-tray
     polkit_gnome
     nano

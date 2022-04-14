@@ -2,7 +2,7 @@
 
 {
 
-  services = {   
+ services = {   
  
    xserver = {     
     windowManager = {
@@ -24,7 +24,7 @@
       experimentalBackends = true;
       backend = "glx";
       vSync = true;
-      shadow = false;
+      shadow = true;
       shadowOffsets = [ (-18) (-18) ];
       shadowOpacity = 0.8;
 
@@ -32,7 +32,7 @@
         #"class_g = 'slop'"
         "window_type = 'menu'"
         "window_type = 'dock'"
-        "window_type = 'desktop'"
+        #"window_type = 'desktop'"
         "class_g = 'Firefox' && window_type *= 'utility'"
         "_GTK_FRAME_EXTENTS@:c"
         "class_g = 'TelegramDesktop' && argb"
@@ -52,7 +52,7 @@
       settings = {
         # animations = true;
 
-        corner-radius = 9;
+        corner-radius = 7;
         rounded-corners-exclude = [
           
         ];

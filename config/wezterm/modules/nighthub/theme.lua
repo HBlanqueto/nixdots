@@ -9,7 +9,7 @@ col.split = "#3b4b58"
 
 col.ansi = {
  
-    "#3b4b58", "#FF958E", "#9DFAAA", "#FCBE87", "#CEE9FF", "#E3C9FF", "#A5D5FF",
+    "#3b4b58", "#FF958E", "#9DFAAA", "#FBDF90", "#CEE9FF", "#E3C9FF", "#A5D5FF",
     "#F6FAFD"
 }
 col.brights = {
