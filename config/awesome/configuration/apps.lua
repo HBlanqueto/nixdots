@@ -5,7 +5,7 @@ terminal = "wezterm"
 
 browser = "google-chrome-unstable --enable-features=VaapiVideoDecoder --disable-features=UseOzonePlataform"
 
-editor = "nano"
+editor = "nvim"
 
 tdesktop = "telegram-desktop"
 

@@ -23,6 +23,14 @@ globalkeys = gears.table.join(
     awful.key({ }, "XF86AudioMute", function ()  
        awful.util.spawn("pamixer -t") end, {description = "Mute Volume", group = "Volume"}),
 
+-- [ Brightness ]
+     awful.key({ }, "XF86MonBrightnessUp", function() 
+       awful.spawn("brightnessctl s +5%") end, {description = "increase brightness", group = "awesome"}),
+
+    awful.key({ }, "XF86MonBrightnessDown", function()
+       awful.spawn("brightnessctl s 5%-") end, {description = "decrease brightness", group = "awesome"}),
+
+
 -- [ Tabbs ]
     awful.key({altkey}, "a", function() 
        bling.module.tabbed.pick_with_dmenu() end, {description = "pick client to add to tab group", group = "tabs"}),
@@ -40,10 +48,10 @@ group = "tabs"}),
 
 
 -- [ AwesomeWM ]
-     awful.key({ ctrl, altkey }, "f", function()
+    awful.key({ ctrl, altkey }, "f", function()
       exit_screen_show() end, {description = "Show exit screen", group = "Awesome"}),
 
-    awful.key({ ctrl, altkey }, "r", function() lock_screen_show() end, {description = "Show exit screen", group = "Awesome"}),
+    awful.key({ ctrl, altkey }, "r", function() lock_screen_show() end, {description = "Show lock screen", group = "Awesome"}),
    
     awful.key({ modkey, }, "s", hotkeys_popup.show_help,
        {description="Show help", group="Awesome"}),
@@ -165,6 +173,7 @@ group = "tabs"}),
 
 clientkeys = gears.table.join(
 
+-- [ Client ]
     awful.key({ modkey, }, "f", function (c)
        c.fullscreen = not c.fullscreen c:raise() end, {description = "toggle fullscreen", group = "Client"}),
 

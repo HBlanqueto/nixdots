@@ -10,7 +10,7 @@
    zfs.enableUnstable = true; 
    cleanTmpDir = true;
    
-   kernelPackages = pkgs.linuxPackages_xanmod; # Kernel _xanmod
+   kernelPackages = pkgs.linuxPackages_lqx; # Kernel _xanmod _latest_libre
    kernelModules = [ "kvm-intel" ]; # "kmd-ad" "wl"
    # extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ]; # Broadcom Driver
    
@@ -21,11 +21,11 @@
     
     loader = {
 
-      systemd-boot = {
+      /* systemd-boot = {
         enable = false;
         consoleMode = "max";
         configurationLimit = 3;
-      };
+      }; */
 
       grub = {
         enable = true;

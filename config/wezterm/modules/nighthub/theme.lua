@@ -22,7 +22,8 @@ col.tab_bar = {
     inactive_tab_edge = "#010409",
 
     active_tab = {
-        bg_color = "#131a21",        fg_color = "#C6CDD5",
+        bg_color = "#131a21",        
+        fg_color = "#C6CDD5",
         intensity = "Half"
     },
     inactive_tab = {

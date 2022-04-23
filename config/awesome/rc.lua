@@ -1,5 +1,6 @@
-pcall(require, "luarocks.loader")
 -- [ Awesome libraries ]
+pcall(require, "luarocks.loader")
+
 local awful = require("awful")
 local beautiful = require("beautiful")
 local gears = require("gears")
@@ -13,6 +14,7 @@ beautiful.init(gfs.get_configuration_dir() .. "theme/theme.lua")
 -- [ My modules ]
 require("configuration")
 require('ui')
+
 
 -- [ Bling ]
 local bling = require("modules.bling")

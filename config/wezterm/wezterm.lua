@@ -54,7 +54,7 @@ local base = {
     default_cursor_style = "BlinkingBar",
 
     -- Activate this in Gnome
-    enable_wayland = false,
+    enable_wayland = true,
 
     -- Bright bold colors
     bold_brightens_ansi_colors = true,
@@ -63,7 +63,7 @@ local base = {
     window_close_confirmation = "NeverPrompt",
 
     -- Padding
-    window_padding = {left = 12, right = 12, top = 12, bottom = 12},
+    window_padding = {left = 18, right = 18, top = 18, bottom = 18},
 
     -- Opacity
     inactive_pane_hsb = {saturation = 1.0, brightness = 1.0}

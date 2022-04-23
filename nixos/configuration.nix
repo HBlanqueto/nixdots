@@ -9,8 +9,8 @@
       ./hardware-configuration.nix
 
       # - Desktop Enviroment. -
-      ./sys/gnome.nix
-      #./sys/awesome.nix
+      ./sys/env/gnome.nix
+      #./sys/env/awesome.nix
 
       # - GPU and Hardware Aceleration. -
       #./sys/gpu/amd.nix
@@ -52,7 +52,7 @@
       automatic = true;
       persistent = true;
       dates = "weekly";
-      options = "--delete-older-than 7d";
+      options = "--delete-older-than 5d";
     };
 
     optimise.automatic = true;
@@ -80,18 +80,19 @@
   security.rtkit.enable = true;
 
   services = {
-   #blueman.enable = true;
+   blueman.enable = true;
    #printing.enable = true;
    #fprintd.enable = true;
    #upower.enable = true;
-   gvfs.enable = true;
-   gnome.gnome-keyring.enable = true; 
+   #gvfs.enable = true;
+   #gnome.gnome-keyring.enable = true; 
    zfs.autoScrub.enable = true;
-   dbus.enable = true;    
+   #dbus.enable = true;    
   
   xserver = {
     enable = true;
     layout = "es";
+    wacom.enable = true;
     libinput.enable = true;
     
    displayManager = {
@@ -103,18 +104,18 @@
       #nvidiaWayland = true;   
      };
  
-      defaultSession = "none+awesome";
-
+      #defaultSession = "none+awesome";
+      defaultSession = "gnome";
     };
   };
 
   pipewire = {
     enable = true;
-    wireplumber.enable = false;
+    wireplumber.enable = true;
 
     alsa = {     
       enable = true;
-      #support32Bit = true;    
+      support32Bit = true;    
      };
 
     pulse.enable = true;
@@ -122,7 +123,7 @@
     
     config = import ./sys/pipewire;
      media-session.config = import ./sys/pipewire/media-session.nix;
-     media-session.enable = true;
+     #media-session.enable = true;
     };
   }; 
   
@@ -146,41 +147,47 @@
     allowBroken = true;
   };
 
-  environment.systemPackages = with pkgs; [
-    #chromium
-    google-chrome-dev
-    #firefox
-    tdesktop
+  environment = {
+    variables.EDITOR = "nvim";
+    systemPackages = with pkgs; [
+    # google-chrome-dev
+     firefox
+     element-desktop-wayland
+    # tdesktop
     
-    #gnome.gnome-terminal
     wezterm
-    #gnome-console
-    
     gnome.nautilus
-    #xfce.thunar
 
-    rofi
-    pamixer
-    git
-    lxappearance
-    #nm-tray
-    polkit_gnome
-    nano
-    wget
-    man 
-    zstd
-  ];
-  
+    # [ AwesomeWM ]
+    # rofi
+    # pamixer
+    # nm-tray
+    # polkit_gnome
+
+     neovim
+    # gcc
+    # clang
+    # llvm
+     lua
+     luarocks
+     python3
+
+     wget
+     man 
+   ];
+  };
+
   fonts.fonts = with pkgs; [
     noto-fonts-emoji-blob-bin
     noto-fonts
-    #noto-fonts-cjk
+    noto-fonts-cjk
     powerline-fonts
-    #ipafont
+    ipafont
+
     cantarell-fonts
     #inter
 
-  (nerdfonts.override {
+     (nerdfonts.override {
       fonts = [
         "JetBrainsMono"
       ];
@@ -190,5 +197,15 @@
   documentation.enable = false;
   documentation.nixos.enable = false;
   programs.command-not-found.enable = false;
+
+  xdg = {
+    portal = {
+     enable = true;
+     /* extraPortals = with pkgs; [
+       xdg-desktop-portal-wlr
+     ];
+     gtkUsePortal = true; */
+    };
+  };
 
 }
