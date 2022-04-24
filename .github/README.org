@@ -25,7 +25,9 @@ Hello Stranger! These files are my personal NixOS settings thought for any compu
     - [[#installing-the-system-%EF%B8%8F][Installing the System]]
     - [[#unstable-channel-%EF%B8%8F][Unstable Channel]]
   - [[#gallery][Gallery]]
-  - [[#special-thanks][Special Thanks]]
+    - [[#gnome-desktop][Gnome Desktop]]
+    - [[#awesome][AwesomeWM]]
+  - [[#references][References]]
 #+END_QUOTE
 
 ** Setup for NixOS
@@ -109,11 +111,20 @@ nixos-rebuild switch --upgrade
 
 ** Gallery
 
-#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/gnome%20desktop%2001.png"></a>
+*** Gnome Desktop
 
-#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/gnome%20desktop%2002.png"></a>
+#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/gnomedesktop.png"></a>
 
-** Special Thanks
+*** AwesomeWM
+
+I've not used AwesomeWM in long time since I deleted my old reddit account my main goal is too make a cool rice and confortable configuration, all you need is in config folder. 
+
+*Modules*
+- [[https://blingcorp.github.io/bling/#/][Bling]] =Tabs and tiled wallpaper=
+
+#+HTML:<img alt="Screenshot" align="center" src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/awesomewm.png"></a>
+
+** References
 - [[https://github.com/JavaCafe01/dotfiles][dotfiles]] by *javacafe01*
 - [[https://github.com/Leznom/VitalConfig][VitalConfig]] by *Leznom*
 - [[https://github.com/jx11r/nixdots][nixdots]] by *jx11r*
