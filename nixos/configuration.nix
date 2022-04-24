@@ -5,17 +5,14 @@
 {
   imports =
     [
-      # - Modules & bootloader. -
-      ./hardware-configuration.nix
+        ./hardware-configuration.nix
 
-      # - Desktop Enviroment. -
-      ./sys/env/gnome.nix
-      #./sys/env/awesome.nix
+        ./sys/env/gnome.nix
+        #./sys/env/awesome.nix
 
-      # - GPU and Hardware Aceleration. -
-      #./sys/gpu/amd.nix
-      ./sys/gpu/intel.nix
-      #./sys/gpu/nvidia.nix
+        #./sys/gpu/amd.nix
+        ./sys/gpu/intel.nix
+        #./sys/gpu/nvidia.nix
     ];
   
   system.stateVersion = "22.05";
@@ -24,9 +21,12 @@
     enable = true;
     autosuggestions.enable = true;
     syntaxHighlighting.enable = true;
-    ohMyZsh.enable = true;
-    ohMyZsh.plugins = [ "git" ];
-    ohMyZsh.theme = "gentoo";
+
+    ohMyZsh = {
+      enable = true;
+      plugins = [ "git" ];
+      theme = "gentoo";
+    };
   };
   
   users = {
@@ -37,12 +37,13 @@
     isNormalUser = true;
     description = "Humberto Blanqueto";
     home = "/home/hblanqueto";
+    
     extraGroups = [ 
-      "wheel" 
-      "networkmanager"
-      "audio"
-      "video"
-      "sudo"
+        "wheel" 
+        "networkmanager"
+        "audio"
+        "video"
+        "sudo"
       ];
     };   
   };
@@ -57,6 +58,7 @@
 
     optimise.automatic = true;
     settings.sandbox = false;
+  
   };
 
   networking = {
@@ -80,14 +82,14 @@
   security.rtkit.enable = true;
 
   services = {
-   blueman.enable = true;
-   #printing.enable = true;
-   #fprintd.enable = true;
-   #upower.enable = true;
-   #gvfs.enable = true;
-   #gnome.gnome-keyring.enable = true; 
-   zfs.autoScrub.enable = true;
-   #dbus.enable = true;    
+    blueman.enable = true;
+    #printing.enable = true;
+    #fprintd.enable = true;
+    #upower.enable = true;
+    #gvfs.enable = true;
+    #gnome.gnome-keyring.enable = true; 
+    #dbus.enable = true;
+    zfs.autoScrub.enable = true; 
   
   xserver = {
     enable = true;
@@ -95,17 +97,17 @@
     wacom.enable = true;
     libinput.enable = true;
     
-   displayManager = {
-
-   gdm = {
+  displayManager = {
+    gdm = {
       enable = true;
       autoSuspend = false;
       wayland = true;
       #nvidiaWayland = true;   
-     };
- 
+    };
+
       #defaultSession = "none+awesome";
       defaultSession = "gnome";
+
     };
   };
 
@@ -116,14 +118,14 @@
     alsa = {     
       enable = true;
       support32Bit = true;    
-     };
+    };
 
     pulse.enable = true;
     jack.enable = true;
     
     config = import ./sys/pipewire;
-     media-session.config = import ./sys/pipewire/media-session.nix;
-     #media-session.enable = true;
+      media-session.config = import ./sys/pipewire/media-session.nix;
+      #media-session.enable = true;
     };
   }; 
   
@@ -150,31 +152,34 @@
   environment = {
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
-    # google-chrome-dev
-     firefox
-     element-desktop-wayland
-    # tdesktop
+
+     # google-chrome
+      firefox
+      element-desktop-wayland
+     # tdesktop
     
-    wezterm
-    gnome.nautilus
+      wezterm
+      gnome.nautilus
 
-    # [ AwesomeWM ]
-    # rofi
-    # pamixer
-    # nm-tray
-    # polkit_gnome
+     # rofi
+     # pamixer
+     # nm-tray
+     # polkit_gnome
+     # brightnessctl    
 
-     neovim
-    # gcc
-    # clang
-    # llvm
-     lua
-     luarocks
-     python3
+      neovim
+     # gnumake 
+     # gcc
+     # clang
+     # llvm
+      lua
+      luarocks
+      python3
 
-     wget
-     man 
-   ];
+      wget
+      man
+      zstd
+    ];
   };
 
   fonts.fonts = with pkgs; [
@@ -187,25 +192,20 @@
     cantarell-fonts
     #inter
 
-     (nerdfonts.override {
+    (nerdfonts.override {
       fonts = [
         "JetBrainsMono"
       ];
     })
   ];
 
-  documentation.enable = false;
-  documentation.nixos.enable = false;
+  documentation = {
+    enable = false;
+    nixos.enable = false;
+  };
+
   programs.command-not-found.enable = false;
 
-  xdg = {
-    portal = {
-     enable = true;
-     /* extraPortals = with pkgs; [
-       xdg-desktop-portal-wlr
-     ];
-     gtkUsePortal = true; */
-    };
-  };
+  xdg.portal.enable = true;
 
 }

@@ -20,21 +20,21 @@
 
   hardware = {  
 
-   cpu = {
-     amd.updateMicrocode = true;
-   };
+    cpu = {
+      amd.updateMicrocode = true;
+    };
 
-   opengl = {
-     driSupport = true;
-     #driSupport32Bit = true;  
-     enable = true;
+    opengl = {
+      driSupport = true;
+      #driSupport32Bit = true;  
+      enable = true;
    
-   extraPackages = with pkgs; [
-     rocm-opencl-icd
-     rocm-opencl-runtime
-     vaapiVdpau
-     libvdpau-va-gl
-     ];
-   };
- };
+    extraPackages = with pkgs; [
+      rocm-opencl-icd
+      rocm-opencl-runtime
+      vaapiVdpau
+      libvdpau-va-gl
+      ];
+    };
+  };
 }

@@ -6,15 +6,12 @@ local beautiful = require("beautiful")
 local gears = require("gears")
 local gfs = require("gears.filesystem")
 
-
 -- [ Theme ]
 beautiful.init(gfs.get_configuration_dir() .. "theme/theme.lua")
-
 
 -- [ My modules ]
 require("configuration")
 require('ui')
-
 
 -- [ Bling ]
 local bling = require("modules.bling")

@@ -18,15 +18,15 @@
 
   services = {   
 
-   xserver = {     
-    windowManager = {
+    xserver = {     
+      windowManager = {
         awesome = {
           enable = true;
           luaModules = with pkgs.luajitPackages; [
-             lgi
-             ldbus
-             luadbi-mysql
-             luaposix
+              lgi
+              ldbus
+              luadbi-mysql
+              luaposix
            ];
          };
        };
@@ -63,7 +63,7 @@
       };
 
       settings = {
-        # animations = true;
+        #animations = true;
 
         corner-radius = 8;
         rounded-corners-exclude = [
@@ -95,8 +95,8 @@
         transparent-clipping = false;
       };
     };
- };
+  };
 
- nixpkgs.config.brave.commandLineArgs = "--enable-features=VaapiVideoDecoder --disable-features=UseOzonePlataform";
+  nixpkgs.config.google-chrome.commandLineArgs = "--enable-features=VaapiVideoDecoder --disable-features=UseOzonePlataform";
 
 }
