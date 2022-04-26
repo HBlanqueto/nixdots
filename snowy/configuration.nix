@@ -14,18 +14,20 @@
         ./sys/gpu/intel.nix
         #./sys/gpu/nvidia.nix
     ];
-  
-  system.stateVersion = "22.05";
 
-  programs.zsh = {
-    enable = true;
-    autosuggestions.enable = true;
-    syntaxHighlighting.enable = true;
+  programs = {
+    command-not-found.enable = false;
 
-    ohMyZsh = {
+    zsh = {
       enable = true;
-      plugins = [ "git" ];
-      theme = "gentoo";
+      autosuggestions.enable = true;
+      syntaxHighlighting.enable = true;
+
+      ohMyZsh = {
+        enable = true;
+        plugins = [ "git" ];
+        theme = "gentoo";
+      };
     };
   };
   
@@ -155,7 +157,6 @@
 
      # google-chrome
       firefox
-      element-desktop-wayland
      # tdesktop
     
       wezterm
@@ -168,13 +169,13 @@
      # brightnessctl    
 
       neovim
-     # gnumake 
+      gnumake 
      # gcc
-     # clang
-     # llvm
-      lua
-      luarocks
-      python3
+      clang
+      llvm
+     # lua
+     # luarocks
+     # python3
 
       wget
       man
@@ -204,8 +205,8 @@
     nixos.enable = false;
   };
 
-  programs.command-not-found.enable = false;
-
   xdg.portal.enable = true;
+
+  system.stateVersion = "22.05";
 
 }
