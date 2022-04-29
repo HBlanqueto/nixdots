@@ -1,4 +1,4 @@
- config, pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
   home = {
@@ -6,23 +6,22 @@
     homeDirectory = "/home/hblanqueto";
 
     sessionVariables = {
-      #NIXOS_OZONE_WL="1";
+      MOZ_DISABLE_RDD_SANDBOX="1";
     };
 
     packages = with pkgs; [
-
-      #wpsoffice
-      #libreoffice-fresh-unwrapped
       
+      google-chrome
       tdesktop
-      #element-desktop
       obs-studio
+      #wpsoffice
       gnome.gnome-tweaks
-      #gnome-builder
+      polkit_gnome
+      vscode
+      #neovide
 
       neofetch
       
-      #neovide
       
       gnumake
       #gcc
@@ -36,6 +35,7 @@
       #luarocks
       
       xdg-desktop-portal-wlr
+      xdg-desktop-portal-gtk
       xdg_utils
       qt5.qtwayland
 
@@ -51,29 +51,50 @@
 
   programs = {
     home-manager.enable = true;
-    
-    google-chrome = {
+
+    bat = {
       enable = true;
-      package = pkgs.google-chrome;
-      commandLineArgs = [ 
-      "--enable-features=UseOzonePlatform"
-      "--ozone-platform=wayland --ignore-gpu-blocklist" 
-      "--enable-gpu-rasterization --enable-zero-copy" 
-      "--disable-gpu-driver-bug-workarounds"
-      "--enable-accelerated-video-decode"
-      "--enable-features=VaapiVideoDecoder"
-      "--use-gl=egl" ];
+      config = {
+        theme = "ansi";
+        pager = "never";
+      };
     };
-    
-    vscode = {
+
+    exa = {
       enable = true;
-      package = pkgs.vscode;
+      enableAliases = false;
     };
+
 
     git = {
       enable = true;
       userName = "Mr. HBlanqueto";
       userEmail = "humbertoblanqueto@outlook.com";
+    };
+
+    zsh = {
+      enable = true;
+      autocd = true;
+      enableAutosuggestions = true;
+      enableCompletion = true;
+      dotDir = ".config/zsh";
+
+      history = {
+        expireDuplicatesFirst = true;
+        extended = true;
+        save = 25000;
+      };
+
+      shellAliases = {
+        ls = "exa --color=auto --icons";
+        l = "ls -l";
+        la = "ls -a";
+        lla = "ls -la";
+        lt = "ls --tree";
+        cat = "bat --color always --plain";
+        grep = "grep --color=auto";
+        upgrade = "sudo nixos-rebuild switch --upgrade && home-manager switch";
+      };
     };
   };
 
