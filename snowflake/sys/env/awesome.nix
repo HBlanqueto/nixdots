@@ -97,6 +97,4 @@
     };
   };
 
-  nixpkgs.config.google-chrome.commandLineArgs = "--enable-features=VaapiVideoDecoder --disable-features=UseOzonePlataform";
-
 }

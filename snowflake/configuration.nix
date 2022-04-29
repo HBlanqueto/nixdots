@@ -20,13 +20,12 @@
 
     zsh = {
       enable = true;
-      autosuggestions.enable = true;
       syntaxHighlighting.enable = true;
-
+      
       ohMyZsh = {
-        enable = true;
-        plugins = [ "git" ];
-        theme = "gentoo";
+          enable = true;
+          plugins = [ "git" ];
+          theme = "robbyrussell";
       };
     };
   };
@@ -59,8 +58,15 @@
     };
 
     optimise.automatic = true;
-    settings.sandbox = false;
+    settings.sandbox = true;
   
+  };
+
+  hardware = {
+    cpu = {
+      intel.updateMicrocode = true;
+      #amd.updateMicrocode = true;
+    };
   };
 
   networking = {
@@ -89,7 +95,7 @@
     #fprintd.enable = true;
     #upower.enable = true;
     #gvfs.enable = true;
-    #gnome.gnome-keyring.enable = true; 
+    gnome.gnome-keyring.enable = true; 
     #dbus.enable = true;
     zfs.autoScrub.enable = true; 
   
@@ -155,28 +161,17 @@
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
 
-     # google-chrome
-      firefox
-     # tdesktop
+      #firefox
     
       wezterm
       gnome.nautilus
 
-     # rofi
-     # pamixer
-     # nm-tray
-     # polkit_gnome
-     # brightnessctl    
+      #rofi
+      #pamixer
+      #nm-tray
+      #brightnessctl    
 
       neovim
-      gnumake 
-     # gcc
-      clang
-      llvm
-     # lua
-     # luarocks
-     # python3
-
       wget
       man
       zstd

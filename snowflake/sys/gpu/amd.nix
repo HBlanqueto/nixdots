@@ -19,14 +19,9 @@
   };
 
   hardware = {  
-
-    cpu = {
-      amd.updateMicrocode = true;
-    };
-
     opengl = {
       driSupport = true;
-      #driSupport32Bit = true;  
+      driSupport32Bit = true;  
       enable = true;
    
     extraPackages = with pkgs; [

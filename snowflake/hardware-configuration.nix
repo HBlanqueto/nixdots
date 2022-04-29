@@ -12,7 +12,7 @@
     cleanTmpDir = true;
    
     kernelPackages = pkgs.linuxPackages_lqx;
-    kernelModules = [ "kvm-intel" ]; # "kmd-ad" "wl"
+    kernelModules = [ "kvm-intel" ]; # "kmd-amd" "wl"
     #extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
    
     initrd = {
@@ -50,7 +50,7 @@
 
   fileSystems."/boot" =
     { 
-      device = "/dev/disk/by-uuid/6A77-97E0";
+      device = "/dev/disk/by-uuid/96D5-2E9D";
       fsType = "vfat";
     };
 
