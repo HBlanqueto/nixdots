@@ -1,19 +1,26 @@
 { config, pkgs, ... }:
 
 {
+
+  imports = [ 
+    ./programs/wezterm
+    ./programs/gtk-3.0
+  ];
+
   home = {
     username = "Humberto Blanqueto";
     homeDirectory = "/home/hblanqueto";
 
-    sessionVariables = {
+  sessionVariables = {
       MOZ_DISABLE_RDD_SANDBOX="1";
     };
 
-    packages = with pkgs; [
+  packages = with pkgs; [
       
       google-chrome
       tdesktop
       obs-studio
+      vlc
       #wpsoffice
       gnome.gnome-tweaks
       polkit_gnome

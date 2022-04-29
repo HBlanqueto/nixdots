@@ -1,3 +1,7 @@
+{...}: {
+
+home.file.".config/wezterm/modules/keys.lua".text = ''
+
 local wezterm = require("wezterm")
 local keys = {}
 
@@ -6,14 +10,15 @@ keys.disable_default_key_bindings = true
 keys.keys = {
     {
         mods = "CTRL",
-        key = [[p]],
+        key = [[0]],
         action = wezterm.action {
             SplitHorizontal = {domain = "CurrentPaneDomain"}
         }
     }, {
         mods = "CTRL",
-        key = [[ñ]],
-        action = wezterm.action {SplitVertical = {domain = "CurrentPaneDomain"}}
+        key = [[p]],
+        action = wezterm.action {
+            SplitVertical = {domain = "CurrentPaneDomain"}}
     }, -- browser-like bindings for tabbing
     {
         key = "t",
@@ -45,3 +50,5 @@ keys.keys = {
 }
 
 return keys
+'';
+}

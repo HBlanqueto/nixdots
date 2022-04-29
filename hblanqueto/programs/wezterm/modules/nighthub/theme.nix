@@ -1,3 +1,7 @@
+{...}: {
+
+home.file.".config/wezterm/modules/nighthub/theme.lua".text = ''
+
 local col = {}
 
 col.foreground = "#C6CDD5"
@@ -31,3 +35,6 @@ col.tab_bar = {
 }
 
 return col
+
+'';
+}

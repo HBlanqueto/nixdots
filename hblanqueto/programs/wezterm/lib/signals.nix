@@ -1,3 +1,7 @@
+{...}: {
+
+home.file.".config/wezterm/lib/signals.lua".text = ''
+
 local wezterm = require 'wezterm';
 
 wezterm.on("update-right-status", function(window, pane)
@@ -11,3 +15,6 @@ wezterm.on("update-right-status", function(window, pane)
 
     window:set_right_status(wezterm.format({{Text = bat .. "   " .. date}}));
 end)
+
+'';
+}

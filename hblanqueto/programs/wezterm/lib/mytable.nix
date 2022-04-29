@@ -1,3 +1,8 @@
+{...}: {
+
+home.file.".config/wezterm/lib/mytable.lua".text = ''
+
+
 -- I grabbed this from javacafe01 who grabbed this from somewhere, credits to them
 -- Do not modify this file.
 local mytable = {}
@@ -41,3 +46,6 @@ function mytable.flatten_list(list)
 end
 
 return {mytable = mytable}
+
+'';
+}
