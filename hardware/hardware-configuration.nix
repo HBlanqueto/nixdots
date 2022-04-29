@@ -11,7 +11,7 @@
     zfs.enableUnstable = true; 
     cleanTmpDir = true;
    
-    kernelPackages = pkgs.linuxPackages_lqx;
+    kernelPackages = pkgs.linuxPackages_xanmod_latest;
     kernelModules = [ "kvm-intel" ]; # "kmd-amd" "wl"
     #extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
    

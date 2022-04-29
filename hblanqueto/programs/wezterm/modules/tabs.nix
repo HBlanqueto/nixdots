@@ -1,6 +1,6 @@
-{...}: {
+{}: 
 
-home.file.".config/wezterm/modules/tabs.lua".text = ''
+''
 
 local wezterm = require('wezterm')
 
@@ -14,5 +14,4 @@ tabs.show_tab_index_in_tab_bar = false
 
 return tabs
 
-'';
-}
+''

@@ -2,18 +2,32 @@
 
 {
 
-  imports = [ 
-    ./programs/wezterm
-    ./programs/gtk-3.0
-  ];
-
   home = {
     username = "Humberto Blanqueto";
     homeDirectory = "/home/hblanqueto";
 
-  sessionVariables = {
+  file = {
+
+    # Wezterm
+    ".config/wezterm/wezterm.lua".text = import ./programs/wezterm { }; # Main file 
+    ".config/wezterm/mytable.lua".text = import ./programs/wezterm/mytable.nix { };
+
+    ".config/wezterm/modules/init.lua".text = import ./programs/wezterm/modules/init.nix { };
+    ".config/wezterm/modules/tabs.lua".text = import ./programs/wezterm/modules/tabs.nix { };
+    ".config/wezterm/modules/keys.lua".text = import ./programs/wezterm/modules/keys.nix { }; # Keybindings
+    
+    ".config/wezterm/modules/theme/init.lua".text = import ./programs/wezterm/modules/theme/init.nix { };
+    ".config/wezterm/modules/theme/colors.lua".text = import ./programs/wezterm/modules/theme/colors.nix { }; # Colors
+
+    # Gnome terminal padding
+    ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
+  };
+
+    sessionVariables = {
+
       MOZ_DISABLE_RDD_SANDBOX="1";
-    };
+      NO_AT_BRIDGE = "1";
+  };
 
   packages = with pkgs; [
       
@@ -99,6 +113,7 @@
         lla = "ls -la";
         lt = "ls --tree";
         cat = "bat --color always --plain";
+        editor = "nvim";
         grep = "grep --color=auto";
         upgrade = "sudo nixos-rebuild switch --upgrade && home-manager switch";
       };

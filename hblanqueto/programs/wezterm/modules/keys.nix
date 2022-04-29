@@ -1,6 +1,6 @@
-{...}: {
+{}:
 
-home.file.".config/wezterm/modules/keys.lua".text = ''
+''
 
 local wezterm = require("wezterm")
 local keys = {}
@@ -50,5 +50,4 @@ keys.keys = {
 }
 
 return keys
-'';
-}
+''

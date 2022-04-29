@@ -58,7 +58,7 @@
     };
 
     optimise.automatic = true;
-    settings.sandbox = true;
+    settings.sandbox = false;
   
   };
 
@@ -90,13 +90,13 @@
   security.rtkit.enable = true;
 
   services = {
-    blueman.enable = true;
+    #blueman.enable = true;
     #printing.enable = true;
     #fprintd.enable = true;
-    #upower.enable = true;
-    #gvfs.enable = true;
+    upower.enable = true;
+    gvfs.enable = true;
     gnome.gnome-keyring.enable = true; 
-    #dbus.enable = true;
+    dbus.enable = true;
     zfs.autoScrub.enable = true; 
   
   xserver = {
@@ -131,9 +131,9 @@
     pulse.enable = true;
     jack.enable = true;
     
-    config = import ./sys/pipewire;
+    /*config = import ./sys/pipewire;
       media-session.config = import ./sys/pipewire/media-session.nix;
-      #media-session.enable = true;
+      media-session.enable = true;*/
     };
   }; 
   
@@ -144,10 +144,8 @@
     keyMap = "es";
     colors = [
     
-    "010409"  "FF958E" "9DFAAA" "FBDF90" 
-    "CEE9FF" "E3C9FF" "A5D5FF" "C6CDD5"
-    "363B42" "FA7970" "7CE38B" "FAA356" 
-    "CEE9FF" "E3C9FF" "A5D5FF" "F6FAFD"
+    "010409" "FF958E" "9DFAAA" "FBDF90" "BDfBff" "E3C9FF" "B8FFD2" "C6CDD5"
+    "363B42" "EA746C" "7CE38B" "D9BE74" "BEDFE8" "BD89F5" "94E4A5" "F6FAFD"
     
     ];
   };
@@ -162,7 +160,6 @@
     systemPackages = with pkgs; [
 
       #firefox
-    
       wezterm
       gnome.nautilus
 

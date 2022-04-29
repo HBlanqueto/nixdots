@@ -1,24 +1,12 @@
-{...}: {
+{}:
 
-  imports = [ 
-    ./modules/init.nix
-    ./modules/tabs.nix
-    ./modules/keys.nix
-
-    ./modules/nighthub/init.nix
-    ./modules/nighthub/theme.nix
-
-    ./lib/signals.nix
-    ./lib/mytable.nix
-  ];
-
-home.file.".config/wezterm/wezterm.lua".text = ''
+''
 
 local wezterm = require('wezterm')
-local mytable = require('lib/mytable').mytable
+local mytable = require('mytable').mytable
 
 -- Local configuration
-local theme = require('modules.nighthub')
+local theme = require('modules.theme')
 local modules = require('modules')
 local colors = {colors = theme.colors}
 local tabconf = modules.tabs
@@ -28,7 +16,6 @@ function font_with_fallback(name, params)
     local names = {name, 'JetBrains Mono', 'Blobmoji'}
     return wezterm.font_with_fallback(names, params)
 end
-
 local base = {
 
     -- OpenGL for GPU acceleration
@@ -68,7 +55,7 @@ local base = {
     freetype_render_target = 'HorizontalLcd',
 
     -- Cursor style
-    default_cursor_style = 'BlinkingBar',
+    default_cursor_style = 'BlinkingUnderline',
 
     -- Activate this in Gnome
     enable_wayland = true,
@@ -84,13 +71,9 @@ local base = {
 
     -- Opacity
     inactive_pane_hsb = {saturation = 1.0, brightness = 1.0}
-
 }
-
 -- Merge everything and return
 local config = mytable.merge_all(base, tabconf, keys, colors)
-
 return config
 
-'';
-}
+''

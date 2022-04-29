@@ -1,6 +1,6 @@
-{...}: {
+{}:
 
-home.file.".config/wezterm/modules/init.lua".text = ''
+''
 
 local config = {}
 
@@ -11,5 +11,4 @@ config.tabs = require('modules.tabs')
 
 return config
 
-'';
-}
+''
