@@ -21,7 +21,7 @@
       #neovide
 
       neofetch
-      
+      htop      
       
       gnumake
       #gcc
