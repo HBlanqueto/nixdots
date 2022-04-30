@@ -92,6 +92,11 @@
       userEmail = "humbertoblanqueto@outlook.com";
     };
 
+    starship = {
+      enable = true;
+      settings = import ./programs/starship.nix;
+    };
+
     zsh = {
       enable = true;
       autocd = true;
