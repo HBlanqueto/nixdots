@@ -12,12 +12,12 @@
     ".config/wezterm/wezterm.lua".text = import ./programs/wezterm { }; # Main file 
     ".config/wezterm/mytable.lua".text = import ./programs/wezterm/mytable.nix { };
 
-    ".config/wezterm/modules/init.lua".text = import ./programs/wezterm/modules/init.nix { };
-    ".config/wezterm/modules/tabs.lua".text = import ./programs/wezterm/modules/tabs.nix { };
-    ".config/wezterm/modules/keys.lua".text = import ./programs/wezterm/modules/keys.nix { }; # Keybindings
+    ".config/wezterm/modules/tabs.lua".text = import ./programs/wezterm/tabs.nix { };
+    ".config/wezterm/modules/keys.lua".text = import ./programs/wezterm/keys.nix { }; # Keybindings
+    ".config/wezterm/modules/init.lua".text = import ./programs/wezterm/init-mod.nix { };
     
-    ".config/wezterm/modules/theme/init.lua".text = import ./programs/wezterm/modules/theme/init.nix { };
-    ".config/wezterm/modules/theme/colors.lua".text = import ./programs/wezterm/modules/theme/colors.nix { }; # Colors
+    ".config/wezterm/modules/theme/init.lua".text = import ./programs/wezterm/init-col.nix { };
+    ".config/wezterm/modules/theme/colors.lua".text = import ./programs/wezterm/colors.nix { }; # Colors
 
     # Gnome terminal padding
     ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
@@ -76,7 +76,6 @@
     bat = {
       enable = true;
       config = {
-        theme = "ansi";
         pager = "never";
       };
     };
@@ -112,7 +111,7 @@
         la = "ls -a";
         lla = "ls -la";
         lt = "ls --tree";
-        cat = "bat --color always --plain";
+        cat = "bat";
         editor = "nvim";
         grep = "grep --color=auto";
         upgrade = "sudo nixos-rebuild switch --upgrade && home-manager switch";

@@ -67,7 +67,7 @@ local base = {
     window_close_confirmation = 'NeverPrompt',
 
     -- Padding
-    window_padding = {left = 18, right = 18, top = 18, bottom = 18},
+    window_padding = {left = 25, right = 25, top = 25, bottom = 25},
 
     -- Opacity
     inactive_pane_hsb = {saturation = 1.0, brightness = 1.0}
