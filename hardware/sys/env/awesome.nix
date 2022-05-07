@@ -1,13 +1,6 @@
 { config, pkgs, ... }:
 
 {
-
-  networking = {
-    networkmanager.enable = true;
-    firewall.enable = true;
-    useDHCP = false;
-  };
-
   # This theme GTK programs
   environment.systemPackages = with pkgs; [
     gtk-engine-murrine

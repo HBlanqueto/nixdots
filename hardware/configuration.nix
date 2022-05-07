@@ -7,7 +7,6 @@
     [
         ./hardware-configuration.nix
 
-        ./sys/env/gnome.nix
         #./sys/env/awesome.nix
 
         #./sys/gpu/amd.nix
@@ -21,12 +20,6 @@
     zsh = {
       enable = true;
       syntaxHighlighting.enable = true;
-      
-      ohMyZsh = {
-          enable = true;
-          plugins = [ "git" ];
-          theme = "robbyrussell";
-      };
     };
   };
   
@@ -95,9 +88,10 @@
     #fprintd.enable = true;
     upower.enable = true;
     gvfs.enable = true;
-    gnome.gnome-keyring.enable = true; 
     dbus.enable = true;
-    zfs.autoScrub.enable = true; 
+    zfs.autoScrub.enable = true;
+    gnome.gnome-keyring.enable = true; 
+    gnome.core-utilities.enable = false;
   
   xserver = {
     enable = true;
@@ -105,23 +99,29 @@
     wacom.enable = true;
     libinput.enable = true;
     
-  displayManager = {
-    gdm = {
-      enable = true;
-      autoSuspend = false;
-      wayland = true;
-      #nvidiaWayland = true;   
-    };
+    displayManager = {
+      gdm = {
+        enable = true;
+        autoSuspend = true;
+        wayland = true;
+        #nvidiaWayland = true;   
+      };
 
       #defaultSession = "none+awesome";
       defaultSession = "gnome";
+    };
 
+    desktopManager = {
+      gnome.enable = true;
     };
   };
 
   pipewire = {
     enable = true;
-    wireplumber.enable = true;
+    wireplumber = { 
+      enable = true;
+      package = (import (pkgs.fetchFromGitHub { owner = "K900"; repo = "nixpkgs"; rev = "57c7ee78b9bab82b036a232904f9161c5c4537cd"; sha256 = "sha256-CIk45MlAa8f9UdPD5DsqjiOT89ecFsxFpM40VHOLuAE="; }) { system = "x86_64-linux"; }).wireplumber;
+    };
 
     alsa = {     
       enable = true;
@@ -130,13 +130,10 @@
 
     pulse.enable = true;
     jack.enable = true;
-    
-    /*config = import ./sys/pipewire;
-      media-session.config = import ./sys/pipewire/media-session.nix;
-      media-session.enable = true;*/
+  
     };
   }; 
-  
+
   hardware.pulseaudio.enable = false;
 
   console = {
@@ -156,6 +153,15 @@
   };
 
   environment = {
+    sessionVariables = {
+      MOZ_ENABLE_WAYLAND = "1";
+      QT_QPA_PLATFORM="wayland";
+      SDL_VIDEODRIVER= "wayland";
+      CLUTTER_BACKEND = "wayland";
+      #QT_WAYLAND_DISABLE_WINDOWDECORATION= "1";
+      #NIXOS_OZONE_WL="1";
+    }; 
+
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
 
@@ -177,8 +183,8 @@
 
   fonts.fonts = with pkgs; [
     noto-fonts-emoji-blob-bin
-    noto-fonts
     noto-fonts-cjk
+    noto-fonts
     powerline-fonts
     ipafont
 
@@ -198,7 +204,6 @@
   };
 
   xdg.portal.enable = true;
-
   system.stateVersion = "22.05";
 
 }
