@@ -10,7 +10,6 @@
   ];
 
   services = {   
-
     xserver = {     
       windowManager = {
         awesome = {
