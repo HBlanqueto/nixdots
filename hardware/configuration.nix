@@ -85,7 +85,7 @@
           rev = "57c7ee78b9bab82b036a232904f9161c5c4537cd";
           sha256 = "sha256-CIk45MlAa8f9UdPD5DsqjiOT89ecFsxFpM40VHOLuAE="; }) 
           { system = "x86_64-linux"; }).wireplumber;
-      };
+        };
 
         alsa.enable = true;  
         jack.enable = true;
