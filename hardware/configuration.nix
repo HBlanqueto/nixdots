@@ -11,16 +11,22 @@
     ./sys/gpu/intel.nix
   ];
 
-  xdg.portal.enable = true;
+  hardware = {
+    cpu = {
+      intel.updateMicrocode = true;
+      #amd.updateMicrocode = true;
+    };
 
-  security.rtkit.enable = true;
+    pulseaudio.enable = false;
+  };
 
-  hardware.pulseaudio.enable = false;
 
   i18n.defaultLocale = "en_US.UTF-8";
 
-  time.timeZone = "America/Mexico_City";
-  time.hardwareClockInLocalTime = true;
+  time = {
+    timeZone = "America/Mexico_City";
+    hardwareClockInLocalTime = true;
+  };
 
   nix = {
     gc = {
@@ -37,17 +43,15 @@
   networking = {
     hostId = "cafebabe";
     hostName = "ASUS-C400SA";
-
     networkmanager.enable = true;
-    firewall.enable = true;
     useDHCP = false;
   };
 
   services = {
-    #blueman.enable = true;
-    #printing.enable = true;
+    blueman.enable = true;
+    printing.enable = true;
     #fprintd.enable = true;
-    #upower.enable = true;
+    upower.enable = true;
     dbus.enable = true;
     zfs.autoScrub.enable = true;
     gnome.gnome-keyring.enable = true; 
@@ -58,7 +62,9 @@
       enable = true;
       wacom.enable = true;
       libinput.enable = true;
-    
+      
+      desktopManager.gnome.enable = true;
+
       displayManager = {
         gdm = {
           enable = true;
@@ -67,8 +73,6 @@
 
       defaultSession = "gnome";
     };
-
-    desktopManager.gnome.enable = true;
 
     pipewire = {
       enable = true;
@@ -88,6 +92,14 @@
         pulse.enable = true;
       };
     };
+  };
+
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 45;
+    priority = 10;
+  };
 
   programs = {
     command-not-found.enable = false;
@@ -105,7 +117,7 @@
     users.hblanqueto = {
       isNormalUser = true;
       home = "/home/hblanqueto";
-      description = "Humberto Blanqueto";
+      description = "Mr. HBlanqueto";
       extraGroups = [
         "wheel" 
         "networkmanager"
@@ -119,6 +131,7 @@
   console = {
     font = "Lat2-Terminus16";
     keyMap = "es";
+
     colors = [
       "010409" "FF958E" "9DFAAA" "FBDF90" "BDfBff" "E3C9FF" "B8FFD2" "C6CDD5"
       "363B42" "EA746C" "7CE38B" "D9BE74" "BEDFE8" "BD89F5" "94E4A5" "F6FAFD"
@@ -155,13 +168,10 @@
   };
 
   fonts.fonts = with pkgs; [
-    noto-fonts-emoji-blob-bin
+    noto-fonts-emoji
     noto-fonts-cjk
     noto-fonts
-    ipafont
-
     cantarell-fonts
-    inter
 
     (nerdfonts.override {
       fonts = [
@@ -175,6 +185,9 @@
     nixos.enable = false;
   };
 
-  system.stateVersion = "22.05";
+  xdg.portal.enable = true;
 
+  security.rtkit.enable = true;
+
+  system.stateVersion = "22.05";
 }

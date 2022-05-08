@@ -37,7 +37,6 @@
       vlc
       #wpsoffice
       gnome.gnome-tweaks
-      polkit_gnome
       vscode
       #neovide
 
