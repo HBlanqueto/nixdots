@@ -8,7 +8,7 @@
 
   imports = [
     ./hardware-configuration.nix
-    ./sys/gpu/intel.nix
+    ./sys/gpu.nix
   ];
 
   hardware = {
@@ -19,7 +19,6 @@
 
     pulseaudio.enable = false;
   };
-
 
   i18n.defaultLocale = "en_US.UTF-8";
 
@@ -48,8 +47,8 @@
   };
 
   services = {
-    blueman.enable = true;
-    printing.enable = true;
+    #blueman.enable = true;
+    #printing.enable = true;
     #fprintd.enable = true;
     upower.enable = true;
     dbus.enable = true;
@@ -72,6 +71,7 @@
         };
 
       defaultSession = "gnome";
+      };
     };
 
     pipewire = {
@@ -92,7 +92,6 @@
         pulse.enable = true;
       };
     };
-  };
 
   zramSwap = {
     enable = true;
@@ -153,17 +152,15 @@
 
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
-      firefox
+      #firefox
       wezterm
       gnome.nautilus
       #rofi
       #pamixer
       #nm-tray
       #brightnessctl    
-      neovim
       wget
       man
-      zstd
     ];
   };
 
