@@ -3,7 +3,7 @@
 {
 
   services.xserver = {
-    videoDrivers = [ "modesetting" ];
+    videoDrivers = [ "intel" ];
     useGlamor = true;
   };
 

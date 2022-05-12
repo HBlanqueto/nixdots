@@ -13,7 +13,7 @@
   };
 
   directory = {
-    format = "[ ](bold blue) [$path](bold blue) $read_only";
+    format = "[ ](bold blue) [$path](blue) $read_only";
     truncation_length = 8;
     read_only	= "🔒";
   };
@@ -34,7 +34,7 @@
   nix_shell.symbol = "[](blue) ";
   python.symbol = "[](blue) ";
   rust.symbol = "[](red) ";
-  lua.symbol = "[](blue) ";
+  lua.symbol = "[](purple) ";
   package.symbol = "📦  ";
 
 }

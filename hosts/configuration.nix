@@ -50,7 +50,7 @@
     #blueman.enable = true;
     #printing.enable = true;
     #fprintd.enable = true;
-    upower.enable = true;
+    #upower.enable = true;
     dbus.enable = true;
     zfs.autoScrub.enable = true;
     gnome.gnome-keyring.enable = true; 
@@ -152,7 +152,7 @@
 
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
-      #firefox
+      google-chrome
       wezterm
       gnome.nautilus
       #rofi
@@ -165,7 +165,7 @@
   };
 
   fonts.fonts = with pkgs; [
-    noto-fonts-emoji
+    twemoji-color-font
     noto-fonts-cjk
     noto-fonts
     cantarell-fonts

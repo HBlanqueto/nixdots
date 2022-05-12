@@ -9,22 +9,13 @@
   file = {
 
     # Wezterm
-    ".config/wezterm/wezterm.lua".text = import ./programs/wezterm { }; # Main file 
-    ".config/wezterm/mytable.lua".text = import ./programs/wezterm/mytable.nix { };
-
-    ".config/wezterm/modules/tabs.lua".text = import ./programs/wezterm/tabs.nix { };
-    ".config/wezterm/modules/keys.lua".text = import ./programs/wezterm/keys.nix { }; # Keybindings
-    ".config/wezterm/modules/init.lua".text = import ./programs/wezterm/init-mod.nix { };
-    
-    ".config/wezterm/modules/theme/init.lua".text = import ./programs/wezterm/init-col.nix { };
-    ".config/wezterm/modules/theme/colors.lua".text = import ./programs/wezterm/colors.nix { }; # Colors
+    ".config/wezterm/wezterm.lua".text = import ./programs/wezterm.nix { }; 
 
     # Gnome terminal padding
     ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
   };
 
     sessionVariables = {
-
       MOZ_DISABLE_RDD_SANDBOX="1";
       NO_AT_BRIDGE = "1";
   };
@@ -34,10 +25,12 @@
       google-chrome
       tdesktop
       obs-studio
-      vlc
+      #vlc
       #wpsoffice
-      gnome.gnome-tweaks
+      #gnome.gnome-tweaks
+      polkit_gnome
       vscode
+      #gnome.gedit
       #neovide
 
       neofetch
@@ -56,7 +49,7 @@
       
       xdg-desktop-portal-wlr
       xdg-desktop-portal-gtk
-      xdg_utils
+      xdg-utils
       qt5.qtwayland
 
     ];
