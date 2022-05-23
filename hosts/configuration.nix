@@ -152,7 +152,6 @@
 
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
-      google-chrome
       wezterm
       gnome.nautilus
       #rofi

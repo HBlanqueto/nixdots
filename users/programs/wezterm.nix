@@ -66,7 +66,7 @@
     -- [ Theme & tabbars colors ]
     colors = {
       foreground = "#C6CDD5",
-      background = "#131a21",
+      background = "#010409",
       cursor_bg = "#C6CDD5",
       cursor_fg = "#C6CDD5",
       cursor_border = "#C6CDD5",
@@ -99,7 +99,7 @@
       keys = {
             {
               mods = "CTRL",
-              key = [[o]],
+              key = [[0]],
               action = wezterm.action {
               SplitHorizontal = {domain = "CurrentPaneDomain"}
               }

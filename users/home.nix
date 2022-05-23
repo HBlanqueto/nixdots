@@ -3,7 +3,7 @@
 {
 
   home = {
-    username = "Humberto Blanqueto";
+    username = "Mr. HBlanqueto";
     homeDirectory = "/home/hblanqueto";
 
   file = {
@@ -27,11 +27,17 @@
       obs-studio
       #vlc
       #wpsoffice
+      vscode
+      #neovide
+      
+      gnome.totem
+      #gnome.gedit
       #gnome.gnome-tweaks
       polkit_gnome
-      vscode
-      #gnome.gedit
-      #neovide
+
+      # [ Wine ]
+      #winetricks
+      #wineWowPackages.waylandFull
 
       neofetch
       htop      
@@ -40,7 +46,6 @@
       #gcc
       clang
       llvm
-      
       #rustc
       #cargo
       #python39
@@ -49,6 +54,7 @@
       
       xdg-desktop-portal-wlr
       xdg-desktop-portal-gtk
+      xdg-user-dirs
       xdg-utils
       qt5.qtwayland
 

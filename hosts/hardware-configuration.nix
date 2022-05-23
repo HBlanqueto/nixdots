@@ -14,10 +14,11 @@
     kernelPackages = pkgs.linuxPackages_xanmod_latest;
     kernelModules = [ "kvm-intel" ]; # "kmd-amd" "wl"
     #extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
+    kernelParams = ["splash"];
    
     initrd = {
     availableKernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
-    kernelModules = [ "i915" ]; #"amdgpu" "wl"
+    #kernelModules = [ "i915" ]; #"amdgpu" "wl"
     };
     
     loader = {
