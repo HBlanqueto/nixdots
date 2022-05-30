@@ -8,19 +8,33 @@
 
   imports = [
     ./hardware-configuration.nix
-    ./sys/gpu.nix
   ];
 
+  xdg.portal.enable = true;
+  
+  security.rtkit.enable = true;
+
+  i18n.defaultLocale = "en_US.UTF-8";
+
   hardware = {
+    opengl = {
+      enable = true;
+      driSupport = true;
+
+      extraPackages = with pkgs; [
+        intel-media-driver
+        vaapiIntel
+        vaapiVdpau
+        libvdpau-va-gl
+        ];
+      };
+
     cpu = {
       intel.updateMicrocode = true;
-      #amd.updateMicrocode = true;
     };
 
     pulseaudio.enable = false;
   };
-
-  i18n.defaultLocale = "en_US.UTF-8";
 
   time = {
     timeZone = "America/Mexico_City";
@@ -32,7 +46,7 @@
       automatic = true;
       persistent = true;
       dates = "weekly";
-      options = "--delete-older-than 3d";
+      options = "--delete-older-than 7d";
     };
 
     optimise.automatic = true;
@@ -40,7 +54,7 @@
   };
 
   networking = {
-    hostId = "cafebabe";
+    hostId = "c65e07d9";
     hostName = "ASUS-C400SA";
     networkmanager.enable = true;
     useDHCP = false;
@@ -57,6 +71,8 @@
     gnome.core-utilities.enable = false;
   
     xserver = {
+      videoDrivers = [ "intel" ];
+      useGlamor = true;
       layout = "es";
       enable = true;
       wacom.enable = true;
@@ -116,7 +132,7 @@
     users.hblanqueto = {
       isNormalUser = true;
       home = "/home/hblanqueto";
-      description = "Mr. HBlanqueto";
+      description = "Humberto Blanqueto";
       extraGroups = [
         "wheel" 
         "networkmanager"
@@ -152,14 +168,12 @@
 
     variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
+      firefox
       wezterm
-      gnome.nautilus
-      #rofi
-      #pamixer
-      #nm-tray
-      #brightnessctl    
+      polkit_gnome
       wget
       man
+      zstd
     ];
   };
 
@@ -180,10 +194,6 @@
     enable = false;
     nixos.enable = false;
   };
-
-  xdg.portal.enable = true;
-
-  security.rtkit.enable = true;
 
   system.stateVersion = "22.05";
 }

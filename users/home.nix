@@ -3,7 +3,7 @@
 {
 
   home = {
-    username = "Mr. HBlanqueto";
+    username = "Humberto Blanqueto";
     homeDirectory = "/home/hblanqueto";
 
   file = {
@@ -17,47 +17,42 @@
 
     sessionVariables = {
       MOZ_DISABLE_RDD_SANDBOX="1";
+      MOZ_USE_XINPUT2 = "1";
       NO_AT_BRIDGE = "1";
   };
 
   packages = with pkgs; [
-      
-      google-chrome
+       
+      # Programs
+      vlc
+      htop
+      vscode
+      neofetch
       tdesktop
       obs-studio
-      #vlc
-      #wpsoffice
-      vscode
-      #neovide
-      
-      gnome.totem
-      #gnome.gedit
-      #gnome.gnome-tweaks
-      polkit_gnome
-
-      # [ Wine ]
-      #winetricks
-      #wineWowPackages.waylandFull
-
-      neofetch
-      htop      
-      
-      gnumake
-      #gcc
-      clang
-      llvm
-      #rustc
-      #cargo
-      #python39
-      #lua5_4
-      #luarocks
-      
+      gnome.nautilus
+      google-chrome
       xdg-desktop-portal-wlr
       xdg-desktop-portal-gtk
+      xdg-desktop-portal-gnome
       xdg-user-dirs
-      xdg-utils
-      qt5.qtwayland
 
+      # Software Development
+      # Compilers and tools
+      gnumake
+      clang
+      llvm
+      rustc
+      cargo
+      python39
+      lua5_4
+      luarocks
+
+      # Awesome Window Manager
+      #rofi
+      #pamixer
+      #nm-tray
+      #brightnessctl
     ];
 
     stateVersion = "22.05";
@@ -70,6 +65,27 @@
 
   programs = {
     home-manager.enable = true;
+
+    firefox = {
+      enable = true;
+      profiles = {
+          myuser = {
+          id = 0;
+            settings = {
+              "media.ffmpeg.vaapi.enabled" = true;
+              "media.ffvpx.enabled" = false;
+              "media.navigator.mediadatadecoder_vpx_enabled" = true;
+              #"gfx.webrender.all" = true;
+              #"media.av1.enabled" = false;
+
+              "toolkit.legacyUserProfileCustomizations.stylesheets" = true;
+              "svg.context-properties.content.enabled" = true;
+              "browser.uidensity" = "0";
+              
+             };
+           };
+         };
+       }; 
 
     bat = {
       enable = true;
