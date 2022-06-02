@@ -8,18 +8,18 @@
 
  <a><img alt="NixOS Logo" height="155" align = "right" src="https://raw.githubusercontent.com/NixOS/nixos-artwork/521e1b0a899074ca7a701c17e357c63c13d54133/logo/nix-snowflake.svg"></a>
 
- Welcome, as you'll see I'm currently using NixOS as main system. This files are specifically for an `ASUS-C400SA`, most part of these settings have been thinking for using Gnome Desktop with Wayland session, my second option is AwesomeWM. Feel free to modify and use my dots for your own use.
+ Welcome, as you can see I'm using NixOS as my daily operating system. This repo contains a collection of files configured for an `ASUS-C400SA`, most part of these settings have been thinking for using Gnome Desktop with Wayland session, my second option is AwesomeWM. Feel free to modify and use my dots for your own use.
 
- > I want to implement [Flakes](https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.) to make installation easy, do not use my files as a template. I haven't understood It at all.
+ > I want to implement [Flakes](https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.) to make installation easy, do not use my files as a template. I haven't understood all things right.
 
 <div>
 
 ## Setup for NixOS
 
 1.  Get the latest [ISO](https://nixos.org/download.html#nixos-iso) and boot into the enviroment.
-2.  Make your partitions acording and assing a file system.
+2.  Make your partition scheme according to your needs & format them with your desired filesystem.
 
-> I use ZFS, If you are planning using another file system; jump this step.
+> I shall use ZFS, if you're planning to use another filesystem, skip this step.
 
 
 <details>
