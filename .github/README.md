@@ -8,7 +8,7 @@
 
  <a><img alt="NixOS Logo" height="155" align = "right" src="https://raw.githubusercontent.com/NixOS/nixos-artwork/521e1b0a899074ca7a701c17e357c63c13d54133/logo/nix-snowflake.svg"></a>
 
- Welcome, as you can see I'm using NixOS as my daily operating system. This repo contains a collection of files configured for an `ASUS-C400SA`, most part of these settings have been thinking for using Gnome Desktop with Wayland session, my second option is AwesomeWM. Feel free to modify and use my dots for your own use.
+ Welcome, as you can see I'm using NixOS as my daily operating system. This repo contains a collection of files configured for an `ASUS-C400SA`, most part of these settings have been thinking for using Gnome Desktop with Wayland session, my second option is AwesomeWM. Feel free to modify and use my dots however you decide.
 
  > I want to implement [Flakes](https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.) to make installation easy, do not use my files as a template. I haven't understood all things right.
 
