@@ -8,6 +8,7 @@
 
   imports = [
     ./hardware-configuration.nix
+    #./extras/awesome.nix
   ];
 
   xdg.portal.enable = true;

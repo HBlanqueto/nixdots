@@ -31,6 +31,7 @@
       tdesktop
       obs-studio
       gnome.nautilus
+      gnome.gnome-tweaks
       google-chrome
       xdg-desktop-portal-wlr
       xdg-desktop-portal-gtk
@@ -68,10 +69,12 @@
 
     firefox = {
       enable = true;
+
       profiles = {
           myuser = {
-          id = 0;
+            id = 0;
             settings = {
+              
               "media.ffmpeg.vaapi.enabled" = true;
               "media.ffvpx.enabled" = false;
               "media.navigator.mediadatadecoder_vpx_enabled" = true;
