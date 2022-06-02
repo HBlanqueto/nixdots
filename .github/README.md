@@ -101,7 +101,9 @@ nixos-rebuild switch --upgrade
 
 ## Gallery
 
-**Gnome Desktop**
+### Gnome Desktop
+
+I love using vanilla Gnome, two things to destacate is the GTK3 theme [adw-gtk3](https://github.com/lassekongo83/adw-gtk3) & the [Firefox userchrome](https://github.com/HBlanqueto/safadwaita) which I forked  
 
 <div align=center>
 <img src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/Gnome-01.png" alt="img" align="center" width="800px">
@@ -115,11 +117,21 @@ nixos-rebuild switch --upgrade
 <img src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/Gnome-03.png" alt="img" align="center" width="800px">
 </div>
 
-**Awesome Window Manager**
+### Awesome Window Manager
+
+**Modules**
+- [Bling](https://blingcorp.github.io/bling/#/) for tabbing and the tiled wallpaper.
 
 <div align=center>
 <img src="https://raw.githubusercontent.com/HBlanqueto/nixdots/snowflake/.github/images/awesomewm.png" alt="img" align="center" width="800px">
 </div>
+
+## TODO
+- [ ] Add flakes files.
+- [ ] Finish AwesomeWM rice.
+- [ ] Upload this on unixporn.
+- [ ] Improve nix configuration.
+- [ ] Be happy.
 
 ## Special thanks
 
