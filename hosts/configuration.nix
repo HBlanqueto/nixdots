@@ -8,14 +8,37 @@
 
   imports = [
     ./hardware-configuration.nix
-    #./extras/awesome.nix
   ];
+
+  boot = {
+    supportedFilesystems = [ "zfs" ]; 
+    zfs.enableUnstable = true; 
+    cleanTmpDir = true;
+    kernelPackages = pkgs.linuxPackages_xanmod_latest;
+   
+    initrd = {
+      kernelModules = [ "i915" ]; 
+    };
+    
+    loader = {
+      grub = {
+        enable = true;
+        version = 2;
+        devices = [ "nodev" ];
+        efiSupport = true;
+        useOSProber = true;
+      };
+
+      efi = { 
+        canTouchEfiVariables = true;
+        efiSysMountPoint = "/boot";
+      };
+    };
+  };
 
   xdg.portal.enable = true;
   
   security.rtkit.enable = true;
-
-  i18n.defaultLocale = "en_US.UTF-8";
 
   hardware = {
     opengl = {
@@ -23,10 +46,10 @@
       driSupport = true;
 
       extraPackages = with pkgs; [
-        intel-media-driver
-        vaapiIntel
-        vaapiVdpau
-        libvdpau-va-gl
+          intel-media-driver
+          vaapiIntel
+          vaapiVdpau
+          libvdpau-va-gl
         ];
       };
 
@@ -36,6 +59,8 @@
 
     pulseaudio.enable = false;
   };
+
+  i18n.defaultLocale = "en_US.UTF-8";
 
   time = {
     timeZone = "America/Mexico_City";
@@ -70,13 +95,15 @@
     zfs.autoScrub.enable = true;
     gnome.gnome-keyring.enable = true; 
     gnome.core-utilities.enable = false;
-  
+    gnome.chrome-gnome-shell.enable = true;
+    logrotate.checkConfig = false;
+   
     xserver = {
       videoDrivers = [ "intel" ];
       useGlamor = true;
       layout = "es";
       enable = true;
-      wacom.enable = true;
+      wacom.enable = false;
       libinput.enable = true;
       
       desktopManager.gnome.enable = true;
@@ -113,7 +140,7 @@
   zramSwap = {
     enable = true;
     algorithm = "zstd";
-    memoryPercent = 45;
+    memoryPercent = 65;
     priority = 10;
   };
 
