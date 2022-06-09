@@ -78,7 +78,7 @@ rm /mnt/etc/nixos/hosts/asus-s400ca/hardware-configuration.nix
 # the hardware-configuration file acording to your computer
 # and delete configuration.nix to avoid problems
 nixos-generate-config --root /mnt
-cp /mnt/etc/nixos/hardware-configuration.nix /mnt/etc/nixos/hosts/thonkpad/
+cp /mnt/etc/nixos/hardware-configuration.nix /mnt/etc/nixos/hosts/asus-s400ca/
 rm /mnt/etc/nixos/configuration.nix
 
 # Make sure you're in the configuration directory
