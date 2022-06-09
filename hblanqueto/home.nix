@@ -1,71 +1,61 @@
-{ config, pkgs, ... }:
+{ config, pkgs, home, ... }:
 
 {
 
   home = {
-    username = "Humberto Blanqueto";
-    homeDirectory = "/home/hblanqueto";
+    file = {
 
-  file = {
+      # Wezterm
+      ".config/wezterm/wezterm.lua".text = import ./programs/wezterm.nix { }; 
 
-    # Wezterm
-    ".config/wezterm/wezterm.lua".text = import ./programs/wezterm.nix { }; 
+      # Gnome terminal padding
+      ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
+    };
 
-    # Gnome terminal padding
-    ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
-  };
+      sessionVariables = {
+        MOZ_DISABLE_RDD_SANDBOX="1";
+        MOZ_USE_XINPUT2 = "1";
+        NO_AT_BRIDGE = "1";
+    };
 
-    sessionVariables = {
-      MOZ_DISABLE_RDD_SANDBOX="1";
-      MOZ_USE_XINPUT2 = "1";
-      NO_AT_BRIDGE = "1";
-  };
-
-  packages = with pkgs; [
+    packages = with pkgs; [
        
-      # Programs
-      vlc
-      htop
-      vscode
-      neofetch
-      tdesktop
-      obs-studio
-      gnome.nautilus
-      gnome.gnome-tweaks
-      google-chrome
-      xdg-desktop-portal-wlr
-      xdg-desktop-portal-gtk
-      xdg-desktop-portal-gnome
-      xdg-user-dirs
+        # Programs
+        vlc
+        htop
+        vscode
+        neofetch
+        tdesktop
+        obs-studio
+        amberol
+        gnome.nautilus
+        gnome.gnome-tweaks
+        google-chrome
+        xdg-desktop-portal-wlr
+        xdg-desktop-portal-gtk
+        xdg-desktop-portal-gnome
+        xdg-user-dirs
 
-      # Software Development
-      # Compilers and tools
-      gnumake
-      clang
-      llvm
-      rustc
-      cargo
-      python39
-      lua5_4
-      luarocks
+        # Software Development
+        # Compilers and tools
+        gnumake
+        clang
+        llvm
+        rustc
+        cargo
+        python39
+        lua5_4
+        luarocks
 
-      # Awesome Window Manager
-      #rofi
-      #pamixer
-      #nm-tray
-      #brightnessctl
-    ];
-
-    stateVersion = "22.05";
-  };
-
-  nixpkgs.config = {
-    allowUnfree = true;
-    allowBroken = true;
-  };
+        # Awesome Window Manager
+        #rofi
+        #pamixer
+        #nm-tray
+        #brightnessctl
+      ];
+    };
 
   programs = {
-    home-manager.enable = true;
 
     firefox = {
       enable = true;

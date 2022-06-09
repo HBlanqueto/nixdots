@@ -11,14 +11,19 @@
   ];
 
   boot = {
-    supportedFilesystems = [ "zfs" ]; 
+    kernelPackages = pkgs.linuxPackages_lqx;
+
+    supportedFilesystems = [ "zfs" ];
     zfs.enableUnstable = true; 
     cleanTmpDir = true;
-    kernelPackages = pkgs.linuxPackages_xanmod_latest;
    
-    initrd = {
-      kernelModules = [ "i915" ]; 
-    };
+    initrd.kernelModules = [ "i915" ];
+
+    kernelParams = [
+      "acpi_backlight=native"
+      "i915.enable_psr=0"
+      "i915.enable_guc=2"
+    ];
     
     loader = {
       grub = {
@@ -68,6 +73,14 @@
   };
 
   nix = {
+
+    extraOptions = ''
+      experimental-features = nix-command flakes
+    '';
+
+    autoOptimiseStore = true;
+    checkConfig = true;
+
     gc = {
       automatic = true;
       persistent = true;
@@ -81,7 +94,7 @@
 
   networking = {
     hostId = "c65e07d9";
-    hostName = "ASUS-C400SA";
+    hostName = "asus-s400ca";
     networkmanager.enable = true;
     useDHCP = false;
   };
@@ -199,6 +212,7 @@
       firefox
       wezterm
       polkit_gnome
+      home-manager
       wget
       man
       zstd
