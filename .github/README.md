@@ -10,7 +10,7 @@
 
  Welcome, as you can see I'm using NixOS as my daily operating system. This repo contains a collection of files configured for an `ASUS-C400SA`, most part of these settings have been thinking for using Gnome Desktop with Wayland session, my second option is AwesomeWM. Feel free to modify and use my dots however you decide.
 
- > I want to implement [Flakes](https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.) to make installation easy, do not use my files as a template. I haven't understood all things right.
+ > I'm implementing [Flakes](https://nixos.wiki/wiki/Flakes#:~:text=Nix%20flakes%20is%20some%20upcoming%20feature%20in%20the,flake.nix%20where%20they%20can%20describe%20their%20own%20dependencies.) to make installation easy, do not use my files as a template. I haven't understood all things right.
 
 <div>
 
@@ -65,38 +65,41 @@ mount /dev/sdaX /mnt/boot
 
 ```sh
 
-# Generate initial configuration.
+# Get into a Nix shell with Nix unstable and git
+nix-shell -p git nixUnstable
+
+# Clone my dotfiles
+git clone https://github.com/HBlanqueto/nixdots /mnt/etc/nixos 
+
+# Remove this file
+rm /mnt/etc/nixos/hosts/asus-s400ca/hardware-configuration.nix
+
+# Follow the next commands to make sure to generate
+# the hardware-configuration file acording to your computer
+# and delete configuration.nix to avoid problems
 nixos-generate-config --root /mnt
+cp /mnt/etc/nixos/hardware-configuration.nix /mnt/etc/nixos/hosts/thonkpad/
+rm /mnt/etc/nixos/configuration.nix
 
-# Copy the hardware-configuration.nix file to ~/
-# This is totally necesary for the next steps.
-cp /mnt/etc/nixos/hardware-configuration.nix ~/
+# Make sure you're in the configuration directory
+cd /mnt/etc/nixos
 
-# # Get into a Nix shell with git.
-nix-shell -p git
-
-# Clone the repository & copy the files.
-# Remember to change modules and drivers relative to hardaware's file you have in ~/
-git clone https://github.com/HBlanqueto/nixdots.git --depth 1
-cp -r ~/nixdots/nixos /mnt/etc/
-
-# Once you modified the files. Install the OS.
-nixos-install --root /mnt
+# Install this NixOS configuration with flakes
+nixos-install --flake '.#laptop'
 
 ```
 4. Configure the password and boot the system.
-5. Once boot, add unstable channel just because.
+5. Once boot, configure home-manager files.
 
 ```sh
+# change ownership of configuration folder
+sudo chown -R $USER /etc/nixos
 
-# Not using sudo only affects users (user packages).
-nix-channel --add https://nixos.org/channels/nixos-unstable nixos
+# go into the configuration folder
+cd /etc/nixos
 
-# Update the channel.
-nix-channel --update
-
-# Rebuild the system.
-nixos-rebuild switch --upgrade
+# Install the home manager configuration
+home-manager switch --flake '.#myself'
 ```
 
 ## Gallery
@@ -127,11 +130,11 @@ I love using vanilla Gnome, two things to destacate is the GTK3 theme [adw-gtk3]
 </div>
 
 ## TODO
-- [ ] Add flakes files.
+- [x] Add flakes files.
 - [ ] Finish AwesomeWM rice.
 - [ ] Upload this on unixporn.
 - [ ] Improve nix configuration.
-- [ ] Be happy.
+- [x] Be happy.
 
 ## Special thanks
 

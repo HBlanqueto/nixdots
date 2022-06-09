@@ -1,4 +1,6 @@
-{}:
+{ theme }:
+
+with theme.colors;
 
 ''
 
@@ -64,35 +66,32 @@
         },
 
     -- [ Theme & tabbars colors ]
-    colors = {
-      foreground = "#C6CDD5",
-      background = "#010409",
-      cursor_bg = "#C6CDD5",
-      cursor_fg = "#C6CDD5",
-      cursor_border = "#C6CDD5",
-      split = "#3B4B58",
-      
-      ansi = {
-        "#3B4B58", "#FF958E", "#9DFAAA", "#FBDF90", "#BDfBff", "#E3C9FF", "#B8FFB2", "#F6FAFD"
+
+      colors = {
+          foreground = "#${fg}",
+          background = "#${bg}",
+          cursor_bg = "#${c4}",
+          cursor_fg = "#${c4}",
+          cursor_border = "#${c4}",
+          split = "#${lbg}",
+          ansi = {
+              "#${c0}", "#${c1}", "#${c2}", "#${c3}", "#${c4}", "#${c5}",
+              "#${c6}", "#${c7}"
+          },
+          brights = {
+              "#${c8}", "#${c9}", "#${c10}", "#${c11}", "#${c12}", "#${c13}",
+              "#${c14}", "#${c15}"
+          },
+          tab_bar = {
+              active_tab = {
+                  bg_color = "#${bg}",
+                  fg_color = "#${c8}",
+                  italic = true
+              },
+              inactive_tab = {bg_color = "#${dbg}", fg_color = "#${c8}"},
+              inactive_tab_hover = {bg_color = "#${c0}", fg_color = "#${bg}"}
+          }
       },
-      
-      brights = {
-        "#363B42", "#ea746c", "#7CE38B", "#D9BE74", "#BEDFE8", "#BD89F5", "#94E4A5", "#F6FAFD"
-       },
-      tab_bar = {
-        background = "#010409",
-        inactive_tab_edge = "#010409",
-      
-      active_tab = {
-        bg_color = "#010409",
-        fg_color = "#C6CDD5",
-        intensity = "Half"
-      },
-      
-      inactive_tab = {bg_color = "#010409", fg_color = "#3B4B58"},
-      inactive_tab_hover = {bg_color = "#010409", fg_color = "#3B4B58"}
-      }
-    },
 
     -- [ Keybindings ]
       disable_default_key_bindings = true,

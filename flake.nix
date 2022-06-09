@@ -19,13 +19,13 @@
 
   {
     nixosConfigurations = {      
-      asus-s400ca = import ./hosts {
+      laptop = import ./hosts/asus-s400ca {
         inherit home nixpkgs;
       };
     };
     
     homeConfigurations = {
-      hblanqueto = import ./hblanqueto {
+      myself = import ./hblanqueto {
         inherit home nixpkgs;
       };
     };

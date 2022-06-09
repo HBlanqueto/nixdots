@@ -1,12 +1,15 @@
 { config, pkgs, home, ... }:
 
+let
+  theme = import ../theme/theme.nix { };
+in
+
 {
-
   home = {
-    file = {
 
+    file = {
       # Wezterm
-      ".config/wezterm/wezterm.lua".text = import ./programs/wezterm.nix { }; 
+      ".config/wezterm/wezterm.lua".text = import ./programs/wezterm.nix { inherit theme; }; 
 
       # Gnome terminal padding
       ".config/gtk-3.0/gtk.css".text = import ./programs/gtk.nix { };
@@ -28,12 +31,8 @@
         tdesktop
         obs-studio
         amberol
-        gnome.nautilus
         gnome.gnome-tweaks
         google-chrome
-        xdg-desktop-portal-wlr
-        xdg-desktop-portal-gtk
-        xdg-desktop-portal-gnome
         xdg-user-dirs
 
         # Software Development
@@ -126,6 +125,7 @@
         cat = "bat";
         editor = "nvim";
         grep = "grep --color=auto";
+        update = "sudo nix-channel --update &&  nix-channel --update";
         upgrade = "sudo nixos-rebuild switch --upgrade && home-manager switch";
       };
     };

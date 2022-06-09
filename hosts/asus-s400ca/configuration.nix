@@ -4,14 +4,19 @@
 
 { config, lib, pkgs, ... }:
 
+
+let 
+   theme = import ../../theme/theme.nix { };
+in
+
 {
 
   imports = [
     ./hardware-configuration.nix
+    ../standard
   ];
 
   boot = {
-    kernelPackages = pkgs.linuxPackages_lqx;
 
     supportedFilesystems = [ "zfs" ];
     zfs.enableUnstable = true; 
@@ -63,33 +68,6 @@
     };
 
     pulseaudio.enable = false;
-  };
-
-  i18n.defaultLocale = "en_US.UTF-8";
-
-  time = {
-    timeZone = "America/Mexico_City";
-    hardwareClockInLocalTime = true;
-  };
-
-  nix = {
-
-    extraOptions = ''
-      experimental-features = nix-command flakes
-    '';
-
-    autoOptimiseStore = true;
-    checkConfig = true;
-
-    gc = {
-      automatic = true;
-      persistent = true;
-      dates = "weekly";
-      options = "--delete-older-than 7d";
-    };
-
-    optimise.automatic = true;
-    settings.sandbox = false;
   };
 
   networking = {
@@ -150,55 +128,6 @@
       };
     };
 
-  zramSwap = {
-    enable = true;
-    algorithm = "zstd";
-    memoryPercent = 65;
-    priority = 10;
-  };
-
-  programs = {
-    command-not-found.enable = false;
-    
-    zsh = {
-      enable = true;
-      syntaxHighlighting.enable = true;
-    };
-  };
-  
-  users = {
-    mutableUsers = true;
-    defaultUserShell = pkgs.zsh;
-
-    users.hblanqueto = {
-      isNormalUser = true;
-      home = "/home/hblanqueto";
-      description = "Humberto Blanqueto";
-      extraGroups = [
-        "wheel" 
-        "networkmanager"
-        "audio"
-        "video"
-        "sudo"
-      ];
-    };
-  };
-
-  console = {
-    font = "Lat2-Terminus16";
-    keyMap = "es";
-
-    colors = [
-      "010409" "FF958E" "9DFAAA" "FBDF90" "BDfBff" "E3C9FF" "B8FFD2" "C6CDD5"
-      "363B42" "EA746C" "7CE38B" "D9BE74" "BEDFE8" "BD89F5" "94E4A5" "F6FAFD"
-    ];
-  };
-
-  nixpkgs.config = {
-    allowUnfree = true;
-    allowBroken = true;
-  };
-
   environment = {
     sessionVariables = {
       MOZ_ENABLE_WAYLAND = "1";
@@ -211,30 +140,8 @@
     systemPackages = with pkgs; [
       firefox
       wezterm
-      polkit_gnome
-      home-manager
-      wget
-      man
-      zstd
+      gnome.nautilus
     ];
-  };
-
-  fonts.fonts = with pkgs; [
-    twemoji-color-font
-    noto-fonts-cjk
-    noto-fonts
-    cantarell-fonts
-
-    (nerdfonts.override {
-      fonts = [
-        "JetBrainsMono"
-      ];
-    })
-  ];
-
-  documentation = {
-    enable = false;
-    nixos.enable = false;
   };
 
   system.stateVersion = "22.05";
