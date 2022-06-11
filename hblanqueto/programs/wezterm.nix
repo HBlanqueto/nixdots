@@ -1,6 +1,6 @@
 { theme }:
 
-with theme.colors;
+with theme;
 
 ''
 

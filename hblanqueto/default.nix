@@ -1,22 +1,25 @@
-{ nixpkgs, home, ... }:
+{ nixpkgs, home, inputs, ... }:
 
-home.lib.homeManagerConfiguration rec {
-  system = "x86_64-linux";
-  username = "hblanqueto";
-  homeDirectory = "/home/${username}";
 
-  pkgs = import nixpkgs {
+  home.lib.homeManagerConfiguration rec {
     system = "x86_64-linux";
-    config.allowUnfree = true;
-    config.allowBroken = true;
-  };
+    username = "hblanqueto";
+    homeDirectory = "/home/${username}";
 
-  configuration.imports = [
-    ./home.nix
-  ];
 
-  # Extra arguments passed to home.nix
-  extraSpecialArgs = { };
+    pkgs = import nixpkgs {
+      system = "x86_64-linux";
+      config.allowUnfree = true;
+      config.allowBroken = true;
+    };
 
-  stateVersion = "22.05";
-}
+
+    configuration.imports = [
+      ./home.nix
+    ];
+
+    # Extra arguments passed to home.nix
+    extraSpecialArgs = { };
+
+    stateVersion = "22.05";
+  }

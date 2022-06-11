@@ -1,7 +1,7 @@
 { config, pkgs, home, ... }:
 
 let
-  theme = import ../theme/theme.nix { };
+  theme = import ../theme { };
 in
 
 {
@@ -24,25 +24,24 @@ in
     packages = with pkgs; [
        
         # Programs
-        vlc
-        htop
         vscode
         neofetch
         tdesktop
         obs-studio
         amberol
+        clapper
+        gnome-text-editor
         gnome.gnome-tweaks
-        google-chrome
         xdg-user-dirs
 
         # Software Development
         # Compilers and tools
-        gnumake
-        clang
-        llvm
+        #gnumake
+        #clang
+        #llvm
         rustc
         cargo
-        python39
+        #python39
         lua5_4
         luarocks
 

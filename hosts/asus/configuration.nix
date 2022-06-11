@@ -4,20 +4,8 @@
 
 { config, lib, pkgs, ... }:
 
-
-let 
-   theme = import ../../theme/theme.nix { };
-in
-
 {
-
-  imports = [
-    ./hardware-configuration.nix
-    ../standard
-  ];
-
   boot = {
-
     supportedFilesystems = [ "zfs" ];
     zfs.enableUnstable = true; 
     cleanTmpDir = true;
@@ -43,17 +31,17 @@ in
         canTouchEfiVariables = true;
         efiSysMountPoint = "/boot";
       };
+
     };
   };
 
-  xdg.portal.enable = true;
-  
-  security.rtkit.enable = true;
-
   hardware = {
+    enableRedistributableFirmware = true;
+
     opengl = {
       enable = true;
       driSupport = true;
+      driSupport32Bit = true;
 
       extraPackages = with pkgs; [
           intel-media-driver
@@ -63,70 +51,47 @@ in
         ];
       };
 
-    cpu = {
-      intel.updateMicrocode = true;
-    };
-
-    pulseaudio.enable = false;
+    cpu.intel.updateMicrocode = true;
   };
+
+  imports = [
+    ./hardware-configuration.nix
+    
+    # Shared configuration across all machines
+    ../shared
+  ];
 
   networking = {
     hostId = "c65e07d9";
     hostName = "asus-s400ca";
     networkmanager.enable = true;
+
     useDHCP = false;
   };
 
   services = {
     #blueman.enable = true;
     #printing.enable = true;
-    #fprintd.enable = true;
+
     #upower.enable = true;
     dbus.enable = true;
-    zfs.autoScrub.enable = true;
     gnome.gnome-keyring.enable = true; 
+
     gnome.core-utilities.enable = false;
-    gnome.chrome-gnome-shell.enable = true;
     logrotate.checkConfig = false;
+    zfs.autoScrub.enable = true;
    
     xserver = {
+      enable = true;
+      layout = "es";
+      wacom.enable = false;
       videoDrivers = [ "intel" ];
       useGlamor = true;
-      layout = "es";
-      enable = true;
-      wacom.enable = false;
-      libinput.enable = true;
       
       desktopManager.gnome.enable = true;
-
-      displayManager = {
-        gdm = {
-          enable = true;
-          wayland = true;
-        };
-
-      defaultSession = "gnome";
-      };
+      displayManager.gdm.enable = true;
     };
-
-    pipewire = {
-      enable = true;
-
-      wireplumber = { 
-        enable = true;
-        package = (import (pkgs.fetchFromGitHub { 
-          owner = "K900"; 
-          repo = "nixpkgs"; 
-          rev = "57c7ee78b9bab82b036a232904f9161c5c4537cd";
-          sha256 = "sha256-CIk45MlAa8f9UdPD5DsqjiOT89ecFsxFpM40VHOLuAE="; }) 
-          { system = "x86_64-linux"; }).wireplumber;
-        };
-
-        alsa.enable = true;  
-        jack.enable = true;
-        pulse.enable = true;
-      };
-    };
+  };
 
   environment = {
     sessionVariables = {
@@ -136,13 +101,14 @@ in
       CLUTTER_BACKEND = "wayland";
     }; 
 
-    variables.EDITOR = "nvim";
     systemPackages = with pkgs; [
       firefox
       wezterm
       gnome.nautilus
     ];
   };
+
+  xdg.portal.enable = true;
 
   system.stateVersion = "22.05";
 }
