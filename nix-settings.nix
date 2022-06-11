@@ -1,7 +1,6 @@
 { inputs, system, nixpkgs }:
 
 {
-
   checkConfig = true;
 
   extraOptions = ''
@@ -28,5 +27,4 @@
 
     trusted-users = [ "root" "hblanqueto" ];
   };
-
 }

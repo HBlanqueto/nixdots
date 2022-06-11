@@ -1,6 +1,5 @@
 { nixpkgs, home, inputs, ... }:
 
-
   home.lib.homeManagerConfiguration rec {
     system = "x86_64-linux";
     username = "hblanqueto";
