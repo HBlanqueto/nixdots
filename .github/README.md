@@ -72,13 +72,13 @@ nix-shell -p git nixUnstable
 git clone https://github.com/HBlanqueto/nixdots /mnt/etc/nixos 
 
 # Remove this file
-rm /mnt/etc/nixos/hosts/asus-s400ca/hardware-configuration.nix
+rm /mnt/etc/nixos/hosts/asus/hardware-configuration.nix
 
 # Follow the next commands to make sure to generate
 # the hardware-configuration file acording to your computer
 # and delete configuration.nix to avoid problems
 nixos-generate-config --root /mnt
-cp /mnt/etc/nixos/hardware-configuration.nix /mnt/etc/nixos/hosts/asus-s400ca/
+cp /mnt/etc/nixos/hardware-configuration.nix /mnt/etc/nixos/hosts/asus/
 rm /mnt/etc/nixos/configuration.nix
 
 # Make sure you're in the configuration directory
