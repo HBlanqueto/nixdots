@@ -51,12 +51,15 @@ in
     environment = {
         binsh = "${pkgs.dash}/bin/dash";
         systemPackages = with pkgs; [
+            comma     
+
             sbctl
             git 
             wget 
             curl
 
             quickshell
+            somewm
             polkit_gnome 
             gsettings-desktop-schemas 
             libnotify

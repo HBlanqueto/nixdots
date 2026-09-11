@@ -25,6 +25,7 @@ in
             bitwarden-desktop
 
             onlyoffice-desktopeditors
+            foot
         ];
     };
 
@@ -66,7 +67,7 @@ in
         };
 
         bat = {
-            enable = true;
+            enable = false;
             config = {
                 pager = "never";
                 style = "full";

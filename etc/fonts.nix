@@ -15,6 +15,7 @@
             noto-fonts-color-emoji
 
             nerd-fonts.ubuntu-mono
+            sf-mono-liga-bin
 
             victor-mono
 

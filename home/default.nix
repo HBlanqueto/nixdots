@@ -44,28 +44,6 @@
             download = "${config.home.homeDirectory}/Descargas";
         };
     };
-
-    wayland = {
-        windowManager = {
-            hyprland = {
-                enable = true;
-        
-                package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
-
-                xwayland.enable = true;
-                systemd.enable = false;
-        
-                plugins = [
-                    inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
-                    inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.borders-plus-plus
-                ];
-
-                extraConfig = ''
-                    require('init')
-                '';
-            };
-        };
-    };
     
     nixpkgs = {
         config = {

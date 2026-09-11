@@ -58,6 +58,22 @@
 
         displayManager = {
             gdm.enable = true;
+
+            sessionPackages = [
+                ((pkgs.writeTextFile {
+                    name = "somewm-wayland-session";
+                    destination = "/share/wayland-sessions/somewm.desktop";
+                    text = ''
+                        [Desktop Entry]
+                        Name=SomeWM
+                        Comment=Dynamic window manager for Wayland
+                        Exec=${pkgs.somewm}/bin/somewm
+                        Type=Application
+                    '';
+                }).overrideAttrs (old: {
+                    passthru.providedSessions = [ "somewm" ];
+                }))
+            ];
         };
     
 
@@ -116,12 +132,5 @@
     nix = {
         settings.sandbox = false;
         optimise.automatic = true;
-
-    gc = {
-        automatic = true;
-        dates = "weekly";
-        options = "--delete-older-than 15d";
-        persistent = true;
-        };
     };
 }

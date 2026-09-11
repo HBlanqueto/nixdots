@@ -2,7 +2,7 @@ local theme = dofile(os.getenv("HOME") .. "/.config/lua-theme/theme.lua")
 local wezterm = require('wezterm')
 
 local font_normal = {
-    family = 'UbuntuMono Nerd Font',
+    family = 'Liga SFMono Nerd Font',
     weight = 'Regular'
 }
 
@@ -28,10 +28,10 @@ local config = {
     },
 
     window_padding = {
-        left = 20,
-        right = 20,
-        top = 20,
-        bottom = 20
+        left = 15,
+        right = 15,
+        top = 5,
+        bottom = 5
     },
 
     enable_tab_bar = true,
@@ -39,8 +39,8 @@ local config = {
     hide_tab_bar_if_only_one_tab = true,
     show_tab_index_in_tab_bar = false,
 
-    font_size = 10.2,
-    line_height = 1.3,
+    font_size = 9.0,
+    line_height = 1.1,
 
     font = wezterm.font_with_fallback({
         font_normal,
@@ -51,33 +51,25 @@ local config = {
         {
             italic = true,
             intensity = 'Normal',
-            font = wezterm.font_with_fallback({
-                {
-                    family = 'Victor Mono',
-                    style = 'Italic',
-                    scale = 0.8
-                },
-                "Twitter Color Emoji"
+            font = font_with_fallback({
+                family = 'Liga SFMono Nerd Font',
+                style = 'Italic',
             }, { italic = true })
         },
         {
             italic = true,
             intensity = 'Bold',
-            font = wezterm.font_with_fallback({
-                {
-                    family = 'Victor Mono',
-                    style = 'Italic',
-                    weight = 'Bold',
-                    scale = 0.8
-                },
-                "Twitter Color Emoji"
+            font = font_with_fallback({
+                family = 'Liga SFMono Nerd Font',
+                style = 'Italic',
+                weight = 'Bold',
             }, { bold = true, italic = true })
         },
         {
             italic = false,
             intensity = 'Bold',
             font = font_with_fallback({
-                family = 'UbuntuMono Nerd Font',
+                family = 'Liga SFMono Nerd Font',
                 weight = 'Bold',
             }, { bold = true })
         },
@@ -85,7 +77,7 @@ local config = {
             italic = false,
             intensity = 'Half',
             font = font_with_fallback({
-                family = 'UbuntuMono Nerd Font',
+                family = 'Liga SFMono Nerd Font',
                 weight = 'DemiBold',
             })
         },

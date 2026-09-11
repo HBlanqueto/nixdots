@@ -8,7 +8,6 @@
         ./fonts.nix
         
         ./desktop/gnome.nix
-        ./desktop/hyprland.nix
 
         ../hardware-configuration.nix
         ../boot
