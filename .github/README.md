@@ -22,34 +22,51 @@ An overview of the core configuration files and directories that make up this Ni
 
 ```text
 .
-├── boot/
+├── boot/                    # /boot — kernel, bootloader, impermanence rollback
 │   ├── default.nix
 │   └── snapshot.sh
-├── etc/
+├── etc/                     # /etc — NixOS system configuration
 │   ├── desktop/
+│   │   └── gnome.nix
 │   ├── default.nix
 │   ├── fonts.nix
 │   ├── global.nix
-│   ├── systemd.nix
+│   ├── services.nix
 │   └── uutils.nix
-├── home/
-│   ├── config/
-│   ├── local/
-│   │   ├── bin.nix
-│   │   └── style.nix
-│   ├── thm/
+├── home/                    # /home — home-manager configuration
+│   └── humbe/               # one directory per user (matches username in settings.nix)
+│       ├── config/
+│       │   ├── mopidy.nix
+│       │   ├── ncmpcpp.nix
+│       │   ├── starship.nix
+│       │   ├── wezterm.lua
+│       │   └── yazi/
+│       │       ├── default.nix
+│       │       └── init.lua
+│       ├── apps.nix
+│       ├── default.nix
+│       └── style.nix
+├── share/                   # /usr/share — static assets
+│   ├── themes/
+│   │   ├── default.nix
+│   │   └── neptunia.nix
+│   └── chime.wav
+├── overlays/
 │   └── default.nix
-├── flake.lock
+├── packages/
+│   └── sf-mono-liga-bin.nix
 ├── flake.nix
+├── flake.lock
 ├── hardware-configuration.nix
 └── settings.nix
 ```
 
-* **`flake.nix`:** The main entry point for the system setup.
-* **`settings.nix`:** Global variables (username, language, Git email).
+* **`flake.nix`:** The minimal main entry point for the system setup.
+* **`settings.nix`:** Single source of truth for global user values (username, hostname, language, Git email).
 * **`boot/`:** Startup settings, kernel, and Impermanence snapshot script.
 * **`etc/`:** Core system environment (desktop, services, fonts, and system-wide tools).
-* **`home/`:** User-specific configurations (XDG), including app configs, active programs (`bin.nix`), and theming (`style.nix`).
+* **`home/`:** User-specific configurations (XDG) for each user in `settings.nix`, including app configs, programs (`apps.nix`), and theming (`style.nix`).
+* **`share/`:** Static assets: the color themes and the boot audio.
 
 ## Setup
 
@@ -68,7 +85,9 @@ Before booting the NixOS live USB, prepare your motherboard.
 
 1. Enter your BIOS/UEFI settings.
 2. Navigate to **Secure Boot**.
-3. Select **Reset to Setup Mode** (or *Clear All Secure Boot Keys*).
+3. Select **Reset to Setfallback_color, on_resolved)
+    if not M.is_enabled(c) then
+up Mode** (or *Clear All Secure Boot Keys*).
 4. Save and exit.
 
 On the first boot after installation, Lanzaboote automatically generates the keys, bypasses `efivarfs` immutability to enroll them, and reboots the system. Because `/var/lib/auto-cryptenroll` and `/var/lib/sbctl` are persisted, no manual `sbctl` or `chattr` commands are ever required.

@@ -1,16 +1,21 @@
-{ inputs, ... }:
+{ inputs, stateVersion, ... }:
 
 {
     imports = [
-        ./global.nix
-        ./systemd.nix
-        ./uutils.nix
-        ./fonts.nix
-        
-        ./desktop/gnome.nix
+        inputs.impermanence.nixosModules.impermanence
+        inputs.home.nixosModules.home-manager
+        inputs.ucodenix.nixosModules.default
+        inputs.lanzaboote.nixosModules.lanzaboote
 
         ../hardware-configuration.nix
         ../boot
+
+        ./global.nix
+        ./services.nix
+        ./uutils.nix
+        ./fonts.nix
+
+        ./desktop/gnome.nix
     ];
 
     environment = {
@@ -26,7 +31,7 @@
                     "/var/lib/AccountsService"
                     "/etc/nixos"
                 ];
-            
+
                 files = [
                     "/etc/machine-id"
             ];
@@ -39,11 +44,11 @@
             max-jobs = "auto";
 
             experimental-features = [ "nix-command" "flakes" ];
-            substituters = [ 
+            substituters = [
                 "https://attic.xuyh0120.win/lantian" # CachyOS Kernel
                 "https://hyprland.cachix.org" # Hyprland
             ];
-            trusted-public-keys = [ 
+            trusted-public-keys = [
                 "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc="
                 "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
             ];
@@ -54,7 +59,10 @@
         config = {
             allowUnfree = true;
         };
-        overlays = [ inputs.nix-cachyos-kernel.overlays.pinned ];
+        overlays = [
+            inputs.nix-cachyos-kernel.overlays.pinned
+            (import ../overlays { inherit inputs; })
+        ];
     };
 
     documentation = {
@@ -63,8 +71,8 @@
         };
 
         man = {
-            enable = false; 
-            
+            enable = false;
+
             cache = {
                 enable = false;
             };
@@ -89,8 +97,8 @@
             powerOnBoot = true;
         };
     };
-    
+
     system = {
-        stateVersion = "26.05";
+        stateVersion = stateVersion;
     };
 }

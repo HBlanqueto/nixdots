@@ -12,10 +12,11 @@
         nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
         impermanence.url = "github:nix-community/impermanence";
         ucodenix.url = "github:e-tho/ucodenix";
-        
+
         lanzaboote.url = "github:nix-community/lanzaboote";
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
+        opencode.url = "github:dan-online/opencode-nix";
         brave-previews.url = "github:drishal/brave-browser-flake";
         mac-style.url = "github:SergioRibera/s4rchiso-plymouth-theme";
 
@@ -23,30 +24,20 @@
         sf-mono-liga-src.flake = false;
     };
 
-    outputs = inputs@{ self, nixpkgs, ... }: 
+    outputs = inputs@{ self, nixpkgs, ... }:
         let
             settings = import ./settings.nix;
-        in 
+        in
         {
             nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
                 system = settings.system;
 
                 specialArgs = {
                     inherit inputs;
-                    inherit (settings) system hostName timeZone defaultLocale username userdescription hashedpassword gitName gitEmail;
+                    inherit (settings) system hostName timeZone defaultLocale username userdescription hashedpassword gitName gitEmail stateVersion;
                 };
 
-                modules = [
-                    ./etc
-                    inputs.impermanence.nixosModules.impermanence
-                    inputs.home.nixosModules.home-manager
-                    inputs.ucodenix.nixosModules.default
-                    inputs.lanzaboote.nixosModules.lanzaboote
-                    {
-                        nixpkgs.config.allowUnfree = true;
-                        nixpkgs.overlays = [ (import ./overlays { inherit inputs; }) ];
-                    }
-                ];
+                modules = [ ./etc ];
             };
         };
 }

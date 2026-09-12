@@ -1,7 +1,7 @@
-{ pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, gitName, gitEmail, ... }:
+{ pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, gitName, gitEmail, stateVersion, ... }:
 
 let
-    theme = import ../thm { };
+    theme = import ../share/themes { };
 in
 
 {
@@ -32,7 +32,7 @@ in
     home-manager = {
         backupFileExtension = "backup";
         sharedModules = [ ];
-        extraSpecialArgs = { inherit inputs theme hostName username gitName gitEmail; };
+        extraSpecialArgs = { inherit inputs theme hostName username gitName gitEmail stateVersion; };
         users.${username} = import ../home;
     };
 
@@ -57,6 +57,8 @@ in
             git 
             wget 
             curl
+            luajit
+            lua51Packages.luacheck
 
             quickshell
             somewm

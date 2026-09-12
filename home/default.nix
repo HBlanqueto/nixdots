@@ -1,57 +1,16 @@
-{ config, pkgs, inputs, username, ... }:
+# /home entry point. Imports the per-user configuration subdirectory.
+# The directory name must match the global username from ./settings.nix.
 
+{ username, lib, ... }:
+
+let
+    userDir = ./humbe;
+in
 {
-    imports = [
-        ./local/bin.nix
-        ./local/style.nix
-    ];
+    imports = [ userDir ];
 
-    home = {
-        inherit username;
-        homeDirectory = "/home/${username}";
-
-        sessionVariables = {
-            BROWSER = "${config.programs.brave.package}/bin/brave";
-            TERMINAL = "wezterm";
-            EDITOR = "nvim";
-            SDL_VIDEODRIVER = "wayland";
-            QT_QPA_PLATFORM = "wayland;xcb";
-            CLUTTER_BACKEND = "wayland";
-            NO_AT_BRIDGE = "1";
-            NIXOS_OZONE_WL = "1";
-        };
-
-        file = {
-            ".config/chime/chime.wav".source = ../thm/chime.wav;
-        };
-    };
-
-    xdg = {
-        enable = true;
-
-        userDirs = {
-            enable = true;
-            createDirectories = true;
-
-            projects = "${config.home.homeDirectory}/Proyectos";
-            publicShare = "${config.home.homeDirectory}/Público";
-            templates = "${config.home.homeDirectory}/Plantillas";
-            desktop = "${config.home.homeDirectory}/Escritorio";
-            documents = "${config.home.homeDirectory}/Documentos";
-            music = "${config.home.homeDirectory}/Música";
-            pictures = "${config.home.homeDirectory}/Imágenes";
-            videos = "${config.home.homeDirectory}/Videos";
-            download = "${config.home.homeDirectory}/Descargas";
-        };
-    };
-    
-    nixpkgs = {
-        config = {
-            allowUnfree = true;
-
-            permittedInsecurePackages = [
-                "electron-39.8.10"
-            ];
-        };
-    };
+    assertions = [{
+        assertion = builtins.baseNameOf (builtins.toString userDir) == username;
+        message = "Rename the user configuration directory to match the username from settings.nix.";
+    }];
 }

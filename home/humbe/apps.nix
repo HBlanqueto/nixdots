@@ -1,12 +1,12 @@
-{ pkgs, inputs, gitName, gitEmail, ... }:
+{ pkgs, inputs, hostName, gitName, gitEmail, stateVersion, ... }:
 
 let
-    yaziConfig = import ../config/yazi;
+    yaziConfig = import ./config/yazi;
 in
 
 {
     home = {
-        stateVersion = "26.05";
+        stateVersion = stateVersion;
 
         packages = with pkgs; [
             fastfetch
@@ -26,6 +26,8 @@ in
 
             onlyoffice-desktopeditors
             foot
+
+            opencode
         ];
     };
 
@@ -51,7 +53,7 @@ in
             plugins = {
                 inherit (pkgs.yaziPlugins) yatline;
             };
-            initLua = builtins.readFile ../config/yazi/init.lua;
+            initLua = builtins.readFile ./config/yazi/init.lua;
             
             settings = yaziConfig.settings;
             theme = yaziConfig.theme;
@@ -63,7 +65,7 @@ in
                 visualizerSupport = true; 
             };
             
-            settings = import ../config/ncmpcpp.nix;
+            settings = import ./config/ncmpcpp.nix;
         };
 
         bat = {
@@ -77,7 +79,7 @@ in
 
         wezterm = {
             enable = true;
-            extraConfig = builtins.readFile ../config/wezterm.lua;
+            extraConfig = builtins.readFile ./config/wezterm.lua;
         };
 
         fish = {
@@ -89,8 +91,8 @@ in
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
                 nix-update = "sudo nixos-rebuild switch";
-                flake-update-rb = "sudo nixos-rebuild boot --flake .#nixos --impure";
-                flake-update-sw = "sudo nixos-rebuild switch --flake .#nixos --impure";
+                flake-update-rb = "sudo nixos-rebuild boot --flake .#${hostName} --impure";
+                flake-update-sw = "sudo nixos-rebuild switch --flake .#${hostName} --impure";
 
                 g = "git";
                 c = "clear";
@@ -104,7 +106,7 @@ in
 
         starship = {
             enable = true;
-            settings = import ../config/starship.nix;
+            settings = import ./config/starship.nix;
         };
 
         home-manager = {
@@ -119,7 +121,7 @@ in
                 mopidy-local
                 mopidy-mpd
             ];
-            settings = import ../config/mopidy.nix { };
+            settings = import ./config/mopidy.nix { };
         };
     };
 }

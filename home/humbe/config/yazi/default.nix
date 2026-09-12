@@ -1,5 +1,5 @@
 let
-    theme = import ../../../thm { };
+    theme = import ../../../../share/themes { };
 in
 
 with theme.colors;
