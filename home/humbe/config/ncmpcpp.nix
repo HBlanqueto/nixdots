@@ -14,6 +14,7 @@
   visualizer_color = "8,4,12,6,14,13,7,15";
 
   colors_enabled = "yes";
+  main_window_color = "black";
   state_line_color = "default";
   alternative_ui_separator_color = "default";
   window_border_color = "default";

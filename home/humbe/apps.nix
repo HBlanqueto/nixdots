@@ -14,6 +14,8 @@ in
             mpc
             ffmpeg
             efibootmgr
+            jq
+            gh
             python3
         
             trezor-suite
@@ -26,8 +28,6 @@ in
 
             onlyoffice-desktopeditors
             foot
-
-            opencode
         ];
     };
 

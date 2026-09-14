@@ -6,6 +6,5 @@ final: prev: {
     mac-style-plymouth = inputs.mac-style.packages.${prev.stdenv.hostPlatform.system}.default;
     somewm = inputs.somewm.packages.${prev.stdenv.hostPlatform.system}.default;
     
-    opencode = inputs.opencode.packages.${prev.stdenv.hostPlatform.system}.default;
     brave-previews = inputs.brave-previews.packages.${prev.stdenv.hostPlatform.system}.default;
 }

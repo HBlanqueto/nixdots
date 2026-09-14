@@ -74,4 +74,10 @@
             "net.ipv4.tcp_slow_start_after_idle" = 0;
         };
     };
+
+    services = {
+        ucodenix = {
+            enable = true;
+        };
+    };
 }

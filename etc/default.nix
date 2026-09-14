@@ -10,6 +10,7 @@
         ../hardware-configuration.nix
         ../boot
 
+        ./ai.nix
         ./global.nix
         ./services.nix
         ./uutils.nix

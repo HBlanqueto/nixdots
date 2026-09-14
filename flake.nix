@@ -7,7 +7,7 @@
         home.url = "github:nix-community/home-manager";
         home.inputs.nixpkgs.follows = "nixpkgs";
 
-        somewm.url = "github:trip-zip/somewm";
+        somewm.url = "github:HBlanqueto/somewm";
 
         nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
         impermanence.url = "github:nix-community/impermanence";
@@ -16,7 +16,6 @@
         lanzaboote.url = "github:nix-community/lanzaboote";
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
-        opencode.url = "github:dan-online/opencode-nix";
         brave-previews.url = "github:drishal/brave-browser-flake";
         mac-style.url = "github:SergioRibera/s4rchiso-plymouth-theme";
 

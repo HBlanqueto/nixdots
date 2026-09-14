@@ -1,5 +1,11 @@
 local colors = dofile(os.getenv("HOME") .. "/.config/lua-theme/theme.lua")
 
+for name, _ in pairs(colors) do
+    if name ~= "bg" and name ~= "dbg" and name ~= "lbg" then
+        colors[name] = "#ffffff"
+    end
+end
+
 local sep_01 = {
     type = "coloreds",
     custom = true,

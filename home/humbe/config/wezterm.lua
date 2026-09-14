@@ -16,6 +16,7 @@ end
 local config = {
     front_end = 'OpenGL',
     enable_wayland = true,
+    use_ime = true,
     warn_about_missing_glyphs = true,
     check_for_updates = false,
     bold_brightens_ansi_colors = false,
@@ -28,16 +29,13 @@ local config = {
     },
 
     window_padding = {
-        left = 15,
-        right = 15,
-        top = 5,
-        bottom = 5
+        left = 20,
+        right = 20,
+        top = 20,
+        bottom = 20
     },
 
-    enable_tab_bar = true,
-    tab_bar_at_bottom = true,
-    hide_tab_bar_if_only_one_tab = true,
-    show_tab_index_in_tab_bar = false,
+    enable_tab_bar = false,
 
     font_size = 9.0,
     line_height = 1.1,

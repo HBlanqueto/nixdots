@@ -59,6 +59,7 @@ in
             curl
             luajit
             lua51Packages.luacheck
+            poppler-utils
 
             quickshell
             somewm

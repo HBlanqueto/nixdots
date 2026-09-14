@@ -1,5 +1,6 @@
 let
     theme = import ../../../../share/themes { };
+    icons = import ./icons-white.nix;
 in
 
 with theme.colors;
@@ -36,7 +37,7 @@ with theme.colors;
     theme = {
         mgr = {
             border_style = {
-                fg = "black";
+                fg = "white";
             };
             border_symbol = " ";
         };
@@ -50,14 +51,39 @@ with theme.colors;
             current = { 
                 reversed = false; 
                 fg = "#${bg}";
-                bg = "#${fg}";
+                bg = "#ffffff";
             };
 
             parent = {
                 reversed = false;
                 fg = "#${bg}";
-                bg = "#${fg}";
+                bg = "#ffffff";
             };
         };
+
+        filetype = {
+            rules = [
+                {
+                    url = "*";
+                    is = "orphan";
+                    fg = "white";
+                }
+                {
+                    url = "*";
+                    is = "exec";
+                    fg = "white";
+                }
+                {
+                    url = "*/";
+                    fg = "white";
+                }
+                {
+                    url = "*";
+                    fg = "white";
+                }
+            ];
+        };
+
+        icon = icons;
     };
 }
