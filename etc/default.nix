@@ -76,10 +76,6 @@
 
         man = {
             enable = false;
-
-            cache = {
-                enable = false;
-            };
         };
     };
 
@@ -98,7 +94,6 @@
 
         bluetooth = {
             enable = true;
-            powerOnBoot = true;
         };
     };
 
