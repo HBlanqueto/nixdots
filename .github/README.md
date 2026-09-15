@@ -13,7 +13,7 @@ This NixOS system features the following core components:
 - [x] **Flakes:** Fully flake-based system configuration
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
-- [ ] **Lanzaboote & LUKS:** Secure Boot with Btrfs decryption
+- [x] **Lanzaboote & LUKS:** Secure Boot with Btrfs decryption
 - [ ] **Agenix:** Secure secrets management
 
 ### Structure
@@ -28,6 +28,7 @@ An overview of the core configuration files and directories that make up this Ni
 ├── etc/                     # /etc — NixOS system configuration
 │   ├── desktop/
 │   │   └── gnome.nix
+│   ├── ai.nix               # ollama server + opencode AI stack
 │   ├── default.nix
 │   ├── fonts.nix
 │   ├── global.nix
@@ -36,20 +37,27 @@ An overview of the core configuration files and directories that make up this Ni
 ├── home/                    # /home — home-manager configuration
 │   └── humbe/               # one directory per user (matches username in settings.nix)
 │       ├── config/
+│       │   ├── fastfetch/
+│       │   │   ├── config.jsonc
+│       │   │   └── logo.txt
 │       │   ├── mopidy.nix
 │       │   ├── ncmpcpp.nix
 │       │   ├── starship.nix
 │       │   ├── wezterm.lua
 │       │   └── yazi/
 │       │       ├── default.nix
-│       │       └── init.lua
+│       │       ├── icons.nix
+│       │       ├── init.lua
+│       │       └── yatline-icon.patch
 │       ├── apps.nix
 │       ├── default.nix
 │       └── style.nix
 ├── share/                   # /usr/share — static assets
 │   ├── themes/
 │   │   ├── default.nix
-│   │   └── neptunia.nix
+│   │   ├── filecolors.nix
+│   │   ├── neptunia.nix
+│   │   └── vscode.nix
 │   └── chime.wav
 ├── overlays/
 │   └── default.nix
@@ -64,7 +72,7 @@ An overview of the core configuration files and directories that make up this Ni
 * **`flake.nix`:** The minimal main entry point for the system setup.
 * **`settings.nix`:** Single source of truth for global user values (username, hostname, language, Git email).
 * **`boot/`:** Startup settings, kernel, and Impermanence snapshot script.
-* **`etc/`:** Core system environment (desktop, services, fonts, and system-wide tools).
+* **`etc/`:** Core system environment (desktop, services, fonts, system-wide tools, and the local AI stack).
 * **`home/`:** User-specific configurations (XDG) for each user in `settings.nix`, including app configs, programs (`apps.nix`), and theming (`style.nix`).
 * **`share/`:** Static assets: the color themes and the boot audio.
 
