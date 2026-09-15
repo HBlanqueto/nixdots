@@ -1,8 +1,8 @@
 {}:
 
 rec {
-    dbg = "10171e"; # Darker BG
-    lbg = "1f272e"; # Lighter BG
+    dbg = "0d1219"; # Darker BG
+    lbg = "212b38"; # Lighter BG
 
     fg = "adbac7";
     bg = "13171d";
@@ -16,13 +16,13 @@ rec {
     c6 = "a5c0d2";
     c7 = "cdd9e5";
 
-    c8 = "2c3b54";
-    c9 = "e59592";
+    c8  = "55657e";
+    c9  = "e59592";
     c10 = "a3dcb1";
     c11 = "dfca9b";
     c12 = "97b7ff";
     c13 = "bda9d6";
-    c14 = "cee8ff"; 
+    c14 = "cee8ff";
     c15 = "eef4fa";
 
     primary = c4;

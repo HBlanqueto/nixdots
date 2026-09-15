@@ -1,5 +1,7 @@
 local colors = dofile(os.getenv("HOME") .. "/.config/lua-theme/theme.lua")
 
+require("full-border"):setup({ type = ui.Border.ROUNDED })
+
 for name, _ in pairs(colors) do
     if name ~= "bg" and name ~= "dbg" and name ~= "lbg" then
         colors[name] = "#ffffff"

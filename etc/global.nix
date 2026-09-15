@@ -54,7 +54,7 @@ in
             comma     
 
             sbctl
-            git 
+            efibootmgr
             wget 
             curl
             luajit
@@ -65,10 +65,7 @@ in
             somewm
             polkit_gnome 
             gsettings-desktop-schemas 
-            libnotify
-
-            wezterm
-            firefox
+            libnotify 
         ];
     };
 }

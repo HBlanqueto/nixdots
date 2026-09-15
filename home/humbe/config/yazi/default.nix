@@ -1,6 +1,6 @@
 let
     theme = import ../../../../share/themes { };
-    icons = import ./icons-white.nix;
+    icons = import ./icons.nix;
 in
 
 with theme.colors;
@@ -37,9 +37,9 @@ with theme.colors;
     theme = {
         mgr = {
             border_style = {
-                fg = "white";
+                fg = "#${lbg}";
             };
-            border_symbol = " ";
+            border_symbol = "│";
         };
 
         indicator = {
@@ -50,40 +50,27 @@ with theme.colors;
 
             current = { 
                 reversed = false; 
-                fg = "#${bg}";
-                bg = "#ffffff";
+                fg = "#${fg}";
+                bg = "#${lbg}";
             };
 
             parent = {
                 reversed = false;
-                fg = "#${bg}";
-                bg = "#ffffff";
+                fg = "#${fg}";
+                bg = "#${lbg}";
             };
         };
 
         filetype = {
-            rules = [
-                {
-                    url = "*";
-                    is = "orphan";
-                    fg = "white";
-                }
-                {
-                    url = "*";
-                    is = "exec";
-                    fg = "white";
-                }
-                {
-                    url = "*/";
-                    fg = "white";
-                }
-                {
-                    url = "*";
-                    fg = "white";
-                }
-            ];
+            rules = icons.filetypeRules;
         };
 
-        icon = icons;
+        icon = {
+            globs = icons.globs;
+            dirs = icons.dirs;
+            files = icons.files;
+            exts = icons.exts;
+            conds = icons.conds;
+        };
     };
 }

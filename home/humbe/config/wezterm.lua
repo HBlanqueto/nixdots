@@ -83,10 +83,12 @@ local config = {
 
     colors = {
         foreground = theme.fg,
-        background = theme.bg,
+        background = theme.dbg,
         cursor_bg = theme.fg,
         cursor_fg = theme.fg,
         cursor_border = theme.fg,
+        selection_fg = theme.fg,
+        selection_bg = theme.lbg,
         split = theme.lbg,
 
         ansi = {

@@ -26,6 +26,11 @@
                     "/var/log"
                     "/var/lib/bluetooth"
                     "/var/lib/nixos"
+                    {
+                        directory = "/var/lib/ollama/models";
+                        user = "ollama";
+                        group = "ollama";
+                    }
                     "/var/lib/sbctl"
                     "/var/lib/auto-cryptenroll"
                     "/etc/NetworkManager/system-connections"
@@ -47,11 +52,9 @@
             experimental-features = [ "nix-command" "flakes" ];
             substituters = [
                 "https://attic.xuyh0120.win/lantian" # CachyOS Kernel
-                "https://hyprland.cachix.org" # Hyprland
             ];
             trusted-public-keys = [
                 "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc="
-                "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
             ];
         };
     };
