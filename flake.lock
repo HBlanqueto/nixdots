@@ -447,11 +447,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1789455004,
-        "narHash": "sha256-ZnX+u484Qycegk9EkqVl4e6Wjxt5ABNEwvmERYXrU9s=",
+        "lastModified": 1789513060,
+        "narHash": "sha256-eM1iLaKOxwnsATHM6TGbtzUk0E4Mx8dQUv/cTQcs2WA=",
         "owner": "HBlanqueto",
         "repo": "somewm",
-        "rev": "76a888520035670d85b8eb14f2b7f9c8afb685ff",
+        "rev": "f728b2aef86ef1f125bdeb4fabe81433c47c5909",
         "type": "github"
       },
       "original": {
