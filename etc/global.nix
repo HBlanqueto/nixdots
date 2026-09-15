@@ -1,7 +1,7 @@
 { pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, gitName, gitEmail, stateVersion, ... }:
 
 let
-    theme = import ../share/themes { };
+    theme = import ../share/themes;
 in
 
 {
