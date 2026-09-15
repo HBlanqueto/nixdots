@@ -1,4 +1,4 @@
-{ config, pkgs, inputs, username, ... }:
+{ config, ... }:
 
 {
     imports = [
@@ -7,9 +7,6 @@
     ];
 
     home = {
-        inherit username;
-        homeDirectory = "/home/${username}";
-
         sessionVariables = {
             BROWSER = "${config.programs.brave.package}/bin/brave";
             TERMINAL = "wezterm";
