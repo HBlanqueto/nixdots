@@ -30,8 +30,6 @@ in
     };
 
     home-manager = {
-        backupFileExtension = "backup";
-        sharedModules = [ ];
         extraSpecialArgs = { inherit inputs theme hostName username gitName gitEmail stateVersion; };
         users.${username} = import ../home;
     };
