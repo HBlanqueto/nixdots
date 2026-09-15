@@ -1,5 +1,5 @@
 let
-    theme = import ../../../../share/themes { };
+    theme = import ../../../../share/themes;
 in
 
 rec {
