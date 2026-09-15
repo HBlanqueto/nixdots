@@ -26,10 +26,6 @@ with theme.colors;
                     mime = "audio/*";
                     use = [ "play_ncmpcpp" ];
                 }
-                {
-                    url = "*.mp3";
-                    use = [ "play_ncmpcpp" ];
-                }
             ];
         };
     };

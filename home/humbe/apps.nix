@@ -240,15 +240,6 @@ in
             settings = import ./config/ncmpcpp.nix;
         };
 
-        bat = {
-            enable = false;
-            config = {
-                pager = "never";
-                style = "full";
-                theme = "base16";
-            };
-        };
-
         wezterm = {
             enable = true;
             extraConfig = builtins.readFile ./config/wezterm.lua;
