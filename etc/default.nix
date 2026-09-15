@@ -1,4 +1,4 @@
-{ inputs, stateVersion, ... }:
+{ config, pkgs, inputs, stateVersion, ... }:
 
 {
     imports = [
@@ -35,6 +35,7 @@
                     "/var/lib/auto-cryptenroll"
                     "/etc/NetworkManager/system-connections"
                     "/var/lib/AccountsService"
+                    "/var/lib/cups"
                     "/etc/nixos"
                 ];
 
@@ -92,6 +93,11 @@
         bluetooth = {
             enable = true;
         };
+    };
+
+    hardware.sane = {
+        enable = true;
+        extraBackends = [ pkgs.epsonscan2 ];
     };
 
     system = {

@@ -41,7 +41,15 @@
 
         printing = {
             enable = true;
-            drivers = [ pkgs.epson-escpr2 ];
+            drivers = [ pkgs.epson-escpr ];
+        };
+
+        avahi = {
+            enable = true;
+            publish = {
+                enable = true;
+                userServices = true;
+            };
         };
 
         xserver = {
