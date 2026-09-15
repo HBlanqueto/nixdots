@@ -2,7 +2,7 @@
 
 let
     yaziConfig = import ./config/yazi;
-    starshipSettings = import ./config/starship.nix { inherit (theme) colors };
+    starshipSettings = import ./config/starship.nix { inherit (theme) colors; };
 
     hexToRgb = hex:
         let
