@@ -62,7 +62,6 @@ in
 
             quickshell
             somewm
-            polkit_gnome 
             gsettings-desktop-schemas 
             libnotify 
         ];
