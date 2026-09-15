@@ -35,7 +35,6 @@
         fstrim.enable = true;
         gnome.gnome-keyring.enable = true;
         gvfs.enable = true;
-        libinput.enable = true;
         openssh.enable = true;
         upower.enable = true;
         trezord.enable = true;
@@ -47,7 +46,6 @@
 
         xserver = {
             enable = true;
-            wacom.enable = false;
             excludePackages = [ pkgs.xterm ];
             
             xkb = {
