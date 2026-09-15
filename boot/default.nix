@@ -43,7 +43,7 @@
         initrd = {
             verbose = false;
             systemd = {
-                initrdBin = with pkgs; [ uutils-coreutils-noprefix btrfs-progs findutils util-linux ];
+                initrdBin = with pkgs; [ uutils-coreutils-noprefix btrfs-progs findutils util-linux gawk e2fsprogs ];
 
                 services = {
                     rollback = {

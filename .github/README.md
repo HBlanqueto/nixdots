@@ -93,9 +93,7 @@ Before booting the NixOS live USB, prepare your motherboard.
 
 1. Enter your BIOS/UEFI settings.
 2. Navigate to **Secure Boot**.
-3. Select **Reset to Setfallback_color, on_resolved)
-    if not M.is_enabled(c) then
-up Mode** (or *Clear All Secure Boot Keys*).
+3. Select **Reset to Setup Mode** (or *Clear All Secure Boot Keys*).
 4. Save and exit.
 
 On the first boot after installation, Lanzaboote automatically generates the keys, bypasses `efivarfs` immutability to enroll them, and reboots the system. Because `/var/lib/auto-cryptenroll` and `/var/lib/sbctl` are persisted, no manual `sbctl` or `chattr` commands are ever required.
@@ -159,7 +157,7 @@ Open `~/dotfiles/hardware-configuration.nix` and append `neededForBoot = true;` 
 
 #### snapshot.sh
 
-For the boot rollback to work, `boot/snapshot.sh` must mount your exact Btrfs partition. 
+For the boot rollback to work, `boot/snapshot.sh` must mount your exact Btrfs partition at the **top level** (`subvolid=5`), so that both `@rootfs` and `old_roots/` are visible.
 
 Replace the placeholder UUID with your drive's UUID (found in your generated `hardware-configuration.nix`):
 
@@ -170,8 +168,25 @@ sleep 2
 mkdir -p /btrfs_tmp
 
 # Replace the UUID below with your actual partition UUID!
-mount /dev/disk/by-uuid/YOUR-UUID-HERE /btrfs_tmp
+# subvolid=5 mounts the top level instead of the default subvolume.
+mount -t btrfs -o subvolid=5 /dev/disk/by-uuid/YOUR-UUID-HERE /btrfs_tmp
 ```
+
+Old snapshots cannot be deleted directly: systemd creates nested subvolumes inside the root (`srv`, `var/tmp`, `var/lib/portables`, `var/lib/machines`, ...) and Btrfs refuses to delete a parent subvolume while children exist. The script therefore prunes each expired snapshot **bottom-up**, deepest subvolume first:
+
+```bash
+# btrfs rejects deleting a subvolume that still contains children,
+# so remove every nested subvolume first (deepest last).
+btrfs subvolume list -o "$snapshot" | awk '{print $NF}' | sort -r \
+  | while read -r path; do
+      btrfs subvolume delete "/btrfs_tmp/$path"
+    done
+
+btrfs subvolume delete "$snapshot"
+```
+
+> [!NOTE]
+> The script uses `awk` and `sort`, so make sure `gawk` is listed in `boot.initrd.systemd.initrdBin` in `boot/default.nix` (it is not provided by `uutils-coreutils`).
 
 ### Installation
 
