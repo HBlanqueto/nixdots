@@ -23,7 +23,7 @@
         sf-mono-liga-src.flake = false;
     };
 
-    outputs = inputs@{ self, nixpkgs, ... }:
+    outputs = inputs@{ nixpkgs, ... }:
         let
             settings = import ./settings.nix;
         in

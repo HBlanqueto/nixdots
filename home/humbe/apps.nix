@@ -293,7 +293,7 @@ in
                 mopidy-local
                 mopidy-mpd
             ];
-            settings = import ./config/mopidy.nix { };
+            settings = import ./config/mopidy.nix;
         };
     };
 }

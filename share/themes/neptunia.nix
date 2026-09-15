@@ -1,5 +1,3 @@
-{}:
-
 rec {
     dbg = "0d1219"; # Darker BG
     lbg = "212b38"; # Lighter BG
