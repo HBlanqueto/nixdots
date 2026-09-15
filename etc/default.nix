@@ -46,9 +46,6 @@
 
     nix = {
         settings = {
-            cores = 0;
-            max-jobs = "auto";
-
             experimental-features = [ "nix-command" "flakes" ];
             substituters = [
                 "https://attic.xuyh0120.win/lantian" # CachyOS Kernel
