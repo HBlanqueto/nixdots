@@ -271,10 +271,6 @@ in
             enable = true;
             settings = starshipSettings;
         };
-
-        home-manager = {
-            enable = true;
-        };
     };
 
     services = {
