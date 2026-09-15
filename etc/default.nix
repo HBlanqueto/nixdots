@@ -16,7 +16,7 @@
         ./uutils.nix
         ./fonts.nix
 
-        ./desktop/gnome.nix
+        ./gnome.nix
     ];
 
     environment = {
