@@ -2,58 +2,27 @@
 { pkgs, ... }:
 
 let
-  coreutils-full-name = "coreuutils-full" + builtins.concatStringsSep ""
-    (builtins.genList (_: "_") (builtins.stringLength pkgs.coreutils-full.version));
+  paddedName = base: pkg:
+    base + builtins.concatStringsSep ""
+      (builtins.genList (_: "_") (builtins.stringLength pkg.version));
 
-  coreutils-name = "coreuutils" + builtins.concatStringsSep ""
-    (builtins.genList (_: "_") (builtins.stringLength pkgs.coreutils.version));
-
-  findutils-name = "finduutils" + builtins.concatStringsSep ""
-    (builtins.genList (_: "_") (builtins.stringLength pkgs.findutils.version));
-
-  diffutils-name = "diffuutils" + builtins.concatStringsSep ""
-    (builtins.genList (_: "_") (builtins.stringLength pkgs.diffutils.version));
+  uutilsReplacement = base: old: new: {
+    oldDependency = old;
+    newDependency = pkgs.symlinkJoin {
+      # Make the name length match so it builds
+      name = paddedName base old;
+      paths = [ new ];
+    };
+  };
 in
 {
   system.replaceDependencies.replacements = [
     # coreutils
-    {
-      # system
-      oldDependency = pkgs.coreutils-full;
-      newDependency = pkgs.symlinkJoin {
-        # Make the name length match so it builds
-        name = coreutils-full-name;
-        paths = [pkgs.uutils-coreutils-noprefix];
-      };
-    }
-    {
-      # applications
-      oldDependency = pkgs.coreutils;
-      newDependency = pkgs.symlinkJoin {
-        # Make the name length match so it builds
-        name = coreutils-name;
-        paths = [pkgs.uutils-coreutils-noprefix];
-      };
-    }
+    (uutilsReplacement "coreuutils-full" pkgs.coreutils-full pkgs.uutils-coreutils-noprefix) # system
+    (uutilsReplacement "coreuutils" pkgs.coreutils pkgs.uutils-coreutils-noprefix) # applications
     # findutils
-    {
-      # applications
-      oldDependency = pkgs.findutils;
-      newDependency = pkgs.symlinkJoin {
-        # Make the name length match so it builds
-        name = findutils-name;
-        paths = [pkgs.uutils-findutils];
-      };
-    }
+    (uutilsReplacement "finduutils" pkgs.findutils pkgs.uutils-findutils) # applications
     # diffutils
-    {
-      # applications
-      oldDependency = pkgs.diffutils;
-      newDependency = pkgs.symlinkJoin {
-        # Make the name length match so it builds
-        name = diffutils-name;
-        paths = [pkgs.uutils-diffutils];
-      };
-    }
+    (uutilsReplacement "diffuutils" pkgs.diffutils pkgs.uutils-diffutils) # applications
   ];
 }
