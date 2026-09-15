@@ -2,7 +2,7 @@
 
 let
     yaziConfig = import ./config/yazi;
-    prompts = import ./config/starship.nix;
+    starshipSettings = import ./config/starship.nix { inherit (theme) colors };
 
     hexToRgb = hex:
         let
@@ -278,7 +278,7 @@ in
 
         starship = {
             enable = true;
-            settings = prompts.trazo.extravagante;
+            settings = starshipSettings;
         };
 
         home-manager = {
