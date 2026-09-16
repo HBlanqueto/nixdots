@@ -6,11 +6,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1789383389,
-        "narHash": "sha256-xXIt13g3iW8JUZoYxjzmWwhPsU6nb7pI2OgtKJ/0TFQ=",
+        "lastModified": 1789467707,
+        "narHash": "sha256-yPIxUwAyUAESyouUxvosp0fcZ1eEhjsMrFnHgFGCZ8o=",
         "owner": "drishal",
         "repo": "brave-browser-flake",
-        "rev": "412781f91a8ed1165adf1337e8355d43ee459756",
+        "rev": "fde431de1e50c43ea079e3a647f42c6b923ee1db",
         "type": "github"
       },
       "original": {
@@ -143,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789430117,
-        "narHash": "sha256-t+U1mijItLJ64xZOifpfQ17kpAL73nU7pDI48ScacVc=",
+        "lastModified": 1789482455,
+        "narHash": "sha256-pD3qVlQ4mUCFoTWrYtxecpSitQMsgJvJIN0FUIDZoEU=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "cda90fd8838825c689fde9d3f3b4e937937790df",
+        "rev": "efa3ccb4c3cc90d832eab232976379058fa75aa3",
         "type": "github"
       },
       "original": {
@@ -447,11 +447,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1789530026,
-        "narHash": "sha256-s3LDPDEjb3Qh8MPHwR95PlLEzNsaloaduCQgr7zF3G0=",
+        "lastModified": 1789592690,
+        "narHash": "sha256-FwX57DmeBqmk5KqpyzwH3nJTS6Jk8qFTxLiIb1B4PI4=",
         "owner": "HBlanqueto",
         "repo": "somewm",
-        "rev": "7efa0be74afcbaf3cf2bdfadecbe9f70115f07d4",
+        "rev": "983da2c0740547879342968c9beb787d9d27180c",
         "type": "github"
       },
       "original": {
