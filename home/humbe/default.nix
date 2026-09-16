@@ -4,7 +4,6 @@
     imports = [
         ./apps.nix
         ./style.nix
-        ../../firefox-islands
     ];
 
     home = {
