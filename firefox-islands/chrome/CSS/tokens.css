@@ -1,0 +1,74 @@
+/* islands — design tokens.
+ *
+ * Single source of truth for geometry and palette. The JS layer overrides the
+ * --uc-* custom properties on :root at runtime; the values below are the
+ * static defaults that already render a usable islands layout with no script.
+ *
+ * Geometry vocabulary:
+ *   gap          space between islands, and between the content frame and the
+ *                window edges
+ *   bar-height   height of the single toolbar band (align with the shell notch)
+ *   window-radius  radius the compositor applies to the window corners
+ *   inner-radius = max(window-radius - gap, 2px)  (concentric, derived)
+ *   island radius = min(inner-radius, bar-height / 2)
+ */
+
+:root {
+  /* ---- geometry ------------------------------------------------------- */
+  --uc-gap: 8px;
+  --uc-bar-height: 34px;
+  --uc-window-radius: 16px;
+  --uc-notch-width: 420px;
+  --uc-notch-cut: min(14px, calc(var(--uc-island-height) / 2));
+
+  /* Measured by the JS layer; the values here are the no-JS fallback so the
+     tabs island stays usable. The URL island is centered with a capped
+     width, so the fallback starts the tab strip just past its right edge. */
+  --uc-tabs-inline-start: calc(50% + min(23vw, 360px) + var(--uc-gap));
+  --uc-tabs-inline-end: var(--uc-gap);
+
+  /* ---- derived geometry (computed in CSS from the tokens above) ------- */
+  --uc-inner-radius: max(calc(var(--uc-window-radius) - var(--uc-gap)), 2px);
+  --uc-island-radius: min(var(--uc-inner-radius), calc(var(--uc-bar-height) / 2));
+  --uc-island-inset-v: 4px;
+  --uc-island-height: calc(var(--uc-bar-height) - 2 * var(--uc-island-inset-v));
+
+  /* ---- palette defaults (replaced live by the theme source) ----------- */
+  --uc-canvas-base: light-dark(#f9f9fb, #23222b);
+  --uc-canvas: var(--uc-canvas-base);
+  --uc-island-bg: light-dark(rgba(255, 255, 255, 0.85), rgba(58, 57, 68, 0.85));
+  --uc-island-bg-hover: light-dark(rgba(240, 240, 244, 0.9), rgba(72, 71, 84, 0.9));
+  --uc-fg: light-dark(#15141a, #fbfbfe);
+  --uc-fg-muted: light-dark(#5b5b66, #b6b6c1);
+  --uc-accent: light-dark(#0061e0, #00ddff);
+  --uc-border: color-mix(in srgb, currentColor 10%, transparent);
+  --uc-frame-bg: light-dark(#f9f9fb, #2b2a33);
+  --uc-frame-border: color-mix(in srgb, currentColor 12%, transparent);
+  --uc-private-tint: #722291;
+  --uc-blur-amount: 0px;
+
+  /* ---- motion --------------------------------------------------------- */
+  --uc-motion-speed: 1;
+  /* Default damped-spring easing (stiffness 300, damping 30) as a CSS
+     linear() function; the motion module regenerates it from the settings
+     and overrides this variable live. */
+  --uc-spring: linear(
+    0.0 0.0%,
+    0.204 6.25%,
+    0.4919 12.5%,
+    0.7198 18.75%,
+    0.8643 25.0%,
+    0.9432 31.25%,
+    0.9806 37.5%,
+    0.9955 43.75%,
+    0.9997 50.0%,
+    0.9997 56.25%,
+    0.9985 62.5%,
+    0.9974 68.75%,
+    0.9966 75.0%,
+    0.9961 81.25%,
+    0.9958 87.5%,
+    0.9957 93.75%,
+    0.9957 100.0%
+  );
+}

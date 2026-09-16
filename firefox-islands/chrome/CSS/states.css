@@ -1,0 +1,177 @@
+/* islands — state handling.
+ *
+ * Private windows, fullscreen, Customize mode, popups, vertical tabs,
+ * density, inactive windows and reduced-motion all switch the design into
+ * an appropriate shape without ever fighting Firefox's own chrome behavior.
+ */
+
+/* ---- canvas --------------------------------------------------------------- */
+
+/* The window canvas is the single background everything floats on. It also
+   replaces the Nova toolbox gradient. */
+body {
+  background-color: var(--uc-canvas) !important;
+  background-image: none !important;
+}
+
+#navigator-toolbox {
+  background-image: none !important;
+}
+
+/* ---- private windows ------------------------------------------------------ */
+
+/* Private windows get a subtle tint derived from --uc-private-tint, applied
+   only to the applied canvas (--uc-canvas-base stays untouched so the theme
+   source keeps full control). */
+:root[privatebrowsingmode="temporary"] {
+  --uc-canvas: color-mix(in srgb, var(--uc-private-tint) 18%, var(--uc-canvas-base));
+}
+
+/* ---- vertical tabs --------------------------------------------------------- */
+
+/* Firefox collapses #TabsToolbar and moves the tab strip into the sidebar.
+   The toolbar band reduces to just the nav bar; the card (frame.css) already
+   frames the whole content region, sidebar and vertical tab strip included. */
+#navigator-toolbox[tabs-hidden] #TabsToolbar {
+  display: none;
+}
+
+/* ---- density --------------------------------------------------------------- */
+
+:root[uidensity="compact"] {
+  --uc-island-inset-v: 2px;
+}
+
+:root[uidensity="touch"] {
+  --uc-island-inset-v: 0px;
+}
+
+/* ---- inactive window ------------------------------------------------------- */
+
+:root:-moz-window-inactive :is(
+  #nav-bar-customization-target > [data-uc-group],
+  #urlbar-container,
+  #TabsToolbar-customization-target,
+  #PanelUI-button
+) {
+  background-color: color-mix(in srgb, var(--uc-island-bg) 78%, transparent);
+}
+
+/* ---- Customize mode -------------------------------------------------------- */
+
+/* In Customize mode everything must remain rearrangeable: the tab strip is
+   put back in flow, islands lose their pill shells and the frame collapses,
+   exactly like a stock Firefox so drag-and-drop placement works. */
+:root[customizing] #navigator-toolbox {
+  position: static;
+}
+
+:root[customizing] #TabsToolbar {
+  position: static !important;
+  top: auto !important;
+  inset-inline: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  pointer-events: auto;
+  background: transparent !important;
+}
+
+:root[customizing] #TabsToolbar-customization-target {
+  position: static !important;
+  inset-block: auto !important;
+  left: auto !important;
+  right: auto !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+:root[customizing] #nav-bar {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+
+:root[customizing] :is(
+  #urlbar-container,
+  #PanelUI-button,
+  #nav-bar-customization-target > [data-uc-group]
+) {
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+:root[customizing] #nav-bar-customization-target
+  > :is(
+    #back-button,
+    #forward-button,
+    #stop-reload-button,
+    #downloads-button,
+    #fxa-toolbar-menu-button,
+    #unified-extensions-button
+  ) {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+:root[customizing] #browser {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* ---- reduced motion -------------------------------------------------------- */
+
+/* Motion is off either through the setting (uc-motion attribute removed by
+   the JS layer) or through the OS preference. Only our own surfaces are
+   affected; native tab / urlbar animations keep running untouched. */
+:root:not([uc-motion]) :is(
+  #urlbar-container,
+  #nav-bar-customization-target > [data-uc-group],
+  #TabsToolbar-customization-target,
+  #PanelUI-button,
+  #browser
+),
+:root:not([uc-motion]) :is(
+  #urlbar-container::before,
+  #urlbar-container::after
+) {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root :is(
+    #urlbar-container,
+    #nav-bar-customization-target > [data-uc-group],
+    #TabsToolbar-customization-target,
+    #PanelUI-button,
+    #browser
+  ) {
+    transition: none !important;
+  }
+}
+
+/* ---- popup / special windows ----------------------------------------------- */
+
+/* In popup windows Firefox strips the chrome already; make sure the canvas
+   color does not leak onto them and nothing we added interferes. */
+:root[popup-window] body,
+:root[chromeless-window] body {
+  background-color: var(--toolbox-background-color);
+}
+
+:root[popup-window] #navigator-toolbox {
+  display: none;
+}

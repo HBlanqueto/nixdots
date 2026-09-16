@@ -1,0 +1,196 @@
+/* islands — settings page styles.
+ * Light/dark aware, keyboard accessible, no motion unless reduced-motion is
+ * off. Uses the page's own palette (the design tokens are window-scoped).
+ */
+
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f9f9fb, #23222b);
+  --card: light-dark(#ffffff, #2b2a33);
+  --card-border: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.12));
+  --fg: light-dark(#15141a, #fbfbfe);
+  --fg-muted: light-dark(#5b5b66, #b6b6c1);
+  --accent: light-dark(#0061e0, #00ddff);
+  --input-bg: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08));
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: message-box;
+  line-height: 1.5;
+}
+
+#uc-settings {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+header h1 {
+  font-size: 1.4rem;
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  color: var(--fg-muted);
+  margin: 0 0 24px;
+}
+
+.uc-group {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.uc-group > h2 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin: 0 0 12px;
+}
+
+.uc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--card-border);
+}
+
+.uc-row:first-of-type {
+  border-top: 0;
+}
+
+.uc-row label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.uc-row .hint {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.uc-row[hidden] {
+  display: none;
+}
+
+.uc-control {
+  flex: none;
+  min-width: 180px;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+select,
+input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.uc-value {
+  min-width: 3.5em;
+  text-align: end;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.uc-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.uc-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+button {
+  padding: 7px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.14));
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button[data-kind="danger"] {
+  color: light-dark(#c62828, #ff8a80);
+  border-color: light-dark(rgba(198, 40, 40, 0.4), rgba(255, 138, 128, 0.4));
+}
+
+.uc-diagnostics pre {
+  background: var(--input-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  margin: 6px 0 0;
+}
+
+.uc-diagnostics .ok {
+  color: light-dark(#1b7f3b, #7bd88f);
+}
+
+.uc-diagnostics .bad {
+  color: light-dark(#c62828, #ff8a80);
+}
+
+footer {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  text-align: center;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

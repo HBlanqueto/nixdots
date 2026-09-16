@@ -157,7 +157,7 @@ in
             eza
             mpc
             ffmpeg
-            firefox
+            # firefox is provided (wrapped with fx-autoconfig) by ../firefox-islands
             jq
             gh
             python3

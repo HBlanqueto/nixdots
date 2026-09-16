@@ -1,0 +1,77 @@
+/* islands — quick settings panel (browser window chrome). */
+
+#uc-islands-quick-panel {
+  --qp-bg: light-dark(#ffffff, #2b2a33);
+  --qp-fg: light-dark(#15141a, #fbfbfe);
+  --qp-muted: light-dark(#5b5b66, #b6b6c1);
+  --qp-border: color-mix(in srgb, currentColor 12%, transparent);
+  --qp-input: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.1));
+  --qp-accent: light-dark(#0061e0, #00ddff);
+
+  color: var(--qp-fg);
+  background-color: var(--qp-bg);
+  border: 1px solid var(--qp-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: message-box;
+}
+
+#uc-islands-quick-panel .uc-qp-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+#uc-islands-quick-panel .uc-qp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 0.85rem;
+}
+
+#uc-islands-quick-panel .uc-qp-row label {
+  flex: 1 1 auto;
+}
+
+#uc-islands-quick-panel select {
+  padding: 3px 6px;
+  border: 1px solid var(--qp-border);
+  border-radius: 6px;
+  background: var(--qp-input);
+  color: var(--qp-fg);
+}
+
+#uc-islands-quick-panel input[type="range"] {
+  width: 120px;
+  accent-color: var(--qp-accent);
+}
+
+#uc-islands-quick-panel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--qp-accent);
+}
+
+#uc-islands-quick-panel .uc-qp-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--qp-border);
+}
+
+#uc-islands-quick-panel button {
+  padding: 5px 12px;
+  border: 1px solid var(--qp-border);
+  border-radius: 8px;
+  background: var(--qp-input);
+  color: var(--qp-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+#uc-islands-quick-panel button:hover {
+  background: color-mix(in srgb, var(--qp-input) 85%, var(--qp-accent));
+}

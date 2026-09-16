@@ -56,14 +56,6 @@ in
             plugin = [ "opencode-dynamic-context-pruning" ];
 
             mcp = {
-                context7 = {
-                    type = "remote";
-                    url = "https://mcp.context7.com/mcp";
-                };
-                deepwiki = {
-                    type = "remote";
-                    url = "https://mcp.deepwiki.com/mcp";
-                };
                 "mcp-nixos" = {
                     type = "local";
                     command = [ "${pkgs.mcp-nixos}/bin/mcp-nixos" ];
