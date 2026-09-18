@@ -1,4 +1,25 @@
 { config, pkgs, username, ... }:
+let
+    somewmSession = pkgs.writeShellScriptBin "somewm-session" ''
+        if [ -z "''${XDG_CURRENT_DESKTOP:-}" ]; then
+            export XDG_CURRENT_DESKTOP=somewm
+        fi
+        export XDG_SESSION_TYPE=wayland
+
+        # Advertise the desktop to D-Bus activation and the systemd user
+        # manager so xdg-desktop-portal picks up somewm-portals.conf.
+        ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd \
+            XDG_CURRENT_DESKTOP XDG_SESSION_TYPE || true
+
+        # graphical-session.target refuses manual start, so activate a unit
+        # that binds to it. xdg-desktop-portal.service has
+        # Requisite=graphical-session.target and needs the target active.
+        ${pkgs.systemd}/bin/systemctl --user reset-failed || true
+        ${pkgs.systemd}/bin/systemctl --user start somewm-session.service || true
+
+        exec ${pkgs.somewm}/bin/somewm "$@"
+    '';
+in
 {
     networking = {
         networkmanager.enable = true;
@@ -73,8 +94,9 @@
                         [Desktop Entry]
                         Name=SomeWM
                         Comment=Dynamic window manager for Wayland
-                        Exec=${pkgs.somewm}/bin/somewm
+                        Exec=${somewmSession}/bin/somewm-session
                         Type=Application
+                        DesktopNames=somewm;
                     '';
                 }).overrideAttrs (old: {
                     passthru.providedSessions = [ "somewm" ];
@@ -115,6 +137,20 @@
                     RemainAfterExit = false;
                     SupplementaryGroups = "audio";
                 };
+            };
+        };
+
+        user.services.somewm-session = {
+            description = "somewm graphical session";
+            bindsTo = [ "graphical-session.target" ];
+            before = [ "graphical-session.target" ];
+            wants = [ "graphical-session-pre.target" ];
+            after = [ "graphical-session-pre.target" ];
+
+            serviceConfig = {
+                Type = "oneshot";
+                RemainAfterExit = true;
+                ExecStart = "${pkgs.coreutils}/bin/true";
             };
         };
 
