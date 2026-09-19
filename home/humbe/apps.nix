@@ -114,6 +114,8 @@ in
 
             ".config/fastfetch/logo.txt".source = ./config/fastfetch/logo.txt;
             ".config/fastfetch/config.jsonc".source = ./config/fastfetch/config.jsonc;
+
+            "Pictures/Screenshots/.gitkeep".text = "";
         };
 
         activation = {
@@ -153,14 +155,7 @@ in
         };
 
         packages = with pkgs; [
-            fastfetch
-            eza
-            mpc
-            ffmpeg
             firefox
-            jq
-            gh
-            python3
         
             trezor-suite
             vscode

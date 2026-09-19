@@ -13,6 +13,44 @@ local function font_with_fallback(name, params)
     }, params)
 end
 
+local function make_colors(bg)
+    return {
+        foreground = theme.fg,
+        background = bg,
+        cursor_bg = theme.fg,
+        cursor_fg = theme.fg,
+        cursor_border = theme.fg,
+        selection_fg = theme.fg,
+        selection_bg = theme.lbg,
+        split = theme.lbg,
+
+        ansi = {
+            theme.c0, theme.c1, theme.c2, theme.c3, theme.c4, theme.c5,
+            theme.c6, theme.c7
+        },
+        brights = {
+            theme.c8, theme.c9, theme.c10, theme.c11, theme.c12, theme.c13,
+            theme.c14, theme.c15
+        },
+
+        tab_bar = {
+            active_tab = {
+                bg_color = theme.bg,
+                fg_color = theme.c8,
+                italic = true
+            },
+            inactive_tab = {
+                bg_color = theme.dbg,
+                fg_color = theme.c8
+            },
+            inactive_tab_hover = {
+                bg_color = theme.c0,
+                fg_color = theme.bg
+            }
+        }
+    }
+end
+
 local config = {
     front_end = 'OpenGL',
     enable_wayland = true,
@@ -81,41 +119,7 @@ local config = {
         },
     },
 
-    colors = {
-        foreground = theme.fg,
-        background = theme.dbg,
-        cursor_bg = theme.fg,
-        cursor_fg = theme.fg,
-        cursor_border = theme.fg,
-        selection_fg = theme.fg,
-        selection_bg = theme.lbg,
-        split = theme.lbg,
-
-        ansi = {
-            theme.c0, theme.c1, theme.c2, theme.c3, theme.c4, theme.c5,
-            theme.c6, theme.c7
-        },
-        brights = {
-            theme.c8, theme.c9, theme.c10, theme.c11, theme.c12, theme.c13,
-            theme.c14, theme.c15
-        },
-
-        tab_bar = {
-            active_tab = {
-                bg_color = theme.bg,
-                fg_color = theme.c8,
-                italic = true
-            },
-            inactive_tab = {
-                bg_color = theme.dbg,
-                fg_color = theme.c8
-            },
-            inactive_tab_hover = {
-                bg_color = theme.c0,
-                fg_color = theme.bg
-            }
-        }
-    },
+    colors = make_colors(theme.dbg),
 
     disable_default_key_bindings = true,
 
@@ -184,5 +188,19 @@ local config = {
         },
     },
 }
+
+local last_bg = nil
+
+wezterm.on('update-status', function(window, pane)
+    local proc = pane:get_foreground_process_name() or ''
+    local nvim = proc:find('nvim', 1, true) ~= nil
+    local bg = nvim and theme.bg or nil
+    if bg ~= last_bg then
+        last_bg = bg
+        local overrides = window:get_config_overrides() or {}
+        overrides.colors = bg and make_colors(bg) or nil
+        window:set_config_overrides(overrides)
+    end
+end)
 
 return config

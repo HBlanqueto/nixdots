@@ -23,7 +23,7 @@ in
         users.${username} = {
             isNormalUser = true;
             description = userdescription;
-            extraGroups = [ "networkmanager" "wheel" ];
+            extraGroups = [ "networkmanager" "wheel" "video" ];
             createHome = true;
             hashedPassword = hashedpassword;
         };
@@ -60,10 +60,29 @@ in
             lua51Packages.luacheck
             poppler-utils
 
+            neovim
+            unzip
+            tree
+
+            fastfetch
+            eza
+            mpc
+            ffmpeg
+            jq
+            gh
+            python3
+
             quickshell
             somewm
             gsettings-desktop-schemas 
             libnotify 
+            wireplumber
+            brightnessctl
+            playerctl
+            wev
+            grim
+            slurp
+            wl-clipboard
         ];
     };
 }

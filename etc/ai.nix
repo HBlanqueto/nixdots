@@ -51,8 +51,6 @@ in
                     };
                 };
             };
-            model = "ollama/qwen3:4b";
-
             plugin = [ "opencode-dynamic-context-pruning" ];
 
             mcp = {

@@ -17,7 +17,6 @@
         };
     };
 
-    # Keep GTK mutable so dark mode can toggle dynamically via D-Bus/gsettings.
     gtk = {
         enable = false;
     };

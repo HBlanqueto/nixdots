@@ -1,19 +1,23 @@
 { config, pkgs, username, ... }:
 let
+    dconfProfile = pkgs.writeText "somewm-dconf-profile" ''
+        user-db:somewm
+        user-db:user
+    '';
+
     somewmSession = pkgs.writeShellScriptBin "somewm-session" ''
         if [ -z "''${XDG_CURRENT_DESKTOP:-}" ]; then
             export XDG_CURRENT_DESKTOP=somewm
         fi
         export XDG_SESSION_TYPE=wayland
+        export DCONF_PROFILE=${dconfProfile}
 
-        # Advertise the desktop to D-Bus activation and the systemd user
-        # manager so xdg-desktop-portal picks up somewm-portals.conf.
         ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd \
-            XDG_CURRENT_DESKTOP XDG_SESSION_TYPE || true
+            XDG_CURRENT_DESKTOP XDG_SESSION_TYPE DCONF_PROFILE || true
 
-        # graphical-session.target refuses manual start, so activate a unit
-        # that binds to it. xdg-desktop-portal.service has
-        # Requisite=graphical-session.target and needs the target active.
+        rm -f "''${XDG_CONFIG_HOME:-$HOME/.config}/dconf/somewm"
+        ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/wm/preferences/button-layout "':'" || true
+
         ${pkgs.systemd}/bin/systemctl --user reset-failed || true
         ${pkgs.systemd}/bin/systemctl --user start somewm-session.service || true
 
@@ -107,6 +111,8 @@ in
 
         pipewire = {
             enable = true;
+            wireplumber.enable = true;
+
             alsa = {
             enable = true;
             support32Bit = true;
@@ -114,6 +120,10 @@ in
             jack.enable = true;
             pulse.enable = true;
         };
+
+        udev.packages = [
+            pkgs.brightnessctl
+        ];
     };
 
     systemd = {

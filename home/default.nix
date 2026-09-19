@@ -1,6 +1,3 @@
-# /home entry point. Imports the per-user configuration subdirectory.
-# The directory name must match the global username from ./settings.nix.
-
 { username, lib, ... }:
 
 let
