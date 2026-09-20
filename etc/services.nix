@@ -63,6 +63,7 @@ in
         openssh.enable = true;
         upower.enable = true;
         trezord.enable = true;
+        seatd.enable = true;
 
         printing = {
             enable = true;

@@ -23,7 +23,7 @@ in
         users.${username} = {
             isNormalUser = true;
             description = userdescription;
-            extraGroups = [ "networkmanager" "wheel" "video" ];
+            extraGroups = [ "networkmanager" "wheel" "video" "seat" ];
             createHome = true;
             hashedPassword = hashedpassword;
         };
@@ -83,6 +83,15 @@ in
             grim
             slurp
             wl-clipboard
+
+            xwayland
+            desktop-file-utils
+            wayland-utils
+            libinput
+            drm_info
+            radeontop
+            vulkan-tools
+            mesa-demos
         ];
     };
 }
