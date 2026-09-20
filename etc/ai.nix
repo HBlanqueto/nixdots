@@ -51,7 +51,7 @@ in
                     };
                 };
             };
-            plugin = [ "opencode-dynamic-context-pruning" ];
+            plugin = [  ];
 
             mcp = {
                 "mcp-nixos" = {

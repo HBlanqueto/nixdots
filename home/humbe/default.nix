@@ -8,7 +8,7 @@
 
     home = {
         sessionVariables = {
-            BROWSER = "${config.programs.brave.package}/bin/brave";
+            BROWSER = "${config.programs.brave.package}/bin/brave-origin-beta";
             TERMINAL = "wezterm";
             EDITOR = "nvim";
             SDL_VIDEODRIVER = "wayland";
@@ -16,6 +16,7 @@
             CLUTTER_BACKEND = "wayland";
             NO_AT_BRIDGE = "1";
             NIXOS_OZONE_WL = "1";
+            LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
         };
 
         file = {

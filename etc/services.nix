@@ -153,6 +153,7 @@ in
         user.services.somewm-session = {
             description = "somewm graphical session";
             bindsTo = [ "graphical-session.target" ];
+            partOf = [ "graphical-session.target" ];
             before = [ "graphical-session.target" ];
             wants = [ "graphical-session-pre.target" ];
             after = [ "graphical-session-pre.target" ];
@@ -161,6 +162,11 @@ in
                 Type = "oneshot";
                 RemainAfterExit = true;
                 ExecStart = "${pkgs.coreutils}/bin/true";
+                # Tear the session target down when this marker is stopped
+                # (i.e. at logout), so a later login never sees a stale
+                # active graphical-session.target and gnome-session aborts
+                # with "A graphical session is already running!".
+                ExecStop = "${pkgs.systemd}/bin/systemctl --user stop graphical-session.target";
             };
         };
 

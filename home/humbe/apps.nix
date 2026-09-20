@@ -156,7 +156,6 @@ in
 
         packages = with pkgs; [
             firefox
-        
             trezor-suite
             vscode
             nautilus
@@ -173,7 +172,13 @@ in
     programs = {
         brave = {
             enable = true;
-            package = inputs.brave-previews.packages.${pkgs.stdenv.hostPlatform.system}.brave-origin-beta;
+            # The drishal brave-origin-beta wrapper drops the ozone hint (its
+            # nested ${NIXOS_OZONE_WL:+${WAYLAND_DISPLAY:+...}} expansion is
+            # stripped by makeShellWrapper), so Brave would fall back to
+            # XWayland. Force native Wayland here.
+            package = (inputs.brave-previews.packages.${pkgs.stdenv.hostPlatform.system}.brave-origin-beta).overrideAttrs (old: {
+                preFixup = (old.preFixup or "") + "\ngappsWrapperArgs+=(\"--add-flags\" \"--ozone-platform-hint=auto\")\n";
+            });
         };
 
         git = {
