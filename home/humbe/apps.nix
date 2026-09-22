@@ -1,4 +1,4 @@
-{ pkgs, lib, inputs, hostName, gitName, gitEmail, stateVersion, theme, ... }:
+{ pkgs, lib, inputs, config, hostName, gitName, gitEmail, stateVersion, theme, ... }:
 
 let
     yaziConfig = import ./config/yazi;
@@ -21,6 +21,48 @@ let
 
     rgba = hex: alpha:
         "rgba(${lib.concatStringsSep "," ((map toString (hexToRgb hex)) ++ [ alpha ])})";
+
+    # mpDris2 0.9.1 only resolves cover art for file:// URLs. The MPD endpoint
+    # here is Mopidy's MPD frontend (mopidy-mpd): it advertises a `local` URL
+    # handler and reports local tracks as `local:track:<url-encoded relative
+    # path>`, so mpDris2 keeps that URI as-is and find_cover() returns None ->
+    # no mpris:artUrl. Rewrite the anchor line so the Mopidy local scheme is
+    # mapped onto file://<music_dir>/<decoded path> before the existing
+    # embedded/folder-art lookup runs. music_dir already carries its file://
+    # prefix at this point (mpDris2 adds it while parsing the config).
+    mpDris2Patched = pkgs.mpdris2.overridePythonAttrs (old: {
+        postPatch = (old.postPatch or "") + ''
+            ${pkgs.python3}/bin/python3 - <<'PYEOF'
+            from pathlib import Path
+
+            anchor = "song_url.startswith('file://'):"
+            block = (
+                "song_url.startswith('local:track:'):\n"
+                "            import urllib.parse\n"
+                "            song_url = 'file://' + os.path.join("
+                "self._params['music_dir'][7:], "
+                "urllib.parse.unquote(song_url[len('local:track:'):]))\n"
+                "        if song_url.startswith('file://'):"
+            )
+
+            target = None
+            for name in ("mpDris2.in.py", "mpDris2.in", "mpDris2"):
+                for path in sorted(Path(".").rglob(name)):
+                    if not path.is_file():
+                        continue
+                    src = path.read_text()
+                    if src.count(anchor) == 1:
+                        target = path
+                        break
+                if target is not None:
+                    break
+
+            if target is None:
+                raise SystemExit("mpDris2 source with the file:// anchor not found")
+            target.write_text(src.replace(anchor, block))
+            PYEOF
+        '';
+    });
 
     vscodeSettings = {
         "editor.fontFamily" = "'Liga SFMono Nerd Font', 'Twitter Color Emoji', monospace";
@@ -155,6 +197,7 @@ in
         };
 
         packages = with pkgs; [
+            cava
             firefox
             trezor-suite
             vscode
@@ -240,6 +283,13 @@ in
             settings = import ./config/ncmpcpp.nix;
         };
 
+        # mpv exposes MPRIS (and mpris:artUrl from embedded/folder art) only
+        # through the mpv-mpris plugin.
+        mpv = {
+            enable = true;
+            scripts = [ pkgs.mpvScripts.mpris ];
+        };
+
         wezterm = {
             enable = true;
             extraConfig = builtins.readFile ./config/wezterm.lua;
@@ -281,6 +331,16 @@ in
                 mopidy-mpd
             ];
             settings = import ./config/mopidy.nix;
+        };
+
+        mpdris2 = {
+            enable = true;
+            # Patched so Mopidy's `local:track:` URIs resolve to files under
+            # musicDirectory (see mpDris2Patched above).
+            package = mpDris2Patched;
+            # mpDris2 builds mpris:artUrl / xesam:url from this root, and uses
+            # it to look for cover art next to the song.
+            settings.Library.music_dir = config.xdg.userDirs.music;
         };
     };
 }
