@@ -15,6 +15,7 @@
         ./services.nix
         ./uutils.nix
         ./fonts.nix
+        ./video-backdrop.nix
 
         ./gnome.nix
     ];
