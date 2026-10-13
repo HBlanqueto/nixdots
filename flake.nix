@@ -21,11 +21,65 @@
 
         sf-mono-liga-src.url = "github:shaunsingh/SFMono-Nerd-Font-Ligaturized";
         sf-mono-liga-src.flake = false;
+
+        disko.url = "github:nix-community/disko";
+        disko.inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    outputs = inputs@{ nixpkgs, ... }:
+    outputs = inputs@{ self, nixpkgs, ... }:
         let
             settings = import ./settings.nix;
+
+            # The installer is built for both architectures the ISO is offered
+            # on. It only orchestrates other tools, so the same source compiles
+            # on either.
+            supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+
+            mkInstaller = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+
+                    # Everything the installer shells out to. makeWrapper puts
+                    # these on its PATH so the binary works from a minimal ISO
+                    # without pulling them in by hand.
+                    runtimeInputs = with pkgs; [
+                        inputs.disko.packages.${system}.disko
+                        btrfs-progs
+                        dosfstools
+                        util-linux
+                        mkpasswd
+                        sbctl
+                        less
+                        git
+                        nix
+                    ];
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-installer";
+                    version = "0.1.0";
+
+                    # Whole repo so the palette test can read
+                    # share/themes/neptunia.nix; the crate lives in installer/.
+                    src = ./.;
+                    cargoRoot = "installer";
+                    cargoLock.lockFile = ./installer/Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.makeWrapper ];
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-installer \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                    '';
+
+                    meta = {
+                        description = "Text-mode installer for the nixdots NixOS configuration";
+                        mainProgram = "nixdots-installer";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
+                };
+
+            installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
         in
         {
             nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
@@ -38,5 +92,21 @@
 
                 modules = [ ./etc ];
             };
+
+            packages = nixpkgs.lib.genAttrs supportedSystems (system: {
+                installer = installers.${system};
+                default = installers.${system};
+            });
+
+            apps = nixpkgs.lib.genAttrs supportedSystems (system: {
+                installer = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-installer";
+                };
+                default = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-installer";
+                };
+            });
         };
 }
