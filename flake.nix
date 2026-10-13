@@ -33,7 +33,7 @@
 
                 specialArgs = {
                     inherit inputs;
-                    inherit (settings) system hostName timeZone defaultLocale username userdescription hashedpassword gitName gitEmail stateVersion;
+                    inherit (settings) system hostName timeZone defaultLocale username userdescription hashedPasswordFile gitName gitEmail stateVersion;
                 };
 
                 modules = [ ./etc ];
