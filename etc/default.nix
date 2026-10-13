@@ -100,6 +100,14 @@
         extraBackends = [ pkgs.epsonscan2 ];
     };
 
+    # neededForBoot is declared here rather than in the generated
+    # hardware-configuration.nix so that the file nixos-generate-config
+    # writes during an install works unpatched.
+    fileSystems = {
+        "/persist".neededForBoot = true;
+        "/var/log".neededForBoot = true;
+    };
+
     system = {
         stateVersion = stateVersion;
     };
