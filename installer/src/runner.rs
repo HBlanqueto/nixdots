@@ -74,6 +74,18 @@ pub enum Stream {
     Stderr(String),
 }
 
+/// Experimental features every Nix invocation needs. The live ISO may not have
+/// them in `nix.conf`, and `nix eval`/`nix build`/`nix flake` refuse to run
+/// without them, so every child gets them through `NIX_CONFIG`. An existing
+/// value is kept and extended with a newline instead of replaced.
+pub fn nix_config() -> String {
+    let ours = "experimental-features = nix-command flakes";
+    match std::env::var("NIX_CONFIG") {
+        Ok(existing) if !existing.trim().is_empty() => format!("{existing}\n{ours}"),
+        _ => ours.to_string(),
+    }
+}
+
 /// Runs `cmd` to completion, invoking `sink` for every output line, and returns
 /// the exit code (`-1` when it was killed by a signal, `-2` when it was killed
 /// because it went silent). No command ever inherits the installer's stdin, so
@@ -82,6 +94,7 @@ pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
     let mut command = Command::new(&cmd.program);
     command
         .args(&cmd.args)
+        .env("NIX_CONFIG", nix_config())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -96,6 +109,7 @@ pub fn run_with_stdin(cmd: &Cmd, input: &[u8], sink: &mut dyn FnMut(Stream)) -> 
     let mut command = Command::new(&cmd.program);
     command
         .args(&cmd.args)
+        .env("NIX_CONFIG", nix_config())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -198,6 +212,7 @@ fn read_lines<R: Read>(reader: R, is_stderr: bool, tx: &mpsc::Sender<(bool, Stri
 pub fn capture(cmd: &Cmd) -> Result<Output> {
     Command::new(&cmd.program)
         .args(&cmd.args)
+        .env("NIX_CONFIG", nix_config())
         .stdin(Stdio::null())
         .output()
         .with_context(|| format!("no se pudo ejecutar {}", cmd.program))

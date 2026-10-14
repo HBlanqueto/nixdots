@@ -66,9 +66,12 @@ impl Settings {
         let file = repo.join("settings.nix");
         let output = Command::new("nix")
             .arg("eval")
+            .arg("--extra-experimental-features")
+            .arg("nix-command flakes")
             .arg("--json")
             .arg("-f")
             .arg(&file)
+            .env("NIX_CONFIG", crate::runner::nix_config())
             .stdin(Stdio::null())
             .output()
             .wrap_err("no se pudo ejecutar `nix eval`")?;

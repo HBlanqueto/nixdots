@@ -80,6 +80,8 @@ builtins.mapAttrs (name: part:
 "#;
 
     let output = std::process::Command::new("nix-instantiate")
+        .arg("--extra-experimental-features")
+        .arg("nix-command flakes")
         .arg("--eval")
         .arg("--json")
         .arg("--expr")
@@ -87,6 +89,7 @@ builtins.mapAttrs (name: part:
         .arg("--argstr")
         .arg("deviceArg")
         .arg(device)
+        .env("NIX_CONFIG", crate::runner::nix_config())
         .current_dir(repo)
         .stdin(std::process::Stdio::null())
         .output()

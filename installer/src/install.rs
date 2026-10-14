@@ -22,7 +22,7 @@ use zeroize::Zeroizing;
 /// The install steps shown in the UI, in order. The many real sub-steps are
 /// grouped into these four phases; `arranque` covers the bootloader (systemd-boot
 /// on utm, lanzaboote/sbctl keys on thinkpad), never a "secure boot" step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Step {
     Disk,
     Settings,
@@ -86,6 +86,9 @@ pub struct Plan {
     pub profile: crate::detect::Profile,
     /// Wi-Fi connection to persist into /persist, if any.
     pub wifi: Option<WifiSave>,
+    /// First step to run. On a retry this is the step that failed, so the disk
+    /// is reattached instead of reformatted.
+    pub resume_from: Step,
 }
 
 impl Plan {
@@ -177,21 +180,104 @@ fn run(plan: Plan, tx: Sender<Msg>) {
 }
 
 fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    report.step(Step::Disk);
-    let luks = step_disk(plan, report)?;
+    let resume = plan.resume_from;
 
-    report.step(Step::Settings);
-    step_repo(plan, report)?;
-    step_settings(plan, report)?;
-    step_hardware(plan, report, luks.as_ref())?;
-    step_persist(plan, report)?;
+    // Disk is only formatted when it is the (re)starting point. When resuming
+    // from a later step the prepared disk is reattached, never reformatted.
+    let luks = if resume <= Step::Disk {
+        report.step(Step::Disk);
+        step_disk(plan, report)?
+    } else {
+        ensure_disk_ready(plan, report)?;
+        if plan.encrypt {
+            Some(detect::luks_partition(&plan.device).ok_or_else(|| {
+                eyre!("no se encontró la partición cifrada en {}", plan.device)
+            })?)
+        } else {
+            None
+        }
+    };
 
-    report.step(Step::System);
-    step_system(plan, report)?;
+    if resume <= Step::Settings {
+        report.step(Step::Settings);
+        step_repo(plan, report)?;
+        step_settings(plan, report)?;
+        step_hardware(plan, report, luks.as_ref())?;
+        step_persist(plan, report)?;
+    }
 
-    report.step(Step::Boot);
-    step_boot(plan, report)?;
+    if resume <= Step::System {
+        report.step(Step::System);
+        step_system(plan, report)?;
+    }
+
+    if resume <= Step::Boot {
+        report.step(Step::Boot);
+        step_boot(plan, report)?;
+    }
     Ok(())
+}
+
+/// Whether `path` is a mount point, per `/proc/mounts` (its second field).
+fn is_mounted(path: &str) -> bool {
+    fs::read_to_string("/proc/mounts")
+        .map(|mounts| {
+            mounts
+                .lines()
+                .any(|line| line.split_whitespace().nth(1) == Some(path))
+        })
+        .unwrap_or(false)
+}
+
+/// Reattaches the already-prepared disk for a retry: if `/mnt` is not mounted
+/// (or `cryptroot` is closed) it re-opens and mounts the existing filesystems
+/// with `disko --mode mount`, which never formats. The passphrase comes from the
+/// in-memory plan, so the disk is left exactly as the disk step left it.
+fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    let encrypted_open = !plan.encrypt || Path::new("/dev/mapper/cryptroot").exists();
+    if is_mounted("/mnt") && encrypted_open {
+        report.log("disco ya montado; se continúa sin reformatear");
+        return Ok(());
+    }
+
+    if plan.dry_run {
+        report.log(format!(
+            "$ disko --mode mount disko.nix --argstr device {}{}",
+            plan.device,
+            if plan.encrypt {
+                " --argstr encrypt true"
+            } else {
+                ""
+            }
+        ));
+        report.log("(simulación) disco re-montado sin formatear");
+        return Ok(());
+    }
+
+    let mut cmd = Cmd::new("disko")
+        .arg("--mode")
+        .arg("mount")
+        .arg("disko.nix")
+        .arg("--argstr")
+        .arg("device")
+        .arg(&plan.device);
+    if plan.encrypt {
+        cmd = cmd.arg("--argstr").arg("encrypt").arg("true");
+    }
+
+    let pass = if plan.encrypt {
+        Some(SecretFile::write("luks.pass", &plan.luks_passphrase)?)
+    } else {
+        None
+    };
+    if let Some(pass) = &pass {
+        cmd = cmd.arg("--argstr").arg("luksPasswordFile").arg_path(pass.path());
+    }
+
+    ensure_ok(
+        exec(plan, report, &cmd, &plan.source)?,
+        "no se pudo volver a montar el disco",
+    )
 }
 
 /// The final `arranque` phase: lanzaboote's sbctl keys on the ThinkPad; plain
@@ -519,6 +605,11 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
+    // A retry can find the previous copy in place; replace it so `cp -a` does
+    // not nest the repo inside itself.
+    if dest.exists() {
+        fs::remove_dir_all(&dest)?;
+    }
     let cmd = Cmd::new("cp")
         .arg("-a")
         .arg_path(&plan.source)
@@ -527,6 +618,85 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let code = exec_in(plan, report, &cmd, plan.source.parent().unwrap_or(&plan.root))?;
     ensure_ok(code, "no se pudo copiar el repositorio")?;
     Ok(())
+}
+
+/// Stages everything the installer wrote into the copied repo and commits it,
+/// because a flake only sees git-tracked paths: without this, `hosts/<host>` and
+/// `settings.nix` would be invisible to `nix eval`/`nix build`. The identity and
+/// `safe.directory` are passed per-invocation (`-c`), so nothing is written to
+/// the user's git config; the Git screen's identity is used when provided.
+fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    let repo = plan.installed_repo();
+
+    if plan.dry_run {
+        report.log(format!(
+            "$ git -C {} add -A && git commit -m \"hosts: add {}\"   (simulación)",
+            repo.display(),
+            plan.settings.host_name
+        ));
+        return Ok(());
+    }
+
+    if !repo.join(".git").exists() {
+        report.log("aviso: el repo destino no es un repositorio git; se omite el commit");
+        return Ok(());
+    }
+
+    let name = plan
+        .settings
+        .git_name
+        .clone()
+        .unwrap_or_else(|| "nixdots-installer".to_string());
+    let email = plan
+        .settings
+        .git_email
+        .clone()
+        .unwrap_or_else(|| "installer@localhost".to_string());
+    let safe = format!("safe.directory={}", repo.display());
+
+    let add = Cmd::new("git")
+        .arg("-c")
+        .arg(&safe)
+        .arg("-C")
+        .arg_path(&repo)
+        .arg("add")
+        .arg("-A")
+        .with_display(format!("git -C {} add -A", repo.display()));
+    ensure_ok(exec(plan, report, &add, &plan.source)?, "git add falló")?;
+
+    // Nothing staged (e.g. a retry): HEAD already holds what the flake needs.
+    let check = Cmd::new("git")
+        .arg("-c")
+        .arg(&safe)
+        .arg("-C")
+        .arg_path(&repo)
+        .arg("diff")
+        .arg("--cached")
+        .arg("--quiet")
+        .with_display(format!("git -C {} diff --cached --quiet", repo.display()));
+    if exec(plan, report, &check, &plan.source)? == 0 {
+        report.log("git: sin cambios que confirmar");
+        return Ok(());
+    }
+
+    let commit = Cmd::new("git")
+        .arg("-c")
+        .arg(&safe)
+        .arg("-C")
+        .arg_path(&repo)
+        .arg("-c")
+        .arg(format!("user.name={name}"))
+        .arg("-c")
+        .arg(format!("user.email={email}"))
+        .arg("commit")
+        .arg("-m")
+        .arg(format!("hosts: add {}", plan.settings.host_name))
+        .with_display(format!(
+            "git -C {} commit -m \"hosts: add {}\"",
+            repo.display(),
+            plan.settings.host_name
+        ));
+    ensure_ok(exec(plan, report, &commit, &plan.source)?, "git commit falló")
 }
 
 fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
@@ -649,21 +819,21 @@ fn write_host_files(
         fs::create_dir_all(parent)?;
     }
 
-    let config = match luks {
-        Some(luks) => {
-            let (text, added) = ensure_luks_boot_config(hardware_config.to_string(), &luks.uuid);
-            if added {
-                report.log(format!(
-                    "boot.initrd.luks.devices.cryptroot añadido (UUID {})",
-                    luks.uuid
-                ));
-            } else {
-                report.log("boot.initrd.luks.devices.cryptroot ya presente en hardware-configuration.nix");
-            }
-            text
-        }
-        None => hardware_config.to_string(),
-    };
+    let (config, _changed) = apply_encryption_block(
+        hardware_config.to_string(),
+        plan.encrypt,
+        luks.map(|l| l.uuid.as_str()),
+        plan.luks_tpm,
+    );
+    if plan.encrypt {
+        report.log(format!(
+            "cifrado: bloque del instalador en hardware-configuration.nix (UUID {}, tpmUnlock = {})",
+            luks.map(|l| l.uuid.as_str()).unwrap_or("<UUID>"),
+            plan.luks_tpm
+        ));
+    } else {
+        report.log("sin cifrado: no se escribe bloque de cifrado en hardware-configuration.nix");
+    }
     fs::write(&target, config)?;
 
     if repo.join("hosts").is_dir() {
@@ -701,6 +871,10 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     let persist = plan.root.join("persist");
 
+    // The flake only sees git-tracked paths, so stage what the installer wrote
+    // (hosts/<host>, settings.nix, ...) before evaluating the config.
+    git_snapshot(plan, report)?;
+
     let expr = format!(
         "{}#nixosConfigurations.{}.config.environment.persistence",
         repo.display(),
@@ -708,9 +882,12 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
     );
     let cmd = Cmd::new("nix")
         .arg("eval")
+        .arg("--impure")
+        .arg("--extra-experimental-features")
+        .arg("nix-command flakes")
         .arg("--json")
         .arg(&expr)
-        .with_display(format!("nix eval --json {expr}"));
+        .with_display(format!("nix eval --impure --json {expr}"));
 
     if plan.dry_run {
         report.log(format!("$ {}", cmd.display));
@@ -732,8 +909,17 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .unwrap_or(serde_json::Value::Null);
 
     if let Some(dirs) = entries.get("directories").and_then(|d| d.as_array()) {
+        let mut log_dup = false;
         for entry in dirs {
+            if entry_path(entry).as_deref() == Some("/var/log") {
+                log_dup = true;
+            }
             create_persist_dir(plan, report, &persist, entry)?;
+        }
+        // Detected by evaluating the config, not hardcoded: the @log subvolume
+        // already keeps /var/log, so listing it here too is redundant.
+        if log_dup {
+            report.log("aviso: /var/log definido dos veces: subvolumen @log e impermanence");
         }
     }
     if let Some(files) = entries.get("files").and_then(|f| f.as_array()) {
@@ -919,8 +1105,14 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         plan.settings.host_name
     );
 
+    // Make sure the flake sees everything the installer wrote before building.
+    git_snapshot(plan, report)?;
+
     let build = Cmd::new("nix")
         .arg("build")
+        .arg("--impure")
+        .arg("--extra-experimental-features")
+        .arg("nix-command flakes")
         .arg(&attr)
         .arg("--store")
         .arg_path(&plan.root)
@@ -928,7 +1120,7 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("internal-json")
         .arg("-v")
         .with_display(format!(
-            "nix build {attr} --store /mnt --log-format internal-json -v"
+            "nix build --impure {attr} --store /mnt --log-format internal-json -v"
         ));
 
     let system_path = if plan.dry_run {
@@ -989,6 +1181,9 @@ fn build_system(plan: &Plan, report: &mut Reporter, build: &Cmd) -> Result<Strin
     // Fall back to asking nix for the path via `nix path-info` semantics.
     let query = Cmd::new("nix")
         .arg("path-info")
+        .arg("--impure")
+        .arg("--extra-experimental-features")
+        .arg("nix-command flakes")
         .arg("--store")
         .arg_path(&plan.root)
         .arg(format!(
@@ -1171,22 +1366,78 @@ fn replace_by_uuid_with_label(text: &str) -> String {
     )
 }
 
-/// Ensures the generated hardware-configuration.nix pins `cryptroot` to the
-/// LUKS UUID (`boot.initrd.luks.devices.cryptroot.device`). nixos-generate-config
-/// usually writes it because `cryptroot` is open during the install; this is the
-/// safety net. Returns the (possibly) updated text and whether it was added.
-fn ensure_luks_boot_config(mut text: String, uuid: &str) -> (String, bool) {
-    if text.contains("boot.initrd.luks.devices") && text.contains("cryptroot") {
-        return (text, false);
+/// Markers around the installer-managed encryption block in the generated
+/// `hardware-configuration.nix`.
+const ENC_BLOCK_BEGIN: &str = "# >>> nixdots-installer: cifrado (no editar a mano)";
+const ENC_BLOCK_END: &str = "# <<< nixdots-installer";
+
+/// Writes or removes the installer-managed encryption block in the generated
+/// `hardware-configuration.nix`:
+///
+/// ```nix
+/// # >>> nixdots-installer: cifrado (no editar a mano)
+/// boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/<UUID>";
+/// nixdots.encryption.enable = true;
+/// nixdots.encryption.tpmUnlock = <true|false>;
+/// # <<< nixdots-installer
+/// ```
+///
+/// The whole block is replaced on every run so it never duplicates, and any
+/// stray `cryptroot` entry left by `nixos-generate-config` is folded into it.
+/// Without encryption no block is written and a previous one is removed.
+/// Returns the updated text and whether it changed.
+fn apply_encryption_block(
+    mut text: String,
+    encrypt: bool,
+    uuid: Option<&str>,
+    tpm: bool,
+) -> (String, bool) {
+    let before = text.clone();
+
+    // Drop the block written by a previous run (markers included).
+    if let Some(start) = text.find(ENC_BLOCK_BEGIN) {
+        let end = match text[start..].find(ENC_BLOCK_END) {
+            Some(rel) => start + rel + ENC_BLOCK_END.len(),
+            None => text.len(),
+        };
+        // Swallow the trailing newline too, so no blank lines accumulate.
+        let end = text[end..].find('\n').map(|rel| end + rel + 1).unwrap_or(end);
+        text.replace_range(start..end, "");
     }
-    let block = format!(
-        "\n  boot.initrd.luks.devices.\"cryptroot\".device = \"/dev/disk/by-uuid/{uuid}\";\n"
-    );
-    match text.rfind("\n}") {
-        Some(pos) => text.insert_str(pos, &block),
-        None => text.push_str(&block),
+
+    // Fold a stray cryptroot entry into the block instead of duplicating it.
+    text = remove_stray_cryptroot(text);
+
+    if encrypt {
+        let device = uuid.unwrap_or("<UUID>");
+        let block = format!(
+            "  {ENC_BLOCK_BEGIN}\n  boot.initrd.luks.devices.cryptroot.device = \"/dev/disk/by-uuid/{device}\";\n  nixdots.encryption.enable = true;\n  nixdots.encryption.tpmUnlock = {tpm};\n  {ENC_BLOCK_END}\n"
+        );
+        match text.rfind("\n}") {
+            Some(pos) => text.insert_str(pos, &format!("\n{block}")),
+            None => text.push_str(&block),
+        }
     }
-    (text, true)
+
+    let changed = text != before;
+    (text, changed)
+}
+
+/// Removes single-line `boot.initrd.luks.devices...cryptroot... = "...";`
+/// entries (e.g. written by `nixos-generate-config`), leaving everything else.
+fn remove_stray_cryptroot(text: String) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim();
+        let stray = trimmed.contains("boot.initrd.luks.devices")
+            && trimmed.contains("cryptroot")
+            && trimmed.contains('=')
+            && trimmed.ends_with(';');
+        if !stray {
+            out.push_str(line);
+        }
+    }
+    out
 }
 
 fn dry_hardware_config(system: &str) -> String {
@@ -1329,21 +1580,38 @@ mod tests {
     }
 
     #[test]
-    fn injects_luks_device_when_missing() {
+    fn writes_encryption_block_when_encrypted() {
         let cfg = "{ config, lib, pkgs, modulesPath, ... }:\n\n{\n  imports = [ ];\n}\n";
-        let (out, added) = ensure_luks_boot_config(cfg.to_string(), "abcd-1234");
-        assert!(added);
-        assert!(out.contains("boot.initrd.luks.devices.\"cryptroot\".device"));
-        assert!(out.contains("/dev/disk/by-uuid/abcd-1234"));
+        let (out, changed) = apply_encryption_block(cfg.to_string(), true, Some("abcd-1234"), true);
+        assert!(changed);
+        assert!(out.contains(ENC_BLOCK_BEGIN));
+        assert!(out.contains(ENC_BLOCK_END));
+        assert!(out
+            .contains("boot.initrd.luks.devices.cryptroot.device = \"/dev/disk/by-uuid/abcd-1234\";"));
+        assert!(out.contains("nixdots.encryption.enable = true;"));
+        assert!(out.contains("nixdots.encryption.tpmUnlock = true;"));
         // Still valid: exactly one closing brace line at the end.
         assert!(out.trim_end().ends_with('}'));
     }
 
     #[test]
-    fn keeps_existing_luks_device() {
-        let cfg = "{\n  boot.initrd.luks.devices.\"cryptroot\".device = \"/dev/disk/by-uuid/x\";\n}\n";
-        let (out, added) = ensure_luks_boot_config(cfg.to_string(), "abcd-1234");
-        assert!(!added);
-        assert_eq!(out, cfg);
+    fn folds_stray_cryptroot_into_the_block() {
+        let cfg =
+            "{\n  boot.initrd.luks.devices.\"cryptroot\".device = \"/dev/disk/by-uuid/old\";\n}\n";
+        let (out, changed) =
+            apply_encryption_block(cfg.to_string(), true, Some("abcd-1234"), false);
+        assert!(changed);
+        assert!(!out.contains("by-uuid/old"));
+        assert_eq!(out.matches("boot.initrd.luks.devices").count(), 1);
+        assert!(out.contains("tpmUnlock = false;"));
+    }
+
+    #[test]
+    fn removes_block_without_encryption() {
+        let cfg = "{\n  # >>> nixdots-installer: cifrado (no editar a mano)\n  nixdots.encryption.enable = true;\n  # <<< nixdots-installer\n}\n";
+        let (out, changed) = apply_encryption_block(cfg.to_string(), false, None, false);
+        assert!(changed);
+        assert!(!out.contains("nixdots.encryption.enable"));
+        assert!(out.trim_end().ends_with('}'));
     }
 }

@@ -13,8 +13,8 @@ fn uutils_option(app: &App) -> bool {
 }
 
 pub fn height(app: &App) -> u16 {
-    // 6 rows + blank + warning (+ checkbox on ThinkPad) (+ mv note).
-    let mut h = 8;
+    // 6 rows + blank (+ checkbox on ThinkPad) (+ mv note).
+    let mut h = 7;
     if uutils_option(app) {
         h += 1;
     }
@@ -74,15 +74,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         }
     }
 
-    // Warn, don't fix: /var/log is both the @log subvolume and an impermanence
-    // directory.
-    lines.push(Line::from(Span::styled(
-        "/var/log definido dos veces: subvolumen @log e impermanence",
-        Style::default().fg(app.palette.warning),
-    )));
-
     f.render_widget(Paragraph::new(lines), area);
-    // The uutils checkbox is on line 8 (6 rows + a blank + the warning below).
+    // The uutils checkbox is on line 8 (6 rows + a blank).
     if uutils_option(app) {
         app.targets.borrow_mut().push((
             Rect::new(area.x, area.y + 7, area.width, 1),
@@ -116,7 +109,7 @@ pub fn commands(app: &App) -> Vec<String> {
     let mut commands = vec![
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
         format!(
-            "nix build /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
+            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
             app.settings.username, app.settings.host_name
         ),
         "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),

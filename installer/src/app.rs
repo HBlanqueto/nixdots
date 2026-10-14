@@ -503,6 +503,24 @@ impl InstallView {
         }
     }
 
+    /// Clears the failure state for a retry. Resuming past the disk step keeps
+    /// the steps that already finished so they stay `[x]` (and the disk is not
+    /// reformatted).
+    fn resume_from(&mut self, resume: Step) {
+        if resume <= Step::Disk {
+            *self = InstallView::new();
+        } else {
+            self.current = None;
+            self.failed = None;
+            self.error = None;
+            self.finished = false;
+            self.finished_at = None;
+            self.built = 0;
+            self.total = 0;
+            self.samples.clear();
+        }
+    }
+
     pub fn push_log(&mut self, line: String) {
         self.log.push_back(line);
         while self.log.len() > 400 {
@@ -713,7 +731,9 @@ impl App {
                 partition_gb: 100,
                 encrypt: true,
             },
-            enc: EncState::new(detect::tpm2_present()),
+            // TPM auto-unlock is ThinkPad-only: never offer it on the VM, even
+            // if a virtual TPM is reported.
+            enc: EncState::new(detect::tpm2_present() && profile == detect::Profile::Thinkpad),
             net: NetState {
                 backend: net::backend(dry_run),
                 phase: RedFase::Lista,
@@ -1018,6 +1038,13 @@ impl App {
     // -- install --------------------------------------------------------------
 
     pub fn start_install(&mut self) {
+        self.start_install_from(Step::Disk);
+    }
+
+    /// Starts (or resumes) the install. `resume` is the first step to run: on a
+    /// retry it is the step that failed, so the disk is reattached rather than
+    /// reformatted.
+    pub fn start_install_from(&mut self, resume: Step) {
         let Some(disk) = self.selected_disk().cloned() else {
             self.status = Some("no hay disco seleccionado".into());
             return;
@@ -1043,7 +1070,7 @@ impl App {
 
         let (tx, rx) = mpsc::channel();
         self.install_rx = Some(rx);
-        self.install = InstallView::new();
+        self.install.resume_from(resume);
 
         let root = if self.dry_run {
             let dir = std::env::temp_dir().join("nixdots-mnt");
@@ -1090,6 +1117,7 @@ impl App {
             dry_run: self.dry_run,
             profile: self.profile,
             wifi,
+            resume_from: resume,
         };
         install::spawn(plan, tx);
     }
@@ -1782,11 +1810,12 @@ impl App {
         self.install_log_scroll = 0;
     }
 
-    /// Runs the installation again from the start, used by the error screen's
-    /// "Reintentar" button.
+    /// Retries from the step that failed, used by the error screen's
+    /// "Reintentar" button. If the disk step already finished it is not redone.
     pub fn restart_install(&mut self) {
         self.reset_install_view();
-        self.start_install();
+        let resume = self.install.failed.unwrap_or(Step::Disk);
+        self.start_install_from(resume);
     }
 
     pub fn refresh_network(&mut self) {
