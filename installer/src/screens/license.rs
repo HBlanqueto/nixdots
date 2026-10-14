@@ -37,6 +37,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let start = app.license_scroll;
 
     let text_area = Rect::new(area.x, area.y, area.width, visible as u16);
+    app.license_text_area = text_area;
     let mut rendered: Vec<Line> = Vec::new();
     for i in 0..visible {
         let idx = start + i;

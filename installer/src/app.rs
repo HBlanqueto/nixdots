@@ -425,6 +425,9 @@ pub struct App {
     pub license_max_scroll: usize,
     /// 0 = text, 1 = the Acepto checkbox.
     pub license_focus: usize,
+    /// The license text area (for the scrollbar), set during `draw`.
+    pub license_text_area: Rect,
+    pub license_dragging: bool,
 
     // host
     pub host: HostState,
@@ -565,6 +568,8 @@ impl App {
             license_scroll: 0,
             license_max_scroll: 0,
             license_focus: 0,
+            license_text_area: Rect::default(),
+            license_dragging: false,
             timezones: None,
             loc: None,
             keyboards: None,
@@ -1140,16 +1145,30 @@ impl App {
     /// Mouse hover selects a button; a left click runs it. Disabled buttons are
     /// not in the hitboxes and are therefore ignored.
     fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // Wheel scrolls the license text.
+        // License: wheel scrolls; the scrollbar column can be clicked/dragged.
         if self.screen == Screen::License {
+            let area = self.license_text_area;
+            let on_scrollbar = area.height > 0 && mouse.column + 1 >= area.right();
             match mouse.kind {
                 MouseEventKind::ScrollDown => {
-                    self.license_scroll = (self.license_scroll + 1).min(self.license_max_scroll);
+                    self.license_scroll = (self.license_scroll + 3).min(self.license_max_scroll);
                     return;
                 }
                 MouseEventKind::ScrollUp => {
-                    self.license_scroll = self.license_scroll.saturating_sub(1);
+                    self.license_scroll = self.license_scroll.saturating_sub(3);
                     return;
+                }
+                MouseEventKind::Down(MouseButton::Left) if on_scrollbar => {
+                    self.license_dragging = true;
+                    self.license_scroll = self.license_scroll_for_row(mouse.row, area);
+                    return;
+                }
+                MouseEventKind::Drag(MouseButton::Left) if self.license_dragging => {
+                    self.license_scroll = self.license_scroll_for_row(mouse.row, area);
+                    return;
+                }
+                MouseEventKind::Up(MouseButton::Left) => {
+                    self.license_dragging = false;
                 }
                 _ => {}
             }
@@ -1190,6 +1209,15 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Maps a click row on the license scrollbar to a scroll offset.
+    fn license_scroll_for_row(&self, row: u16, area: Rect) -> usize {
+        if area.height == 0 {
+            return self.license_scroll;
+        }
+        let rel = row.saturating_sub(area.y) as f32 / area.height as f32;
+        (rel * self.license_max_scroll as f32).round() as usize
     }
 
     fn handle_click(&mut self, click: Click) {
