@@ -1522,10 +1522,19 @@ impl App {
         y += gap_after_logo;
 
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                "Presiona Continuar para iniciar la configuración del sistema",
-                Style::default().fg(self.palette.text),
-            )))
+            Paragraph::new(Line::from(vec![
+                Span::styled("Presiona ", Style::default().fg(self.palette.text)),
+                Span::styled(
+                    "Continuar",
+                    Style::default()
+                        .fg(self.palette.text)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " para iniciar la configuración del sistema",
+                    Style::default().fg(self.palette.text),
+                ),
+            ]))
             .alignment(Alignment::Center),
             Rect::new(area.x, y, area.width, 1),
         );
