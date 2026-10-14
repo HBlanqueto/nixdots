@@ -1,9 +1,9 @@
-These files contain the foundation of my daily driver setup, tailored for both personal use and software development. Here you will find what you are probably looking for: my desktop configuration.
+These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The same flake builds **one configuration per host**: a physical **ThinkPad L14 Gen 2a** (`thinkpad`, x86_64-linux) and a native **aarch64 UTM/QEMU VM** on Apple Silicon (`utm`).
 
 This NixOS system features the following core components:
 
-* **Desktop Environment:** [GNOME](https://www.gnome.org/)
-* **Window Manager / Compositor:** [Hyprland](https://hyprland.org/)
+* **Desktop Environment:** [GNOME](https://www.gnome.org/) / GDM
+* **Window Manager / Compositor:** [somewm](https://github.com/HBlanqueto/somewm) (AwesomeWM ported to Wayland, on wlroots + SceneFX)
 * **Shell:** [Fish](https://fishshell.com/)
 * **Terminal:** [Wezterm](https://wezfurlong.org/wezterm/)
 * **Editor:** [Neovim](https://neovim.io/)
@@ -11,9 +11,12 @@ This NixOS system features the following core components:
 ## Environment
 
 - [x] **Flakes:** Fully flake-based system configuration
+- [x] **Multi-host:** `thinkpad` (x86_64-linux) and `utm` (aarch64-linux), auto-discovered from `hosts/`
+- [x] **Installer:** text-mode installer and macOS-style disk utility (`installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
 - [x] **Lanzaboote & LUKS:** Secure Boot with Btrfs decryption
+- [x] **iPhone tethering:** USB internet sharing (`usbmuxd` + `ipheth`)
 - [ ] **Agenix:** Secure secrets management
 
 ### Structure
@@ -22,13 +25,16 @@ An overview of the core configuration files and directories that make up this Ni
 
 ```text
 .
-├── hosts/                   # one directory per host
+├── hosts/                   # one directory per host; auto-discovered by flake.nix
 │   ├── thinkpad/            # physical L14 Gen 2a (x86_64-linux)
+│   │   ├── host.nix         # per-host metadata: profile + system
 │   │   ├── default.nix      # imports its hardware module + config
 │   │   └── hardware-configuration.nix
 │   └── utm/                 # UTM/QEMU VM on Apple Silicon (aarch64-linux)
+│       ├── host.nix
 │       ├── default.nix
 │       └── hardware-configuration.nix
+├── installer/               # Rust text-mode installer + disk utility
 ├── lib/
 │   └── mkHost.nix           # helper: mkHost { hostName, system, modules }
 ├── modules/                 # shared NixOS configuration
@@ -38,6 +44,7 @@ An overview of the core configuration files and directories that make up this Ni
 │   │   ├── default.nix
 │   │   ├── fonts.nix
 │   │   ├── home.nix         # home-manager wiring
+│   │   ├── iphone-tethering.nix   # usbmuxd + ipheth (USB tethering)
 │   │   ├── nix.nix          # nix/nixpkgs settings + impermanence
 │   │   ├── services.nix
 │   │   ├── user.nix
@@ -67,18 +74,52 @@ An overview of the core configuration files and directories that make up this Ni
 │   └── sf-mono-liga-bin.nix
 ├── flake.nix
 ├── flake.lock
+├── disko.nix                # standalone disko layout used by the installer
+├── test.sh                  # lints, Rust tests, flake build, TUI pty checks
 └── settings.nix
 ```
 
-* **`flake.nix`:** emits one configuration per host (`thinkpad`, `utm`).
+* **`flake.nix`:** discovers every `hosts/<name>/host.nix` and emits one `nixosConfigurations.<name>` per host; also packages the installer and disk utility for `x86_64-linux` and `aarch64-linux`.
 * **`lib/mkHost.nix`:** builds a `nixosConfiguration` from `{ hostName, system, modules }`.
-* **`settings.nix`:** host-independent values (username, locale, Git email).
-* **`hosts/`:** per-host entry point and `hardware-configuration.nix`.
+* **`settings.nix`:** host-independent values (username, locale, `hashedPasswordFile`, Git identity).
+* **`hosts/<host>/host.nix`:** per-host metadata read by the flake (`profile` and `system`).
+* **`hosts/<host>/default.nix`:** imports the host's `hardware-configuration.nix` and its hardware module.
+* **`disko.nix`:** standalone disk layout (1 GiB ESP + btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`) used by the installer.
+* **`installer/`:** text-mode installer and macOS-style disk utility. See [installer/README.md](installer/README.md).
+* **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 * **`modules/common` + `modules/desktop`:** shared system configuration.
 * **`modules/hardware`:** ThinkPad/laptop and UTM/QEMU specifics.
 * **`modules/home`:** shared home-manager configuration.
 
 See [HOSTS.md](HOSTS.md) for the multi-host workflow and how to install the VM.
+
+## Installer
+
+`installer/` contains a text-mode installer (`nixdots-installer`) and a
+macOS-style disk utility (`nixdots-disk`). Both are Rust binaries that
+*orchestrate* existing tools — `disko`, `mkpasswd`, `nixos-generate-config`,
+`sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplement
+partitioning or hashing.
+
+```shell
+nix run .#installer                 # simulation: no disk, no root
+nix run .#disk                      # disk utility (simulation)
+nix run .#installer -- --install    # real install from the NixOS ISO
+```
+
+The flake exposes both as `packages.{x86_64-linux,aarch64-linux}.{installer,disk,default}`
+and `apps.<system>.{installer,disk,default}`. See
+[installer/README.md](installer/README.md) for the full flow and options, and
+`disko.nix` for the disk layout it applies.
+
+## iPhone USB tethering
+
+`modules/common/iphone-tethering.nix` enables iPhone internet sharing over the
+USB cable: `services.usbmuxd` handles pairing/trust and the `ipheth` kernel
+module exposes the phone as a USB Ethernet interface that NetworkManager brings
+up automatically. `libimobiledevice` and `ifuse` are installed for pairing and
+browsing the device. Once the iPhone is trusted, plug it in and enable
+*Personal Hotspot* — no manual `ip link`/DHCP is required.
 
 ## Setup
 
@@ -103,6 +144,16 @@ Before booting the NixOS live USB, prepare your motherboard.
 On the first boot after installation, Lanzaboote automatically generates the keys, bypasses `efivarfs` immutability to enroll them, and reboots the system. Because `/var/lib/auto-cryptenroll` and `/var/lib/sbctl` are persisted, no manual `sbctl` or `chattr` commands are ever required.
 
 ### Partitions
+
+The quickest path is [`disko.nix`](disko.nix), which creates exactly the layout
+below and is what the installer uses:
+
+```shell
+nix --experimental-features 'nix-command flakes' run github:nix-community/disko -- \
+  --mode destroy,format,mount disko.nix --argstr device /dev/nvme0n1
+```
+
+To partition by hand instead:
 
 ```shell
 # Mount the Btrfs root to create subvolumes
@@ -132,18 +183,18 @@ mount -o subvol=@log,noatime,compress=zstd,space_cache=v2 /dev/[your_partition] 
 
 ```shell
 # Clone the repository
-git clone https://github.com/HBlanqueto/dotfiles.git
-cd dotfiles
+git clone https://github.com/HBlanqueto/nixdots.git
+cd nixdots
 
-# Generate hardware config and copy it to the repository
+# Generate the hardware config and copy it into the host directory
 nixos-generate-config --root /mnt
-cp /mnt/etc/nixos/hardware-configuration.nix ~/dotfiles
+cp /mnt/etc/nixos/hardware-configuration.nix hosts/thinkpad/   # or hosts/utm/
 ```
 ### Impermanence
 
 #### hardware-configuration.nix
 
-Open `~/dotfiles/hardware-configuration.nix` and append `neededForBoot = true;` to the `/persist` and `/var/log` file systems:
+Open `hosts/<host>/hardware-configuration.nix` and append `neededForBoot = true;` to the `/persist` and `/var/log` file systems:
 
 ```nix
   fileSystems."/persist" = { 
@@ -161,7 +212,7 @@ Open `~/dotfiles/hardware-configuration.nix` and append `neededForBoot = true;` 
 
 #### snapshot.sh
 
-For the boot rollback to work, `boot/snapshot.sh` must mount your exact Btrfs partition at the **top level** (`subvolid=5`), so that both `@rootfs` and `old_roots/` are visible.
+For the boot rollback to work, `modules/hardware/snapshot.sh` must mount your exact Btrfs partition at the **top level** (`subvolid=5`), so that both `@rootfs` and `old_roots/` are visible.
 
 Replace the placeholder UUID with your drive's UUID (found in your generated `hardware-configuration.nix`):
 
@@ -190,17 +241,26 @@ btrfs subvolume delete "$snapshot"
 ```
 
 > [!NOTE]
-> The script uses `awk` and `sort`, so make sure `gawk` is listed in `boot.initrd.systemd.initrdBin` in `boot/default.nix` (it is not provided by `uutils-coreutils`).
+> The script uses `awk` and `sort`, so make sure `gawk` is listed in `boot.initrd.systemd.initrdBin` in `modules/hardware/thinkpad.nix` (it is not provided by `uutils-coreutils`).
 
 ### Installation
 
-The flake provides two hosts: `thinkpad` (x86_64-linux) and `utm`
-(aarch64-linux). Replace `#thinkpad` below with `#utm` when installing the VM
-(see [HOSTS.md](HOSTS.md)).
+The recommended path is the [installer](#installer): `nix run .#installer -- --install`
+partitions with `disko.nix`, generates the hardware config and runs
+`nixos-install` for you.
+
+To install manually, the flake provides two hosts: `thinkpad` (x86_64-linux)
+and `utm` (aarch64-linux). Replace `#thinkpad` with `#utm` when installing the
+VM (see [HOSTS.md](HOSTS.md)).
 
 ```shell
-nixos-install --root /mnt --flake '#thinkpad' --impure --show-trace
+nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
 ```
+
+> [!NOTE]
+> `settings.nix` points `hashedPasswordFile` at `/persist/secrets/humbe.hash`.
+> Create that file from the live ISO (e.g.
+> `mkpasswd -m sha-512 > /mnt/persist/secrets/humbe.hash`) before the first rebuild.
 
 ## Credits
 

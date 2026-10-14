@@ -23,26 +23,56 @@ Los alias de fish `flake-update-rb` y `flake-update-sw` usan
 ## Estructura
 
 ```
-flake.nix                 # emite nixosConfigurations.{thinkpad,utm}
-settings.nix              # valores comunes (usuario, locale, git); sin system/hostName
+flake.nix                 # descubre hosts/*/host.nix y emite una config por host
+settings.nix              # valores comunes (usuario, locale, hashedPasswordFile, git)
 lib/mkHost.nix            # helper: mkHost { hostName, system, modules }
 hosts/
-  thinkpad/{default.nix, hardware-configuration.nix}
-  utm/{default.nix, hardware-configuration.nix}   # placeholder
+  thinkpad/{host.nix, default.nix, hardware-configuration.nix}
+  utm/{host.nix, default.nix, hardware-configuration.nix}   # placeholder
+installer/                # instalador TUI (Rust) + utilidad de disco (ver installer/README.md)
+disko.nix                 # layout de disco que aplica el instalador
+test.sh                   # lint + tests Rust + comprobaciones de la TUI por pty
 modules/
-  common/                 # usuario, fish, locale, nix, servicios y paquetes CLI -> ambos
-  desktop/                # somewm, quickshell, gnome/gdm, wezterm -> ambos
+  common/                 # usuario, fish, locale, nix, servicios, iPhone tethering -> ambos
+  desktop/                # somewm, quickshell, gnome/gdm -> ambos
   hardware/thinkpad.nix   # kernel CachyOS, amdgpu, microcode, Lanzaboote, impresora/escáner
   hardware/vm-utm.nix     # systemd-boot, virtio, spice-vdagent, qemu-guest, sin microcode
   home/common/            # HM: user, apps, style, configs
   home/desktop/           # HM: wezterm, función nswm
-overlays/, packages/, share/ , .github/
+overlays/, packages/, share/, .github/
 ```
 
-Cada host importa `modules/hardware/<host>.nix` y su
-`hardware-configuration.nix` desde `hosts/<host>/default.nix`.
+Cada host declara su `profile` y `system` en `hosts/<host>/host.nix`; su
+`default.nix` importa `modules/hardware/<host>.nix` y el
+`hardware-configuration.nix`. Añadir un host es crear un directorio con esos
+tres archivos: `flake.nix` lo detecta solo (el nombre del directorio es el
+nombre de la configuración y `networking.hostName`).
+
+## Instalador
+
+El instalador de terminal está en `installer/`:
+
+```shell
+nix run .#installer                 # simulación (sin disco ni root)
+nix run .#disk                      # utilidad de disco
+nix run .#installer -- --install    # instalación real desde la ISO
+```
+
+Detecta el perfil del equipo y aplica `disko.nix`. Ver `installer/README.md`.
+
+## iPhone por USB (tethering)
+
+`modules/common/iphone-tethering.nix` habilita compartir internet del iPhone por
+el cable: `usbmuxd` gestiona el emparejamiento y el módulo `ipheth` expone el
+teléfono como interfaz Ethernet USB que NetworkManager levanta sola. Se instala
+`libimobiledevice`/`ifuse` para emparejar y acceder al dispositivo. Con el iPhone
+confiado, conéctalo y activa *Punto de acceso personal*; no hace falta `ip link`
+ni DHCP manual. Aplica a ambos hosts.
 
 ## Instalar en la VM (UTM, aarch64)
+
+> El instalador (`nix run .#installer -- --install`) automatiza los pasos 2-5
+> usando `disko.nix`; esta guía es la versión manual.
 
 1. UTM -> *Create a New Virtual Machine* -> **Virtualize** -> **Linux**.
    - ISO: `nixos-minimal-*-aarch64-linux.iso`.
