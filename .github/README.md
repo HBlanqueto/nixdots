@@ -45,8 +45,6 @@ This NixOS system features the following core components:
 * **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
-See [HOSTS.md](HOSTS.md) for the multi-host workflow and the UTM VM details.
-
 ## Installer
 
 `installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning or hashing.
@@ -92,7 +90,7 @@ hardware config and runs `nixos-install` for you.
 
 To install manually, the flake provides two hosts: `thinkpad` (x86_64-linux)
 and `utm` (aarch64-linux). Replace `#thinkpad` with `#utm` when installing the
-VM (see [HOSTS.md](HOSTS.md)).
+VM.
 
 ```shell
 nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
