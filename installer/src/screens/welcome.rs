@@ -1,17 +1,14 @@
-use crate::app::App;
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use crate::app::{Action, App};
+use crate::widgets::Btn;
+use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-pub fn height(app: &App) -> u16 {
-    let mut h = 4;
-    if !app.settings_ok {
-        h += 1;
-    }
-    h
+pub fn height(_app: &App) -> u16 {
+    3
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
@@ -19,18 +16,17 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         Line::from(vec![
             Span::styled(
                 if ok { "✓ " } else { "✗ " },
-                Style::default().fg(if ok {
-                    app.palette.success
-                } else {
-                    app.palette.error
-                }),
+                Style::default().fg(if ok { app.palette.success } else { app.palette.error }),
             ),
             Span::styled(format!("{text:<14}"), Style::default().fg(app.palette.muted)),
             Span::styled(value, Style::default().fg(app.palette.text)),
         ])
     };
-
-    let mut lines = vec![
+    let disk = app
+        .selected_disk()
+        .map(|d| format!("{} ({})", d.path(), d.size_human()))
+        .unwrap_or_else(|| "ninguno".into());
+    let lines = vec![
         detection(
             app.arch.is_some(),
             "arquitectura",
@@ -41,50 +37,27 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "entorno",
             app.virt.clone().unwrap_or_else(|| "bare metal".into()),
         ),
-        detection(app.disks_found, "discos", format!("{}", app.disks.len())),
-        detection(
-            app.network,
-            "red",
-            if app.network {
-                "cache.nixos.org".into()
-            } else {
-                "sin conexión".into()
-            },
-        ),
+        detection(app.selected_disk().is_some(), "disco", disk),
     ];
-
-    if !app.settings_ok {
-        lines.push(Line::from(Span::styled(
-            "settings.nix ilegible: usando valores por defecto",
-            Style::default().fg(app.palette.warning),
-        )));
-    }
-
     f.render_widget(Paragraph::new(lines), area);
 }
 
-pub fn key(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Tab | KeyCode::Left | KeyCode::Right => {
-            app.button_focus = if app.button_focus == 1 { 0 } else { 1 };
-        }
-        KeyCode::Enter => {
-            if app.button_focus == 0 {
-                app.quit = Some(crate::app::Quit::Normal);
-            } else {
-                app.advance();
-            }
-        }
-        _ => {}
-    }
+pub fn key(_app: &mut App, _key: KeyEvent) -> bool {
+    false
+}
+
+pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
+    vec![
+        (Btn::secondary("Salir"), Action::Quit),
+        (Btn::primary("Continuar ›"), Action::Next),
+    ]
 }
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![
-        format!("git clone --depth 1 {} {}", app.repo_spec, app.repo_dir.display()),
         "uname -m".into(),
         "systemd-detect-virt".into(),
         "lsblk -J -b -d -o NAME,SIZE,MODEL,TYPE".into(),
-        "conectar a cache.nixos.org:443".into(),
+        format!("git clone --depth 1 {} {}", app.repo_spec, app.repo_dir.display()),
     ]
 }

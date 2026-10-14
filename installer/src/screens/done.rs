@@ -1,4 +1,5 @@
-use crate::app::App;
+use crate::app::{Action, App};
+use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -20,11 +21,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let mut lines = vec![
         Line::from(Span::styled(
             format!("{} nixdots instalado", if ok { "✔" } else { "✘" }),
-            Style::default().fg(if ok {
-                app.palette.success
-            } else {
-                app.palette.error
-            }),
+            Style::default().fg(if ok { app.palette.success } else { app.palette.error }),
         )),
         Line::from(Span::styled(
             format!("{host} · {:.1}s", duration.as_secs_f32()),
@@ -44,24 +41,22 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Paragraph::new(lines), area);
 }
 
-pub fn key(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Char('r') => reboot(app),
-        KeyCode::Tab | KeyCode::Left | KeyCode::Right => {
-            app.button_focus = if app.button_focus == 1 { 0 } else { 1 };
-        }
-        KeyCode::Enter => {
-            if app.button_focus == 0 {
-                app.should_quit = true;
-            } else {
-                reboot(app);
-            }
-        }
-        _ => {}
+pub fn key(app: &mut App, key: KeyEvent) -> bool {
+    if key.code == KeyCode::Char('r') {
+        reboot(app);
+        return true;
     }
+    false
 }
 
-fn reboot(app: &mut App) {
+pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
+    vec![
+        (Btn::secondary("Salir"), Action::Quit),
+        (Btn::primary("Reiniciar ›"), Action::Reboot),
+    ]
+}
+
+pub fn reboot(app: &mut App) {
     if app.dry_run {
         app.status = Some("(simulación) umount -R /mnt && reboot".into());
         app.should_quit = true;

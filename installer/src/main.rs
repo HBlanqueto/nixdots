@@ -4,17 +4,11 @@
 //! command is displayed, but nothing outside a temporary directory is touched.
 //! `--install` performs the real installation from the NixOS live ISO.
 
-mod app;
-mod detect;
-mod disk;
-mod install;
-mod runner;
-mod screens;
-mod settings;
-mod theme;
-
-use app::App;
 use color_eyre::eyre::{bail, Result};
+use nixdots_installer::app::App;
+use nixdots_installer::detect;
+use nixdots_installer::settings;
+use nixdots_installer::theme;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
@@ -75,14 +69,11 @@ fn main() -> Result<()> {
         }
     }
 
-    // Program the 16 console palette slots when on the Linux tty.
     let _console = theme::console::Guard::activate();
 
     let repo_dir = std::env::temp_dir().join("nixdots");
     let cloned = prepare_repo(&args.repo, &repo_dir).is_ok();
     if !cloned && args.dry_run {
-        // Keep the simulation usable without network: a stub repo is enough
-        // for the (fallback) settings and layout.
         write_stub_repo(&repo_dir).ok();
     } else if !cloned {
         prepare_repo(&args.repo, &repo_dir)?;
@@ -102,10 +93,8 @@ fn prepare_repo(spec: &str, dest: &Path) -> Result<()> {
     if dest.exists() {
         std::fs::remove_dir_all(dest).ok();
     }
-
     if let Some(slug) = spec.strip_prefix("github:") {
-        let url = format!("https://github.com/{slug}.git");
-        git_clone(&url, dest)
+        git_clone(&format!("https://github.com/{slug}.git"), dest)
     } else if spec.contains("://") || spec.starts_with("git@") {
         git_clone(spec, dest)
     } else {
@@ -147,8 +136,7 @@ fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
-    let terminal = Terminal::new(CrosstermBackend::new(stdout))?;
-    Ok(terminal)
+    Ok(Terminal::new(CrosstermBackend::new(stdout))?)
 }
 
 fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {

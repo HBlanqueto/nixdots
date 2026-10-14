@@ -21,8 +21,11 @@ pub struct Settings {
     pub default_locale: String,
     pub username: String,
     pub userdescription: String,
-    pub git_name: String,
-    pub git_email: String,
+    /// `null` when git is left unconfigured by the installer.
+    #[serde(default)]
+    pub git_name: Option<String>,
+    #[serde(default)]
+    pub git_email: Option<String>,
 }
 
 impl Settings {
@@ -42,8 +45,8 @@ impl Settings {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
-            git_name: "H. Blanqueto".into(),
-            git_email: "mc4w6wmkrv@privaterelay.appleid.com".into(),
+            git_name: Some("H. Blanqueto".into()),
+            git_email: Some("mc4w6wmkrv@privaterelay.appleid.com".into()),
         }
     }
 
@@ -79,8 +82,8 @@ impl Settings {
             username = nix_str(&self.username),
             userdescription = nix_str(&self.userdescription),
             password_file = nix_str(&self.password_file()),
-            git_name = nix_str(&self.git_name),
-            git_email = nix_str(&self.git_email),
+            git_name = nix_opt(&self.git_name),
+            git_email = nix_opt(&self.git_email),
         )
     }
 
@@ -96,6 +99,13 @@ fn nix_str(value: &str) -> String {
     format!("\"{escaped}\"")
 }
 
+fn nix_opt(value: &Option<String>) -> String {
+    match value {
+        Some(value) => nix_str(value),
+        None => "null".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,8 +119,8 @@ mod tests {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
-            git_name: "H. Blanqueto".into(),
-            git_email: "a@b.c".into(),
+            git_name: Some("H. Blanqueto".into()),
+            git_email: Some("a@b.c".into()),
         }
     }
 
@@ -129,6 +139,25 @@ mod tests {
         let mut s = sample();
         s.username = "ana".into();
         assert_eq!(s.password_file(), "/persist/secrets/ana.hash");
+    }
+
+    #[test]
+    fn render_null_git_when_omitted() {
+        let mut s = sample();
+        s.git_name = None;
+        s.git_email = None;
+        let rendered = s.render();
+        assert!(rendered.contains("    gitName = null;"));
+        assert!(rendered.contains("    gitEmail = null;"));
+    }
+
+    #[test]
+    fn json_null_git_parses() {
+        let json = r#"{ "system": "x86_64-linux", "stateVersion": "26.05", "hostName": "h",
+            "timeZone": "UTC", "defaultLocale": "en_US.UTF-8", "username": "u",
+            "userdescription": "U", "hashedPasswordFile": "/p/u.hash", "gitName": null, "gitEmail": null }"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.git_name, None);
     }
 
     #[test]

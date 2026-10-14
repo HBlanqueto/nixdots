@@ -72,6 +72,8 @@
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-installer \
                             --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                        wrapProgram $out/bin/nixdots-disk \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
                     '';
 
                     meta = {
@@ -98,6 +100,7 @@
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
+                disk = installers.${system};
                 default = installers.${system};
             });
 
@@ -105,6 +108,10 @@
                 installer = {
                     type = "app";
                     program = "${installers.${system}}/bin/nixdots-installer";
+                };
+                disk = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-disk";
                 };
                 default = {
                     type = "app";

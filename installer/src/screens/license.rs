@@ -1,4 +1,5 @@
-use crate::app::App;
+use crate::app::{Action, App};
+use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -12,44 +13,39 @@ pub fn height(_app: &App) -> u16 {
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let lines = vec![
-        Line::from(Span::styled(
-            "GNU GPL v2.0",
-            Style::default().fg(app.palette.text),
-        )),
+        Line::from(Span::styled("GNU GPL v2.0", Style::default().fg(app.palette.text))),
         Line::from(Span::styled(
             "incluye paquetes no libres (allowUnfree)",
             Style::default().fg(app.palette.muted),
         )),
         Line::from(""),
-        app.checkbox(app.license_accepted, "Acepto", app.button_focus == 1),
+        crate::widgets::checkbox(&app.palette, app.license_accepted, "Acepto", false),
     ];
     f.render_widget(Paragraph::new(lines), area);
 }
 
-pub fn key(app: &mut App, key: KeyEvent) {
+pub fn key(app: &mut App, key: KeyEvent) -> bool {
     match key.code {
         KeyCode::Char(' ') | KeyCode::Char('x') => {
             app.license_accepted = !app.license_accepted;
+            true
         }
         KeyCode::Char('l') => {
-            app.pending_less = Some(app.repo_dir.join("LICENSE"));
+            app.open_license();
+            true
         }
-        KeyCode::Tab | KeyCode::Left | KeyCode::Right => {
-            app.button_focus = if app.button_focus == 1 { 0 } else { 1 };
-        }
-        KeyCode::Enter => {
-            if app.button_focus == 0 {
-                app.go_back();
-            } else if app.license_accepted {
-                app.advance();
-            } else {
-                app.status = Some("acepta la licencia para continuar".into());
-            }
-        }
-        _ => {}
+        _ => false,
     }
 }
 
+pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
+    vec![
+        (Btn::secondary("‹ Atrás"), Action::Back),
+        (Btn::secondary("leer completa"), Action::ViewLicense),
+        (Btn::primary("Aceptar ›"), Action::Next),
+    ]
+}
+
 pub fn commands(_app: &App) -> Vec<String> {
-    vec!["less LICENSE".into()]
+    vec!["visor interno: LICENSE (sin salir de la TUI)".into()]
 }

@@ -11,7 +11,7 @@ const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "�
 
 pub fn height(app: &App) -> u16 {
     if app.install.error.is_some() {
-        6
+        5
     } else {
         4
     }
@@ -20,7 +20,6 @@ pub fn height(app: &App) -> u16 {
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let current = app.install.current;
     let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
-
     let step_text = current.map(|s| s.label()).unwrap_or("iniciando");
     let note = app
         .install
@@ -29,17 +28,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         .unwrap_or_else(|| format!("{step_text}…"));
 
     let mut lines = vec![
-        Line::from(Span::styled(
-            step_text.to_string(),
-            Style::default().fg(app.palette.primary),
-        )),
+        Line::from(Span::styled(step_text.to_string(), Style::default().fg(app.palette.primary))),
         Line::from(vec![
             Span::styled(format!("{spinner} "), Style::default().fg(app.palette.focus)),
             Span::styled(note, Style::default().fg(app.palette.text)),
         ]),
     ];
 
-    // Progress bar with percentage and n/total.
     let total = app.install.total.max(1);
     let built = app.install.built.min(total);
     let width = area.width.saturating_sub(12).max(4) as usize;
@@ -57,7 +52,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         ),
     ]));
 
-    // Per-step status line.
     let mut step_spans: Vec<Span> = Vec::new();
     for (i, step) in Step::ALL.iter().enumerate() {
         if i > 0 {
@@ -70,10 +64,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         } else {
             ("○", app.palette.muted)
         };
-        step_spans.push(Span::styled(
-            format!("{mark} {}", step.label()),
-            Style::default().fg(color),
-        ));
+        step_spans.push(Span::styled(format!("{mark} {}", step.label()), Style::default().fg(color)));
     }
     lines.push(Line::from(step_spans));
 
@@ -87,8 +78,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Paragraph::new(lines), area);
 }
 
-/// No per-screen keys: Ctrl+C (handled globally) is the only action.
-pub fn key(_app: &App, _key: KeyEvent) {}
+pub fn key(_app: &mut App, _key: KeyEvent) -> bool {
+    false
+}
+
+pub fn buttons(_app: &App) -> Vec<(crate::widgets::Btn, crate::app::Action)> {
+    Vec::new()
+}
 
 pub fn commands(_app: &App) -> Vec<String> {
     Vec::new()

@@ -109,6 +109,12 @@ pub struct Palette {
     pub warning: Color,
     /// `c1`
     pub error: Color,
+    /// `c15`, white text on top of colored buttons/rows
+    pub white: Color,
+    /// `c0`, dark "well" background (sidebars, list fills)
+    pub well: Color,
+    /// `c5`, btrfs snapshot share
+    pub snapshot: Color,
     /// `bg`, text drawn on top of a `primary` fill
     pub on_primary: Color,
     /// `lbg`, background of the focused row
@@ -130,6 +136,9 @@ impl Palette {
             success: rgb(hex::C2),
             warning: rgb(hex::C3),
             error: rgb(hex::C1),
+            white: rgb(hex::C15),
+            well: rgb(hex::C0),
+            snapshot: rgb(hex::C5),
             on_primary: rgb(hex::BG),
             row_bg: rgb(hex::LBG),
             reset: Color::Reset,
@@ -150,6 +159,9 @@ impl Palette {
             success: Color::Indexed(2),
             warning: Color::Indexed(3),
             error: Color::Indexed(1),
+            white: Color::Indexed(15),
+            well: Color::Indexed(0),
+            snapshot: Color::Indexed(5),
             on_primary: Color::Indexed(0),
             row_bg: Color::Indexed(0),
             reset: Color::Reset,

@@ -35,6 +35,16 @@ pub fn nix_system() -> Option<String> {
     Some(format!("{arch}-linux"))
 }
 
+/// Default hostname (also the `nixosConfigurations` attribute) for an
+/// architecture. aarch64 is assumed to be the UTM VM, x86_64 the ThinkPad.
+pub fn default_hostname(arch: &str) -> String {
+    match arch {
+        "aarch64" | "arm64" => "UTM-aarch64".to_string(),
+        "x86_64" | "amd64" => "ThinkPad-L14-Gen2".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// `systemd-detect-virt`. Maps `qemu` to the friendlier «UTM (qemu)» label the
 /// installer shows when it runs inside a UTM/QEMU guest.
 pub fn environment() -> Option<String> {
@@ -180,6 +190,15 @@ mod tests {
         assert_eq!(human_size(0), "0 B");
         assert_eq!(human_size(1024), "1.0 K");
         assert_eq!(human_size(1024 * 1024 * 1024), "1.0 G");
+    }
+
+    #[test]
+    fn hostname_defaults_per_arch() {
+        assert_eq!(default_hostname("aarch64"), "UTM-aarch64");
+        assert_eq!(default_hostname("arm64"), "UTM-aarch64");
+        assert_eq!(default_hostname("x86_64"), "ThinkPad-L14-Gen2");
+        assert_eq!(default_hostname("amd64"), "ThinkPad-L14-Gen2");
+        assert_eq!(default_hostname("riscv64"), "riscv64");
     }
 
     #[test]

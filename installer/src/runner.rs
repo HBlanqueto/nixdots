@@ -42,6 +42,18 @@ impl Cmd {
         self.arg(path.as_ref().to_string_lossy().to_string())
     }
 
+    /// Adds several arguments.
+    pub fn args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for arg in args {
+            self = self.arg(arg);
+        }
+        self
+    }
+
     /// Overrides the displayed string (useful when the real invocation is more
     /// verbose than what a human wants to read).
     pub fn with_display(mut self, display: impl Into<String>) -> Self {

@@ -1,80 +1,83 @@
-use crate::app::App;
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use crate::app::{Action, App};
+use crate::widgets::{self, Btn};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(_app: &App) -> u16 {
     3
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let width = area.width;
-    let match_mark = if app.passwords_match() {
+    let mark = if app.passwords_match() {
         Span::styled("  ✓", Style::default().fg(app.palette.success))
     } else {
         Span::raw("")
     };
-
-    let mut first = app.field_line(
+    let mut first = widgets::input_line(
+        &app.palette,
         &format!("nueva ({})", app.settings.username),
-        app.password.value(),
-        app.password.visual_cursor(),
-        app.field_focus == 0,
+        app.password.p1.value(),
+        app.password.p1.visual_cursor(),
+        app.password.focus == 0,
         true,
-        width,
+        area.width,
+        true,
     );
-    first.spans.push(match_mark.clone());
-    if app.field_focus == 0 {
-        first = first.style(Style::default().bg(app.palette.row_bg));
-    }
-
-    let mut second = app.field_line(
+    first.spans.push(mark.clone());
+    let mut second = widgets::input_line(
+        &app.palette,
         "confirmar",
-        app.password2.value(),
-        app.password2.visual_cursor(),
-        app.field_focus == 1,
+        app.password.p2.value(),
+        app.password.p2.visual_cursor(),
+        app.password.focus == 1,
         true,
-        width,
+        area.width,
+        true,
     );
-    second.spans.push(match_mark);
-    if app.field_focus == 1 {
-        second = second.style(Style::default().bg(app.palette.row_bg));
-    }
-
-    let lines = vec![first, second, Line::from("")];
-    f.render_widget(Paragraph::new(lines), area);
+    second.spans.push(mark);
+    let note = Line::from(Span::styled(
+        "se guarda como hash en /persist",
+        Style::default().fg(app.palette.muted),
+    ));
+    f.render_widget(Paragraph::new(vec![first, second, note]), area);
 }
 
-pub fn key(app: &mut App, key: KeyEvent) {
+pub fn key(app: &mut App, key: KeyEvent) -> bool {
     match key.code {
         KeyCode::Up | KeyCode::Down => {
-            app.field_focus = if app.field_focus == 0 { 1 } else { 0 };
+            app.password.focus = if app.password.focus == 0 { 1 } else { 0 };
+            true
         }
-        KeyCode::Tab | KeyCode::BackTab => {
-            app.button_focus = if app.button_focus == 1 { 0 } else { 1 };
-        }
-        KeyCode::Enter => {
-            if app.button_focus == 0 {
-                app.go_back();
-            } else if app.passwords_match() {
-                app.advance();
+        _ if super::is_edit_key(&key) => {
+            let target = if app.password.focus == 0 {
+                &mut app.password.p1
             } else {
-                app.status = Some("las contraseñas no coinciden".into());
-            }
+                &mut app.password.p2
+            };
+            target.handle_event(&Event::Key(key));
+            true
         }
-        _ => {}
+        _ => false,
     }
+}
+
+pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
+    vec![
+        (Btn::secondary("‹ Atrás"), Action::Back),
+        (Btn::primary("Continuar ›"), Action::Next),
+    ]
 }
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![
         "mkpasswd -m yescrypt --stdin".into(),
         format!(
-            "→ {}/persist/secrets/{}.hash (0600)",
-            app.repo_dir.display(),
+            "→ /persist/secrets/{}.hash (0600)",
             app.settings.username
         ),
     ]
