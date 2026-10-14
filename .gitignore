@@ -1,2 +1,5 @@
 /result
 /result-*
+
+# Rust build artifacts for the installer crate.
+/installer/target

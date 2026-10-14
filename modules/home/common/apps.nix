@@ -229,7 +229,9 @@ in
             });
         };
 
-        git = {
+        # Only configure git when the installer collected a name and email
+        # (settings.nix uses `null` when the git step is skipped).
+        git = lib.mkIf (gitName != null && gitEmail != null) {
             enable = true;
             settings = {
                 user = {

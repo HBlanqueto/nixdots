@@ -1,0 +1,182 @@
+//! Reads and rewrites the flake's `settings.nix`.
+//!
+//! The file is regenerated from a template that mirrors the original layout
+//! (same key order, 4-space indentation). `settings.nix` is never edited with
+//! `sed`.
+
+use color_eyre::eyre::{eyre, Context, Result};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
+
+/// Mirror of `settings.nix`. `hashedPasswordFile` is intentionally absent: it
+/// is always derived from `username` when writing, and ignored when reading.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    pub system: String,
+    pub state_version: String,
+    pub host_name: String,
+    pub time_zone: String,
+    pub default_locale: String,
+    pub username: String,
+    pub userdescription: String,
+    /// `null` when git is left unconfigured by the installer.
+    #[serde(default)]
+    pub git_name: Option<String>,
+    #[serde(default)]
+    pub git_email: Option<String>,
+}
+
+impl Settings {
+    /// `hashedPasswordFile`, derived from the username.
+    pub fn password_file(&self) -> String {
+        format!("/persist/secrets/{}.hash", self.username)
+    }
+
+    /// Values used when `settings.nix` cannot be evaluated (e.g. the simulation
+    /// run on a machine without nix). Mirrors the repo's defaults.
+    pub fn fallback() -> Self {
+        Self {
+            system: "x86_64-linux".into(),
+            state_version: "26.05".into(),
+            host_name: "nixos".into(),
+            time_zone: "America/Merida".into(),
+            default_locale: "es_MX.UTF-8".into(),
+            username: "humbe".into(),
+            userdescription: "H. Blanqueto".into(),
+            git_name: Some("H. Blanqueto".into()),
+            git_email: Some("mc4w6wmkrv@privaterelay.appleid.com".into()),
+        }
+    }
+
+    /// `nix eval --json -f settings.nix`.
+    pub fn read(repo: &Path) -> Result<Self> {
+        let file = repo.join("settings.nix");
+        let output = Command::new("nix")
+            .arg("eval")
+            .arg("--json")
+            .arg("-f")
+            .arg(&file)
+            .output()
+            .wrap_err("no se pudo ejecutar `nix eval`")?;
+        if !output.status.success() {
+            return Err(eyre!(
+                "`nix eval -f settings.nix` falló: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        serde_json::from_slice(&output.stdout)
+            .wrap_err("settings.nix no tiene el formato esperado")
+    }
+
+    /// Renders the template.
+    pub fn render(&self) -> String {
+        format!(
+            "{{\n    system = {system};\n    stateVersion = {state_version};\n\n    hostName = {host_name};\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
+            system = nix_str(&self.system),
+            state_version = nix_str(&self.state_version),
+            host_name = nix_str(&self.host_name),
+            time_zone = nix_str(&self.time_zone),
+            default_locale = nix_str(&self.default_locale),
+            username = nix_str(&self.username),
+            userdescription = nix_str(&self.userdescription),
+            password_file = nix_str(&self.password_file()),
+            git_name = nix_opt(&self.git_name),
+            git_email = nix_opt(&self.git_email),
+        )
+    }
+
+    pub fn write(&self, repo: &Path) -> Result<()> {
+        std::fs::write(repo.join("settings.nix"), self.render())
+            .wrap_err("no se pudo escribir settings.nix")?;
+        Ok(())
+    }
+}
+
+fn nix_str(value: &str) -> String {
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\"")
+}
+
+fn nix_opt(value: &Option<String>) -> String {
+    match value {
+        Some(value) => nix_str(value),
+        None => "null".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample() -> Settings {
+        Settings {
+            system: "x86_64-linux".into(),
+            state_version: "26.05".into(),
+            host_name: "nixos".into(),
+            time_zone: "America/Merida".into(),
+            default_locale: "es_MX.UTF-8".into(),
+            username: "humbe".into(),
+            userdescription: "H. Blanqueto".into(),
+            git_name: Some("H. Blanqueto".into()),
+            git_email: Some("a@b.c".into()),
+        }
+    }
+
+    #[test]
+    fn render_matches_expected_layout() {
+        let rendered = sample().render();
+        assert!(rendered.contains("    system = \"x86_64-linux\";"));
+        assert!(rendered.contains("    hashedPasswordFile = \"/persist/secrets/humbe.hash\";"));
+        assert!(rendered.contains("    stateVersion = \"26.05\";"));
+        // 4-space indentation, no tabs.
+        assert!(!rendered.contains('\t'));
+    }
+
+    #[test]
+    fn password_file_follows_username() {
+        let mut s = sample();
+        s.username = "ana".into();
+        assert_eq!(s.password_file(), "/persist/secrets/ana.hash");
+    }
+
+    #[test]
+    fn render_null_git_when_omitted() {
+        let mut s = sample();
+        s.git_name = None;
+        s.git_email = None;
+        let rendered = s.render();
+        assert!(rendered.contains("    gitName = null;"));
+        assert!(rendered.contains("    gitEmail = null;"));
+    }
+
+    #[test]
+    fn json_null_git_parses() {
+        let json = r#"{ "system": "x86_64-linux", "stateVersion": "26.05", "hostName": "h",
+            "timeZone": "UTC", "defaultLocale": "en_US.UTF-8", "username": "u",
+            "userdescription": "U", "hashedPasswordFile": "/p/u.hash", "gitName": null, "gitEmail": null }"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.git_name, None);
+    }
+
+    #[test]
+    fn json_camel_case_round_trips() {
+        let json = r#"{
+            "system": "aarch64-linux",
+            "stateVersion": "26.05",
+            "hostName": "utm",
+            "timeZone": "America/Merida",
+            "defaultLocale": "es_MX.UTF-8",
+            "username": "humbe",
+            "userdescription": "H. Blanqueto",
+            "hashedPasswordFile": "/persist/secrets/humbe.hash",
+            "gitName": "H. Blanqueto",
+            "gitEmail": "a@b.c"
+        }"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.system, "aarch64-linux");
+        assert_eq!(s.host_name, "utm");
+        assert_eq!(s.state_version, "26.05");
+    }
+}

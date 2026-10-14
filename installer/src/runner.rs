@@ -1,0 +1,177 @@
+//! Runs external commands and streams their output line by line.
+//!
+//! The installer never reimplements what these tools do; it only orchestrates
+//! them. Every command is described by a [`Cmd`], which keeps a human-readable
+//! [`Cmd::display`] string for the command panel and the install log.
+
+use color_eyre::eyre::{Context, Result};
+use std::io::{BufRead, BufReader, Read};
+use std::process::{Command, Output, Stdio};
+use std::sync::mpsc;
+use std::thread;
+
+/// One command to run.
+#[derive(Debug, Clone)]
+pub struct Cmd {
+    pub program: String,
+    pub args: Vec<String>,
+    /// Full shell-style string shown in the UI.
+    pub display: String,
+}
+
+impl Cmd {
+    pub fn new(program: impl Into<String>) -> Self {
+        let program = program.into();
+        Self {
+            display: program.clone(),
+            program,
+            args: Vec::new(),
+        }
+    }
+
+    pub fn arg(mut self, arg: impl Into<String>) -> Self {
+        let arg = arg.into();
+        self.display.push(' ');
+        self.display.push_str(&arg);
+        self.args.push(arg);
+        self
+    }
+
+    /// Adds a path argument (converted lossily to a string).
+    pub fn arg_path(self, path: impl AsRef<std::path::Path>) -> Self {
+        self.arg(path.as_ref().to_string_lossy().to_string())
+    }
+
+    /// Adds several arguments.
+    pub fn args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for arg in args {
+            self = self.arg(arg);
+        }
+        self
+    }
+
+    /// Overrides the displayed string (useful when the real invocation is more
+    /// verbose than what a human wants to read).
+    pub fn with_display(mut self, display: impl Into<String>) -> Self {
+        self.display = display.into();
+        self
+    }
+}
+
+/// A streamed piece of a command's output.
+#[derive(Debug, Clone)]
+pub enum Stream {
+    Stdout(String),
+    Stderr(String),
+}
+
+/// Runs `cmd` to completion, invoking `sink` for every output line, and returns
+/// the exit code (`-1` when it was killed by a signal).
+pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
+    let mut command = Command::new(&cmd.program);
+    command
+        .args(&cmd.args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            sink(Stream::Stderr(format!(
+                "no se pudo ejecutar {}: {err}",
+                cmd.program
+            )));
+            return 127;
+        }
+    };
+
+    let (tx, rx) = mpsc::channel::<(bool, String)>();
+    let mut readers = Vec::new();
+    if let Some(stdout) = child.stdout.take() {
+        let tx = tx.clone();
+        readers.push(thread::spawn(move || read_lines(stdout, false, &tx)));
+    }
+    if let Some(stderr) = child.stderr.take() {
+        let tx = tx.clone();
+        readers.push(thread::spawn(move || read_lines(stderr, true, &tx)));
+    }
+    drop(tx);
+
+    // Forward every line as it arrives.
+    for (is_stderr, line) in rx {
+        if is_stderr {
+            sink(Stream::Stderr(line));
+        } else {
+            sink(Stream::Stdout(line));
+        }
+    }
+
+    for reader in readers {
+        let _ = reader.join();
+    }
+
+    match child.wait() {
+        Ok(status) => status.code().unwrap_or(-1),
+        Err(err) => {
+            sink(Stream::Stderr(format!("error esperando a {}: {err}", cmd.program)));
+            -1
+        }
+    }
+}
+
+fn read_lines<R: Read>(reader: R, is_stderr: bool, tx: &mpsc::Sender<(bool, String)>) {
+    for line in BufReader::new(reader).lines().map_while(Result::ok) {
+        if tx.send((is_stderr, line)).is_err() {
+            break;
+        }
+    }
+}
+
+/// Runs `cmd` and captures its full output (for short, non-interactive probes).
+pub fn capture(cmd: &Cmd) -> Result<Output> {
+    Command::new(&cmd.program)
+        .args(&cmd.args)
+        .output()
+        .with_context(|| format!("no se pudo ejecutar {}", cmd.program))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_is_shell_like() {
+        let cmd = Cmd::new("disko")
+            .arg("--mode")
+            .arg("destroy,format,mount")
+            .arg("disko.nix");
+        assert_eq!(cmd.display, "disko --mode destroy,format,mount disko.nix");
+        assert_eq!(cmd.args.len(), 3);
+    }
+
+    #[test]
+    fn capture_reads_stdout() {
+        let out = capture(&Cmd::new("sh").arg("-c").arg("echo hola")).unwrap();
+        assert!(out.status.success());
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "hola");
+    }
+
+    #[test]
+    fn run_streams_and_returns_code() {
+        let mut lines = Vec::new();
+        let code = run(
+            &Cmd::new("sh").arg("-c").arg("echo uno; echo dos >&2; exit 3"),
+            &mut |out| match out {
+                Stream::Stdout(l) => lines.push(format!("out:{l}")),
+                Stream::Stderr(l) => lines.push(format!("err:{l}")),
+            },
+        );
+        assert_eq!(code, 3);
+        assert!(lines.iter().any(|l| l == "out:uno"));
+        assert!(lines.iter().any(|l| l == "err:dos"));
+    }
+}

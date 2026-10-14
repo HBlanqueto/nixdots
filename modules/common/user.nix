@@ -1,4 +1,4 @@
-{ pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, ... }:
+{ pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, ... }:
 
 let
     theme = import ../../share/themes;
@@ -25,7 +25,7 @@ in
             description = userdescription;
             extraGroups = [ "networkmanager" "wheel" "video" "seat" ];
             createHome = true;
-            hashedPassword = hashedpassword;
+            hashedPasswordFile = hashedPasswordFile;
         };
     };
 

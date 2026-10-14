@@ -21,28 +21,114 @@
 
         sf-mono-liga-src.url = "github:shaunsingh/SFMono-Nerd-Font-Ligaturized";
         sf-mono-liga-src.flake = false;
+
+        disko.url = "github:nix-community/disko";
+        disko.inputs.nixpkgs.follows = "nixpkgs";
     };
 
     outputs = inputs@{ nixpkgs, ... }:
         let
             settings = import ./settings.nix;
             mkHost = import ./lib/mkHost.nix { inherit inputs settings; };
-        in
-        {
-            nixosConfigurations = {
-                # Physical ThinkPad L14 Gen 2a (AMD, x86_64).
-                thinkpad = mkHost {
-                    hostName = "thinkpad";
-                    system = "x86_64-linux";
-                    modules = [ ./hosts/thinkpad ];
+
+            # Every directory under hosts/ with a host.nix is a configuration.
+            # host.nix declares the per-host `profile` and `system`; the flake
+            # output name is the directory name and equals networking.hostName.
+            hostNames = builtins.attrNames (
+                builtins.filterAttrs (_: type: type == "directory") (builtins.readDir ./hosts)
+            );
+
+            mkHostFromDir = name:
+                let
+                    meta = import (./hosts + "/${name}/host.nix");
+                in
+                mkHost {
+                    hostName = name;
+                    inherit (meta) system;
+                    modules = [ (./hosts + "/${name}") ];
                 };
 
-                # UTM/QEMU VM on an Apple M4 Mac (native aarch64).
-                utm = mkHost {
-                    hostName = "utm";
-                    system = "aarch64-linux";
-                    modules = [ ./hosts/utm ];
+            hosts = builtins.listToAttrs (
+                map (name: { inherit name; value = mkHostFromDir name; }) hostNames
+            );
+
+            # The installer/disk utility are built for both architectures the
+            # ISO is offered on; they only orchestrate other tools.
+            supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+
+            mkInstaller = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+
+                    # Everything the installer shells out to. makeWrapper puts
+                    # these on its PATH so the binary works from a minimal ISO
+                    # without pulling them in by hand.
+                    runtimeInputs = with pkgs; [
+                        inputs.disko.packages.${system}.disko
+                        btrfs-progs
+                        dosfstools
+                        util-linux
+                        mkpasswd
+                        sbctl
+                        less
+                        git
+                        nix
+                    ];
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-installer";
+                    version = "0.1.0";
+
+                    # Whole repo so the palette test can read
+                    # share/themes/neptunia.nix; the crate lives in installer/.
+                    src = ./.;
+                    # cargoRoot locates Cargo.lock/Cargo.toml; buildAndTestSubdir
+                    # makes the hooks actually run cargo inside installer/.
+                    cargoRoot = "installer";
+                    buildAndTestSubdir = "installer";
+                    cargoLock.lockFile = ./installer/Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.makeWrapper ];
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-installer \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                        wrapProgram $out/bin/nixdots-disk \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                    '';
+
+                    meta = {
+                        description = "Text-mode installer for the nixdots NixOS configuration";
+                        mainProgram = "nixdots-installer";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
                 };
-            };
+
+            installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
+        in
+        {
+            nixosConfigurations = hosts;
+
+            packages = nixpkgs.lib.genAttrs supportedSystems (system: {
+                installer = installers.${system};
+                disk = installers.${system};
+                default = installers.${system};
+            });
+
+            apps = nixpkgs.lib.genAttrs supportedSystems (system: {
+                installer = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-installer";
+                };
+                disk = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-disk";
+                };
+                default = {
+                    type = "app";
+                    program = "${installers.${system}}/bin/nixdots-installer";
+                };
+            });
         };
 }

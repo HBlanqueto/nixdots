@@ -38,14 +38,12 @@
     { device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
       fsType = "btrfs";
       options = [ "subvol=@persist" "noatime" "compress=zstd" "space_cache=v2" ];
-      neededForBoot = true;
     };
 
   fileSystems."/var/log" =
     { device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
       fsType = "btrfs";
       options = [ "subvol=@log" "noatime" "compress=zstd" "space_cache=v2" ];
-      neededForBoot = true;
     };
 
   fileSystems."/boot" =
