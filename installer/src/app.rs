@@ -1301,8 +1301,10 @@ impl App {
             .unwrap_or(0) as u16;
         let logo_h = logo.len() as u16;
 
-        // logo + blank + prompt + blank + button
-        let total_h = logo_h + 4;
+        // Blank lines between the logo and the prompt (leave some air).
+        let gap_after_logo: u16 = if show_logo { 3 } else { 1 };
+        // logo + gap + prompt + blank + button
+        let total_h = logo_h + gap_after_logo + 3;
         let mut y = area.y + area.height.saturating_sub(total_h) / 2;
 
         if show_logo && logo_h > 0 {
@@ -1310,11 +1312,11 @@ impl App {
             f.render_widget(Paragraph::new(logo), Rect::new(x, y, logo_w, logo_h));
             y += logo_h;
         }
-        y += 1; // blank
+        y += gap_after_logo;
 
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
-                "Para iniciar la configuración del instalador, dale a Continuar",
+                "Presiona Continuar para iniciar la configuración del sistema",
                 Style::default().fg(self.palette.text),
             )))
             .alignment(Alignment::Center),
