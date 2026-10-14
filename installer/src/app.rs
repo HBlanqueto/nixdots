@@ -1004,7 +1004,7 @@ impl App {
         let panel_h = content_h + 4;
         let width = PANEL_WIDTH.min(area.width);
         let gap: u16 = 1;
-        let mut total = 1 + 1 + gap + panel_h + gap + 1;
+        let mut total = 1 + 2 + gap + panel_h + gap + 1;
         if commands_h > 0 {
             total += gap + commands_h;
         }
@@ -1012,7 +1012,7 @@ impl App {
         let x = area.x + area.width.saturating_sub(width) / 2;
 
         let header = Rect::new(x, top, width, 1);
-        let progress = Rect::new(x, top + 2, width, 1);
+        let progress = Rect::new(x, top + 1, width, 2);
         let panel = Rect::new(x, top + 3 + gap, width, panel_h);
         let shortcuts = Rect::new(x, panel.bottom() + gap, width, 1);
         let commands = Rect::new(x, shortcuts.bottom() + gap, width, commands_h);
