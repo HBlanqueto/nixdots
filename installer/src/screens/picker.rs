@@ -2,7 +2,7 @@
 //! the timezone and locale screens. The search field is always visible with a
 //! placeholder; the list starts at the top with nothing preselected.
 
-use crate::app::Picker;
+use crate::app::{Click, Picker, PickerKind};
 use crate::theme::Palette;
 use crate::widgets;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -19,6 +19,7 @@ pub fn height() -> u16 {
     ROWS as u16 + 1
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     f: &mut Frame,
     palette: &Palette,
@@ -27,6 +28,8 @@ pub fn draw(
     placeholder: &str,
     unit: &str,
     focused: bool,
+    kind: Option<PickerKind>,
+    targets: Option<&std::cell::RefCell<Vec<(Rect, Click)>>>,
 ) {
     let mut lines: Vec<Line> = Vec::new();
 
@@ -90,6 +93,12 @@ pub fn draw(
         } else {
             format!("{:<10} {}", item.extra, item.name)
         };
+        if let (Some(kind), Some(targets)) = (kind, targets) {
+            targets.borrow_mut().push((
+                Rect::new(area.x, area.y + 1 + row as u16, area.width, 1),
+                Click::PickerRow(kind, start + row),
+            ));
+        }
         lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
     }
 

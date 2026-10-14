@@ -1,11 +1,11 @@
 //! "Idioma y teclado": two columns (language and keyboard layout), plus a
 //! test field to type into.
 
-use crate::app::{Action, App, PickItem};
+use crate::app::{Action, App, PickItem, PickerKind};
 use crate::detect;
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -47,7 +47,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     );
 
     if let Some(picker) = &app.loc {
-        super::picker::draw(f, &app.palette, left, picker, "buscar idioma", "idiomas", lang_focus);
+        super::picker::draw(f, &app.palette, left, picker, "buscar idioma", "idiomas", lang_focus, Some(PickerKind::Language), Some(&app.targets));
     }
     if let Some(picker) = &app.keyboards {
         super::picker::draw(
@@ -58,8 +58,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "buscar distribución",
             "distribuciones",
             kb_focus,
+            Some(PickerKind::Keyboard),
+            Some(&app.targets),
         );
     }
+    // Column backgrounds are pushed last so a click on a row selects it.
+    app.targets.borrow_mut().push((left, crate::app::Click::LocaleColumn(0)));
+    app.targets.borrow_mut().push((right, crate::app::Click::LocaleColumn(1)));
 
     // Test field.
     let test_y = area.y + 1 + cols_h + 1;
@@ -76,7 +81,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         "escribe aquí para probar el teclado",
     );
     f.render_widget(Paragraph::new(field), Rect::new(area.x, test_y, area.width, 1));
-    let _ = Alignment::Left;
+    app.targets
+        .borrow_mut()
+        .push((Rect::new(area.x, test_y, area.width, 1), crate::app::Click::LocaleColumn(2)));
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

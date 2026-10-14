@@ -142,6 +142,31 @@ pub enum Quit {
     Installing,
 }
 
+/// Which picker a clicked row belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickerKind {
+    Timezone,
+    Language,
+    Keyboard,
+}
+
+/// A clickable region, filled during `draw` and hit-tested on mouse click.
+#[derive(Debug, Clone, Copy)]
+pub enum Click {
+    LicenseText,
+    LicenseCheckbox,
+    GitCheckbox,
+    SummaryUutils,
+    DiskConfirm,
+    DiskName,
+    DiskRow(usize),
+    DiskOption(usize),
+    LocaleColumn(usize),
+    PickerRow(PickerKind, usize),
+    WifiRow(usize),
+    WifiPassword,
+}
+
 // -- list picker (timezone / locale) -----------------------------------------
 
 pub struct PickItem {
@@ -445,6 +470,8 @@ pub struct App {
     pub focus_buttons: bool,
     /// On-screen x-ranges of the enabled buttons, for mouse hover/click.
     button_hitboxes: Vec<(u16, u16, usize)>,
+    /// Clickable regions of the current frame (checkboxes, rows, columns…).
+    pub targets: std::cell::RefCell<Vec<(Rect, Click)>>,
     pub show_commands: bool,
     pub status: Option<String>,
     pub quit: Option<Quit>,
@@ -557,6 +584,7 @@ impl App {
             // Welcome has no content, so the buttons start focused.
             focus_buttons: true,
             button_hitboxes: Vec::new(),
+            targets: std::cell::RefCell::new(Vec::new()),
             show_commands: false,
             status: None,
             quit: None,
@@ -1126,6 +1154,25 @@ impl App {
                 _ => {}
             }
         }
+        // Click on a checkbox / row / column.
+        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+            let click = self
+                .targets
+                .borrow()
+                .iter()
+                .find(|(rect, _)| {
+                    mouse.column >= rect.x
+                        && mouse.column < rect.right()
+                        && mouse.row >= rect.y
+                        && mouse.row < rect.bottom()
+                })
+                .map(|(_, click)| *click);
+            if let Some(click) = click {
+                self.handle_click(click);
+                return;
+            }
+        }
+
         let hit = self
             .button_hitboxes
             .iter()
@@ -1142,6 +1189,83 @@ impl App {
                 self.activate_focused();
             }
             _ => {}
+        }
+    }
+
+    fn handle_click(&mut self, click: Click) {
+        self.focus_buttons = false;
+        match click {
+            Click::LicenseText => self.license_focus = 0,
+            Click::LicenseCheckbox => self.license_accepted = !self.license_accepted,
+            Click::GitCheckbox => {
+                self.git.enabled = !self.git.enabled;
+                if !self.git.enabled {
+                    self.git.focus = 0;
+                }
+            }
+            Click::SummaryUutils => {
+                if self.uutils_available() {
+                    self.keep_uutils = !self.keep_uutils;
+                }
+            }
+            Click::DiskConfirm => {
+                if self.disks.option == 0 {
+                    self.disks.confirmed = !self.disks.confirmed;
+                }
+            }
+            Click::DiskName => self.disk_focus = 1,
+            Click::DiskRow(i) => {
+                if self.disks.disks.get(i).map(|d| d.available).unwrap_or(false) {
+                    self.disks.index = i;
+                    self.disk_focus = 0;
+                    self.load_layout();
+                    self.disks.confirmed = false;
+                }
+            }
+            Click::DiskOption(i) => {
+                self.disks.option = i;
+                self.disks.confirmed = false;
+            }
+            Click::LocaleColumn(i) => self.locale_focus = i,
+            Click::PickerRow(kind, index) => match kind {
+                PickerKind::Timezone => {
+                    if let Some(p) = self.timezones.as_mut() {
+                        p.selected = Some(index);
+                    }
+                    if let Some(item) = self.timezones.as_ref().and_then(|p| p.current()) {
+                        self.settings.time_zone = item.code.clone();
+                    }
+                }
+                PickerKind::Language => {
+                    if let Some(p) = self.loc.as_mut() {
+                        p.selected = Some(index);
+                    }
+                    if let Some(item) = self.loc.as_ref().and_then(|p| p.current()) {
+                        self.settings.default_locale = item.code.clone();
+                    }
+                }
+                PickerKind::Keyboard => {
+                    if let Some(p) = self.keyboards.as_mut() {
+                        p.selected = Some(index);
+                    }
+                    let code = self
+                        .keyboards
+                        .as_ref()
+                        .and_then(|p| p.current())
+                        .map(|i| i.code.clone());
+                    if let Some(code) = code {
+                        self.apply_keyboard_q(&code, false);
+                    }
+                }
+            },
+            Click::WifiRow(i) => {
+                if i < self.net.wifi.len() {
+                    self.net.selected = i;
+                }
+            }
+            // The password phase already owns the field; the click only moves
+            // the focus off the buttons (done above).
+            Click::WifiPassword => {}
         }
     }
 
@@ -1348,6 +1472,7 @@ impl App {
 
     pub fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
+        self.targets.borrow_mut().clear();
         f.render_widget(
             Block::default().style(Style::default().bg(self.palette.reset)),
             area,
@@ -1475,6 +1600,8 @@ impl App {
                 "buscar distribución",
                 "distribuciones",
                 true,
+                None,
+                None,
             );
         }
         f.render_widget(

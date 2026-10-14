@@ -1,4 +1,4 @@
-use crate::app::{Action, App};
+use crate::app::{Action, App, Click};
 use crate::detect::human_size;
 use crate::disk;
 use crate::widgets::{self, Btn};
@@ -44,6 +44,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     );
     y += 1;
     f.render_widget(Paragraph::new(disk_lines(app)), Rect::new(area.x, y, width, app.disks.disks.len().max(1) as u16));
+    for i in 0..app.disks.disks.len() {
+        app.targets
+            .borrow_mut()
+            .push((Rect::new(area.x, y + i as u16, width, 1), Click::DiskRow(i)));
+    }
     y += app.disks.disks.len().max(1) as u16;
 
     y += 1;
@@ -149,6 +154,7 @@ fn draw_cards(f: &mut Frame, app: &App, area: Rect) {
             .border_style(Style::default().fg(border));
         let inner = block.inner(rect);
         f.render_widget(block, rect);
+        app.targets.borrow_mut().push((rect, Click::DiskOption(i)));
 
         let radio = if chosen { "(•) " } else { "( ) " };
         let title_style = if chosen {
@@ -269,6 +275,14 @@ fn draw_tree(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_right(f: &mut Frame, app: &App, area: Rect) {
+    app.targets
+        .borrow_mut()
+        .push((Rect::new(area.x, area.y, area.width, 1), Click::DiskName));
+    if app.disks.option == 0 {
+        app.targets
+            .borrow_mut()
+            .push((Rect::new(area.x, area.y + 2, area.width, 1), Click::DiskConfirm));
+    }
     let mut lines: Vec<Line> = Vec::new();
     // Volume name (editable).
     lines.push(widgets::input_line(

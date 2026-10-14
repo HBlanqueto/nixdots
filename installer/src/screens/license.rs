@@ -2,7 +2,7 @@
 //! inside the panel, the allowUnfree note, the Acepto checkbox and the
 //! Atrás / Aceptar buttons.
 
-use crate::app::{Action, App};
+use crate::app::{Action, App, Click};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -83,8 +83,10 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         footer,
     );
 
-    // Blank line, then the checkbox.
+    // Clickable regions: the text (focus it) and the checkbox (toggle it).
+    app.targets.borrow_mut().push((text_area, Click::LicenseText));
     let checkbox = Rect::new(area.x, area.y + visible as u16 + 2, area.width, 1);
+    app.targets.borrow_mut().push((checkbox, Click::LicenseCheckbox));
     f.render_widget(
         Paragraph::new(widgets::checkbox(
             &app.palette,
