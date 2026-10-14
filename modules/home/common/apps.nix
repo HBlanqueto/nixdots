@@ -164,7 +164,6 @@ in
             telegram-desktop
             bitwarden-desktop
 
-            foot
             imagemagick
 
             # Safe nixos-rebuild wrapper (flake package); also the backend of
