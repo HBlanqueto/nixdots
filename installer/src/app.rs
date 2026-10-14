@@ -1282,29 +1282,46 @@ impl App {
         let console = theme::console::is_linux_console();
         let show_logo = area.height >= 24 && area.width >= 40;
 
-        let mut lines: Vec<Line> = Vec::new();
-        if show_logo {
-            lines.extend(crate::logo::nixos_logo(console));
+        // The logo art carries its own leading columns, so it must be
+        // left-aligned as a block and the block centered as a whole (centering
+        // each line separately would distort it).
+        let logo: Vec<Line> = if show_logo {
+            crate::logo::nixos_logo(console)
+        } else {
+            Vec::new()
+        };
+        let logo_w = logo
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.chars().count()).sum::<usize>())
+            .max()
+            .unwrap_or(0) as u16;
+        let logo_h = logo.len() as u16;
+
+        // logo + blank + prompt + blank + button
+        let total_h = logo_h + 4;
+        let mut y = area.y + area.height.saturating_sub(total_h) / 2;
+
+        if show_logo && logo_h > 0 {
+            let x = area.x + area.width.saturating_sub(logo_w) / 2;
+            f.render_widget(Paragraph::new(logo), Rect::new(x, y, logo_w, logo_h));
+            y += logo_h;
         }
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Para iniciar la configuración del instalador, dale a Continuar",
-            Style::default().fg(self.palette.text),
-        )));
+        y += 1; // blank
 
-        let content_h = lines.len() as u16;
-        let total_h = content_h + 2; // blank line + button row
-        let top = area.y + area.height.saturating_sub(total_h) / 2;
         f.render_widget(
-            Paragraph::new(lines).alignment(Alignment::Center),
-            Rect::new(area.x, top, area.width, content_h),
+            Paragraph::new(Line::from(Span::styled(
+                "Para iniciar la configuración del instalador, dale a Continuar",
+                Style::default().fg(self.palette.text),
+            )))
+            .alignment(Alignment::Center),
+            Rect::new(area.x, y, area.width, 1),
         );
+        y += 2; // prompt + blank
 
-        let row = Rect::new(area.x, top + content_h + 1, area.width, 1);
         let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
         self.button_hitboxes = widgets::render_buttons(
             f,
-            row,
+            Rect::new(area.x, y, area.width, 1),
             &self.palette,
             &buttons,
             self.button_focus,
