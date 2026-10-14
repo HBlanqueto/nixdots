@@ -150,6 +150,13 @@ pub enum PickerKind {
     Keyboard,
 }
 
+/// A scrollable region whose thumb can be clicked/dragged.
+#[derive(Debug, Clone, Copy)]
+pub enum ScrollKind {
+    License,
+    Picker(PickerKind),
+}
+
 /// A clickable region, filled during `draw` and hit-tested on mouse click.
 #[derive(Debug, Clone, Copy)]
 pub enum Click {
@@ -425,9 +432,9 @@ pub struct App {
     pub license_max_scroll: usize,
     /// 0 = text, 1 = the Acepto checkbox.
     pub license_focus: usize,
-    /// The license text area (for the scrollbar), set during `draw`.
+    /// The license text area, set during `draw` (for the scrollbar).
     pub license_text_area: Rect,
-    pub license_dragging: bool,
+    /// The license text area (for the scrollbar), set during `draw`.
 
     // host
     pub host: HostState,
@@ -475,6 +482,8 @@ pub struct App {
     button_hitboxes: Vec<(u16, u16, usize)>,
     /// Clickable regions of the current frame (checkboxes, rows, columns…).
     pub targets: std::cell::RefCell<Vec<(Rect, Click)>>,
+    /// Scrollbar columns of the current frame (click/drag to scroll).
+    pub scrollbars: std::cell::RefCell<Vec<(Rect, ScrollKind)>>,
     pub show_commands: bool,
     pub status: Option<String>,
     pub quit: Option<Quit>,
@@ -569,7 +578,6 @@ impl App {
             license_max_scroll: 0,
             license_focus: 0,
             license_text_area: Rect::default(),
-            license_dragging: false,
             timezones: None,
             loc: None,
             keyboards: None,
@@ -590,6 +598,7 @@ impl App {
             focus_buttons: true,
             button_hitboxes: Vec::new(),
             targets: std::cell::RefCell::new(Vec::new()),
+            scrollbars: std::cell::RefCell::new(Vec::new()),
             show_commands: false,
             status: None,
             quit: None,
@@ -1145,47 +1154,67 @@ impl App {
     /// Mouse hover selects a button; a left click runs it. Disabled buttons are
     /// not in the hitboxes and are therefore ignored.
     fn handle_mouse(&mut self, mouse: MouseEvent) {
-        // License: wheel scrolls; the scrollbar column can be clicked/dragged.
-        if self.screen == Screen::License {
-            let area = self.license_text_area;
-            let on_scrollbar = area.height > 0 && mouse.column + 1 >= area.right();
-            match mouse.kind {
-                MouseEventKind::ScrollDown => {
+        let point = |r: &Rect| {
+            mouse.column >= r.x
+                && mouse.column < r.right()
+                && mouse.row >= r.y
+                && mouse.row < r.bottom()
+        };
+
+        // Wheel: license text, or the picker row under the cursor.
+        if matches!(
+            mouse.kind,
+            MouseEventKind::ScrollDown | MouseEventKind::ScrollUp
+        ) {
+            let down = matches!(mouse.kind, MouseEventKind::ScrollDown);
+            if self.screen == Screen::License && self.license_text_area.height > 0 {
+                if down {
                     self.license_scroll = (self.license_scroll + 3).min(self.license_max_scroll);
-                    return;
-                }
-                MouseEventKind::ScrollUp => {
+                } else {
                     self.license_scroll = self.license_scroll.saturating_sub(3);
-                    return;
                 }
-                MouseEventKind::Down(MouseButton::Left) if on_scrollbar => {
-                    self.license_dragging = true;
-                    self.license_scroll = self.license_scroll_for_row(mouse.row, area);
-                    return;
-                }
-                MouseEventKind::Drag(MouseButton::Left) if self.license_dragging => {
-                    self.license_scroll = self.license_scroll_for_row(mouse.row, area);
-                    return;
-                }
-                MouseEventKind::Up(MouseButton::Left) => {
-                    self.license_dragging = false;
-                }
-                _ => {}
+                return;
+            }
+            let kind = self
+                .targets
+                .borrow()
+                .iter()
+                .find(|(r, _)| point(r))
+                .and_then(|(_, c)| match c {
+                    Click::PickerRow(k, _) => Some(*k),
+                    _ => None,
+                });
+            if let Some(kind) = kind {
+                self.move_picker(kind, if down { 1 } else { -1 });
+            }
+            return;
+        }
+
+        // Click or drag on any scrollbar column.
+        if matches!(
+            mouse.kind,
+            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left)
+        ) {
+            let hit = self
+                .scrollbars
+                .borrow()
+                .iter()
+                .find(|(r, _)| point(r))
+                .map(|(r, k)| (*r, *k));
+            if let Some((rect, kind)) = hit {
+                self.scrollbar_to(kind, mouse.row, rect);
+                return;
             }
         }
+
         // Click on a checkbox / row / column.
         if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
             let click = self
                 .targets
                 .borrow()
                 .iter()
-                .find(|(rect, _)| {
-                    mouse.column >= rect.x
-                        && mouse.column < rect.right()
-                        && mouse.row >= rect.y
-                        && mouse.row < rect.bottom()
-                })
-                .map(|(_, click)| *click);
+                .find(|(r, _)| point(r))
+                .map(|(_, c)| *c);
             if let Some(click) = click {
                 self.handle_click(click);
                 return;
@@ -1211,13 +1240,83 @@ impl App {
         }
     }
 
-    /// Maps a click row on the license scrollbar to a scroll offset.
-    fn license_scroll_for_row(&self, row: u16, area: Rect) -> usize {
-        if area.height == 0 {
-            return self.license_scroll;
+    fn picker_total(&self, kind: PickerKind) -> usize {
+        match kind {
+            PickerKind::Timezone => self.timezones.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
+            PickerKind::Language => self.loc.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
+            PickerKind::Keyboard => self.keyboards.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
         }
-        let rel = row.saturating_sub(area.y) as f32 / area.height as f32;
-        (rel * self.license_max_scroll as f32).round() as usize
+    }
+
+    fn move_picker(&mut self, kind: PickerKind, delta: isize) {
+        let total = self.picker_total(kind);
+        if total == 0 {
+            return;
+        }
+        let current = match kind {
+            PickerKind::Timezone => self.timezones.as_ref().and_then(|p| p.selected),
+            PickerKind::Language => self.loc.as_ref().and_then(|p| p.selected),
+            PickerKind::Keyboard => self.keyboards.as_ref().and_then(|p| p.selected),
+        }
+        .unwrap_or(0) as isize;
+        let index = (current + delta).clamp(0, total as isize - 1) as usize;
+        self.select_picker(kind, index);
+    }
+
+    fn select_picker(&mut self, kind: PickerKind, index: usize) {
+        match kind {
+            PickerKind::Timezone => {
+                if let Some(p) = self.timezones.as_mut() {
+                    p.selected = Some(index);
+                }
+                if let Some(item) = self.timezones.as_ref().and_then(|p| p.current()) {
+                    self.settings.time_zone = item.code.clone();
+                }
+            }
+            PickerKind::Language => {
+                if let Some(p) = self.loc.as_mut() {
+                    p.selected = Some(index);
+                }
+                if let Some(item) = self.loc.as_ref().and_then(|p| p.current()) {
+                    self.settings.default_locale = item.code.clone();
+                }
+            }
+            PickerKind::Keyboard => {
+                if let Some(p) = self.keyboards.as_mut() {
+                    p.selected = Some(index);
+                }
+                let code = self
+                    .keyboards
+                    .as_ref()
+                    .and_then(|p| p.current())
+                    .map(|i| i.code.clone());
+                if let Some(code) = code {
+                    self.apply_keyboard_q(&code, false);
+                }
+            }
+        }
+    }
+
+    /// Scrolls the region to a click/drag at `row`.
+    fn scrollbar_to(&mut self, kind: ScrollKind, row: u16, rect: Rect) {
+        let frac = if rect.height <= 1 {
+            0.0
+        } else {
+            (row.saturating_sub(rect.y)) as f32 / (rect.height - 1) as f32
+        };
+        match kind {
+            ScrollKind::License => {
+                self.license_scroll = (frac * self.license_max_scroll as f32).round() as usize;
+            }
+            ScrollKind::Picker(kind) => {
+                let total = self.picker_total(kind);
+                if total == 0 {
+                    return;
+                }
+                let index = (frac * (total - 1) as f32).round() as usize;
+                self.select_picker(kind, index);
+            }
+        }
     }
 
     fn handle_click(&mut self, click: Click) {
@@ -1255,37 +1354,7 @@ impl App {
                 self.disks.confirmed = false;
             }
             Click::LocaleColumn(i) => self.locale_focus = i,
-            Click::PickerRow(kind, index) => match kind {
-                PickerKind::Timezone => {
-                    if let Some(p) = self.timezones.as_mut() {
-                        p.selected = Some(index);
-                    }
-                    if let Some(item) = self.timezones.as_ref().and_then(|p| p.current()) {
-                        self.settings.time_zone = item.code.clone();
-                    }
-                }
-                PickerKind::Language => {
-                    if let Some(p) = self.loc.as_mut() {
-                        p.selected = Some(index);
-                    }
-                    if let Some(item) = self.loc.as_ref().and_then(|p| p.current()) {
-                        self.settings.default_locale = item.code.clone();
-                    }
-                }
-                PickerKind::Keyboard => {
-                    if let Some(p) = self.keyboards.as_mut() {
-                        p.selected = Some(index);
-                    }
-                    let code = self
-                        .keyboards
-                        .as_ref()
-                        .and_then(|p| p.current())
-                        .map(|i| i.code.clone());
-                    if let Some(code) = code {
-                        self.apply_keyboard_q(&code, false);
-                    }
-                }
-            },
+            Click::PickerRow(kind, index) => self.select_picker(kind, index),
             Click::WifiRow(i) => {
                 if i < self.net.wifi.len() {
                     self.net.selected = i;
@@ -1501,6 +1570,7 @@ impl App {
     pub fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
         self.targets.borrow_mut().clear();
+        self.scrollbars.borrow_mut().clear();
         f.render_widget(
             Block::default().style(Style::default().bg(self.palette.reset)),
             area,
@@ -1633,6 +1703,7 @@ impl App {
                 "buscar distribución",
                 "distribuciones",
                 true,
+                None,
                 None,
                 None,
             );

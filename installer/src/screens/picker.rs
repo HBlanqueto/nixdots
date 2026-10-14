@@ -2,7 +2,7 @@
 //! the timezone and locale screens. The search field is always visible with a
 //! placeholder; the list starts at the top with nothing preselected.
 
-use crate::app::{Click, Picker, PickerKind};
+use crate::app::{Click, Picker, PickerKind, ScrollKind};
 use crate::theme::Palette;
 use crate::widgets;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -30,6 +30,7 @@ pub fn draw(
     focused: bool,
     kind: Option<PickerKind>,
     targets: Option<&std::cell::RefCell<Vec<(Rect, Click)>>>,
+    scrollbars: Option<&std::cell::RefCell<Vec<(Rect, ScrollKind)>>>,
 ) {
     let mut lines: Vec<Line> = Vec::new();
 
@@ -107,6 +108,12 @@ pub fn draw(
     f.render_widget(Paragraph::new(lines), content);
 
     if total > ROWS {
+        if let (Some(kind), Some(scrollbars)) = (kind, scrollbars) {
+            scrollbars.borrow_mut().push((
+                Rect::new(area.right().saturating_sub(1), area.y + 1, 1, ROWS as u16),
+                ScrollKind::Picker(kind),
+            ));
+        }
         let bar_area = Rect::new(area.x, area.y + 1, area.width, ROWS as u16);
         let mut state = ScrollbarState::new(total)
             .position(start)

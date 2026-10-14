@@ -47,7 +47,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     );
 
     if let Some(picker) = &app.loc {
-        super::picker::draw(f, &app.palette, left, picker, "buscar idioma", "idiomas", lang_focus, Some(PickerKind::Language), Some(&app.targets));
+        super::picker::draw(f, &app.palette, left, picker, "buscar idioma", "idiomas", lang_focus, Some(PickerKind::Language), Some(&app.targets), Some(&app.scrollbars));
     }
     if let Some(picker) = &app.keyboards {
         super::picker::draw(
@@ -60,6 +60,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             kb_focus,
             Some(PickerKind::Keyboard),
             Some(&app.targets),
+            Some(&app.scrollbars),
         );
     }
     // Column backgrounds are pushed last so a click on a row selects it.

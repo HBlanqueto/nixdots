@@ -22,6 +22,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             !app.focus_buttons,
             Some(PickerKind::Timezone),
             Some(&app.targets),
+            Some(&app.scrollbars),
         );
     }
 }
