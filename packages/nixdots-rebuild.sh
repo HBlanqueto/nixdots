@@ -61,7 +61,7 @@ fi
 
 # 4. Compare the normal users of the running system (uid >= 1000) with the new
 #    configuration, and make sure every declared normal user has its hash file.
-new_users="$(nix eval --impure --json "$ref.config.users.users" --apply '
+new_users="$(nix eval --impure --json "$repo#nixosConfigurations.$host.config.users.users" --apply '
     users: builtins.mapAttrs (_: u: {
         isNormalUser = u.isNormalUser or false;
         hashedPasswordFile =

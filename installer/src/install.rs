@@ -257,13 +257,15 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.write(&repo)?;
 
-    // Password hash -> /persist/secrets/<user>.hash (0700 dir / 0600 file).
+    // Password hash -> /persist/secrets/<user>.hash (0711 dir / 0600 file).
+    // The directory is traversable (but not listable) so the unprivileged
+    // `nix` evaluation can stat the hash; the file stays 0600 root-owned.
     let secrets = plan.root.join("persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", plan.settings.username));
     report.log(format!("$ escribir {}", hash_path.display()));
     if !plan.dry_run {
         fs::create_dir_all(&secrets)?;
-        set_mode_dir(&secrets, 0o700)?;
+        set_mode_dir(&secrets, 0o711)?;
         fs::write(&hash_path, format!("{}\n", plan.password_hash))?;
         set_mode_file(&hash_path, 0o600)?;
     } else {
@@ -420,10 +422,11 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
         }
     }
 
-    // Secrets live next to the persisted tree.
+    // Secrets live next to the persisted tree. 0711 keeps the hash file
+    // unreadable while still letting the unprivileged `nix` evaluation stat it.
     let secrets = persist.join("secrets");
     fs::create_dir_all(&secrets)?;
-    set_mode_dir(&secrets, 0o700)?;
+    set_mode_dir(&secrets, 0o711)?;
 
     persist_wifi(plan, report)?;
     Ok(())

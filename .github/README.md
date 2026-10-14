@@ -60,7 +60,7 @@ An overview of the core configuration files and directories that make up this Ni
 │       │   ├── apps.nix
 │       │   ├── default.nix
 │       │   ├── style.nix
-│       │   └── config/      # fastfetch, mopidy, starship, yazi
+│       │   └── config/      # fastfetch, yazi
 │       └── desktop/
 │           ├── default.nix  # wezterm
 │           └── wezterm.lua
@@ -256,6 +256,9 @@ nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
 > `settings.nix` points `hashedPasswordFile` at `/persist/secrets/humbe.hash`.
 > Create that file from the live ISO (e.g.
 > `mkpasswd -m sha-512 > /mnt/persist/secrets/humbe.hash`) before the first rebuild.
+> Keep the directory traversable (`chmod 0711 /persist/secrets`): the file is
+> `0600` root-owned, but the unprivileged `nix` evaluation must still be able to
+> stat it (`nixdots-rebuild` builds without sudo).
 
 ## Credits
 
