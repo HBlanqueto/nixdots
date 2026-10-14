@@ -2,7 +2,7 @@
 # inside the VM after partitioning:
 #
 #   nixos-generate-config --root /mnt
-#   cp /mnt/etc/nixos/hardware-configuration.nix ~/nixdots/hosts/utm/
+#   cp /mnt/etc/nixos/hardware-configuration.nix ~/nixdots/hosts/UTM-aarch64/
 #
 # The values below are plausible for a single UEFI disk with a Btrfs root
 # split into the same subvolumes as the ThinkPad, but the UUIDs are fake.

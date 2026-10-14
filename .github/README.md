@@ -1,4 +1,4 @@
-These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The same flake builds **one configuration per host**: a physical **ThinkPad L14 Gen 2a** (`thinkpad`, x86_64-linux) and a native **aarch64 UTM/QEMU VM** on Apple Silicon (`utm`).
+These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The same flake builds **one configuration per host**: a physical **ThinkPad L14 Gen 2a** (`ThinkPad-L14-Gen2`, x86_64-linux) and a native **aarch64 UTM/QEMU VM** on Apple Silicon (`UTM-aarch64`).
 
 This NixOS system features the following core components:
 
@@ -10,7 +10,7 @@ This NixOS system features the following core components:
 ## Environment
 
 - [x] **Flakes:** Fully flake-based system configuration
-- [x] **Multi-host:** `thinkpad` (x86_64-linux) and `utm` (aarch64-linux), auto-discovered from `hosts/`
+- [x] **Multi-host:** `ThinkPad-L14-Gen2` (x86_64-linux) and `UTM-aarch64` (aarch64-linux), auto-discovered from `hosts/`
 - [x] **Installer:** text-mode installer (`installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
@@ -23,14 +23,14 @@ This NixOS system features the following core components:
 ```text
 .
 ├── hosts/                   # one directory per host; auto-discovered by flake.nix
-│   ├── thinkpad/            # physical L14 Gen 2a (x86_64-linux)
-│   └── utm/                 # UTM/QEMU VM on Apple Silicon (aarch64-linux)
+│   ├── ThinkPad-L14-Gen2/   # physical L14 Gen 2a (x86_64-linux)
+│   └── UTM-aarch64/         # UTM/QEMU VM on Apple Silicon (aarch64-linux)
 ├── installer/               # Rust text-mode installer (see installer/README.md)
 ├── lib/mkHost.nix           # helper: mkHost { hostName, system, modules }
 ├── modules/                 # shared NixOS + home-manager configuration
 │   ├── common/              # users, fish, locale, nix, services, iPhone, boot
 │   ├── desktop/             # GNOME/GDM
-│   ├── hardware/            # per-host hardware (thinkpad, vm-utm)
+│   ├── hardware/            # per-host hardware (thinkpad, utm)
 │   └── home/                # home-manager (apps, style, wezterm, yazi…)
 ├── overlays/  packages/  share/
 ├── disko.nix                # standalone disk layout applied by the installer
@@ -84,12 +84,12 @@ The recommended path is the [installer](#installer): `nix run .#installer -- --i
 partitions with `disko.nix` (no manual partitioning needed), generates the
 hardware config and runs `nixos-install` for you.
 
-To install manually, the flake provides two hosts: `thinkpad` (x86_64-linux)
-and `utm` (aarch64-linux). Replace `#thinkpad` with `#utm` when installing the
-VM.
+To install manually, the flake provides two hosts: `ThinkPad-L14-Gen2` (x86_64-linux)
+and `UTM-aarch64` (aarch64-linux). Replace `#ThinkPad-L14-Gen2` with `#UTM-aarch64`
+when installing the VM.
 
 ```shell
-nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
+nixos-install --root /mnt --flake ~/nixdots#ThinkPad-L14-Gen2 --impure --show-trace
 ```
 
 ### Disk encryption (LUKS + TPM)

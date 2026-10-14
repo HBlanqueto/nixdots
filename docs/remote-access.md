@@ -10,7 +10,7 @@ red local.
 
 Lado NixOS: `modules/common/remote-access.nix` (`nixdots.remoteAccess`) sólo
 instala los paquetes `remmina` y `rustdesk-flutter`. Está activado sólo en
-`hosts/thinkpad/default.nix`; el host `utm` lo deja desactivado.
+`hosts/ThinkPad-L14-Gen2/default.nix`; el host `UTM-aarch64` lo deja desactivado.
 
 > No guardes en el repo contraseñas de VNC ni el ID de RustDesk. Todo eso se
 > queda en cada máquina.
@@ -75,7 +75,7 @@ el Mac está a la espera de desbloqueo, sólo queda un reinicio local.
 1. Reconstruye:
 
    ```shell
-   sudo nixos-rebuild switch --flake ~/nixdots#thinkpad
+   sudo nixos-rebuild switch --flake ~/nixdots#ThinkPad-L14-Gen2
    ```
 
    (`nixdots.remoteAccess.enable = true` trae los paquetes `remmina` y
