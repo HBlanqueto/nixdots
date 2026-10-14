@@ -11,8 +11,14 @@ pub fn height(_app: &App) -> u16 {
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     if let Some(picker) = &app.loc {
-        super::picker::draw(f, &app.palette, area, picker);
-        super::picker::draw_search(f, &app.palette, area, picker);
+        super::picker::draw(
+            f,
+            &app.palette,
+            area,
+            picker,
+            "buscar idioma",
+            !app.focus_buttons,
+        );
     }
 }
 

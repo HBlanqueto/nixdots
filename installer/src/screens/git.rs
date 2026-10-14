@@ -14,7 +14,7 @@ pub fn height(_app: &App) -> u16 {
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let enabled = app.git.enabled;
-    let checkbox = widgets::checkbox(&app.palette, enabled, "Configurar git", app.git.focus == 0);
+    let checkbox = widgets::checkbox(&app.palette, enabled, "Configurar git", app.git.focus == 0 && !app.focus_buttons);
     let name = widgets::input_line(
         &app.palette,
         "nombre",
@@ -24,6 +24,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         false,
         area.width,
         enabled,
+        "tu nombre",
     );
     let email = widgets::input_line(
         &app.palette,
@@ -34,6 +35,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         false,
         area.width,
         enabled,
+        "tu@correo",
     );
     let mut lines = vec![checkbox, name, email];
     if !enabled {
@@ -58,6 +60,12 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             let fields = 3;
             app.git.focus = (app.git.focus + if key.code == KeyCode::Down { 1 } else { fields - 1 })
                 % fields;
+            true
+        }
+        // Enter walks the three fields; from the last the app moves to the
+        // button row.
+        KeyCode::Enter if app.git.enabled && app.git.focus < 2 => {
+            app.git.focus += 1;
             true
         }
         _ if super::is_edit_key(&key) && app.git.enabled && app.git.focus > 0 => {

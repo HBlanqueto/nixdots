@@ -44,10 +44,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 "contraseña",
                 input.value(),
                 input.visual_cursor(),
-                true,
+                !app.focus_buttons,
                 !*visible,
                 area.width,
                 true,
+                "",
             );
             f.render_widget(Paragraph::new(vec![header, field]), area);
         }

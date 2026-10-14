@@ -23,7 +23,9 @@ pub fn height(app: &App) -> u16 {
             }
         })
         .sum();
-    6 + disks + tree
+    let options = app.disks.options().len() as u16;
+    let confirm = if app.disks.option == 0 { 1 } else { 0 };
+    disks + 5 + tree + options + confirm
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
@@ -103,17 +105,25 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 
     lines.push(Line::from(""));
-    let target = app
-        .selected_disk()
-        .map(|d| d.path())
-        .unwrap_or_else(|| "/dev/…".into());
-    let checkbox = widgets::checkbox(
-        &app.palette,
-        app.disks.confirmed,
-        &format!("Borrar {target}"),
-        app.button_focus == 1,
-    );
-    lines.push(checkbox);
+
+    // The choices: full erase, plus "install alongside Windows" when another
+    // OS is detected.
+    for (i, option) in app.disks.options().iter().enumerate() {
+        let selected = i == app.disks.option;
+        lines.push(widgets::list_row(&app.palette, selected, option.to_string(), None));
+    }
+    if app.disks.option == 0 {
+        let target = app
+            .selected_disk()
+            .map(|d| d.path())
+            .unwrap_or_else(|| "/dev/…".into());
+        lines.push(widgets::checkbox(
+            &app.palette,
+            app.disks.confirmed,
+            &format!("Confirmo borrar {target}"),
+            !app.focus_buttons,
+        ));
+    }
 
     f.render_widget(Paragraph::new(lines), area);
 }
@@ -128,12 +138,17 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             app.cycle_disk(1);
             true
         }
-        KeyCode::Char(' ') | KeyCode::Char('x') => {
-            app.disks.confirmed = !app.disks.confirmed;
+        KeyCode::Left | KeyCode::Right => {
+            let n = app.disks.options().len();
+            if n > 0 {
+                let delta = if key.code == KeyCode::Right { 1 } else { n - 1 };
+                app.disks.option = (app.disks.option + delta) % n;
+                app.disks.confirmed = false;
+            }
             true
         }
-        KeyCode::Char('u') => {
-            app.want_disk_utility = true;
+        KeyCode::Char(' ') | KeyCode::Char('x') if app.disks.option == 0 => {
+            app.disks.confirmed = !app.disks.confirmed;
             true
         }
         _ => false,
@@ -152,10 +167,13 @@ pub fn commands(app: &App) -> Vec<String> {
         .selected_disk()
         .map(|d| d.path())
         .unwrap_or_else(|| "/dev/xxx".into());
-    vec![
-        format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
-        "nixdots-disk  (utilidad de disco)".into(),
-    ]
+    let mut commands = vec![format!(
+        "disko --mode destroy,format,mount disko.nix --argstr device {device}"
+    )];
+    if app.disks.windows {
+        commands.push("os-prober   (para la entrada de Windows)".into());
+    }
+    commands
 }
 
 fn partition_sizes(layout: &[NamedPartition], total: u64, bar_width: usize) -> (Vec<u64>, Vec<usize>) {

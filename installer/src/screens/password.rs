@@ -23,10 +23,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         &format!("nueva ({})", app.settings.username),
         app.password.p1.value(),
         app.password.p1.visual_cursor(),
-        app.password.focus == 0,
+        app.password.focus == 0 && !app.focus_buttons,
         true,
         area.width,
         true,
+        "",
     );
     first.spans.push(mark.clone());
     let mut second = widgets::input_line(
@@ -34,10 +35,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         "confirmar",
         app.password.p2.value(),
         app.password.p2.visual_cursor(),
-        app.password.focus == 1,
+        app.password.focus == 1 && !app.focus_buttons,
         true,
         area.width,
         true,
+        "",
     );
     second.spans.push(mark);
     let note = Line::from(Span::styled(
@@ -51,6 +53,12 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
     match key.code {
         KeyCode::Up | KeyCode::Down => {
             app.password.focus = if app.password.focus == 0 { 1 } else { 0 };
+            true
+        }
+        // Enter goes nueva -> confirmar; from confirmar the app moves to
+        // Continuar.
+        KeyCode::Enter if app.password.focus == 0 => {
+            app.password.focus = 1;
             true
         }
         _ if super::is_edit_key(&key) => {

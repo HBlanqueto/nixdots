@@ -52,8 +52,8 @@
                 map (name: { inherit name; value = mkHostFromDir name; }) hostNames
             );
 
-            # The installer/disk utility are built for both architectures the
-            # ISO is offered on; they only orchestrate other tools.
+            # The installer is built for both architectures the ISO is offered
+            # on; it only orchestrates other tools.
             supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
 
             mkInstaller = system:
@@ -93,8 +93,6 @@
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-installer \
                             --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
-                        wrapProgram $out/bin/nixdots-disk \
-                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
                     '';
 
                     meta = {
@@ -112,7 +110,6 @@
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
-                disk = installers.${system};
                 default = installers.${system};
             });
 
@@ -121,14 +118,33 @@
                     type = "app";
                     program = "${installers.${system}}/bin/nixdots-installer";
                 };
-                disk = {
-                    type = "app";
-                    program = "${installers.${system}}/bin/nixdots-disk";
-                };
                 default = {
                     type = "app";
                     program = "${installers.${system}}/bin/nixdots-installer";
                 };
             });
+
+            # Development shell for the live WezTerm window: cargo + rehearse
+            # on every save with watchexec.
+            devShells = nixpkgs.lib.genAttrs supportedSystems (system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                in
+                {
+                    installer = pkgs.mkShell {
+                        packages = with pkgs; [
+                            cargo
+                            rustc
+                            rust-analyzer
+                            clippy
+                            watchexec
+                            gcc
+                            pkg-config
+                        ];
+                    };
+                    default = pkgs.mkShell {
+                        packages = with pkgs; [ cargo rustc gcc pkg-config ];
+                    };
+                });
         };
 }

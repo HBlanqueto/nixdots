@@ -19,20 +19,22 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         "nombre",
         app.user.name.value(),
         app.user.name.visual_cursor(),
-        app.user.focus == 0,
+        app.user.focus == 0 && !app.focus_buttons,
         false,
         area.width,
         true,
+        "Nombre y apellido",
     );
     let mut username = widgets::input_line(
         &app.palette,
         "usuario",
         app.user.username.value(),
         app.user.username.visual_cursor(),
-        app.user.focus == 1,
+        app.user.focus == 1 && !app.focus_buttons,
         false,
         area.width,
         true,
+        "se genera del nombre",
     );
     if !app.user.username.value().is_empty() {
         let (mark, color) = if app.username_valid() {
@@ -69,6 +71,12 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             true
         }
         KeyCode::Tab if app.user.focus == 0 => {
+            focus_username(app);
+            true
+        }
+        // Enter advances nombre -> usuario; from usuario the app takes over
+        // and moves the focus to Continuar.
+        KeyCode::Enter if app.user.focus == 0 => {
             focus_username(app);
             true
         }

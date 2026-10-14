@@ -19,7 +19,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(app.palette.muted),
         )),
         Line::from(""),
-        crate::widgets::checkbox(&app.palette, app.license_accepted, "Acepto", false),
+        crate::widgets::checkbox(&app.palette, app.license_accepted, "Acepto", !app.focus_buttons),
     ];
     f.render_widget(Paragraph::new(lines), area);
 }

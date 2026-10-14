@@ -45,6 +45,9 @@ pub mod hex {
     pub const C13: &str = "bda9d6";
     pub const C14: &str = "cee8ff";
     pub const C15: &str = "eef4fa";
+
+    /// UI-only tone (not in neptunia.nix): a disabled control.
+    pub const DISABLED: &str = "2f3a49";
 }
 
 const fn nibble(c: u8) -> u8 {
@@ -119,6 +122,8 @@ pub struct Palette {
     pub on_primary: Color,
     /// `lbg`, background of the focused row
     pub row_bg: Color,
+    /// UI-only: a disabled control.
+    pub disabled: Color,
     /// The terminal's own colors.
     pub reset: Color,
 }
@@ -139,6 +144,7 @@ impl Palette {
             white: rgb(hex::C15),
             well: rgb(hex::C0),
             snapshot: rgb(hex::C5),
+            disabled: rgb(hex::DISABLED),
             on_primary: rgb(hex::BG),
             row_bg: rgb(hex::LBG),
             reset: Color::Reset,
@@ -162,6 +168,7 @@ impl Palette {
             white: Color::Indexed(15),
             well: Color::Indexed(0),
             snapshot: Color::Indexed(5),
+            disabled: Color::Indexed(0),
             on_primary: Color::Indexed(0),
             row_bg: Color::Indexed(0),
             reset: Color::Reset,

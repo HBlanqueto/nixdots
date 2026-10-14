@@ -215,6 +215,15 @@ pub fn disks() -> Vec<Disk> {
     parse_disks(&json)
 }
 
+/// Whether an NTFS filesystem (a likely Windows install) is present.
+pub fn windows_present() -> bool {
+    let Some(json) = run_trim("lsblk", &["-J", "-o", "FSTYPE"]) else {
+        return false;
+    };
+    let lower = json.to_lowercase();
+    lower.contains("\"ntfs\"")
+}
+
 #[derive(Deserialize)]
 struct Lsblk {
     #[serde(default)]

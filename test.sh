@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# test.sh — checks for nixdots-installer / nixdots-disk.
+# test.sh — checks for nixdots-installer.
 #
 # Runs the Rust lints and tests, builds the flake outputs, then drives both
 # TUIs through a pty in simulation mode and asserts the expected screens and
@@ -45,14 +45,12 @@ ok "tests"
 
 # ---------------------------------------------------------------------------
 if [ "$BUILD" -eq 1 ]; then
-    say "nix build .#installer .#disk"
-    nix build .#installer .#disk
+    say "nix build .#installer"
+    nix build .#installer
 fi
 
 INSTALLER="$REPO/result/bin/nixdots-installer"
-DISK="$REPO/result/bin/nixdots-disk"
 [ -x "$INSTALLER" ] || fail "no se encontró $INSTALLER (¿falta --no-build?)"
-[ -x "$DISK" ] || fail "no se encontró $DISK"
 
 # ---------------------------------------------------------------------------
 # pty driver: runs a TUI, sends keys, prints the raw terminal output to stdout.
@@ -185,7 +183,6 @@ check() { # mode, then expected strings
     local mode="$1"; shift
     EXPECT=("$@")
     local bin="$INSTALLER"
-    [ "$mode" = "disk" ] && bin="$DISK"
     say "simulación: $mode"
     if capture "$mode" "$bin"; then
         ok "$mode: ${#EXPECT[@]} comprobaciones"
@@ -199,9 +196,6 @@ check installer \
     "Contraseña" Git Disco Resumen Instalando Listo \
     "simulación" "no se puede deshacer" "efímero" "alcanzable"
 
-check disk \
-    Volumen Auxilios Particionar Borrar Restaurar Desmontar Info \
-    Interno Externo nvme0n1 "@rootfs" Montaje
 
 # ---------------------------------------------------------------------------
 say "paleta en TERM=linux (OSC P / OSC R)"

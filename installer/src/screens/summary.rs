@@ -56,7 +56,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             &app.palette,
             app.keep_uutils,
             "uutils en vez de coreutils (experimental)",
-            app.button_focus == 1,
+            !app.focus_buttons,
         ));
         if app.keep_uutils {
             lines.push(Line::from(Span::styled(

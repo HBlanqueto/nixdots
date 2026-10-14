@@ -68,49 +68,137 @@ pub fn dim(f: &mut Frame, area: Rect, palette: &Palette) {
     }
 }
 
+/// The middle text of a button, without its surrounding arrows.
+fn btn_core(label: &str) -> String {
+    let mut s = label.trim();
+    if let Some(rest) = s.strip_prefix("‹ ") {
+        s = rest;
+    } else if let Some(rest) = s.strip_prefix('‹') {
+        s = rest.trim_start();
+    }
+    if let Some(rest) = s.strip_suffix(" ›") {
+        s = rest;
+    } else if let Some(rest) = s.strip_suffix('›') {
+        s = rest.trim_end();
+    }
+    s.trim().to_string()
+}
+
+fn fill_color(kind: Kind, palette: &Palette) -> Color {
+    match kind {
+        Kind::Primary => palette.primary,
+        Kind::Secondary => palette.row_bg,
+        Kind::Destructive => palette.error,
+    }
+}
+
 /// Renders a centered button row.
-pub fn render_buttons(f: &mut Frame, area: Rect, palette: &Palette, buttons: &[Btn], focus: usize) {
-    let mut spans: Vec<Span> = Vec::new();
+///
+/// Unfocused buttons are plain muted text. The focused button becomes a
+/// capsule: Nerd Font rounded ends on a real terminal, or `‹ text ›` with a
+/// flat fill on the Linux console. A disabled button is dim and takes no
+/// focus.
+/// Returns the on-screen x-ranges of the enabled buttons, for mouse hover.
+pub fn render_buttons(
+    f: &mut Frame,
+    area: Rect,
+    palette: &Palette,
+    buttons: &[Btn],
+    focus: usize,
+    focused: bool,
+) -> Vec<(u16, u16, usize)> {
+    let nerd = !crate::theme::console::is_linux_console();
+    // Each button becomes a group of spans; we remember the columns.
+    let mut groups: Vec<(Vec<Span<'static>>, Option<usize>)> = Vec::new();
     for (i, button) in buttons.iter().enumerate() {
+        let mut spans: Vec<Span<'static>> = Vec::new();
         if i > 0 {
             spans.push(Span::raw("   "));
         }
-        let focused = i == focus;
-        let style = match button.kind {
-            Kind::Primary => Style::default()
-                .fg(palette.white)
-                .bg(palette.primary)
-                .add_modifier(Modifier::BOLD),
-            Kind::Destructive => Style::default()
-                .fg(palette.white)
-                .bg(palette.error)
-                .add_modifier(Modifier::BOLD),
-            Kind::Secondary => {
-                if focused && button.enabled {
+        let is_focus = focused && i == focus && button.enabled;
+        if !button.enabled {
+            spans.push(Span::styled(
+                format!(" {} ", btn_core(&button.label)),
+                Style::default().fg(palette.disabled),
+            ));
+            groups.push((spans, None));
+            continue;
+        }
+        if !is_focus {
+            spans.push(Span::styled(
+                format!(" {} ", btn_core(&button.label)),
+                Style::default().fg(palette.muted),
+            ));
+        } else {
+            let fill = fill_color(button.kind, palette);
+            let core = btn_core(&button.label);
+            if nerd {
+                spans.push(Span::styled(
+                    "\u{e0b6}",
+                    Style::default().fg(fill).bg(palette.reset),
+                ));
+                spans.push(Span::styled(
+                    format!(" {core} "),
                     Style::default()
                         .fg(palette.white)
-                        .bg(palette.row_bg)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(palette.muted)
-                }
+                        .bg(fill)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(
+                    "\u{e0b4}",
+                    Style::default().fg(fill).bg(palette.reset),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    format!("‹ {core} ›"),
+                    Style::default()
+                        .fg(palette.white)
+                        .bg(fill)
+                        .add_modifier(Modifier::BOLD),
+                ));
             }
-        };
-        let style = if button.enabled {
-            style
-        } else {
-            Style::default().fg(Color::Black)
-        };
-        // Pad so the background reads as a button, not tight text.
-        spans.push(Span::styled(format!(" {} ", button.label), style));
+        }
+        groups.push((spans, Some(i)));
     }
+
+    // Flatten for rendering, and record the hitbox of each enabled button.
+    let mut flat: Vec<Span<'static>> = Vec::new();
+    let mut hitboxes: Vec<(u16, u16, usize)> = Vec::new();
+    for (group, index) in groups {
+        // A group's first span may be the separator; the button spans follow.
+        let group_width: u16 = group.iter().map(span_width).sum();
+        let sep: u16 = group
+            .first()
+            .filter(|s| s.content == "   ")
+            .map(|s| span_width(s))
+            .unwrap_or(0);
+        let start_col: u16 = flat.iter().map(span_width).sum();
+        if let Some(i) = index {
+            hitboxes.push((start_col + sep, start_col + group_width - 1, i));
+        }
+        flat.extend(group);
+    }
+
+    let total: u16 = flat.iter().map(span_width).sum();
+    let offset = area.x + area.width.saturating_sub(total) / 2;
+    let hitboxes = hitboxes
+        .into_iter()
+        .map(|(x0, x1, i)| (offset + x0, offset + x1, i))
+        .collect();
+
     f.render_widget(
-        Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+        Paragraph::new(Line::from(flat)).alignment(Alignment::Center),
         area,
     );
+    hitboxes
 }
 
-/// An editable field with a block cursor. `masked` shows bullets.
+fn span_width(span: &Span) -> u16 {
+    span.content.chars().count() as u16
+}
+
+/// An editable field with a block cursor. `masked` shows bullets; an empty
+/// field shows `placeholder` in muted until something is typed.
 #[allow(clippy::too_many_arguments)]
 pub fn input_line(
     palette: &Palette,
@@ -121,6 +209,7 @@ pub fn input_line(
     masked: bool,
     width: u16,
     enabled: bool,
+    placeholder: &str,
 ) -> Line<'static> {
     let marker = if focused { "› " } else { "  " };
     let label_style = if !enabled {
@@ -139,6 +228,37 @@ pub fn input_line(
     } else {
         palette.text
     };
+
+    if value.is_empty() {
+        let mut spans = vec![
+            Span::styled(
+                marker,
+                Style::default().fg(if focused && enabled {
+                    palette.primary
+                } else {
+                    palette.muted
+                }),
+            ),
+            Span::styled(format!("{label}: "), label_style),
+        ];
+        if focused && enabled {
+            spans.push(Span::styled(
+                " ",
+                Style::default().fg(palette.white).bg(palette.primary),
+            ));
+        }
+        if !placeholder.is_empty() {
+            spans.push(Span::styled(
+                placeholder.to_string(),
+                Style::default().fg(palette.muted),
+            ));
+        }
+        let mut line = Line::from(spans);
+        if focused && enabled {
+            line = line.style(Style::default().bg(palette.row_bg));
+        }
+        return line;
+    }
 
     let chars: Vec<char> = if masked {
         vec!['•'; value.chars().count()]

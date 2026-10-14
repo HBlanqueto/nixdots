@@ -30,10 +30,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         "hostname",
         app.host.input.value(),
         app.host.input.visual_cursor(),
-        true,
+        !app.focus_buttons,
         false,
         area.width,
         true,
+        "",
     );
     if !app.host.input.value().is_empty() && app.hostname_valid() {
         line.spans.push(Span::styled("  ✓", Style::default().fg(app.palette.success)));

@@ -11,12 +11,10 @@ use crate::license_view::LicenseViewer;
 use crate::net;
 use crate::settings::Settings;
 use crate::theme::{self, Palette};
-use crate::widgets::{self, Btn};
+use crate::widgets::{self, Btn, Kind};
 use color_eyre::eyre::Result;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::crossterm::execute;
-use ratatui::crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+use ratatui::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
@@ -134,7 +132,6 @@ pub enum Action {
     Rescan,
     NetMenu,
     NetRetry,
-    OpenDiskUtility,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,9 +151,9 @@ pub struct PickItem {
 pub struct Picker {
     pub items: Vec<PickItem>,
     pub filtered: Vec<usize>,
-    pub selected: usize,
+    /// Index into `filtered`. `None` until the user picks a row.
+    pub selected: Option<usize>,
     pub query: Input,
-    pub searching: bool,
 }
 
 impl Picker {
@@ -165,9 +162,8 @@ impl Picker {
         Self {
             items,
             filtered,
-            selected: 0,
+            selected: None,
             query: Input::default(),
-            searching: false,
         }
     }
 
@@ -185,8 +181,11 @@ impl Picker {
             })
             .map(|(i, _)| i)
             .collect();
-        if self.selected >= self.filtered.len() {
-            self.selected = 0;
+        // Keep the selection only if it still points at a valid row.
+        if let Some(sel) = self.selected {
+            if sel >= self.filtered.len() {
+                self.selected = None;
+            }
         }
     }
 
@@ -194,25 +193,27 @@ impl Picker {
         if self.filtered.is_empty() {
             return;
         }
-        self.selected = (self.selected + self.filtered.len() - 1) % self.filtered.len();
+        self.selected = Some(match self.selected {
+            None => 0,
+            Some(0) => self.filtered.len() - 1,
+            Some(s) => s - 1,
+        });
     }
 
     pub fn down(&mut self) {
         if self.filtered.is_empty() {
             return;
         }
-        self.selected = (self.selected + 1) % self.filtered.len();
+        self.selected = Some(match self.selected {
+            None => 0,
+            Some(s) if s + 1 >= self.filtered.len() => 0,
+            Some(s) => s + 1,
+        });
     }
 
     pub fn current(&self) -> Option<&PickItem> {
-        let &idx = self.filtered.get(self.selected)?;
-        self.items.get(idx)
-    }
-
-    pub fn select_code(&mut self, code: &str) {
-        if let Some(pos) = self.filtered.iter().position(|&i| self.items[i].code == code) {
-            self.selected = pos;
-        }
+        let idx = self.filtered.get(self.selected?)?;
+        self.items.get(*idx)
     }
 }
 
@@ -296,7 +297,23 @@ pub struct DiskState {
     pub disks: Vec<Disk>,
     pub index: usize,
     pub layout: Vec<NamedPartition>,
+    /// A Windows install was detected on some disk.
+    pub windows: bool,
+    /// 0 = erase the whole disk, 1 = install alongside Windows.
+    pub option: usize,
+    /// Confirmation for the destructive full erase.
     pub confirmed: bool,
+}
+
+impl DiskState {
+    /// The options offered for the current machine.
+    pub fn options(&self) -> &'static [&'static str] {
+        if self.windows {
+            &["Borrar todo el disco", "Instalar junto a Windows"]
+        } else {
+            &["Borrar todo el disco"]
+        }
+    }
 }
 
 pub struct InstallView {
@@ -399,13 +416,17 @@ pub struct App {
     /// Password hash, kept in memory only (never logged or written to temp).
     pub password_hash: Option<String>,
 
+    /// Button selection index. `focus_buttons` is false while the content
+    /// (a field or the list) holds the focus.
     pub button_focus: usize,
+    pub focus_buttons: bool,
+    /// On-screen x-ranges of the enabled buttons, for mouse hover/click.
+    button_hitboxes: Vec<(u16, u16, usize)>,
     pub show_commands: bool,
     pub status: Option<String>,
     pub quit: Option<Quit>,
     pub should_quit: bool,
     pub tick: u64,
-    pub want_disk_utility: bool,
 }
 
 impl App {
@@ -421,11 +442,15 @@ impl App {
         };
         let arch = detect::arch();
         let profile = detect::Profile::detect();
-        // Hostname defaults per machine profile, as specified.
+        // Hostname defaults per machine profile; everything else starts empty
+        // (only stateVersion is kept from the repo).
         settings.host_name = profile.default_hostname().to_string();
-
-        let generated = detect::generate_username(&settings.userdescription);
-        let user_edited = settings.username != generated;
+        settings.username = String::new();
+        settings.userdescription = String::new();
+        settings.git_name = None;
+        settings.git_email = None;
+        settings.time_zone = String::new();
+        settings.default_locale = String::new();
 
         let disks = detect::disks();
         let mut app = Self {
@@ -442,10 +467,10 @@ impl App {
                 input: Input::new(settings.host_name.clone()),
             },
             user: UserState {
-                username: Input::new(settings.username.clone()),
-                name: Input::new(settings.userdescription.clone()),
+                username: Input::default(),
+                name: Input::default(),
                 focus: 0,
-                edited: user_edited,
+                edited: false,
             },
             password: PasswordState {
                 p1: Input::default(),
@@ -454,14 +479,16 @@ impl App {
             },
             git: GitState {
                 enabled: false,
-                name: Input::new(settings.git_name.clone().unwrap_or_default()),
-                email: Input::new(settings.git_email.clone().unwrap_or_default()),
+                name: Input::default(),
+                email: Input::default(),
                 focus: 0,
             },
             disks: DiskState {
                 disks,
                 index: 0,
                 layout: Vec::new(),
+                windows: detect::windows_present(),
+                option: 0,
                 confirmed: false,
             },
             net: NetState {
@@ -484,12 +511,14 @@ impl App {
             done: None,
             password_hash: None,
             button_focus: 1,
+            // Welcome has no content, so the buttons start focused.
+            focus_buttons: true,
+            button_hitboxes: Vec::new(),
             show_commands: false,
             status: None,
             quit: None,
             should_quit: false,
             tick: 0,
-            want_disk_utility: false,
             arch,
             virt: detect::environment(),
             settings,
@@ -509,10 +538,6 @@ impl App {
                 let event = ratatui::crossterm::event::read()?;
                 self.handle_event(event);
             }
-            if self.want_disk_utility {
-                self.want_disk_utility = false;
-                self.run_disk_utility(terminal)?;
-            }
             self.tick = self.tick.wrapping_add(1);
             self.poll_install();
             self.poll_network();
@@ -521,26 +546,6 @@ impl App {
                 break;
             }
         }
-        Ok(())
-    }
-
-    /// Leaves the TUI, runs the standalone disk utility, then comes back and
-    /// refreshes the disk list.
-    fn run_disk_utility(
-        &mut self,
-        terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
-    ) -> Result<()> {
-        disable_raw_mode()?;
-        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-        let result = crate::diskui::run(self.dry_run);
-        execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-        enable_raw_mode()?;
-        terminal.clear()?;
-        if let Err(err) = result {
-            self.status = Some(format!("utilidad de disco: {err}"));
-        }
-        self.disks.disks = detect::disks();
-        self.load_layout();
         Ok(())
     }
 
@@ -570,14 +575,25 @@ impl App {
         self.disks.confirmed = false;
     }
 
+    /// Whether the Disk screen's choice is complete.
+    fn disk_ready(&self) -> bool {
+        if self.selected_disk().is_none() {
+            return false;
+        }
+        if self.disks.option == 1 {
+            // "Instalar junto a Windows" needs no extra confirmation.
+            true
+        } else {
+            self.disks.confirmed
+        }
+    }
+
     fn ensure_timezones(&mut self) {
         if self.timezones.is_some() {
             return;
         }
         let items = crate::screens::timezone::load_items();
-        let mut picker = Picker::new(items);
-        picker.select_code(&self.settings.time_zone);
-        self.timezones = Some(picker);
+        self.timezones = Some(Picker::new(items));
     }
 
     fn ensure_locales(&mut self) {
@@ -585,9 +601,7 @@ impl App {
             return;
         }
         let items = crate::screens::locale::load_items();
-        let mut picker = Picker::new(items);
-        picker.select_code(&self.settings.default_locale);
-        self.loc = Some(picker);
+        self.loc = Some(Picker::new(items));
     }
 
     pub fn hostname_valid(&self) -> bool {
@@ -619,10 +633,7 @@ impl App {
 
     /// The panel title, which for Contraseña names the resulting user.
     pub fn screen_title(&self) -> String {
-        match self.screen {
-            Screen::Password => format!("Contraseña de {}", self.settings.username),
-            s => s.title().to_string(),
-        }
+        self.screen.title().to_string()
     }
 
     pub fn username_valid(&self) -> bool {
@@ -782,7 +793,7 @@ impl App {
                     ok: true,
                 });
                 self.screen = Screen::Done;
-                self.button_focus = 1;
+                self.reset_focus();
             }
         } else {
             self.install_rx = Some(rx);
@@ -792,6 +803,10 @@ impl App {
     // -- events ---------------------------------------------------------------
 
     pub fn handle_event(&mut self, event: Event) {
+        if let Event::Mouse(mouse) = event {
+            self.handle_mouse(mouse);
+            return;
+        }
         let Event::Key(key) = event else { return };
         if key.kind != KeyEventKind::Press && key.kind != KeyEventKind::Repeat {
             return;
@@ -830,9 +845,25 @@ impl App {
             KeyCode::Char('q') if self.screen != Screen::Installing => {
                 self.quit = Some(Quit::Normal);
             }
-            KeyCode::Tab | KeyCode::BackTab => self.move_button(1),
-            KeyCode::Left | KeyCode::Right if self.screen_uses_button_arrows() => self.move_button_key(key.code),
-            KeyCode::Enter => self.activate_focused(),
+            // Tab / Shift+Tab move between content and buttons and between
+            // buttons; ←/→ sneak into the buttons from the content.
+            KeyCode::Tab => self.tab_focus(false),
+            KeyCode::BackTab => self.tab_focus(true),
+            KeyCode::Left | KeyCode::Right => {
+                if self.focus_buttons {
+                    self.move_button_key(key.code);
+                } else {
+                    self.focus_buttons_on_primary();
+                }
+            }
+            KeyCode::Enter => {
+                if self.focus_buttons {
+                    self.activate_focused();
+                } else {
+                    // No content consumed it: move the focus to Continuar.
+                    self.focus_buttons_on_primary();
+                }
+            }
             KeyCode::Esc => {
                 if self.screen == Screen::Installing {
                     self.quit = Some(Quit::Installing);
@@ -862,23 +893,61 @@ impl App {
         }
     }
 
-    fn screen_uses_button_arrows(&self) -> bool {
-        matches!(
-            self.screen,
-            Screen::Welcome | Screen::License | Screen::Installing | Screen::Done
-        )
+    /// Index of the primary button (first enabled primary, else first enabled).
+    fn primary_index(&self) -> usize {
+        let buttons = self.buttons();
+        buttons
+            .iter()
+            .position(|(b, _)| b.kind == Kind::Primary && b.enabled)
+            .or_else(|| buttons.iter().position(|(b, _)| b.enabled))
+            .unwrap_or(0)
     }
 
-    fn move_button(&mut self, delta: isize) {
-        let count = self.buttons().len();
-        if count == 0 {
+    /// Moves the focus to the primary button.
+    pub fn focus_buttons_on_primary(&mut self) {
+        self.focus_buttons = true;
+        self.button_focus = self.primary_index();
+    }
+
+    /// The next enabled button in `dir` (skipping the current one), if any.
+    fn next_enabled(&self, from: usize, dir: isize) -> Option<usize> {
+        let buttons = self.buttons();
+        let n = buttons.len();
+        if n == 0 {
+            return None;
+        }
+        let mut idx = from as isize;
+        for _ in 0..n {
+            idx = (idx + dir).rem_euclid(n as isize);
+            let i = idx as usize;
+            if buttons[i].0.enabled && i != from {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    fn tab_focus(&mut self, back: bool) {
+        if self.buttons().is_empty() {
+            self.focus_buttons = false;
             return;
         }
-        self.button_focus = ((self.button_focus as isize + delta).rem_euclid(count as isize)) as usize;
+        if !self.focus_buttons {
+            self.focus_buttons_on_primary();
+            return;
+        }
+        let from = self.button_focus;
+        match self.next_enabled(from, if back { -1 } else { 1 }) {
+            Some(i) => self.button_focus = i,
+            None => self.focus_buttons = false,
+        }
     }
 
     fn move_button_key(&mut self, code: KeyCode) {
-        self.move_button(if code == KeyCode::Left { -1 } else { 1 });
+        let dir = if code == KeyCode::Left { -1 } else { 1 };
+        if let Some(i) = self.next_enabled(self.button_focus, dir) {
+            self.button_focus = i;
+        }
     }
 
     pub fn buttons(&self) -> Vec<(Btn, Action)> {
@@ -901,8 +970,33 @@ impl App {
 
     fn activate_focused(&mut self) {
         let buttons = self.buttons();
-        if let Some((_, action)) = buttons.get(self.button_focus) {
-            self.activate(*action);
+        if let Some((button, action)) = buttons.get(self.button_focus) {
+            if button.enabled {
+                let action = *action;
+                self.activate(action);
+            }
+        }
+    }
+
+    /// Mouse hover selects a button; a left click runs it. Disabled buttons are
+    /// not in the hitboxes and are therefore ignored.
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        let hit = self
+            .button_hitboxes
+            .iter()
+            .find(|(x0, x1, _)| mouse.column >= *x0 && mouse.column <= *x1)
+            .map(|&(_, _, index)| index);
+        match (mouse.kind, hit) {
+            (MouseEventKind::Moved, Some(index)) => {
+                self.focus_buttons = true;
+                self.button_focus = index;
+            }
+            (MouseEventKind::Down(MouseButton::Left), Some(index)) => {
+                self.focus_buttons = true;
+                self.button_focus = index;
+                self.activate_focused();
+            }
+            _ => {}
         }
     }
 
@@ -917,7 +1011,6 @@ impl App {
             Action::Rescan => crate::screens::network::rescan(self),
             Action::NetMenu => crate::screens::network::to_menu(self),
             Action::NetRetry => crate::screens::network::retry(self),
-            Action::OpenDiskUtility => self.want_disk_utility = true,
             Action::None => {}
         }
     }
@@ -986,17 +1079,21 @@ impl App {
 
     /// Points the button focus at the primary button of the current screen.
     pub fn focus_primary(&mut self) {
-        let buttons = self.buttons();
-        self.button_focus = buttons
-            .iter()
-            .position(|(b, _)| b.kind == crate::widgets::Kind::Primary)
-            .unwrap_or_else(|| buttons.len().saturating_sub(1));
+        self.button_focus = self.primary_index();
+    }
+
+    /// Resets the focus when entering a screen: the content (a field or the
+    /// list) holds it, except on screens without content (Welcome, Done) where
+    /// the buttons start focused.
+    pub fn reset_focus(&mut self) {
+        self.button_focus = self.primary_index();
+        self.focus_buttons = matches!(self.screen, Screen::Welcome | Screen::Done);
     }
 
     pub fn go_back(&mut self) {
         if let Some(prev) = self.screen.previous() {
             self.screen = prev;
-            self.focus_primary();
+            self.reset_focus();
             self.status = None;
         }
     }
@@ -1009,12 +1106,13 @@ impl App {
         match self.screen.next() {
             Some(Screen::Installing) => {
                 self.screen = Screen::Installing;
+                self.focus_buttons = false;
                 self.show_commands = true;
                 self.start_install();
             }
             Some(next) => {
                 self.screen = next;
-                self.focus_primary();
+                self.reset_focus();
                 self.status = None;
                 match next {
                     Screen::Timezone => self.ensure_timezones(),
@@ -1082,7 +1180,12 @@ impl App {
                 },
                 Err(msg) => RedFase::Error { ssid, msg },
             };
-            self.focus_primary();
+            // On success, light up Continuar so Enter advances right away.
+            if self.net.phase.is_connected() {
+                self.focus_buttons_on_primary();
+            } else {
+                self.focus_primary();
+            }
         } else if let Some(since) = self.net.connecting_since {
             if since.elapsed() > Duration::from_secs(30) {
                 let ssid = self.net.phase.ssid().unwrap_or_default().to_string();
@@ -1106,7 +1209,13 @@ impl App {
             Screen::Host => self.hostname_valid(),
             Screen::User => self.username_valid(),
             Screen::Password => self.passwords_match(),
-            Screen::Disk => self.disks.confirmed && self.selected_disk().is_some(),
+            Screen::Timezone => self
+                .timezones
+                .as_ref()
+                .map(|p| p.selected.is_some())
+                .unwrap_or(false),
+            Screen::Locale => self.loc.as_ref().map(|p| p.selected.is_some()).unwrap_or(false),
+            Screen::Disk => self.disk_ready(),
             _ => true,
         }
     }
@@ -1159,7 +1268,33 @@ impl App {
 
         self.draw_header(f, header);
         self.draw_progress(f, progress);
-        self.draw_panel(f, panel);
+        let inner = self.draw_panel(f, panel);
+        // The primary "Continuar" (Action::Next) is disabled until the
+        // screen's precondition is met.
+        let enabled = self.primary_enabled();
+        let buttons: Vec<Btn> = self
+            .buttons()
+            .into_iter()
+            .map(|(mut b, action)| {
+                if action == Action::Next {
+                    b.enabled = enabled;
+                }
+                b
+            })
+            .collect();
+        if !buttons.is_empty() {
+            let row = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
+            self.button_hitboxes = widgets::render_buttons(
+                f,
+                row,
+                &self.palette,
+                &buttons,
+                self.button_focus,
+                self.focus_buttons,
+            );
+        } else {
+            self.button_hitboxes.clear();
+        }
         self.draw_shortcuts(f, shortcuts);
         if self.show_commands {
             self.draw_commands(f, commands, &commands_lines, commands_h);
@@ -1234,7 +1369,7 @@ impl App {
         );
     }
 
-    fn draw_panel(&self, f: &mut Frame, area: Rect) {
+    fn draw_panel(&self, f: &mut Frame, area: Rect) -> Rect {
         let border = match self.screen {
             Screen::Done => self.palette.success,
             Screen::Installing if self.install.error.is_some() => self.palette.error,
@@ -1275,23 +1410,7 @@ impl App {
             Screen::Done => crate::screens::done::draw(f, self, content),
         }
 
-        // The primary "Continuar" (Action::Next) is rendered dark/black until
-        // the screen's precondition is met, then white bold like the rest.
-        let enabled = self.primary_enabled();
-        let buttons: Vec<Btn> = self
-            .buttons()
-            .into_iter()
-            .map(|(mut b, action)| {
-                if action == Action::Next {
-                    b.enabled = enabled;
-                }
-                b
-            })
-            .collect();
-        if !buttons.is_empty() {
-            let row = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
-            widgets::render_buttons(f, row, &self.palette, &buttons, self.button_focus);
-        }
+        inner
     }
 
     fn draw_shortcuts(&self, f: &mut Frame, area: Rect) {
