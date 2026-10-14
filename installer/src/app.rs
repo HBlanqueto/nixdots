@@ -132,6 +132,8 @@ pub enum Action {
     ViewLicense,
     Connect,
     Rescan,
+    NetMenu,
+    NetRetry,
     OpenDiskUtility,
 }
 
@@ -216,30 +218,51 @@ impl Picker {
 
 // -- per-screen state ---------------------------------------------------------
 
+/// The Red screen is its own state machine.
+pub enum RedFase {
+    Lista,
+    Contrasena {
+        ssid: String,
+        input: Input,
+        visible: bool,
+    },
+    Conectando {
+        ssid: String,
+    },
+    Error {
+        ssid: String,
+        msg: String,
+    },
+    Conectado {
+        ssid: String,
+    },
+}
+
+impl RedFase {
+    pub fn ssid(&self) -> Option<&str> {
+        match self {
+            RedFase::Lista => None,
+            RedFase::Contrasena { ssid, .. }
+            | RedFase::Conectando { ssid }
+            | RedFase::Error { ssid, .. }
+            | RedFase::Conectado { ssid } => Some(ssid),
+        }
+    }
+
+    pub fn is_connected(&self) -> bool {
+        matches!(self, RedFase::Conectado { .. })
+    }
+}
+
 pub struct NetState {
-    pub backend: net::Backend,
+    pub backend: std::sync::Arc<dyn net::WifiBackend>,
+    pub phase: RedFase,
     pub ethernet: bool,
     pub online: bool,
     pub wifi: Vec<net::Wifi>,
     pub selected: usize,
-    pub password: Input,
-    pub editing: bool,
-    pub message: Option<String>,
-}
-
-impl NetState {
-    fn new() -> Self {
-        Self {
-            backend: net::Backend::None,
-            ethernet: false,
-            online: false,
-            wifi: Vec::new(),
-            selected: 0,
-            password: Input::default(),
-            editing: false,
-            message: None,
-        }
-    }
+    /// When the current connection attempt started (for the 30 s timeout).
+    pub connecting_since: Option<Instant>,
 }
 
 pub struct HostState {
@@ -363,6 +386,7 @@ pub struct App {
     // installing / done
     pub install: InstallView,
     install_rx: Option<Receiver<InstallMsg>>,
+    net_rx: Option<Receiver<(String, std::result::Result<bool, String>)>>,
     pub done: Option<DoneInfo>,
 
     /// Password hash, kept in memory only (never logged or written to temp).
@@ -430,7 +454,16 @@ impl App {
                 layout: Vec::new(),
                 confirmed: false,
             },
-            net: NetState::new(),
+            net: NetState {
+                backend: net::backend(dry_run),
+                phase: RedFase::Lista,
+                ethernet: net::ethernet_connected(),
+                online: false,
+                wifi: Vec::new(),
+                selected: 0,
+                connecting_since: None,
+            },
+            net_rx: None,
             license_accepted: false,
             license: None,
             timezones: None,
@@ -451,9 +484,6 @@ impl App {
             virt: detect::environment(),
             settings,
         };
-        app.net.backend = net::detect_backend();
-        app.net.ethernet = net::ethernet_connected();
-        app.net.online = app.network || app.net.ethernet || detect::network_online();
         app.load_layout();
         app
     }
@@ -475,6 +505,7 @@ impl App {
             }
             self.tick = self.tick.wrapping_add(1);
             self.poll_install();
+            self.poll_network();
 
             if self.should_quit {
                 break;
@@ -831,6 +862,8 @@ impl App {
             Action::ViewLicense => self.open_license(),
             Action::Connect => crate::screens::network::connect(self),
             Action::Rescan => crate::screens::network::rescan(self),
+            Action::NetMenu => crate::screens::network::to_menu(self),
+            Action::NetRetry => crate::screens::network::retry(self),
             Action::OpenDiskUtility => self.want_disk_utility = true,
             Action::None => {}
         }
@@ -942,26 +975,80 @@ impl App {
     }
 
     pub fn refresh_network(&mut self) {
-        self.net.backend = net::detect_backend();
         self.net.ethernet = net::ethernet_connected();
-        self.net.online = self.net.ethernet || net::online();
-        self.net.wifi = if self.net.backend == net::Backend::None {
-            if self.dry_run {
-                net::sample_networks()
+        self.net.online = self.net.backend.status();
+        if self.net.ethernet && self.net.online {
+            self.net.phase = RedFase::Conectado {
+                ssid: "ethernet".to_string(),
+            };
+            return;
+        }
+        self.net.wifi = self.net.backend.scan();
+        if self.net.wifi.is_empty() && self.dry_run {
+            self.net.wifi = net::sample_networks();
+        }
+        self.net.selected = 0;
+        self.net.phase = RedFase::Lista;
+    }
+
+    /// Starts a connection attempt on a worker thread (non-blocking), with the
+    /// password never touching the log.
+    pub fn start_net_connect(&mut self, ssid: String, pass: String) {
+        let backend = self.net.backend.clone();
+        let (tx, rx) = mpsc::channel();
+        self.net_rx = Some(rx);
+        self.net.connecting_since = Some(Instant::now());
+        self.net.phase = RedFase::Conectando { ssid: ssid.clone() };
+        std::thread::spawn(move || {
+            let result = backend
+                .connect(&ssid, &pass)
+                .map(|()| backend.status())
+                .map_err(|err| err.to_string());
+            let _ = tx.send((ssid, result));
+        });
+    }
+
+    pub(crate) fn poll_network(&mut self) {
+        let Some(rx) = self.net_rx.take() else {
+            return;
+        };
+        let mut reply = None;
+        while let Ok(msg) = rx.try_recv() {
+            reply = Some(msg);
+        }
+        if let Some((ssid, result)) = reply {
+            self.net.connecting_since = None;
+            self.net.phase = match result {
+                Ok(true) => {
+                    self.net.online = true;
+                    RedFase::Conectado { ssid }
+                }
+                Ok(false) => RedFase::Error {
+                    ssid,
+                    msg: "sin salida a cache.nixos.org".into(),
+                },
+                Err(msg) => RedFase::Error { ssid, msg },
+            };
+            self.focus_primary();
+        } else if let Some(since) = self.net.connecting_since {
+            if since.elapsed() > Duration::from_secs(30) {
+                let ssid = self.net.phase.ssid().unwrap_or_default().to_string();
+                self.net.connecting_since = None;
+                self.net.phase = RedFase::Error {
+                    ssid,
+                    msg: "sin respuesta".into(),
+                };
             } else {
-                Vec::new()
+                self.net_rx = Some(rx);
             }
         } else {
-            net::scan(self.net.backend)
-        };
-        if self.net.selected >= self.net.wifi.len() {
-            self.net.selected = 0;
+            self.net_rx = Some(rx);
         }
     }
 
     pub fn primary_enabled(&self) -> bool {
         match self.screen {
-            Screen::Network => self.net.online,
+            Screen::Network => self.net.phase.is_connected(),
             Screen::License => self.license_accepted,
             Screen::Host => self.hostname_valid(),
             Screen::User => self.username_valid(),
@@ -1154,10 +1241,13 @@ impl App {
                     self.palette.muted,
                 ),
                 Screen::Installing => (format!("ctrl+c cancelar · {toggle}"), self.palette.muted),
+                Screen::Network => (
+                    format!("{} · {toggle}", crate::screens::network::shortcut(self)),
+                    self.palette.muted,
+                ),
                 _ => {
                     let mut parts: Vec<&str> = match self.screen {
                         Screen::Welcome => vec!["enter continuar", "esc salir"],
-                        Screen::Network => vec!["↑↓ red", "r reescanear"],
                         Screen::License => vec!["espacio aceptar", "l leer completa"],
                         Screen::Host | Screen::User | Screen::Password | Screen::Git => {
                             vec!["↑↓ campo", "tab botones"]

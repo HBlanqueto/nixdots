@@ -1,30 +1,16 @@
-//! Network probing and Wi-Fi association.
+//! Network probing, Wi-Fi association and the backend abstraction.
 //!
 //! The NixOS minimal ISO enables `networking.networkmanager` (verified in
 //! `nixos/modules/profiles/installation-device.nix`), so `nmcli` is what is
-//! actually present. The other backends are tried only if `nmcli` is missing.
+//! actually present; `iwctl` and `wpa_cli` are fallbacks. All of it is behind
+//! the [`WifiBackend`] trait so the UI can stay backend-agnostic and the
+//! simulation can plug a deterministic backend.
+//!
+//! Wi-Fi passwords are never written to the log or the command panel.
 
 use color_eyre::eyre::{eyre, Result};
 use std::process::Command;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Backend {
-    Nmcli,
-    Iwd,
-    WpaSupplicant,
-    None,
-}
-
-impl Backend {
-    pub fn name(self) -> &'static str {
-        match self {
-            Backend::Nmcli => "nmcli",
-            Backend::Iwd => "iwctl",
-            Backend::WpaSupplicant => "wpa_cli",
-            Backend::None => "ninguno",
-        }
-    }
-}
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Wifi {
@@ -43,33 +29,49 @@ impl Wifi {
             _ => "▂   ",
         }
     }
-}
 
-/// First available backend, in priority order.
-pub fn detect_backend() -> Backend {
-    for (cmd, backend) in [
-        ("nmcli", Backend::Nmcli),
-        ("iwctl", Backend::Iwd),
-        ("wpa_cli", Backend::WpaSupplicant),
-    ] {
-        if which(cmd) {
-            return backend;
+    pub fn security(&self) -> &'static str {
+        if self.secured {
+            "WPA2"
+        } else {
+            "abierta"
         }
     }
-    Backend::None
 }
 
-fn which(cmd: &str) -> bool {
-    let Some(path) = std::env::var_os("PATH") else {
-        return false;
-    };
-    std::env::split_paths(&path).any(|dir| {
-        let candidate = dir.join(cmd);
-        candidate.is_file()
-    })
+/// A Wi-Fi / connectivity backend.
+pub trait WifiBackend: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn scan(&self) -> Vec<Wifi>;
+    /// Associates with `ssid` using `pass` (empty for open networks). The
+    /// password must not be logged.
+    fn connect(&self, ssid: &str, pass: &str) -> Result<()>;
+    /// Whether `cache.nixos.org` is reachable right now.
+    fn status(&self) -> bool;
+    /// Whether a saved connection already exists for `ssid`.
+    fn is_saved(&self, ssid: &str) -> bool {
+        let _ = ssid;
+        false
+    }
 }
 
-/// A wired interface that is up and has carrier.
+/// The backend to use: a deterministic simulation in dry-run, otherwise the
+/// first tool present on the ISO (`nmcli` → `iwctl` → `wpa_cli`).
+pub fn backend(dry_run: bool) -> Arc<dyn WifiBackend> {
+    if dry_run {
+        return Arc::new(Sim);
+    }
+    if which("nmcli") {
+        Arc::new(Nmcli)
+    } else if which("iwctl") {
+        Arc::new(Iwd)
+    } else if which("wpa_cli") {
+        Arc::new(WpaCli)
+    } else {
+        Arc::new(Null)
+    }
+}
+
 pub fn ethernet_connected() -> bool {
     let Ok(entries) = std::fs::read_dir("/sys/class/net") else {
         return false;
@@ -80,8 +82,7 @@ pub fn ethernet_connected() -> bool {
             continue;
         }
         let base = entry.path();
-        let wireless = base.join("wireless").exists() || base.join("phy80211").exists();
-        if wireless {
+        if base.join("wireless").exists() || base.join("phy80211").exists() {
             continue;
         }
         let operstate = std::fs::read_to_string(base.join("operstate")).unwrap_or_default();
@@ -97,18 +98,132 @@ pub fn online() -> bool {
     crate::detect::network_online()
 }
 
-/// Scans for Wi-Fi networks.
-pub fn scan(backend: Backend) -> Vec<Wifi> {
-    match backend {
-        Backend::Nmcli => scan_nmcli(),
-        Backend::Iwd => scan_iwctl(),
-        Backend::WpaSupplicant => scan_wpa_cli(),
-        Backend::None => Vec::new(),
+// -- concrete backends --------------------------------------------------------
+
+pub struct Nmcli;
+pub struct Iwd;
+pub struct WpaCli;
+pub struct Null;
+/// Deterministic backend used in the simulation.
+pub struct Sim;
+
+impl WifiBackend for Nmcli {
+    fn name(&self) -> &'static str {
+        "nmcli"
+    }
+    fn scan(&self) -> Vec<Wifi> {
+        scan_nmcli()
+    }
+    fn connect(&self, ssid: &str, pass: &str) -> Result<()> {
+        let mut cmd = Command::new("nmcli");
+        cmd.args(["device", "wifi", "connect", ssid]);
+        if !pass.is_empty() {
+            cmd.args(["password", pass]);
+        }
+        run_connect(cmd)
+    }
+    fn status(&self) -> bool {
+        online()
+    }
+    fn is_saved(&self, ssid: &str) -> bool {
+        let Ok(output) = Command::new("nmcli")
+            .args(["-t", "-f", "NAME", "connection", "show"])
+            .output()
+        else {
+            return false;
+        };
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .any(|line| line.trim() == ssid)
     }
 }
 
+impl WifiBackend for Iwd {
+    fn name(&self) -> &'static str {
+        "iwctl"
+    }
+    fn scan(&self) -> Vec<Wifi> {
+        scan_iwctl()
+    }
+    fn connect(&self, ssid: &str, pass: &str) -> Result<()> {
+        let Some(device) = wireless_device() else {
+            return Err(eyre!("no hay interfaz inalámbrica"));
+        };
+        let mut cmd = Command::new("iwctl");
+        if !pass.is_empty() {
+            cmd.args(["--passphrase", pass]);
+        }
+        cmd.args(["station", &device, "connect", ssid]);
+        run_connect(cmd)
+    }
+    fn status(&self) -> bool {
+        online()
+    }
+}
+
+impl WifiBackend for WpaCli {
+    fn name(&self) -> &'static str {
+        "wpa_cli"
+    }
+    fn scan(&self) -> Vec<Wifi> {
+        scan_wpa_cli()
+    }
+    fn connect(&self, _ssid: &str, _pass: &str) -> Result<()> {
+        Err(eyre!(
+            "wpa_cli no permite asociarse sin editar la configuración; usa nmcli"
+        ))
+    }
+    fn status(&self) -> bool {
+        online()
+    }
+}
+
+impl WifiBackend for Null {
+    fn name(&self) -> &'static str {
+        "ninguno"
+    }
+    fn scan(&self) -> Vec<Wifi> {
+        Vec::new()
+    }
+    fn connect(&self, _ssid: &str, _pass: &str) -> Result<()> {
+        Err(eyre!("no hay backend de red disponible"))
+    }
+    fn status(&self) -> bool {
+        online()
+    }
+}
+
+impl WifiBackend for Sim {
+    fn name(&self) -> &'static str {
+        "simulación"
+    }
+    fn scan(&self) -> Vec<Wifi> {
+        sample_networks()
+    }
+    fn connect(&self, _ssid: &str, pass: &str) -> Result<()> {
+        // Accept any password of 8+ characters; reject shorter ones so the
+        // Error state can be exercised without real hardware.
+        if pass.chars().count() >= 8 || pass.is_empty() {
+            Ok(())
+        } else {
+            Err(eyre!("contraseña incorrecta"))
+        }
+    }
+    fn status(&self) -> bool {
+        true
+    }
+}
+
+// -- scanning helpers ---------------------------------------------------------
+
+fn which(cmd: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| dir.join(cmd).is_file())
+}
+
 fn scan_nmcli() -> Vec<Wifi> {
-    // -t escapes ':' inside fields as '\:'.
     let Ok(output) = Command::new("nmcli")
         .args(["-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"])
         .output()
@@ -118,9 +233,8 @@ fn scan_nmcli() -> Vec<Wifi> {
     if !output.status.success() {
         return Vec::new();
     }
-    let text = String::from_utf8_lossy(&output.stdout);
     let mut networks: Vec<Wifi> = Vec::new();
-    for line in text.lines() {
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
         let fields = split_escaped(line);
         if fields.len() < 3 {
             continue;
@@ -182,11 +296,7 @@ fn scan_iwctl() -> Vec<Wifi> {
         let secured = security == "psk" || security == "8021x";
         push_unique(
             &mut networks,
-            Wifi {
-                ssid: ssid.to_string(),
-                signal: 70,
-                secured,
-            },
+            Wifi { ssid: ssid.to_string(), signal: 70, secured },
         );
     }
     networks
@@ -233,65 +343,26 @@ fn wireless_device() -> Option<String> {
     None
 }
 
-/// Connects to a Wi-Fi network. `password` is empty for open networks.
-pub fn connect(backend: Backend, ssid: &str, password: &str) -> Result<()> {
-    match backend {
-        Backend::Nmcli => {
-            let mut cmd = Command::new("nmcli");
-            cmd.args(["device", "wifi", "connect", ssid]);
-            if !password.is_empty() {
-                cmd.args(["password", password]);
-            }
-            run_connect(cmd)
-        }
-        Backend::Iwd => {
-            let Some(device) = wireless_device() else {
-                return Err(eyre!("no hay interfaz inalámbrica"));
-            };
-            let mut cmd = Command::new("iwctl");
-            if !password.is_empty() {
-                cmd.args(["--passphrase", password]);
-            }
-            cmd.args(["station", &device, "connect", ssid]);
-            run_connect(cmd)
-        }
-        Backend::WpaSupplicant => Err(eyre!(
-            "wpa_cli no permite asociarse sin escribir en la configuración; usa nmcli"
-        )),
-        Backend::None => Err(eyre!("no hay backend de red disponible")),
-    }
-}
-
 fn run_connect(mut cmd: Command) -> Result<()> {
     let output = cmd.output()?;
     if output.status.success() {
-        Ok(())
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let lower = stderr.to_lowercase();
+    if lower.contains("secret") || lower.contains("password") || lower.contains("passphrase") {
+        Err(eyre!("contraseña incorrecta"))
     } else {
-        Err(eyre!(
-            "{}",
-            String::from_utf8_lossy(&output.stderr).trim().to_string()
-        ))
+        Err(eyre!("{}", stderr.trim()))
     }
 }
 
-/// Sample networks for the dry-run when no backend is present.
+/// Sample networks for the dry-run.
 pub fn sample_networks() -> Vec<Wifi> {
     vec![
-        Wifi {
-            ssid: "nixdots-lab".into(),
-            signal: 90,
-            secured: true,
-        },
-        Wifi {
-            ssid: "Casa-2.4G".into(),
-            signal: 62,
-            secured: true,
-        },
-        Wifi {
-            ssid: "Cafe-Invitados".into(),
-            signal: 34,
-            secured: false,
-        },
+        Wifi { ssid: "nixdots-lab".into(), signal: 90, secured: true },
+        Wifi { ssid: "Casa-2.4G".into(), signal: 62, secured: true },
+        Wifi { ssid: "Cafe-Invitados".into(), signal: 34, secured: false },
     ]
 }
 
@@ -314,21 +385,23 @@ mod tests {
 
     #[test]
     fn which_finds_common_tools() {
-        // `sh` is always present in the test environment.
         assert!(which("sh"));
         assert!(!which("definitely-not-a-real-binary-xyz"));
     }
 
     #[test]
-    fn sample_networks_are_marked() {
-        let nets = sample_networks();
-        assert!(!nets.is_empty());
-        assert!(nets.iter().any(|n| !n.secured));
+    fn sim_backend_accepts_long_and_rejects_short() {
+        let sim = Sim;
+        assert!(sim.connect("red", "12345678").is_ok());
+        assert!(sim.connect("red", "").is_ok()); // open network
+        let err = sim.connect("red", "corta").unwrap_err().to_string();
+        assert_eq!(err, "contraseña incorrecta");
     }
 
     #[test]
-    fn path_probe_never_panics() {
-        let _ = ethernet_connected();
-        let _ = std::path::Path::new("/sys/class/net").exists();
+    fn sim_backend_is_deterministic() {
+        let sim = Sim;
+        assert!(!sim.scan().is_empty());
+        assert!(sim.status());
     }
 }

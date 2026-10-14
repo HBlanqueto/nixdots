@@ -82,6 +82,7 @@ fn main() -> Result<()> {
     let mut app = App::new(args.dry_run, args.repo.clone(), repo_dir);
     app.source_ok = cloned;
     app.network = detect::network_online();
+    app.refresh_network();
 
     let mut terminal = setup_terminal()?;
     let result = app.run(&mut terminal);

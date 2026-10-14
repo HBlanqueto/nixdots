@@ -132,7 +132,13 @@ pub fn input_line(
     } else {
         Style::default().fg(palette.muted)
     };
-    let value_color = if enabled { palette.text } else { palette.muted };
+    let value_color = if !enabled {
+        palette.muted
+    } else if focused {
+        palette.white
+    } else {
+        palette.text
+    };
 
     let chars: Vec<char> = if masked {
         vec!['•'; value.chars().count()]
@@ -179,7 +185,11 @@ pub fn input_line(
         spans.push(Span::styled(at.to_string(), Style::default().fg(value_color)));
     }
     spans.push(Span::styled(after, Style::default().fg(value_color)));
-    Line::from(spans)
+    let mut line = Line::from(spans);
+    if focused && enabled {
+        line = line.style(Style::default().bg(palette.row_bg));
+    }
+    line
 }
 
 pub fn checkbox(palette: &Palette, checked: bool, label: &str, focused: bool) -> Line<'static> {

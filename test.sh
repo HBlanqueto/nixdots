@@ -89,33 +89,57 @@ def kick():
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 41, 110, 0, 0)); pump(0.15)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 110, 0, 0)); pump(0.15)
 
-def send(s, wait=0.8):
+def send(s, wait=0.5):
     os.write(fd, s)
     pump(wait)
     kick()
 
-pump(1.0)
+def wait_for(marker, timeout=15):
+    end = time.time() + timeout
+    while time.time() < end:
+        pump(0.2)
+        if marker.encode() in buf:
+            return True
+    return False
+
 if mode == "installer":
-    send(b"\r")           # Bienvenido -> Red
-    send(b"\r")           # Red: conectar (simulación) o continuar
-    send(b"\r")           # Red -> Licencia
-    send(b" ")            # acepto
-    send(b"\r")           # Licencia -> Equipo
-    send(b"\r")           # Equipo -> Zona horaria
-    send(b"\r", 1.5)      # Zona horaria -> Idioma
-    send(b"\r")           # Idioma -> Usuario
-    send(b"\r")           # Usuario -> Contraseña
+    wait_for("Bienvenido")
+    send(b"\r")                       # -> Red (Lista)
+    wait_for("Red")
+    send(b"\r")                       # elegir red WPA -> Contrasena
+    wait_for("contraseña")
+    for c in b"contrasena-larga":
+        send(bytes([c]), 0.05)
+    send(b"\r")                       # Contrasena -> Conectando
+    wait_for("alcanzable", 12)        # -> Conectado
+    send(b"\r")                       # Conectado -> Continuar -> Licencia
+    wait_for("Licencia")
+    send(b" ")                        # acepto
+    send(b"\r")                       # Licencia -> Equipo
+    wait_for("Equipo")
+    send(b"\r")                       # Equipo -> Zona horaria
+    wait_for("Zona horaria")
+    send(b"\r")                       # Zona horaria -> Idioma
+    wait_for("Idioma")
+    send(b"\r")                       # Idioma -> Usuario
+    wait_for("Usuario")
+    send(b"\r")                       # Usuario -> Contraseña
+    wait_for("Contraseña")
     send(b"test1234")
     send(b"\x1b[B")
     send(b"test1234")
-    send(b"\r")           # Contraseña -> Git
-    send(b"\r")           # Git (omitir) -> Disco
-    send(b" ")            # confirmar borrado
-    send(b"\r")           # Disco -> Resumen
-    send(b"\r")           # Resumen -> Instalando
-    pump(6.0)             # instalando (dry run)
-    send(b"\r", 1.0)      # Listo -> reiniciar (dry run sale)
+    send(b"\r")                       # Contraseña -> Git
+    wait_for("Git")
+    send(b"\r")                       # Git (omitir) -> Disco
+    wait_for("Disco")
+    send(b" ")                        # confirmar borrado
+    send(b"\r")                       # Disco -> Resumen
+    wait_for("Resumen")
+    send(b"\r")                       # Resumen -> Instalando
+    pump(6.0)                         # instalando (dry run)
+    send(b"\r", 1.0)                  # Listo -> reiniciar (dry run sale)
 else:
+    pump(1.0)
     send(b"v", 0.4)       # comandos
     send(b"\t")           # foco barra lateral
     send(b"\x1b[B")
@@ -173,7 +197,7 @@ check() { # mode, then expected strings
 check installer \
     Bienvenido Red Licencia Equipo "Zona horaria" Idioma Usuario \
     "Contraseña" Git Disco Resumen Instalando Listo \
-    "simulación" "no se puede deshacer" "efímero"
+    "simulación" "no se puede deshacer" "efímero" "alcanzable"
 
 check disk \
     Volumen Auxilios Particionar Borrar Restaurar Desmontar Info \
