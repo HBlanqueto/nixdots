@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, keyboardLayout, keyboardVariant, ... }:
 
 {
     services = {
@@ -19,8 +19,8 @@
             excludePackages = [ pkgs.xterm ];
 
             xkb = {
-                layout = "es";
-                variant = "";
+                layout = keyboardLayout;
+                variant = keyboardVariant;
             };
         };
 

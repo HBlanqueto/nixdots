@@ -15,7 +15,7 @@ use ratatui::Frame;
 const LICENSE: &str = include_str!("../../../LICENSE");
 
 /// Height of the scrolled text area.
-const ROWS: usize = 18;
+const ROWS: usize = 20;
 
 pub fn height(_app: &App) -> u16 {
     // text + footer + blank + checkbox

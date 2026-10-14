@@ -7,6 +7,7 @@
 use crate::detect::{self, Disk};
 use crate::disk::{self, NamedPartition};
 use crate::install::{self, Msg as InstallMsg, Plan, Step};
+use crate::keyboard;
 use crate::net;
 use crate::settings::Settings;
 use crate::theme::{self, Palette};
@@ -26,7 +27,6 @@ use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 use tui_input::Input;
 
-const PANEL_WIDTH: u16 = 58;
 const STEPS: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,7 +77,7 @@ impl Screen {
             Screen::License => "Licencia",
             Screen::Host => "Equipo",
             Screen::Timezone => "Zona horaria",
-            Screen::Locale => "Idioma",
+            Screen::Locale => "Idioma y teclado",
             Screen::User => "Usuario",
             Screen::Password => "Contraseña",
             Screen::Git => "Git",
@@ -305,6 +305,10 @@ pub struct DiskState {
     pub option: usize,
     /// Confirmation for the destructive full erase.
     pub confirmed: bool,
+    /// GPT partition/volume name (editable).
+    pub volume_name: Input,
+    /// Size (GB) the System HD partition gets when installing alongside.
+    pub partition_gb: u64,
 }
 
 impl DiskState {
@@ -404,6 +408,17 @@ pub struct App {
     pub timezones: Option<Picker>,
     pub loc: Option<Picker>,
 
+    // keyboard
+    pub keyboards: Option<Picker>,
+    /// On the "Idioma y teclado" screen: 0 = language, 1 = keyboard, 2 = test.
+    pub locale_focus: usize,
+    pub key_test: Input,
+    /// Floating layout selector (F2). `None` when closed.
+    pub key_modal: Option<Picker>,
+    pub keyboard_active: String,
+    pub keyboard_layout: String,
+    pub keyboard_variant: String,
+
     // user / password / git
     pub user: UserState,
     pub password: PasswordState,
@@ -411,6 +426,8 @@ pub struct App {
 
     // disk / summary
     pub disks: DiskState,
+    /// 0 = disk list, 1 = volume name field.
+    pub disk_focus: usize,
     pub keep_uutils: bool,
 
     // installing / done
@@ -458,7 +475,15 @@ impl App {
         settings.time_zone = String::new();
         settings.default_locale = String::new();
 
+        let kb_active = keyboard::detect_active();
+        let (kb_layout, kb_variant) = keyboard::by_id(&kb_active)
+            .map(|l| (l.xkb.to_string(), l.variant.to_string()))
+            .unwrap_or_else(|| ("us".to_string(), String::new()));
+        settings.keyboard_layout = kb_layout.clone();
+        settings.keyboard_variant = kb_variant.clone();
+
         let disks = detect::disks();
+        let disk_index = disks.iter().position(|d| d.available).unwrap_or(0);
         let mut app = Self {
             palette,
             screen: Screen::Splash,
@@ -491,11 +516,13 @@ impl App {
             },
             disks: DiskState {
                 disks,
-                index: 0,
+                index: disk_index,
                 layout: Vec::new(),
                 windows: detect::windows_present(),
                 option: 0,
                 confirmed: false,
+                volume_name: Input::new("System HD".to_string()),
+                partition_gb: 100,
             },
             net: NetState {
                 backend: net::backend(dry_run),
@@ -513,6 +540,14 @@ impl App {
             license_focus: 0,
             timezones: None,
             loc: None,
+            keyboards: None,
+            locale_focus: 0,
+            key_test: Input::default(),
+            key_modal: None,
+            keyboard_active: kb_active,
+            keyboard_layout: kb_layout,
+            keyboard_variant: kb_variant,
+            disk_focus: 0,
             keep_uutils: false,
             install: InstallView::new(),
             install_rx: None,
@@ -577,8 +612,18 @@ impl App {
         if self.disks.disks.is_empty() {
             return;
         }
-        let len = self.disks.disks.len() as isize;
-        self.disks.index = ((self.disks.index as isize + delta).rem_euclid(len)) as usize;
+        let n = self.disks.disks.len() as isize;
+        if n == 0 {
+            return;
+        }
+        let mut idx = self.disks.index as isize;
+        for _ in 0..n {
+            idx = (idx + delta).rem_euclid(n);
+            if self.disks.disks[idx as usize].available {
+                self.disks.index = idx as usize;
+                break;
+            }
+        }
         self.load_layout();
         self.disks.confirmed = false;
     }
@@ -610,6 +655,73 @@ impl App {
         }
         let items = crate::screens::locale::load_items();
         self.loc = Some(Picker::new(items));
+    }
+
+    fn keyboard_items(&self) -> Vec<PickItem> {
+        keyboard::LAYOUTS
+            .iter()
+            .map(|l| {
+                let name = if l.id == self.keyboard_active {
+                    format!("{} · actual", l.name)
+                } else {
+                    l.name.to_string()
+                };
+                PickItem {
+                    code: l.id.to_string(),
+                    name,
+                    extra: String::new(),
+                }
+            })
+            .collect()
+    }
+
+    fn ensure_keyboards(&mut self) {
+        if self.keyboards.is_some() {
+            return;
+        }
+        let items = self.keyboard_items();
+        let active = self.keyboard_active.clone();
+        let mut picker = Picker::new(items);
+        picker.selected = keyboard::LAYOUTS.iter().position(|l| l.id == active);
+        self.keyboards = Some(picker);
+    }
+
+    pub fn open_key_modal(&mut self) {
+        if self.key_modal.is_some() {
+            return;
+        }
+        let items = self.keyboard_items();
+        let active = self.keyboard_active.clone();
+        let mut picker = Picker::new(items);
+        picker.selected = keyboard::LAYOUTS.iter().position(|l| l.id == active);
+        self.key_modal = Some(picker);
+    }
+
+    /// Applies a keyboard layout: immediately on the Linux console, or just
+    /// saved inside a graphical terminal (which owns the layout).
+    pub fn apply_keyboard(&mut self, id: &str) {
+        self.apply_keyboard_q(id, true);
+    }
+
+    pub fn apply_keyboard_q(&mut self, id: &str, announce: bool) {
+        let Some(layout) = keyboard::by_id(id) else {
+            return;
+        };
+        self.keyboard_active = id.to_string();
+        self.keyboard_layout = layout.xkb.to_string();
+        self.keyboard_variant = layout.variant.to_string();
+        self.settings.keyboard_layout = layout.xkb.to_string();
+        self.settings.keyboard_variant = layout.variant.to_string();
+        if theme::console::is_linux_console() {
+            if !keyboard::apply_console(layout) {
+                self.status = Some(format!("no se pudo aplicar el teclado {}", layout.keymap));
+            }
+        } else if announce {
+            self.status = Some("la distribución la controla tu escritorio".into());
+        }
+        // Refresh the column list so the "· actual" marker moves.
+        self.keyboards = None;
+        self.ensure_keyboards();
     }
 
     pub fn hostname_valid(&self) -> bool {
@@ -829,6 +941,18 @@ impl App {
             return;
         }
 
+        // Floating keyboard-layout selector (F2).
+        if self.key_modal.is_some() {
+            self.key_modal_key(key);
+            return;
+        }
+
+        // F2 opens it on any screen except Inicio.
+        if key.code == KeyCode::F(2) && self.screen != Screen::Splash {
+            self.open_key_modal();
+            return;
+        }
+
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.quit = Some(if self.screen == Screen::Installing {
                 Quit::Installing
@@ -1043,6 +1167,29 @@ impl App {
         }
     }
 
+    /// Keys for the floating keyboard-layout selector.
+    fn key_modal_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => self.key_modal = None,
+            KeyCode::Enter => {
+                let id = self
+                    .key_modal
+                    .as_ref()
+                    .and_then(|p| p.current())
+                    .map(|i| i.code.clone());
+                self.key_modal = None;
+                if let Some(id) = id {
+                    self.apply_keyboard(&id);
+                }
+            }
+            _ => {
+                if let Some(picker) = self.key_modal.as_mut() {
+                    crate::screens::picker::key(picker, key);
+                }
+            }
+        }
+    }
+
     /// Points the button focus at the primary button of the current screen.
     pub fn focus_primary(&mut self) {
         self.button_focus = self.primary_index();
@@ -1056,6 +1203,10 @@ impl App {
         self.focus_buttons = matches!(self.screen, Screen::Splash | Screen::Welcome | Screen::Done);
         if self.screen == Screen::License {
             self.license_focus = 0;
+        }
+        if self.screen == Screen::Disk {
+            self.disk_focus = 0;
+            self.disks.confirmed = false;
         }
     }
 
@@ -1085,7 +1236,11 @@ impl App {
                 self.status = None;
                 match next {
                     Screen::Timezone => self.ensure_timezones(),
-                    Screen::Locale => self.ensure_locales(),
+                    Screen::Locale => {
+                        self.locale_focus = 0;
+                        self.ensure_locales();
+                        self.ensure_keyboards();
+                    }
                     Screen::Network => self.refresh_network(),
                     _ => {}
                 }
@@ -1198,6 +1353,21 @@ impl App {
             area,
         );
 
+        // Minimum supported size: show a warning instead of a broken layout.
+        if area.width < 90 || area.height < 30 {
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    "Agranda la ventana (mín. 90×30)",
+                    Style::default()
+                        .fg(self.palette.warning)
+                        .add_modifier(Modifier::BOLD),
+                )))
+                .alignment(Alignment::Center),
+                Rect::new(area.x, area.y + area.height / 2, area.width, 1),
+            );
+            return;
+        }
+
         if self.screen == Screen::Splash {
             self.draw_splash(f, area);
             if self.quit.is_some() {
@@ -1214,13 +1384,8 @@ impl App {
             0
         };
         let panel_h = content_h + 4;
-        // The license and disk panels are a little wider/more spacious.
-        let base_width = match self.screen {
-            Screen::License => 68,
-            Screen::Disk => 62,
-            _ => PANEL_WIDTH,
-        };
-        let width = base_width.min(area.width);
+        // 84 columns, or 80 % of the terminal width if that is smaller.
+        let width = 84.min(area.width * 80 / 100);
         // Inicio and Listo show no progress bar.
         let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };
         let gap: u16 = 1;
@@ -1275,9 +1440,51 @@ impl App {
             self.draw_commands(f, commands, &commands_lines, commands_h);
         }
 
+        if self.key_modal.is_some() {
+            self.draw_key_modal(f, area);
+        }
         if self.quit.is_some() {
             self.draw_quit(f, area);
         }
+    }
+
+    /// Floating keyboard-layout selector.
+    fn draw_key_modal(&self, f: &mut Frame, area: Rect) {
+        widgets::dim(f, area, &self.palette);
+        let w = 54.min(area.width);
+        let h = 13.min(area.height);
+        let x = area.x + area.width.saturating_sub(w) / 2;
+        let y = area.y + area.height.saturating_sub(h) / 2;
+        let rect = Rect::new(x, y, w, h);
+        f.render_widget(Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.primary))
+            .title(Span::styled(" Teclado ", Style::default().fg(self.palette.primary)));
+        let inner = block.inner(rect);
+        f.render_widget(block, rect);
+
+        if let Some(picker) = &self.key_modal {
+            let content = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+            crate::screens::picker::draw(
+                f,
+                &self.palette,
+                content,
+                picker,
+                "buscar distribución",
+                "distribuciones",
+                true,
+            );
+        }
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "enter aplicar · esc cerrar",
+                Style::default().fg(self.palette.muted),
+            ))
+            .alignment(Alignment::Center),
+            Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1),
+        );
     }
 
     /// The startup splash: NixOS logo + prompt + a single Continuar button,
@@ -1437,40 +1644,57 @@ impl App {
         inner
     }
 
+    /// Screen-specific shortcut hints (without F2 or the v toggle).
+    fn screen_shortcuts(&self) -> Vec<String> {
+        match self.screen {
+            Screen::Splash => Vec::new(),
+            Screen::Welcome => vec!["enter continuar".into(), "esc salir".into()],
+            Screen::License => vec!["↑↓ desplazar".into(), "espacio aceptar".into()],
+            Screen::Network => vec![crate::screens::network::shortcut(self)],
+            Screen::Locale => vec!["tab columna".into(), "↑↓ elegir".into()],
+            Screen::Timezone => vec!["↑↓ elegir".into()],
+            Screen::Host => vec!["enter continuar".into()],
+            Screen::User => vec!["↑↓ campo".into()],
+            Screen::Password => vec!["↑↓ campo".into()],
+            Screen::Git => vec!["espacio marcar".into()],
+            Screen::Disk => vec!["←→ opción".into(), "↑↓ disco".into()],
+            Screen::Summary => vec!["no se puede deshacer".into()],
+            Screen::Installing => vec!["ctrl+c cancelar".into()],
+            Screen::Done => vec!["retira la ISO antes de reiniciar".into()],
+        }
+    }
+
     fn draw_shortcuts(&self, f: &mut Frame, area: Rect) {
-        let toggle = format!("v comandos: {}", if self.show_commands { "on" } else { "off" });
-        let (line, color) = if let Some(status) = &self.status {
-            (status.clone(), self.palette.warning)
-        } else {
-            match self.screen {
-                Screen::Summary => (format!("no se puede deshacer · {toggle}"), self.palette.warning),
-                Screen::Done => (
-                    format!("retira la ISO antes de reiniciar · {toggle}"),
-                    self.palette.muted,
-                ),
-                Screen::Installing => (format!("ctrl+c cancelar · {toggle}"), self.palette.muted),
-                Screen::Network => (
-                    format!("{} · {toggle}", crate::screens::network::shortcut(self)),
-                    self.palette.muted,
-                ),
-                _ => {
-                    let mut parts: Vec<&str> = match self.screen {
-                        Screen::Welcome => vec!["enter continuar", "esc salir"],
-                        Screen::License => vec!["espacio aceptar", "l leer completa"],
-                        Screen::Host | Screen::User | Screen::Password | Screen::Git => {
-                            vec!["↑↓ campo", "tab botones"]
-                        }
-                        Screen::Timezone | Screen::Locale => vec!["↑↓ lista", "/ buscar"],
-                        Screen::Disk => vec!["↑↓ disco", "espacio borrar", "u utilidad"],
-                        _ => vec!["tab botones"],
-                    };
-                    parts.push("v comandos");
-                    (format!("{} · {toggle}", parts.join(" · ")), self.palette.muted)
-                }
+        // A single line: F2 · screen hints · v toggle. Screen hints are dropped
+        // from the end when it does not fit; F2 and v are never removed.
+        if let Some(status) = &self.status {
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    status.clone(),
+                    Style::default().fg(self.palette.warning),
+                ))
+                .alignment(Alignment::Center),
+                area,
+            );
+            return;
+        }
+        let first = format!("F2 teclado: {}", self.keyboard_active);
+        let last = format!("v comandos: {}", if self.show_commands { "on" } else { "off" });
+        let middle = self.screen_shortcuts();
+
+        let mut line = format!("{first} · {last}");
+        for k in (1..=middle.len()).rev() {
+            let mut all = vec![first.clone()];
+            all.extend(middle[..k].iter().cloned());
+            all.push(last.clone());
+            let candidate = all.join(" · ");
+            if candidate.chars().count() <= area.width as usize {
+                line = candidate;
+                break;
             }
-        };
+        }
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(line, Style::default().fg(color))))
+            Paragraph::new(Line::from(Span::styled(line, Style::default().fg(self.palette.muted))))
                 .alignment(Alignment::Center),
             area,
         );

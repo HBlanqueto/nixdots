@@ -5,6 +5,8 @@
 
     timeZone = "America/Merida";
     defaultLocale = "es_MX.UTF-8";
+    keyboardLayout = "es";
+    keyboardVariant = "";
 
     username = "humbe";
     userdescription = "H. Blanqueto";

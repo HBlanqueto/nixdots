@@ -23,11 +23,19 @@ pub struct Settings {
     pub default_locale: String,
     pub username: String,
     pub userdescription: String,
+    #[serde(default = "default_keyboard")]
+    pub keyboard_layout: String,
+    #[serde(default)]
+    pub keyboard_variant: String,
     /// `null` when git is left unconfigured by the installer.
     #[serde(default)]
     pub git_name: Option<String>,
     #[serde(default)]
     pub git_email: Option<String>,
+}
+
+fn default_keyboard() -> String {
+    "us".to_string()
 }
 
 impl Settings {
@@ -46,6 +54,8 @@ impl Settings {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
+            keyboard_layout: "us".into(),
+            keyboard_variant: String::new(),
             git_name: Some("H. Blanqueto".into()),
             git_email: Some("mc4w6wmkrv@privaterelay.appleid.com".into()),
         }
@@ -74,9 +84,11 @@ impl Settings {
     /// Renders the template.
     pub fn render(&self) -> String {
         format!(
-            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
+            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
             state_version = nix_str(&self.state_version),
             time_zone = nix_str(&self.time_zone),
+            keyboard_layout = nix_str(&self.keyboard_layout),
+            keyboard_variant = nix_str(&self.keyboard_variant),
             default_locale = nix_str(&self.default_locale),
             username = nix_str(&self.username),
             userdescription = nix_str(&self.userdescription),
@@ -117,6 +129,8 @@ mod tests {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
+            keyboard_layout: "us".into(),
+            keyboard_variant: String::new(),
             git_name: Some("H. Blanqueto".into()),
             git_email: Some("a@b.c".into()),
         }

@@ -191,6 +191,10 @@ pub struct Disk {
     pub name: String,
     pub size: u64,
     pub model: String,
+    /// What is on the disk: "Windows 11", "vacío", "datos"…
+    pub note: String,
+    /// `false` for the install medium (or anything else not selectable).
+    pub available: bool,
 }
 
 impl Disk {
@@ -201,14 +205,18 @@ impl Disk {
     pub fn size_human(&self) -> String {
         human_size(self.size)
     }
+
+    pub fn is_windows(&self) -> bool {
+        self.note.starts_with("Windows")
+    }
 }
 
 /// `lsblk -J -b -d -o NAME,SIZE,MODEL,TYPE`, minus the disk the live ISO boots
-/// from.
+/// from (and the virtual/no-install devices).
 pub fn disks() -> Vec<Disk> {
     let Some(json) = run_trim(
         "lsblk",
-        &["-J", "-b", "-o", "NAME,SIZE,MODEL,TYPE,MOUNTPOINT,PKNAME"],
+        &["-J", "-b", "-o", "NAME,SIZE,MODEL,TYPE,MOUNTPOINT,PKNAME,FSTYPE"],
     ) else {
         return Vec::new();
     };
@@ -242,6 +250,8 @@ struct Node {
     #[serde(default)]
     mountpoint: Option<String>,
     #[serde(default)]
+    fstype: Option<String>,
+    #[serde(default)]
     children: Vec<Node>,
 }
 
@@ -252,13 +262,36 @@ fn parse_disks(json: &str) -> Vec<Disk> {
     tree.blockdevices
         .into_iter()
         .filter(|d| d.kind.as_deref() == Some("disk"))
-        .filter(|d| !holds_live_medium(d))
+        .filter(|d| !is_virtual(&d.name))
         .map(|d| Disk {
-            model: d.model.unwrap_or_default().trim().to_string(),
+            note: disk_note(&d),
+            available: !holds_live_medium(&d),
+            model: d.model.clone().unwrap_or_default().trim().to_string(),
             size: d.size.unwrap_or(0),
-            name: d.name,
+            name: d.name.clone(),
         })
         .collect()
+}
+
+/// zram/loop/sr/ram and friends are never install targets.
+fn is_virtual(name: &str) -> bool {
+    ["zram", "loop", "sr", "ram", "fd", "dm-"]
+        .iter()
+        .any(|p| name.starts_with(p))
+}
+
+fn disk_note(node: &Node) -> String {
+    fn has_ntfs(node: &Node) -> bool {
+        node.fstype.as_deref() == Some("ntfs")
+            || node.children.iter().any(|c| c.fstype.as_deref() == Some("ntfs"))
+    }
+    if has_ntfs(node) {
+        "Windows 11".to_string()
+    } else if node.children.is_empty() {
+        "vacío".to_string()
+    } else {
+        "datos".to_string()
+    }
 }
 
 fn holds_live_medium(node: &Node) -> bool {
@@ -321,7 +354,11 @@ mod tests {
             ]
         }"#;
         let disks = parse_disks(json);
-        assert_eq!(disks.len(), 1);
-        assert_eq!(disks[0].name, "nvme0n1");
+        // The live medium is kept but flagged as not selectable.
+        assert_eq!(disks.len(), 2);
+        let live = disks.iter().find(|d| d.name == "sda").unwrap();
+        assert!(!live.available);
+        let target = disks.iter().find(|d| d.name == "nvme0n1").unwrap();
+        assert!(target.available);
     }
 }

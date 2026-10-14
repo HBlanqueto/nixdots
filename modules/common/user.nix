@@ -1,4 +1,4 @@
-{ pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, ... }:
+{ pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
 
 let
     theme = import ../../share/themes;
@@ -32,7 +32,13 @@ in
     console = {
         colors = with theme.colors; [ bg c1 c2 c3 c4 c5 c6 c7 ] ++ [ lbg c9 c10 c11 c12 c13 c14 c15 ];
         font = "Lat2-Terminus16";
-        keyMap = "es";
+        # The console uses the same xkb layout as the desktop.
+        useXkbConfig = true;
+    };
+
+    services.xserver.xkb = {
+        layout = keyboardLayout;
+        variant = keyboardVariant;
     };
 
     programs = {

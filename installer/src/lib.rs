@@ -4,6 +4,7 @@ pub mod app;
 pub mod detect;
 pub mod disk;
 pub mod install;
+pub mod keyboard;
 pub mod logo;
 pub mod net;
 pub mod runner;

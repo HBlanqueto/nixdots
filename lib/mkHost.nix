@@ -14,7 +14,7 @@ inputs.nixpkgs.lib.nixosSystem {
         inherit inputs hostName;
         inherit (settings)
             stateVersion timeZone defaultLocale username userdescription
-            hashedPasswordFile gitName gitEmail;
+            hashedPasswordFile keyboardLayout keyboardVariant gitName gitEmail;
     };
 
     # Common + desktop layers are shared; the host supplies its own
