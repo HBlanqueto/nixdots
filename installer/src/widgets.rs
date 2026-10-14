@@ -4,7 +4,7 @@
 
 use crate::theme::Palette;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
@@ -99,7 +99,7 @@ pub fn render_buttons(f: &mut Frame, area: Rect, palette: &Palette, buttons: &[B
         let style = if button.enabled {
             style
         } else {
-            Style::default().fg(palette.border)
+            Style::default().fg(Color::Black)
         };
         // Pad so the background reads as a button, not tight text.
         spans.push(Span::styled(format!(" {} ", button.label), style));

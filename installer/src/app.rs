@@ -1222,7 +1222,19 @@ impl App {
             Screen::Done => crate::screens::done::draw(f, self, content),
         }
 
-        let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
+        // The primary "Continuar" (Action::Next) is rendered dark/black until
+        // the screen's precondition is met, then white bold like the rest.
+        let enabled = self.primary_enabled();
+        let buttons: Vec<Btn> = self
+            .buttons()
+            .into_iter()
+            .map(|(mut b, action)| {
+                if action == Action::Next {
+                    b.enabled = enabled;
+                }
+                b
+            })
+            .collect();
         if !buttons.is_empty() {
             let row = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
             widgets::render_buttons(f, row, &self.palette, &buttons, self.button_focus);
