@@ -350,6 +350,10 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             app.disk_focus = 1;
             true
         }
+        KeyCode::BackTab if app.disk_focus > 0 => {
+            app.disk_focus -= 1;
+            true
+        }
         KeyCode::Char(' ') if app.disks.option == 0 && app.disk_focus == 0 => {
             app.disks.confirmed = !app.disks.confirmed;
             true

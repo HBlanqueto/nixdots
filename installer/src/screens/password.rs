@@ -55,6 +55,11 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             app.password.focus = if app.password.focus == 0 { 1 } else { 0 };
             true
         }
+        // Shift+Tab goes back confirmar -> nueva.
+        KeyCode::BackTab if app.password.focus == 1 => {
+            app.password.focus = 0;
+            true
+        }
         // Enter goes nueva -> confirmar; from confirmar the app moves to
         // Continuar.
         KeyCode::Enter if app.password.focus == 0 => {

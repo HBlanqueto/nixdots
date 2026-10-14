@@ -85,6 +85,10 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             app.locale_focus += 1;
             true
         }
+        KeyCode::BackTab if app.locale_focus > 0 => {
+            app.locale_focus -= 1;
+            true
+        }
         _ => match app.locale_focus {
             0 => {
                 let consumed = app

@@ -62,6 +62,11 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
                 % fields;
             true
         }
+        // Shift+Tab walks the fields backwards.
+        KeyCode::BackTab if app.git.enabled && app.git.focus > 0 => {
+            app.git.focus -= 1;
+            true
+        }
         // Enter walks the three fields; from the last the app moves to the
         // button row.
         KeyCode::Enter if app.git.enabled && app.git.focus < 2 => {

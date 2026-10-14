@@ -74,6 +74,11 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             focus_username(app);
             true
         }
+        // Shift+Tab goes back usuario -> nombre.
+        KeyCode::BackTab if app.user.focus == 1 => {
+            app.user.focus = 0;
+            true
+        }
         // Enter advances nombre -> usuario; from usuario the app takes over
         // and moves the focus to Continuar.
         KeyCode::Enter if app.user.focus == 0 => {
