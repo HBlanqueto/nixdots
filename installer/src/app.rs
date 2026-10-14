@@ -1538,7 +1538,12 @@ impl App {
         };
         let panel_h = content_h + 4;
         // 84 columns, or 80 % of the terminal width if that is smaller.
-        let width = 84.min(area.width * 80 / 100);
+        // Disco uses a wider panel.
+        let width = if self.screen == Screen::Disk {
+            area.width.saturating_sub(4).min(140)
+        } else {
+            84.min(area.width * 80 / 100)
+        };
         // Inicio and Listo show no progress bar.
         let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };
         let gap: u16 = 1;

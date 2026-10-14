@@ -317,7 +317,7 @@ fn draw_right(f: &mut Frame, app: &App, area: Rect) {
             .selected_disk()
             .map(|d| d.path())
             .unwrap_or_else(|| "/dev/…".into());
-        let mark = if app.disks.confirmed { "[x]" } else { "[ ]" };
+        let mark = widgets::tick(app.disks.confirmed);
         let color = app.palette.error;
         lines.push(Line::from(vec![
             Span::styled(format!("{mark} "), Style::default().fg(color)),
