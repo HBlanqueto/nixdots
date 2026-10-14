@@ -135,17 +135,21 @@ pub fn render_buttons(
                     .add_modifier(Modifier::BOLD),
             )
         } else {
-            // Unfocused: camouflaged — the ends take the (dark) inactive
-            // border colour and the text is muted, with no fill.
-            (
-                Style::default().fg(palette.border),
-                Style::default().fg(palette.muted),
-            )
+            // Unfocused: camouflaged. The rounded ends are not drawn at all
+            // (a space keeps the width), so nothing shows but the muted text.
+            (Style::default(), Style::default().fg(palette.muted))
         };
         if nerd {
-            spans.push(Span::styled("\u{e0b6}", glyph_style));
+            // The round ends are only drawn when focused; otherwise spaces, so
+            // the unfocused button blends with the background.
+            let (left, right) = if is_focus {
+                ("\u{e0b6}", "\u{e0b4}")
+            } else {
+                (" ", " ")
+            };
+            spans.push(Span::styled(left.to_string(), glyph_style));
             spans.push(Span::styled(format!(" {core} "), text_style));
-            spans.push(Span::styled("\u{e0b4}", glyph_style));
+            spans.push(Span::styled(right.to_string(), glyph_style));
         } else {
             spans.push(Span::styled(format!("‹ {core} ›"), text_style));
         }
