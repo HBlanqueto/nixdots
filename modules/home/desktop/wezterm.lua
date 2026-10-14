@@ -61,6 +61,23 @@ local config = {
     default_cursor_style = 'BlinkingUnderline',
     window_close_confirmation = 'NeverPrompt',
 
+    -- No frame line at the top edge. RESIZE (not NONE) keeps the resizable
+    -- flag under SomeWM while dropping the TITLE bar that draws the line.
+    window_decorations = "RESIZE",
+
+    -- Belt-and-suspenders: explicitly zero the frame border and paint it
+    -- black, so no border is ever drawn regardless of decoration mode.
+    window_frame = {
+        border_left_width = "0px",
+        border_right_width = "0px",
+        border_top_height = "0px",
+        border_bottom_height = "0px",
+        border_left_color = "#000000",
+        border_right_color = "#000000",
+        border_top_color = "#000000",
+        border_bottom_color = "#000000",
+    },
+
     inactive_pane_hsb = {
         saturation = 1.0,
         brightness = 1.0

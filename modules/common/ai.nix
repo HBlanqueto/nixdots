@@ -2,8 +2,15 @@
 
 
 let
-    opencode-good = builtins.storePath
-        "/nix/store/kcwkilp2z25gbhiwmrqwjxs3w593k105-opencode-1.18.30";
+    # 1.18.30 is pinned via a raw store path because the nixpkgs 1.18.3x
+    # builds hit an upstream bun bug. That path is an x86_64 closure, so on
+    # aarch64 we fall back to the nixpkgs `opencode` package instead.
+    opencode-good =
+        if pkgs.stdenv.hostPlatform.isx86_64 then
+            builtins.storePath
+                "/nix/store/kcwkilp2z25gbhiwmrqwjxs3w593k105-opencode-1.18.30"
+        else
+            pkgs.opencode;
 in
 
 {

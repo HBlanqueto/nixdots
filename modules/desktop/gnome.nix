@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
     services = {
@@ -12,6 +12,20 @@
             core-apps.enable = false;
             core-developer-tools.enable = false;
             games.enable = false;
+        };
+
+        xserver = {
+            enable = true;
+            excludePackages = [ pkgs.xterm ];
+
+            xkb = {
+                layout = "es";
+                variant = "";
+            };
+        };
+
+        displayManager = {
+            gdm.enable = true;
         };
     };
 

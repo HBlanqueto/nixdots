@@ -1,7 +1,7 @@
-{ pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, gitName, gitEmail, stateVersion, ... }:
+{ pkgs, inputs, hostName, username, userdescription, hashedpassword, timeZone, defaultLocale, ... }:
 
 let
-    theme = import ../share/themes;
+    theme = import ../../share/themes;
 in
 
 {
@@ -17,7 +17,7 @@ in
         hostName = hostName;
     };
 
-    users = { 
+    users = {
         defaultUserShell = pkgs.fish;
         mutableUsers = false;
         users.${username} = {
@@ -27,12 +27,6 @@ in
             createHome = true;
             hashedPassword = hashedpassword;
         };
-    };
-
-    home-manager = {
-        backupFileExtension = "backup";
-        extraSpecialArgs = { inherit inputs theme hostName username gitName gitEmail stateVersion; };
-        users.${username} = import ../home;
     };
 
     console = {
@@ -49,12 +43,13 @@ in
 
     environment = {
         binsh = "${pkgs.dash}/bin/dash";
-        systemPackages = with pkgs; [
-            comma     
 
-            sbctl
-            efibootmgr
-            wget 
+        # Cross-platform CLI tools only. Desktop/GPU tools live in
+        # modules/desktop, laptop-only tools in modules/hardware/thinkpad.nix.
+        systemPackages = with pkgs; [
+            comma
+
+            wget
             curl
             luajit
             lua51Packages.luacheck
@@ -71,27 +66,6 @@ in
             jq
             gh
             python3
-
-            quickshell
-            somewm
-            gsettings-desktop-schemas 
-            libnotify 
-            wireplumber
-            brightnessctl
-            playerctl
-            wev
-            grim
-            slurp
-            wl-clipboard
-
-            xwayland
-            desktop-file-utils
-            wayland-utils
-            libinput
-            drm_info
-            radeontop
-            vulkan-tools
-            mesa-demos
         ];
     };
 }

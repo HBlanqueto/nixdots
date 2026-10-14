@@ -207,13 +207,18 @@ in
             telegram-desktop
             bitwarden-desktop
 
-            onlyoffice-desktopeditors
             foot
+            imagemagick
+        ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
+            # OnlyOffice ships no aarch64 build in nixpkgs.
+            onlyoffice-desktopeditors
         ];
     };
 
     programs = {
-        brave = {
+        # Brave is only published for x86_64-linux by the brave-previews input;
+        # the aarch64 VM uses the shared Firefox above instead.
+        brave = lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 {
             enable = true;
             # The drishal brave-origin-beta wrapper drops the ozone hint (its
             # nested ${NIXOS_OZONE_WL:+${WAYLAND_DISPLAY:+...}} expansion is
@@ -290,11 +295,6 @@ in
             scripts = [ pkgs.mpvScripts.mpris ];
         };
 
-        wezterm = {
-            enable = true;
-            extraConfig = builtins.readFile ./config/wezterm.lua;
-        };
-
         fish = {
             enable = true;
             interactiveShellInit = ''
@@ -304,8 +304,8 @@ in
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
                 nix-update = "sudo nixos-rebuild switch";
-                flake-update-rb = "sudo nixos-rebuild boot --flake .#${hostName} --impure";
-                flake-update-sw = "sudo nixos-rebuild switch --flake .#${hostName} --impure";
+                flake-update-rb = "sudo nixos-rebuild boot --flake ~/nixdots#$(hostname) --impure";
+                flake-update-sw = "sudo nixos-rebuild switch --flake ~/nixdots#$(hostname) --impure";
 
                 g = "git";
                 c = "clear";

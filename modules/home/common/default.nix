@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 
 {
     imports = [
@@ -8,7 +8,12 @@
 
     home = {
         sessionVariables = {
-            BROWSER = "${config.programs.brave.package}/bin/brave-origin-beta";
+            # Brave is x86_64-only (the brave-previews input publishes no
+            # aarch64 output); fall back to the always-present Firefox on ARM.
+            BROWSER =
+                if pkgs.stdenv.hostPlatform.isx86_64
+                then "${config.programs.brave.package}/bin/brave-origin-beta"
+                else "${pkgs.firefox}/bin/firefox";
             TERMINAL = "wezterm";
             EDITOR = "nvim";
             SDL_VIDEODRIVER = "wayland";
@@ -20,7 +25,7 @@
         };
 
         file = {
-            ".config/chime/chime.wav".source = ../../share/chime.wav;
+            ".config/chime/chime.wav".source = ../../../share/chime.wav;
         };
     };
 

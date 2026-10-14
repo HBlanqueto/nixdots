@@ -12,17 +12,15 @@
 
     environment.sessionVariables = {
         QT_MEDIA_BACKEND = "ffmpeg";
-        LIBVA_DRIVER_NAME = "radeonsi";
+        # LIBVA_DRIVER_NAME is host-specific (radeonsi on the ThinkPad, unset on
+        # the VM where there is no VA-API driver) and is defined per host.
     };
-
-    # AMD VA-API: the radeonsi driver ships in mesa.
-    hardware.graphics.extraPackages = [ pkgs.mesa ];
 
     # QtMultimedia is a QML module (QtQuick: import QtMultimedia), so the
     # quickshell package must see it at build time: wrapQtAppsHook derives
     # QML2_IMPORT_PATH from buildInputs. Overridden at the nixpkgs package
     # level (quickshell comes from nixpkgs, not from home-manager or an
-    # overlay) so the one copy global.nix already installs gets the input.
+    # overlay) so the one copy modules/desktop/default.nix installs gets it.
     nixpkgs.overlays = [
         (final: prev: {
             quickshell = prev.quickshell.overrideAttrs (old: {

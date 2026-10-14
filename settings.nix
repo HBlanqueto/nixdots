@@ -1,8 +1,8 @@
 {
-    system = "x86_64-linux";
+    # Host-independent values. Per-host values (system, hostName) live in
+    # hosts/<host>/default.nix, not here.
     stateVersion = "26.05";
 
-    hostName = "nixos";
     timeZone = "America/Merida";
     defaultLocale = "es_MX.UTF-8";
 

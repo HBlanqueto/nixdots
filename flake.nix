@@ -26,17 +26,23 @@
     outputs = inputs@{ nixpkgs, ... }:
         let
             settings = import ./settings.nix;
+            mkHost = import ./lib/mkHost.nix { inherit inputs settings; };
         in
         {
-            nixosConfigurations.${settings.hostName} = nixpkgs.lib.nixosSystem {
-                system = settings.system;
-
-                specialArgs = {
-                    inherit inputs;
-                    inherit (settings) system hostName timeZone defaultLocale username userdescription hashedpassword gitName gitEmail stateVersion;
+            nixosConfigurations = {
+                # Physical ThinkPad L14 Gen 2a (AMD, x86_64).
+                thinkpad = mkHost {
+                    hostName = "thinkpad";
+                    system = "x86_64-linux";
+                    modules = [ ./hosts/thinkpad ];
                 };
 
-                modules = [ ./etc ];
+                # UTM/QEMU VM on an Apple M4 Mac (native aarch64).
+                utm = mkHost {
+                    hostName = "utm";
+                    system = "aarch64-linux";
+                    modules = [ ./hosts/utm ];
+                };
             };
         };
 }
