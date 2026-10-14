@@ -32,6 +32,8 @@ const STEPS: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
+    /// Startup splash: logo + prompt + a single Continuar button.
+    Splash,
     Welcome,
     Network,
     License,
@@ -70,6 +72,7 @@ impl Screen {
 
     pub fn title(self) -> &'static str {
         match self {
+            Screen::Splash => "Inicio",
             Screen::Welcome => "Bienvenido",
             Screen::Network => "Red",
             Screen::License => "Licencia",
@@ -88,6 +91,7 @@ impl Screen {
 
     fn next(self) -> Option<Screen> {
         match self {
+            Screen::Splash => Some(Screen::Welcome),
             Screen::Welcome => Some(Screen::Network),
             Screen::Network => Some(Screen::License),
             Screen::License => Some(Screen::Host),
@@ -105,7 +109,7 @@ impl Screen {
 
     fn previous(self) -> Option<Screen> {
         match self {
-            Screen::Welcome | Screen::Installing | Screen::Done => None,
+            Screen::Splash | Screen::Welcome | Screen::Installing | Screen::Done => None,
             Screen::Network => Some(Screen::Welcome),
             Screen::License => Some(Screen::Network),
             Screen::Host => Some(Screen::License),
@@ -455,7 +459,7 @@ impl App {
         let disks = detect::disks();
         let mut app = Self {
             palette,
-            screen: Screen::Welcome,
+            screen: Screen::Splash,
             dry_run,
             repo_spec,
             repo_dir,
@@ -877,6 +881,7 @@ impl App {
 
     fn route_screen_key(&mut self, key: KeyEvent) -> bool {
         match self.screen {
+            Screen::Splash => false,
             Screen::Welcome => crate::screens::welcome::key(self, key),
             Screen::Network => crate::screens::network::key(self, key),
             Screen::License => crate::screens::license::key(self, key),
@@ -952,6 +957,7 @@ impl App {
 
     pub fn buttons(&self) -> Vec<(Btn, Action)> {
         match self.screen {
+            Screen::Splash => vec![(Btn::primary("Continuar ›"), Action::Next)],
             Screen::Welcome => crate::screens::welcome::buttons(self),
             Screen::Network => crate::screens::network::buttons(self),
             Screen::License => crate::screens::license::buttons(self),
@@ -1087,7 +1093,7 @@ impl App {
     /// the buttons start focused.
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
-        self.focus_buttons = matches!(self.screen, Screen::Welcome | Screen::Done);
+        self.focus_buttons = matches!(self.screen, Screen::Splash | Screen::Welcome | Screen::Done);
     }
 
     pub fn go_back(&mut self) {
@@ -1229,6 +1235,14 @@ impl App {
             area,
         );
 
+        if self.screen == Screen::Splash {
+            self.draw_splash(f, area);
+            if self.quit.is_some() {
+                self.draw_quit(f, area);
+            }
+            return;
+        }
+
         if self.license.is_some() {
             let viewer_area = Rect::new(area.x + 2, area.y + 1, area.width.saturating_sub(4), area.height.saturating_sub(3));
             let scroll = self.license.as_ref().map(|v| v.scroll).unwrap_or(0);
@@ -1305,8 +1319,45 @@ impl App {
         }
     }
 
+    /// The startup splash: NixOS logo + prompt + a single Continuar button,
+    /// centered. No header, progress, shortcuts or commands panel.
+    fn draw_splash(&mut self, f: &mut Frame, area: Rect) {
+        let console = theme::console::is_linux_console();
+        let show_logo = area.height >= 24 && area.width >= 40;
+
+        let mut lines: Vec<Line> = Vec::new();
+        if show_logo {
+            lines.extend(crate::logo::nixos_logo(console));
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Para iniciar la configuración del instalador, dale a Continuar",
+            Style::default().fg(self.palette.text),
+        )));
+
+        let content_h = lines.len() as u16;
+        let total_h = content_h + 2; // blank line + button row
+        let top = area.y + area.height.saturating_sub(total_h) / 2;
+        f.render_widget(
+            Paragraph::new(lines).alignment(Alignment::Center),
+            Rect::new(area.x, top, area.width, content_h),
+        );
+
+        let row = Rect::new(area.x, top + content_h + 1, area.width, 1);
+        let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
+        self.button_hitboxes = widgets::render_buttons(
+            f,
+            row,
+            &self.palette,
+            &buttons,
+            self.button_focus,
+            self.focus_buttons,
+        );
+    }
+
     fn content_height(&self) -> u16 {
         match self.screen {
+            Screen::Splash => 0,
             Screen::Welcome => crate::screens::welcome::height(self),
             Screen::Network => crate::screens::network::height(self),
             Screen::License => crate::screens::license::height(self),
@@ -1395,6 +1446,7 @@ impl App {
         );
 
         match self.screen {
+            Screen::Splash => {}
             Screen::Welcome => crate::screens::welcome::draw(f, self, content),
             Screen::Network => crate::screens::network::draw(f, self, content),
             Screen::License => crate::screens::license::draw(f, self, content),
@@ -1515,6 +1567,7 @@ impl App {
 
     pub fn command_list(&self) -> Vec<String> {
         match self.screen {
+            Screen::Splash => Vec::new(),
             Screen::Welcome => crate::screens::welcome::commands(self),
             Screen::Network => crate::screens::network::commands(self),
             Screen::License => crate::screens::license::commands(self),
