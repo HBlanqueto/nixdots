@@ -109,6 +109,10 @@
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
                 default = installers.${system};
+
+                # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
+                nixdots-rebuild =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };
             });
 
             apps = nixpkgs.lib.genAttrs supportedSystems (system: {

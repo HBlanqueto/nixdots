@@ -209,6 +209,10 @@ in
 
             foot
             imagemagick
+
+            # Safe nixos-rebuild wrapper (flake package); also the backend of
+            # the flake-update-* aliases below.
+            inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nixdots-rebuild
         ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             # OnlyOffice ships no aarch64 build in nixpkgs.
             onlyoffice-desktopeditors
@@ -297,8 +301,8 @@ in
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
                 nix-update = "sudo nixos-rebuild switch";
-                flake-update-rb = "sudo nixos-rebuild boot --flake ~/nixdots#$(hostname) --impure";
-                flake-update-sw = "sudo nixos-rebuild switch --flake ~/nixdots#$(hostname) --impure";
+                flake-update-rb = "nixdots-rebuild rb";
+                flake-update-sw = "nixdots-rebuild sw";
 
                 g = "git";
                 c = "clear";

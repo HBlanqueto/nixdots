@@ -1,10 +1,30 @@
-{ pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
+{ config, pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
 
 let
     theme = import ../../share/themes;
+
+    # Every declared normal user must point at an existing password hash file.
+    # With mutableUsers = false a missing file leaves the account without a
+    # password on activation. Evaluated with --impure so the real /persist path
+    # can be inspected.
+    normalUsers = builtins.filter (u: u.isNormalUser) (builtins.attrValues config.users.users);
+    missingHashes = builtins.filter
+        (u: (u.hashedPasswordFile or null) != null && !(builtins.pathExists u.hashedPasswordFile))
+        normalUsers;
 in
 
 {
+    assertions = [
+        {
+            assertion = missingHashes == [ ];
+            message =
+                "Falta el archivo de contraseña de: "
+                + builtins.concatStringsSep ", "
+                    (map (u: "${u.name} -> ${toString u.hashedPasswordFile}") missingHashes)
+                + ". Créalo con `mkpasswd -m yescrypt` antes de reconstruir.";
+        }
+    ];
+
     time = {
         timeZone = timeZone;
     };
