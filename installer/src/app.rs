@@ -7,7 +7,6 @@
 use crate::detect::{self, Disk};
 use crate::disk::{self, NamedPartition};
 use crate::install::{self, Msg as InstallMsg, Plan, Step};
-use crate::license_view::LicenseViewer;
 use crate::net;
 use crate::settings::Settings;
 use crate::theme::{self, Palette};
@@ -52,11 +51,11 @@ pub enum Screen {
 impl Screen {
     pub const ORDER: [Screen; 13] = [
         Screen::Welcome,
-        Screen::Network,
         Screen::License,
-        Screen::Host,
-        Screen::Timezone,
+        Screen::Network,
         Screen::Locale,
+        Screen::Timezone,
+        Screen::Host,
         Screen::User,
         Screen::Password,
         Screen::Git,
@@ -92,12 +91,12 @@ impl Screen {
     fn next(self) -> Option<Screen> {
         match self {
             Screen::Splash => Some(Screen::Welcome),
-            Screen::Welcome => Some(Screen::Network),
-            Screen::Network => Some(Screen::License),
-            Screen::License => Some(Screen::Host),
-            Screen::Host => Some(Screen::Timezone),
-            Screen::Timezone => Some(Screen::Locale),
-            Screen::Locale => Some(Screen::User),
+            Screen::Welcome => Some(Screen::License),
+            Screen::License => Some(Screen::Network),
+            Screen::Network => Some(Screen::Locale),
+            Screen::Locale => Some(Screen::Timezone),
+            Screen::Timezone => Some(Screen::Host),
+            Screen::Host => Some(Screen::User),
             Screen::User => Some(Screen::Password),
             Screen::Password => Some(Screen::Git),
             Screen::Git => Some(Screen::Disk),
@@ -110,12 +109,12 @@ impl Screen {
     fn previous(self) -> Option<Screen> {
         match self {
             Screen::Splash | Screen::Welcome | Screen::Installing | Screen::Done => None,
-            Screen::Network => Some(Screen::Welcome),
-            Screen::License => Some(Screen::Network),
-            Screen::Host => Some(Screen::License),
-            Screen::Timezone => Some(Screen::Host),
-            Screen::Locale => Some(Screen::Timezone),
-            Screen::User => Some(Screen::Locale),
+            Screen::License => Some(Screen::Welcome),
+            Screen::Network => Some(Screen::License),
+            Screen::Locale => Some(Screen::Network),
+            Screen::Timezone => Some(Screen::Locale),
+            Screen::Host => Some(Screen::Timezone),
+            Screen::User => Some(Screen::Host),
             Screen::Password => Some(Screen::User),
             Screen::Git => Some(Screen::Password),
             Screen::Disk => Some(Screen::Git),
@@ -131,7 +130,6 @@ pub enum Action {
     Next,
     Quit,
     Reboot,
-    ViewLicense,
     Connect,
     Rescan,
     NetMenu,
@@ -393,7 +391,11 @@ pub struct App {
 
     // license
     pub license_accepted: bool,
-    pub license: Option<LicenseViewer>,
+    /// Scroll offset (wrapped lines) of the license text.
+    pub license_scroll: usize,
+    pub license_max_scroll: usize,
+    /// 0 = text, 1 = the Acepto checkbox.
+    pub license_focus: usize,
 
     // host
     pub host: HostState,
@@ -506,7 +508,9 @@ impl App {
             },
             net_rx: None,
             license_accepted: false,
-            license: None,
+            license_scroll: 0,
+            license_max_scroll: 0,
+            license_focus: 0,
             timezones: None,
             loc: None,
             keep_uutils: false,
@@ -637,7 +641,10 @@ impl App {
 
     /// The panel title, which for Contraseña names the resulting user.
     pub fn screen_title(&self) -> String {
-        self.screen.title().to_string()
+        match self.screen {
+            Screen::License => "Licencia · GNU GPL v2.0".to_string(),
+            s => s.title().to_string(),
+        }
     }
 
     pub fn username_valid(&self) -> bool {
@@ -822,12 +829,6 @@ impl App {
             return;
         }
 
-        // Full-screen license viewer.
-        if self.license.is_some() {
-            self.license_key(key);
-            return;
-        }
-
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.quit = Some(if self.screen == Screen::Installing {
                 Quit::Installing
@@ -987,6 +988,20 @@ impl App {
     /// Mouse hover selects a button; a left click runs it. Disabled buttons are
     /// not in the hitboxes and are therefore ignored.
     fn handle_mouse(&mut self, mouse: MouseEvent) {
+        // Wheel scrolls the license text.
+        if self.screen == Screen::License {
+            match mouse.kind {
+                MouseEventKind::ScrollDown => {
+                    self.license_scroll = (self.license_scroll + 1).min(self.license_max_scroll);
+                    return;
+                }
+                MouseEventKind::ScrollUp => {
+                    self.license_scroll = self.license_scroll.saturating_sub(1);
+                    return;
+                }
+                _ => {}
+            }
+        }
         let hit = self
             .button_hitboxes
             .iter()
@@ -1012,66 +1027,11 @@ impl App {
             Action::Next => self.advance(),
             Action::Quit => self.quit = Some(Quit::Normal),
             Action::Reboot => crate::screens::done::reboot(self),
-            Action::ViewLicense => self.open_license(),
             Action::Connect => crate::screens::network::connect(self),
             Action::Rescan => crate::screens::network::rescan(self),
             Action::NetMenu => crate::screens::network::to_menu(self),
             Action::NetRetry => crate::screens::network::retry(self),
             Action::None => {}
-        }
-    }
-
-    pub fn open_license(&mut self) {
-        let text = std::fs::read_to_string(self.repo_dir.join("LICENSE")).unwrap_or_else(|_| {
-            "GNU GENERAL PUBLIC LICENSE\nVersion 2, June 1991\n".to_string()
-        });
-        self.license = Some(LicenseViewer::new(&text, 76));
-    }
-
-    pub fn license_key(&mut self, key: KeyEvent) {
-        let Some(viewer) = self.license.as_mut() else {
-            return;
-        };
-        let page = 12usize;
-        if viewer.searching {
-            match key.code {
-                KeyCode::Enter => viewer.searching = false,
-                KeyCode::Esc => {
-                    viewer.searching = false;
-                    viewer.query.clear();
-                }
-                KeyCode::Backspace => {
-                    viewer.query.pop();
-                }
-                KeyCode::Char(c) => viewer.query.push(c),
-                _ => {}
-            }
-            return;
-        }
-        match key.code {
-            KeyCode::Up => viewer.scroll_by(-1, page),
-            KeyCode::Down => viewer.scroll_by(1, page),
-            KeyCode::PageUp => viewer.scroll_by(-(page as isize), page),
-            KeyCode::PageDown | KeyCode::Char(' ') => viewer.scroll_by(page as isize, page),
-            KeyCode::Home | KeyCode::Char('g') => viewer.home(),
-            KeyCode::End | KeyCode::Char('G') => viewer.end(page),
-            KeyCode::Char('/') => {
-                viewer.searching = true;
-                viewer.query.clear();
-            }
-            KeyCode::Char('n') => viewer.next_match(),
-            KeyCode::Char('N') => viewer.prev_match(),
-            KeyCode::Char('q') | KeyCode::Esc => self.license = None,
-            _ => {}
-        }
-        if let Some(viewer) = self.license.as_mut() {
-            if viewer.searching {
-                return;
-            }
-            let query = viewer.query.clone();
-            if !query.is_empty() {
-                viewer.set_query(query);
-            }
         }
     }
 
@@ -1094,6 +1054,9 @@ impl App {
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
         self.focus_buttons = matches!(self.screen, Screen::Splash | Screen::Welcome | Screen::Done);
+        if self.screen == Screen::License {
+            self.license_focus = 0;
+        }
     }
 
     pub fn go_back(&mut self) {
@@ -1243,20 +1206,6 @@ impl App {
             return;
         }
 
-        if self.license.is_some() {
-            let viewer_area = Rect::new(area.x + 2, area.y + 1, area.width.saturating_sub(4), area.height.saturating_sub(3));
-            let scroll = self.license.as_ref().map(|v| v.scroll).unwrap_or(0);
-            let _ = scroll;
-            if let Some(viewer) = self.license.as_mut() {
-                let inner_w = viewer_area.width.saturating_sub(2) as usize;
-                viewer.set_width(inner_w);
-                let visible = viewer_area.height.saturating_sub(2) as usize;
-                viewer.scroll = viewer.scroll.min(viewer.max_scroll(visible));
-                viewer.draw(f, viewer_area, &self.palette);
-            }
-            return;
-        }
-
         let content_h = self.content_height();
         let commands_lines = self.command_list();
         let commands_h = if self.show_commands {
@@ -1265,9 +1214,13 @@ impl App {
             0
         };
         let panel_h = content_h + 4;
-        let width = PANEL_WIDTH.min(area.width);
+        // The license panel is a touch wider (~64 columns).
+        let base_width = if self.screen == Screen::License { 64 } else { PANEL_WIDTH };
+        let width = base_width.min(area.width);
+        // Inicio and Listo show no progress bar.
+        let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };
         let gap: u16 = 1;
-        let mut total = 1 + 2 + gap + panel_h + gap + 1;
+        let mut total = 1 + progress_h + gap + panel_h + gap + 1;
         if commands_h > 0 {
             total += gap + commands_h;
         }
@@ -1275,13 +1228,17 @@ impl App {
         let x = area.x + area.width.saturating_sub(width) / 2;
 
         let header = Rect::new(x, top, width, 1);
-        let progress = Rect::new(x, top + 1, width, 2);
-        let panel = Rect::new(x, top + 3 + gap, width, panel_h);
+        let mut cursor = top + 1;
+        let progress = Rect::new(x, cursor, width, progress_h);
+        cursor += progress_h + gap;
+        let panel = Rect::new(x, cursor, width, panel_h);
         let shortcuts = Rect::new(x, panel.bottom() + gap, width, 1);
         let commands = Rect::new(x, shortcuts.bottom() + gap, width, commands_h);
 
         self.draw_header(f, header);
-        self.draw_progress(f, progress);
+        if progress_h > 0 {
+            self.draw_progress(f, progress);
+        }
         let inner = self.draw_panel(f, panel);
         // The primary "Continuar" (Action::Next) is disabled until the
         // screen's precondition is met.
@@ -1392,35 +1349,27 @@ impl App {
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
-        // 36 cells, 3 per step.
+        // 36 cells, 3 per step from Bienvenido (1/12) to Instalando (12/12).
         let cells: usize = 36;
-        let filled = if self.screen == Screen::Done {
-            cells
-        } else {
-            ((self.screen.index() + 1) * 3).min(cells)
-        };
-        let label = format!("  {}/{}", (self.screen.index() + 1).min(STEPS), STEPS);
-        let bar_width = area.width as usize;
-        let filled = filled.min(bar_width);
+        let step = (self.screen.index() + 1).min(STEPS);
+        let filled = (step * 3).min(cells);
         let line = Line::from(vec![
             Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
             Span::styled(
-                "─".repeat(bar_width.saturating_sub(filled)),
+                "─".repeat(cells - filled),
+                // LBG, not muted.
+                Style::default().fg(self.palette.row_bg),
+            ),
+            Span::styled(
+                format!("  {step}/{STEPS}"),
                 Style::default().fg(self.palette.muted),
             ),
         ])
         .alignment(Alignment::Center);
-        let _ = label;
         f.render_widget(Paragraph::new(line), area);
-        let label_area = Rect::new(area.x, area.y + 1, area.width, 1);
-        f.render_widget(
-            Paragraph::new(Span::styled(label, Style::default().fg(self.palette.muted)))
-                .alignment(Alignment::Center),
-            label_area,
-        );
     }
 
-    fn draw_panel(&self, f: &mut Frame, area: Rect) -> Rect {
+    fn draw_panel(&mut self, f: &mut Frame, area: Rect) -> Rect {
         let border = match self.screen {
             Screen::Done => self.palette.success,
             Screen::Installing if self.install.error.is_some() => self.palette.error,

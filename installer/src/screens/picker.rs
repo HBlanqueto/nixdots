@@ -16,7 +16,7 @@ use tui_input::backend::crossterm::EventHandler;
 pub const ROWS: usize = 8;
 
 pub fn height() -> u16 {
-    ROWS as u16 + 2
+    ROWS as u16 + 1
 }
 
 pub fn draw(
@@ -25,6 +25,7 @@ pub fn draw(
     area: Rect,
     picker: &Picker,
     placeholder: &str,
+    unit: &str,
     focused: bool,
 ) {
     let mut lines: Vec<Line> = Vec::new();
@@ -60,9 +61,17 @@ pub fn draw(
         }
         search.push(Span::styled(after, Style::default().fg(palette.text)));
     }
+    // Right-aligned total on the search row (e.g. "418 zonas").
+    let total = picker.filtered.len();
+    let total_text = format!("{total} {unit}");
+    let used: usize = search.iter().map(|s| s.content.chars().count()).sum();
+    let pad = (area.width as usize)
+        .saturating_sub(used)
+        .saturating_sub(total_text.chars().count());
+    search.push(Span::raw(" ".repeat(pad)));
+    search.push(Span::styled(total_text, Style::default().fg(palette.muted)));
     lines.push(Line::from(search));
 
-    let total = picker.filtered.len();
     let start = picker
         .selected
         .unwrap_or(0)
@@ -84,14 +93,6 @@ pub fn draw(
         lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
     }
 
-    let counter = match picker.selected {
-        Some(sel) if total > 0 => format!("{} de {}", sel + 1, total),
-        _ => format!("sin selección · {total} en total"),
-    };
-    lines.push(Line::from(Span::styled(
-        counter,
-        Style::default().fg(palette.muted),
-    )));
     f.render_widget(Paragraph::new(lines), area);
 }
 

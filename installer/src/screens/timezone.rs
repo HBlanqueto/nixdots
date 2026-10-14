@@ -18,6 +18,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             area,
             picker,
             "buscar zona horaria",
+            "zonas",
             !app.focus_buttons,
         );
     }

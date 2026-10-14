@@ -4,7 +4,6 @@ pub mod app;
 pub mod detect;
 pub mod disk;
 pub mod install;
-pub mod license_view;
 pub mod logo;
 pub mod net;
 pub mod runner;

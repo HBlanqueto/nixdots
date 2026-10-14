@@ -17,6 +17,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             area,
             picker,
             "buscar idioma",
+            "idiomas",
             !app.focus_buttons,
         );
     }
