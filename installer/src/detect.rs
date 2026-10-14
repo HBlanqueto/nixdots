@@ -45,6 +45,103 @@ pub fn default_hostname(arch: &str) -> String {
     }
 }
 
+/// The two machine classes the flake declares (`hosts/<profile>`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Profile {
+    Thinkpad,
+    Utm,
+}
+
+impl Profile {
+    /// Detected from the architecture, corroborated by `systemd-detect-virt`.
+    pub fn detect() -> Profile {
+        let arch = arch().unwrap_or_default();
+        if arch == "aarch64" || arch == "arm64" {
+            Profile::Utm
+        } else if arch == "x86_64" || arch == "amd64" {
+            Profile::Thinkpad
+        } else {
+            // Unknown arch: a qemu/utm guest is the VM profile, else the
+            // physical one.
+            match run_trim("systemd-detect-virt", &[]).as_deref() {
+                Some("qemu") | Some("kvm") => Profile::Utm,
+                _ => Profile::Thinkpad,
+            }
+        }
+    }
+
+    /// Directory name under `hosts/`, and the flake output name of the profile.
+    pub fn name(self) -> &'static str {
+        match self {
+            Profile::Thinkpad => "thinkpad",
+            Profile::Utm => "utm",
+        }
+    }
+
+    /// Parenthesised description shown on the Equipo screen.
+    pub fn description(self) -> &'static str {
+        match self {
+            Profile::Thinkpad => "x86_64",
+            Profile::Utm => "máquina virtual aarch64",
+        }
+    }
+
+    pub fn system(self) -> &'static str {
+        match self {
+            Profile::Thinkpad => "x86_64-linux",
+            Profile::Utm => "aarch64-linux",
+        }
+    }
+
+    pub fn default_hostname(self) -> &'static str {
+        match self {
+            Profile::Thinkpad => "ThinkPad-L14-Gen2",
+            Profile::Utm => "UTM-aarch64",
+        }
+    }
+}
+
+/// Derives a username from a display name: strip accents, lowercase, keep
+/// `a-z0-9`, prefix `u` when it would start with a digit, cap at 32 chars.
+pub fn generate_username(name: &str) -> String {
+    let mut out = String::new();
+    for ch in name.chars() {
+        let base = deaccent(ch);
+        if base.is_ascii_alphanumeric() {
+            out.push(base.to_ascii_lowercase());
+        }
+    }
+    if out.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        out.insert(0, 'u');
+    }
+    out.truncate(32);
+    out
+}
+
+/// Maps the common accented Latin letters to their unaccented ASCII form
+/// (a dependency-free stand-in for NFD + strip-combining-marks).
+fn deaccent(ch: char) -> char {
+    match ch {
+        'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'ā' | 'ă' | 'ą' => 'a',
+        'Á' | 'À' | 'Â' | 'Ä' | 'Ã' | 'Å' => 'A',
+        'é' | 'è' | 'ê' | 'ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => 'e',
+        'É' | 'È' | 'Ê' | 'Ë' => 'E',
+        'í' | 'ì' | 'î' | 'ï' | 'ī' | 'ĩ' => 'i',
+        'Í' | 'Ì' | 'Î' | 'Ï' => 'I',
+        'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ø' | 'ō' => 'o',
+        'Ó' | 'Ò' | 'Ô' | 'Ö' | 'Õ' => 'O',
+        'ú' | 'ù' | 'û' | 'ü' | 'ū' | 'ũ' => 'u',
+        'Ú' | 'Ù' | 'Û' | 'Ü' => 'U',
+        'ñ' => 'n',
+        'Ñ' => 'N',
+        'ç' => 'c',
+        'Ç' => 'C',
+        'ý' | 'ÿ' => 'y',
+        'Ý' => 'Y',
+        _ => ch,
+    }
+}
+
 /// `systemd-detect-virt`. Maps `qemu` to the friendlier «UTM (qemu)» label the
 /// installer shows when it runs inside a UTM/QEMU guest.
 pub fn environment() -> Option<String> {

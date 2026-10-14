@@ -1,4 +1,5 @@
 use crate::app::{Action, App};
+use crate::detect::Profile;
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -7,12 +8,20 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
+fn uutils_option(app: &App) -> bool {
+    app.uutils_available()
+}
+
 pub fn height(app: &App) -> u16 {
-    if app.keep_uutils {
-        8
-    } else {
-        7
+    // 5 rows + blank + warning (+ checkbox on ThinkPad) (+ mv note).
+    let mut h = 7;
+    if uutils_option(app) {
+        h += 1;
     }
+    if app.keep_uutils && uutils_option(app) {
+        h += 1;
+    }
+    h
 }
 
 fn row(app: &App, label: &str, value: String) -> Line<'static> {
@@ -40,25 +49,36 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         row(app, "git", git),
         row(app, "disco", disk),
         Line::from(""),
-        widgets::checkbox(
+    ];
+
+    if uutils_option(app) {
+        lines.push(widgets::checkbox(
             &app.palette,
             app.keep_uutils,
             "uutils en vez de coreutils (experimental)",
             app.button_focus == 1,
-        ),
-    ];
-    if app.keep_uutils {
-        lines.push(Line::from(Span::styled(
-            "nixos-rebuild puede pedir confirmar con mv",
-            Style::default().fg(app.palette.muted),
-        )));
+        ));
+        if app.keep_uutils {
+            lines.push(Line::from(Span::styled(
+                "nixos-rebuild puede pedir confirmar con mv",
+                Style::default().fg(app.palette.muted),
+            )));
+        }
     }
+
+    // Warn, don't fix: /var/log is both the @log subvolume and an impermanence
+    // directory.
+    lines.push(Line::from(Span::styled(
+        "/var/log definido dos veces: subvolumen @log e impermanence",
+        Style::default().fg(app.palette.warning),
+    )));
+
     f.render_widget(Paragraph::new(lines), area);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
     match key.code {
-        KeyCode::Char(' ') | KeyCode::Char('x') => {
+        KeyCode::Char(' ') | KeyCode::Char('x') if uutils_option(app) => {
             app.keep_uutils = !app.keep_uutils;
             true
         }
@@ -81,14 +101,16 @@ pub fn commands(app: &App) -> Vec<String> {
     let mut commands = vec![
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
         format!(
-            "nix build /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
+            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
             app.settings.username, app.settings.host_name
         ),
-        "nixos-install --system <ruta> --no-root-passwd".into(),
-        "sbctl create-keys --directory /mnt/persist/var/lib/sbctl".into(),
+        "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
     ];
-    if !app.keep_uutils {
-        commands.push("quitar ./uutils.nix de etc/default.nix".into());
+    if app.profile == Profile::Thinkpad {
+        commands.push("sbctl create-keys --directory /mnt/persist/var/lib/sbctl".into());
+        if !app.keep_uutils {
+            commands.push("quitar ./uutils.nix de modules/common/default.nix".into());
+        }
     }
     commands
 }

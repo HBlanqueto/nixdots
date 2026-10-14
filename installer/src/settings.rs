@@ -14,8 +14,10 @@ use std::process::Command;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    pub system: String,
     pub state_version: String,
+    /// The chosen hostname. Not stored in settings.nix anymore (hosts live in
+    /// hosts/<name>/); kept here as the installer's current selection.
+    #[serde(default)]
     pub host_name: String,
     pub time_zone: String,
     pub default_locale: String,
@@ -38,7 +40,6 @@ impl Settings {
     /// run on a machine without nix). Mirrors the repo's defaults.
     pub fn fallback() -> Self {
         Self {
-            system: "x86_64-linux".into(),
             state_version: "26.05".into(),
             host_name: "nixos".into(),
             time_zone: "America/Merida".into(),
@@ -73,10 +74,8 @@ impl Settings {
     /// Renders the template.
     pub fn render(&self) -> String {
         format!(
-            "{{\n    system = {system};\n    stateVersion = {state_version};\n\n    hostName = {host_name};\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
-            system = nix_str(&self.system),
+            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
             state_version = nix_str(&self.state_version),
-            host_name = nix_str(&self.host_name),
             time_zone = nix_str(&self.time_zone),
             default_locale = nix_str(&self.default_locale),
             username = nix_str(&self.username),
@@ -112,7 +111,6 @@ mod tests {
 
     fn sample() -> Settings {
         Settings {
-            system: "x86_64-linux".into(),
             state_version: "26.05".into(),
             host_name: "nixos".into(),
             time_zone: "America/Merida".into(),
@@ -127,7 +125,6 @@ mod tests {
     #[test]
     fn render_matches_expected_layout() {
         let rendered = sample().render();
-        assert!(rendered.contains("    system = \"x86_64-linux\";"));
         assert!(rendered.contains("    hashedPasswordFile = \"/persist/secrets/humbe.hash\";"));
         assert!(rendered.contains("    stateVersion = \"26.05\";"));
         // 4-space indentation, no tabs.
@@ -175,7 +172,6 @@ mod tests {
             "gitEmail": "a@b.c"
         }"#;
         let s: Settings = serde_json::from_str(json).unwrap();
-        assert_eq!(s.system, "aarch64-linux");
         assert_eq!(s.host_name, "utm");
         assert_eq!(s.state_version, "26.05");
     }

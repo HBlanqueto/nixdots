@@ -1,4 +1,5 @@
 use crate::app::App;
+use crate::detect::Profile;
 use crate::install::Step;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -10,11 +11,14 @@ use ratatui::Frame;
 const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"];
 
 pub fn height(app: &App) -> u16 {
-    if app.install.error.is_some() {
-        5
-    } else {
-        4
+    let mut h = 4;
+    if app.profile == Profile::Utm {
+        h += 1;
     }
+    if app.install.error.is_some() {
+        h += 1;
+    }
+    h
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
@@ -67,6 +71,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         step_spans.push(Span::styled(format!("{mark} {}", step.label()), Style::default().fg(color)));
     }
     lines.push(Line::from(step_spans));
+
+    if app.profile == Profile::Utm {
+        lines.push(Line::from(Span::styled(
+            "utm: SceneFX necesita virtio-gpu-gl (virgl); con pixman no habrá bordes, sombras ni blur",
+            Style::default().fg(app.palette.muted),
+        )));
+    }
 
     if let Some(error) = &app.install.error {
         lines.push(Line::from(Span::styled(

@@ -24,16 +24,18 @@ pub enum Step {
     Repo,
     Settings,
     Hardware,
+    Persist,
     SecureBoot,
     System,
 }
 
 impl Step {
-    pub const ALL: [Step; 6] = [
+    pub const ALL: [Step; 7] = [
         Step::Disk,
         Step::Repo,
         Step::Settings,
         Step::Hardware,
+        Step::Persist,
         Step::SecureBoot,
         Step::System,
     ];
@@ -44,10 +46,20 @@ impl Step {
             Step::Repo => "repo",
             Step::Settings => "ajustes",
             Step::Hardware => "hardware",
+            Step::Persist => "persist",
             Step::SecureBoot => "secure boot",
             Step::System => "sistema",
         }
     }
+}
+
+/// The Wi-Fi connection to persist into the installed system.
+#[derive(Debug, Clone)]
+pub struct WifiSave {
+    pub ssid: String,
+    /// `true` when NetworkManager made the connection (then its profile can be
+    /// copied); otherwise the user must reconnect with iwd/wpa_supplicant.
+    pub networkmanager: bool,
 }
 
 /// Messages sent from the install thread to the UI.
@@ -72,6 +84,10 @@ pub struct Plan {
     pub device: String,
     pub keep_uutils: bool,
     pub dry_run: bool,
+    /// Machine class: decides the secure-boot step and the uutils option.
+    pub profile: crate::detect::Profile,
+    /// Wi-Fi connection to persist into /persist, if any.
+    pub wifi: Option<WifiSave>,
 }
 
 impl Plan {
@@ -180,8 +196,15 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
     report.step(Step::Hardware);
     step_hardware(plan, report)?;
 
-    report.step(Step::SecureBoot);
-    step_secure_boot(plan, report)?;
+    report.step(Step::Persist);
+    step_persist(plan, report)?;
+
+    // Lanzaboote/Secure Boot exists only on the ThinkPad profile; the UTM VM
+    // uses plain systemd-boot.
+    if plan.profile == crate::detect::Profile::Thinkpad {
+        report.step(Step::SecureBoot);
+        step_secure_boot(plan, report)?;
+    }
 
     report.step(Step::System);
     step_system(plan, report)?;
@@ -230,15 +253,17 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
-    // Enough of a repo for the later (simulated) steps to operate on.
-    fs::create_dir_all(dest.join("etc"))?;
-    fs::create_dir_all(dest.join("boot"))?;
+    // Enough of a repo for the later (simulated) steps to operate on, in the
+    // hosts/modules layout.
+    fs::create_dir_all(dest.join("hosts"))?;
+    fs::create_dir_all(dest.join("modules/common"))?;
+    fs::create_dir_all(dest.join("modules/hardware"))?;
     fs::write(dest.join("settings.nix"), plan.settings.render())?;
     fs::write(
-        dest.join("etc/default.nix"),
-        "{\n    imports = [\n        ./global.nix\n        ./uutils.nix\n    ];\n}\n",
+        dest.join("modules/common/default.nix"),
+        "{\n    imports = [\n        ./user.nix\n        ./uutils.nix\n    ];\n}\n",
     )?;
-    fs::write(dest.join("boot/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
+    fs::write(dest.join("modules/hardware/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
     Ok(())
 }
 
@@ -263,13 +288,13 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
         fs::write(&hash_path, "(simulación)\n")?;
     }
 
-    // Optionally drop the uutils replacement.
-    let default_nix = repo.join("etc/default.nix");
+    // Optionally drop the uutils replacement (imported by modules/common).
+    let default_nix = repo.join("modules/common/default.nix");
     if default_nix.exists() {
         if plan.keep_uutils {
             report.log("uutils: se conserva (experimental)");
         } else {
-            report.log("uutils: se quita de etc/default.nix");
+            report.log("uutils: se quita de modules/common/default.nix");
             let text = fs::read_to_string(&default_nix)?;
             let filtered: String = text
                 .lines()
@@ -281,12 +306,12 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     }
 
     // Repoint the boot rollback at the label instead of a fixed UUID.
-    let snapshot = repo.join("boot/snapshot.sh");
+    let snapshot = repo.join("modules/hardware/snapshot.sh");
     if snapshot.exists() {
         let text = fs::read_to_string(&snapshot)?;
         let replaced = replace_by_uuid_with_label(&text);
         if replaced != text {
-            report.log("boot/snapshot.sh: UUID → /dev/disk/by-label/nixos");
+            report.log("modules/hardware/snapshot.sh: UUID → /dev/disk/by-label/nixos");
             fs::write(&snapshot, replaced)?;
         }
     }
@@ -304,18 +329,27 @@ fn step_hardware(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let mut captured = String::new();
     let code = if plan.dry_run {
         report.log(format!("$ {}", cmd.display));
-        captured.push_str(&dry_hardware_config(&plan.settings.system));
+        captured.push_str(&dry_hardware_config(plan.profile.system()));
         0
     } else {
         exec_capture(plan, report, &cmd, &plan.source, &mut captured)?
     };
     ensure_ok(code, "nixos-generate-config falló")?;
 
+    write_host_files(plan, report, &captured)?;
+    Ok(())
+}
+
+/// Writes the generated hardware-configuration.nix into hosts/<hostname>/ and
+/// creates default.nix + host.nix when the hostname is a new one. Existing
+/// host.nix/default.nix are never overwritten.
+fn write_host_files(plan: &Plan, report: &mut Reporter, hardware_config: &str) -> Result<()> {
     let repo = plan.installed_repo();
-    let hosts = repo.join("hosts").join(&plan.settings.host_name);
+    let host = &plan.settings.host_name;
+    let dir = repo.join("hosts").join(host);
     let target = if repo.join("hosts").is_dir() {
-        fs::create_dir_all(&hosts)?;
-        hosts.join("hardware-configuration.nix")
+        fs::create_dir_all(&dir)?;
+        dir.join("hardware-configuration.nix")
     } else {
         report.note("no hay hosts/; se escribe ./hardware-configuration.nix");
         repo.join("hardware-configuration.nix")
@@ -324,17 +358,228 @@ fn step_hardware(plan: &Plan, report: &mut Reporter) -> Result<()> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&target, captured)?;
+    fs::write(&target, hardware_config)?;
+
+    if repo.join("hosts").is_dir() {
+        let host_nix = dir.join("host.nix");
+        if !host_nix.exists() {
+            report.log(format!("$ escribir {}", host_nix.display()));
+            fs::write(
+                &host_nix,
+                format!(
+                    "{{\n    profile = \"{}\";\n    system = \"{}\";\n}}\n",
+                    plan.profile.name(),
+                    plan.profile.system()
+                ),
+            )?;
+        }
+        let default_nix = dir.join("default.nix");
+        if !default_nix.exists() {
+            report.log(format!("$ escribir {}", default_nix.display()));
+            fs::write(
+                &default_nix,
+                format!(
+                    "{{ ... }}:\n\n{{\n    imports = [\n        ./hardware-configuration.nix\n        ../../modules/hardware/{}.nix\n    ];\n}}\n",
+                    plan.profile.name()
+                ),
+            )?;
+        }
+    }
     Ok(())
+}
+
+/// Creates the /persist layout declared by `environment.persistence`, the
+/// secrets directory and (when NetworkManager connected) the saved Wi-Fi
+/// profile. Runs after the disk is mounted and before nixos-install.
+fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    let repo = plan.installed_repo();
+    let persist = plan.root.join("persist");
+
+    let expr = format!(
+        "{}#nixosConfigurations.{}.config.environment.persistence",
+        repo.display(),
+        plan.settings.host_name
+    );
+    let cmd = Cmd::new("nix")
+        .arg("eval")
+        .arg("--impure")
+        .arg("--json")
+        .arg(&expr)
+        .with_display(format!("nix eval --impure --json {expr}"));
+
+    if plan.dry_run {
+        report.log(format!("$ {}", cmd.display));
+        fs::create_dir_all(persist.join("etc/NetworkManager/system-connections"))?;
+        fs::create_dir_all(persist.join("secrets"))?;
+        report.log("(simulación) /persist preparado");
+        persist_wifi(plan, report)?;
+        return Ok(());
+    }
+
+    let mut captured = String::new();
+    let code = exec_capture(plan, report, &cmd, &repo, &mut captured)?;
+    ensure_ok(code, "no se pudo evaluar environment.persistence")?;
+    let value: serde_json::Value =
+        serde_json::from_str(&captured).map_err(|e| eyre!("persistencia ilegible: {e}"))?;
+    let entries = value
+        .get("/persist")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+
+    if let Some(dirs) = entries.get("directories").and_then(|d| d.as_array()) {
+        for entry in dirs {
+            create_persist_dir(plan, report, &persist, entry)?;
+        }
+    }
+    if let Some(files) = entries.get("files").and_then(|f| f.as_array()) {
+        for entry in files {
+            create_persist_file(plan, report, &persist, entry)?;
+        }
+    }
+
+    // Secrets live next to the persisted tree.
+    let secrets = persist.join("secrets");
+    fs::create_dir_all(&secrets)?;
+    set_mode_dir(&secrets, 0o700)?;
+
+    persist_wifi(plan, report)?;
+    Ok(())
+}
+
+fn entry_path(entry: &serde_json::Value) -> Option<String> {
+    if let Some(path) = entry.as_str() {
+        Some(path.to_string())
+    } else {
+        entry
+            .get("directory")
+            .or_else(|| entry.get("file"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+    }
+}
+
+fn create_persist_dir(
+    _plan: &Plan,
+    report: &mut Reporter,
+    persist: &Path,
+    entry: &serde_json::Value,
+) -> Result<()> {
+    let Some(path) = entry_path(entry) else {
+        return Ok(());
+    };
+    let target = persist.join(path.trim_start_matches('/'));
+    fs::create_dir_all(&target)?;
+    // The NetworkManager connections directory is private.
+    let mode = if path.contains("NetworkManager/system-connections") {
+        0o700
+    } else {
+        entry
+            .get("mode")
+            .and_then(|m| m.as_u64())
+            .map(|m| m as u32)
+            .unwrap_or(0o755)
+    };
+    set_mode_dir(&target, mode)?;
+
+    if let Some(user) = entry.get("user").and_then(|u| u.as_str()) {
+        let group = entry.get("group").and_then(|g| g.as_str()).unwrap_or(user);
+        let owner = format!("{user}:{group}");
+        if chown(&target, &owner).is_err() {
+            report.log(format!("aviso: no se pudo fijar el dueño {owner} en {}", target.display()));
+        }
+    }
+    report.log(format!("$ mkdir -p {}", target.display()));
+    Ok(())
+}
+
+fn create_persist_file(
+    _plan: &Plan,
+    report: &mut Reporter,
+    persist: &Path,
+    entry: &serde_json::Value,
+) -> Result<()> {
+    let Some(path) = entry_path(entry) else {
+        return Ok(());
+    };
+    if path.ends_with("etc/machine-id") {
+        // A fresh machine-id must exist before the first boot.
+        report.log("$ systemd-machine-id-setup --root=/mnt/persist");
+        let code = runner::run(
+            &Cmd::new("systemd-machine-id-setup")
+                .arg("--root")
+                .arg_path(persist)
+                .with_display("systemd-machine-id-setup --root=/mnt/persist"),
+            &mut |_| {},
+        );
+        if code != 0 {
+            // Fall back to an empty file so the mount is at least present.
+            let target = persist.join(path.trim_start_matches('/'));
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&target, "")?;
+        }
+    } else {
+        let target = persist.join(path.trim_start_matches('/'));
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        if !target.exists() {
+            fs::write(&target, "")?;
+        }
+    }
+    Ok(())
+}
+
+/// Copies the Wi-Fi connection into /persist when NetworkManager is in use;
+/// otherwise just notes that the VM/user must reconnect.
+fn persist_wifi(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    let Some(wifi) = &plan.wifi else {
+        return Ok(());
+    };
+    if !wifi.networkmanager {
+        report.note(format!(
+            "Wi-Fi {ssid}: guardada por iwd/wpa_supplicant, reconecta tras instalar",
+            ssid = wifi.ssid
+        ));
+        return Ok(());
+    }
+    let src = PathBuf::from(format!(
+        "/etc/NetworkManager/system-connections/{}.nmconnection",
+        wifi.ssid
+    ));
+    let dst_dir = plan.root.join("persist/etc/NetworkManager/system-connections");
+    fs::create_dir_all(&dst_dir)?;
+    set_mode_dir(&dst_dir, 0o700)?;
+    let dst = dst_dir.join(format!("{}.nmconnection", wifi.ssid));
+    report.log(format!("$ cp {} {}", src.display(), dst.display()));
+    if plan.dry_run {
+        fs::write(&dst, "")?;
+    } else {
+        match fs::copy(&src, &dst) {
+            Ok(_) => set_mode_file(&dst, 0o600)?,
+            Err(err) => report.log(format!("aviso: no se pudo copiar la conexión Wi-Fi: {err}")),
+        }
+    }
+    Ok(())
+}
+
+fn chown(path: &Path, owner: &str) -> std::io::Result<()> {
+    let status = std::process::Command::new("chown")
+        .arg("-R")
+        .arg(owner)
+        .arg(path)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other("chown falló"))
+    }
 }
 
 fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // lanzaboote (systemd-boot) only targets x86_64.
-    let system = if plan.settings.system.is_empty() {
-        "x86_64-linux"
-    } else {
-        plan.settings.system.as_str()
-    };
+    let system = plan.profile.system();
     if !system.starts_with("x86_64") {
         return Err(eyre!(
             "lanzaboote no soporta {system}; secure boot se detiene en lugar de improvisar"
@@ -377,7 +622,7 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("internal-json")
         .arg("-v")
         .with_display(format!(
-            "nix build {attr} --store /mnt --log-format internal-json -v"
+            "nix build --impure {attr} --store /mnt --log-format internal-json -v"
         ));
 
     let system_path = if plan.dry_run {
@@ -389,10 +634,14 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     };
 
     let cmd = Cmd::new("nixos-install")
+        .arg("--root")
+        .arg_path(&plan.root)
         .arg("--system")
         .arg(&system_path)
         .arg("--no-root-passwd")
-        .with_display(format!("nixos-install --system {system_path} --no-root-passwd"));
+        .with_display(format!(
+            "nixos-install --root /mnt --system {system_path} --no-root-passwd"
+        ));
     let code = exec(plan, report, &cmd, &repo)?;
     ensure_ok(code, "nixos-install falló")?;
     Ok(())

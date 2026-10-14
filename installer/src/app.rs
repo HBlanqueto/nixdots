@@ -272,7 +272,11 @@ pub struct HostState {
 pub struct UserState {
     pub username: Input,
     pub name: Input,
+    /// 0 = nombre, 1 = usuario. Focus starts on the name.
     pub focus: usize,
+    /// Once the user edits the username by hand it stops being regenerated
+    /// from the name (unless it is emptied).
+    pub edited: bool,
 }
 
 pub struct PasswordState {
@@ -356,6 +360,9 @@ pub struct App {
     pub settings: Settings,
     pub settings_ok: bool,
 
+    /// Machine class (thinkpad | utm), detected from arch + virt.
+    pub profile: detect::Profile,
+
     // welcome
     pub arch: Option<String>,
     pub virt: Option<String>,
@@ -413,11 +420,12 @@ impl App {
             Err(_) => (Settings::fallback(), false),
         };
         let arch = detect::arch();
-        if let Some(system) = detect::nix_system() {
-            settings.system = system;
-        }
-        // Hostname defaults per machine, as specified.
-        settings.host_name = detect::default_hostname(arch.as_deref().unwrap_or_default());
+        let profile = detect::Profile::detect();
+        // Hostname defaults per machine profile, as specified.
+        settings.host_name = profile.default_hostname().to_string();
+
+        let generated = detect::generate_username(&settings.userdescription);
+        let user_edited = settings.username != generated;
 
         let disks = detect::disks();
         let mut app = Self {
@@ -429,6 +437,7 @@ impl App {
             source_ok: false,
             network: false,
             settings_ok,
+            profile,
             host: HostState {
                 input: Input::new(settings.host_name.clone()),
             },
@@ -436,6 +445,7 @@ impl App {
                 username: Input::new(settings.username.clone()),
                 name: Input::new(settings.userdescription.clone()),
                 focus: 0,
+                edited: user_edited,
             },
             password: PasswordState {
                 p1: Input::default(),
@@ -537,7 +547,7 @@ impl App {
     // -- data -----------------------------------------------------------------
 
     pub fn detected_system(&self) -> String {
-        self.settings.system.clone()
+        self.profile.system().to_string()
     }
 
     fn load_layout(&mut self) {
@@ -587,6 +597,34 @@ impl App {
             && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
     }
 
+    /// Regenerates the username from the name (while it is still automatic).
+    pub fn regenerate_username(&mut self) {
+        if self.user.edited {
+            return;
+        }
+        let generated = detect::generate_username(self.user.name.value());
+        self.user.username = Input::new(generated);
+    }
+
+    /// The username is only "automatic" until the user edits it by hand.
+    pub fn username_is_auto(&self) -> bool {
+        !self.user.edited
+    }
+
+    /// uutils is x86_64-only (see modules/common/uutils.nix), so the option is
+    /// only offered on the ThinkPad profile.
+    pub fn uutils_available(&self) -> bool {
+        self.profile == detect::Profile::Thinkpad
+    }
+
+    /// The panel title, which for Contraseña names the resulting user.
+    pub fn screen_title(&self) -> String {
+        match self.screen {
+            Screen::Password => format!("Contraseña de {}", self.settings.username),
+            s => s.title().to_string(),
+        }
+    }
+
     pub fn username_valid(&self) -> bool {
         let name = self.user.username.value();
         let mut chars = name.chars();
@@ -606,6 +644,10 @@ impl App {
         match self.screen {
             Screen::Host => self.settings.host_name = self.host.input.value().to_string(),
             Screen::User => {
+                if self.user.username.value().is_empty() {
+                    self.user.edited = false;
+                    self.regenerate_username();
+                }
                 self.settings.username = self.user.username.value().to_string();
                 self.settings.userdescription = self.user.name.value().to_string();
             }
@@ -678,14 +720,25 @@ impl App {
             PathBuf::from("/mnt")
         };
 
+        let wifi = match &self.net.phase {
+            RedFase::Conectado { ssid } if ssid != "ethernet" => Some(install::WifiSave {
+                ssid: ssid.clone(),
+                networkmanager: self.net.backend.name() == "nmcli",
+            }),
+            _ => None,
+        };
+
         let plan = Plan {
             source: self.repo_dir.clone(),
             root,
             settings: self.settings.clone(),
             password_hash: hash,
             device: disk.path(),
-            keep_uutils: self.keep_uutils,
+            // uutils is only offered (and only applied) on the ThinkPad.
+            keep_uutils: self.keep_uutils && self.uutils_available(),
             dry_run: self.dry_run,
+            profile: self.profile,
+            wifi,
         };
         install::spawn(plan, tx);
     }
@@ -1192,7 +1245,7 @@ impl App {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(border))
             .title(Span::styled(
-                format!(" {} ", self.screen.title()),
+                format!(" {} ", self.screen_title()),
                 Style::default().fg(border),
             ));
         let inner = block.inner(area);

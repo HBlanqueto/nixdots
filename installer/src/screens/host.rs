@@ -9,15 +9,22 @@ use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(_app: &App) -> u16 {
-    2
+    3
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let default_hint = match app.arch.as_deref() {
-        Some("aarch64") | Some("arm64") => "por defecto: máquina virtual aarch64",
-        Some("x86_64") | Some("amd64") => "por defecto: x86_64",
-        _ => "por defecto: nixos",
+    let profile = app.profile;
+    let default_hint = match profile {
+        crate::detect::Profile::Utm => "por defecto: máquina virtual aarch64",
+        crate::detect::Profile::Thinkpad => "por defecto: x86_64",
     };
+    let profile_line = Line::from(vec![
+        Span::styled("perfil  ", Style::default().fg(app.palette.muted)),
+        Span::styled(
+            format!("{} ({})", profile.name(), profile.description()),
+            Style::default().fg(app.palette.text),
+        ),
+    ]);
     let mut line = widgets::input_line(
         &app.palette,
         "hostname",
@@ -34,6 +41,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         line.spans.push(Span::styled("  ✗", Style::default().fg(app.palette.error)));
     }
     let lines = vec![
+        profile_line,
         line,
         Line::from(Span::styled(default_hint, Style::default().fg(app.palette.muted))),
     ];
