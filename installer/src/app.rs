@@ -1214,8 +1214,12 @@ impl App {
             0
         };
         let panel_h = content_h + 4;
-        // The license panel is a touch wider (~64 columns).
-        let base_width = if self.screen == Screen::License { 64 } else { PANEL_WIDTH };
+        // The license and disk panels are a little wider/more spacious.
+        let base_width = match self.screen {
+            Screen::License => 68,
+            Screen::Disk => 62,
+            _ => PANEL_WIDTH,
+        };
         let width = base_width.min(area.width);
         // Inicio and Listo show no progress bar.
         let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };

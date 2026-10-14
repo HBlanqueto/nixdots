@@ -15,10 +15,11 @@ use ratatui::Frame;
 const LICENSE: &str = include_str!("../../../LICENSE");
 
 /// Height of the scrolled text area.
-const ROWS: usize = 16;
+const ROWS: usize = 18;
 
 pub fn height(_app: &App) -> u16 {
-    (ROWS + 2) as u16
+    // text + footer + blank + checkbox
+    (ROWS + 3) as u16
 }
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
@@ -82,8 +83,8 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         footer,
     );
 
-    // Checkbox.
-    let checkbox = Rect::new(area.x, area.y + visible as u16 + 1, area.width, 1);
+    // Blank line, then the checkbox.
+    let checkbox = Rect::new(area.x, area.y + visible as u16 + 2, area.width, 1);
     f.render_widget(
         Paragraph::new(widgets::checkbox(
             &app.palette,

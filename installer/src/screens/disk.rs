@@ -24,13 +24,15 @@ pub fn height(app: &App) -> u16 {
         })
         .sum();
     let options = app.disks.options().len() as u16;
-    let confirm = if app.disks.option == 0 { 1 } else { 0 };
-    disks + 5 + tree + options + confirm
+    // blank before the checkbox + the checkbox itself.
+    let confirm = if app.disks.option == 0 { 2 } else { 0 };
+    disks.max(1) + 7 + tree + options + confirm
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let width = area.width as usize;
     let mut lines: Vec<Line> = Vec::new();
+    lines.push(Line::from(""));
 
     if app.disks.disks.is_empty() {
         lines.push(Line::from(Span::styled(
@@ -105,6 +107,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 
     lines.push(Line::from(""));
+    lines.push(Line::from(""));
 
     // The choices: full erase, plus "install alongside Windows" when another
     // OS is detected.
@@ -117,6 +120,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             .selected_disk()
             .map(|d| d.path())
             .unwrap_or_else(|| "/dev/…".into());
+        lines.push(Line::from(""));
         lines.push(widgets::checkbox(
             &app.palette,
             app.disks.confirmed,

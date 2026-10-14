@@ -76,6 +76,8 @@ fn flush(spans: &mut Vec<Span<'static>>, run: &mut String, style: Style) {
 }
 
 fn apply_sgr(seq: &str, fg: &mut Color, bg: &mut Color, dark: Color, light: Color) {
+    // `seq` still carries the leading '[' of the CSI (ESC '[' ... 'm').
+    let seq = seq.strip_prefix('[').unwrap_or(seq);
     let params: Vec<&str> = seq.split(';').collect();
     match params.as_slice() {
         [""] | ["0"] => {
