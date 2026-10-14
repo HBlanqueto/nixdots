@@ -8,6 +8,7 @@
     imports = [
         inputs.lanzaboote.nixosModules.lanzaboote
         inputs.ucodenix.nixosModules.default
+        ./luks-tpm.nix
     ];
 
     # CachyOS x86_64-v3 kernel; the overlay is x86_64-only.
@@ -43,6 +44,9 @@
             services.rollback = {
                 wantedBy = [ "initrd.target" ];
                 before = [ "sysroot.mount" ];
+                # The btrfs we roll back lives inside the LUKS container, so it
+                # must already be open before snapshot.sh can mount it.
+                after = [ "systemd-cryptsetup@core.service" ];
                 unitConfig.DefaultDependencies = "no";
                 serviceConfig.Type = "oneshot";
                 script = builtins.readFile ./snapshot.sh;

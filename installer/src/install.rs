@@ -11,7 +11,7 @@ use crate::settings::Settings;
 use color_eyre::eyre::{eyre, Result};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::thread;
@@ -68,6 +68,9 @@ pub struct Plan {
     pub root: PathBuf,
     pub settings: Settings,
     pub password_hash: String,
+    /// Passphrase for the LUKS-encrypted root (same as the account password).
+    /// Written to a root-only temp file for disko and removed right after.
+    pub luks_password: String,
     pub device: String,
     pub keep_uutils: bool,
     pub dry_run: bool,
@@ -196,6 +199,22 @@ fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    // disko cannot prompt inside the TUI, so the LUKS passphrase goes through a
+    // root-only file (0600) passed as `--argstr passwordFile`. It is removed
+    // again as soon as disko returns, success or failure.
+    let key_path = std::env::temp_dir().join("nixdots-luks.key");
+    if !plan.dry_run {
+        let mut key = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&key_path)
+            .map_err(|err| eyre!("no se pudo crear {}: {err}", key_path.display()))?;
+        key.write_all(plan.luks_password.as_bytes())?;
+        key.flush()?;
+    }
+
     let cmd = Cmd::new("disko")
         .arg("--mode")
         .arg("destroy,format,mount")
@@ -203,13 +222,20 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("--argstr")
         .arg("device")
         .arg(&plan.device)
+        .arg("--argstr")
+        .arg("passwordFile")
+        .arg_path(&key_path)
         .with_display(format!(
-            "disko --mode destroy,format,mount disko.nix --argstr device {}",
-            plan.device
+            "disko --mode destroy,format,mount disko.nix --argstr device {} --argstr passwordFile {}",
+            plan.device,
+            key_path.display()
         ));
 
-    let code = exec(plan, report, &cmd, &plan.source)?;
-    ensure_ok(code, "disko falló")
+    let result = exec(plan, report, &cmd, &plan.source);
+    if !plan.dry_run {
+        let _ = fs::remove_file(&key_path);
+    }
+    ensure_ok(result?, "disko falló")
 }
 
 fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
@@ -250,7 +276,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-uuid/9ddcd09a-903e-4863-94db-bb1ccb5d3236 /btrfs_tmp\n";
+const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();

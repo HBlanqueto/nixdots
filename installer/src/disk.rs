@@ -58,15 +58,22 @@ let
   parts = cfg.disko.devices.disk.main.content.partitions;
 in
 builtins.mapAttrs (name: part:
-  let c = part.content or {}; in
+  let
+    c = part.content or {};
+    # The data partition is wrapped in a LUKS container: look one level down
+    # so the btrfs subvolumes (and their mountpoints) still show up.
+    inner = if (c.type or "") == "luks" then (c.content or {}) else c;
+  in
   {
-    type = c.type or null;
+    # Report the inner filesystem type (btrfs/filesystem), so the disk screen
+    # keeps drawing the btrfs subvolumes instead of a bare LUKS leaf.
+    type = inner.type or (c.type or null);
     size = part.size or null;
-    format = c.format or null;
-    mountpoint = c.mountpoint or null;
+    format = inner.format or null;
+    mountpoint = inner.mountpoint or null;
     subvolumes =
-      if (c.type or "") == "btrfs"
-      then builtins.mapAttrs (sv: s: { mountpoint = s.mountpoint or null; }) c.subvolumes
+      if (inner.type or "") == "btrfs"
+      then builtins.mapAttrs (sv: s: { mountpoint = s.mountpoint or null; }) inner.subvolumes
       else {};
   }
 ) parts

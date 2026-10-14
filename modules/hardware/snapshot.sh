@@ -4,7 +4,10 @@
     
     mkdir -p /btrfs_tmp
 
-    mount -t btrfs -o subvolid=5 /dev/disk/by-uuid/9ddcd09a-903e-4863-94db-bb1ccb5d3236 /btrfs_tmp
+    # The btrfs lives inside the LUKS container; by the time this runs
+    # systemd-cryptsetup has already opened it at /dev/mapper/core, so the
+    # label (stable across reinstall) is the right handle.
+    mount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp
 
     if [ -e /btrfs_tmp/@rootfs ]; then
       mkdir -p /btrfs_tmp/old_roots

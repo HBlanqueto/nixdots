@@ -6,12 +6,21 @@
 #   disko --mode destroy,format,mount disko.nix --argstr device /dev/nvme0n1
 #
 # Layout: a GPT with a 1 GiB vfat ESP (label BOOT) mounted at /boot, and the
-# rest as btrfs (label nixos) holding the subvolumes @rootfs (/), @nix, @home,
-# @persist and @log (/var/log). A read-only @rootfs-blank template is created
-# right after formatting; boot/snapshot.sh restores @rootfs from it on every
-# boot, which is what makes the root filesystem ephemeral.
+# rest under a LUKS2 container (name `core`) holding a btrfs filesystem (label
+# nixos) with the subvolumes @rootfs (/), @nix, @home, @persist and @log
+# (/var/log). A read-only @rootfs-blank template is created right after
+# formatting; boot/snapshot.sh restores @rootfs from it on every boot, which is
+# what makes the root filesystem ephemeral.
+#
+# The LUKS passphrase is supplied out-of-band: the installer passes a root-only
+# file via `--argstr passwordFile <path>`; a manual run without it (null) makes
+# disko prompt interactively. The unencrypted ESP keeps lanzaboote / Secure Boot
+# (which read the kernel and initrd before unlocking) working.
 {
     device ? "/dev/vda",
+    # Path to a file containing the LUKS passphrase (absolute). `null` lets
+    # disko ask for it interactively.
+    passwordFile ? null,
     ...
 }:
 let
@@ -42,50 +51,53 @@ in
                         };
                     };
 
-                    # GPT partition name: "Core HD" (the btrfs volume that
-                    # holds every subvolume, including the persisted @persist).
                     "Core HD" = {
-                        size = "100%";
-
                         content = {
-                            type = "btrfs";
-                            # -L nixos: required by boot/snapshot.sh, which
-                            # mounts /dev/disk/by-label/nixos.
-                            extraArgs = [ "-L" "nixos" ];
+                            type = "luks";
+                            name = "core";
+                            inherit passwordFile;
+                            settings.allowDiscards = true;
+                            extraFormatArgs = [ "--type" "luks2" ];
 
-                            subvolumes = {
-                                "@rootfs" = {
-                                    mountpoint = "/";
-                                    inherit mountOptions;
+                            content = {
+                                type = "btrfs";
+                                extraArgs = [ "-L" "nixos" ];
+
+                                subvolumes = {
+                                    "@rootfs" = {
+                                        mountpoint = "/";
+                                        inherit mountOptions;
+                                    };
+                                    "@nix" = {
+                                        mountpoint = "/nix";
+                                        inherit mountOptions;
+                                    };
+                                    "@home" = {
+                                        mountpoint = "/home";
+                                        inherit mountOptions;
+                                    };
+                                    "@persist" = {
+                                        mountpoint = "/persist";
+                                        inherit mountOptions;
+                                    };
+                                    "@log" = {
+                                        mountpoint = "/var/log";
+                                        inherit mountOptions;
+                                    };
                                 };
-                                "@nix" = {
-                                    mountpoint = "/nix";
-                                    inherit mountOptions;
-                                };
-                                "@home" = {
-                                    mountpoint = "/home";
-                                    inherit mountOptions;
-                                };
-                                "@persist" = {
-                                    mountpoint = "/persist";
-                                    inherit mountOptions;
-                                };
-                                "@log" = {
-                                    mountpoint = "/var/log";
-                                    inherit mountOptions;
-                                };
+
+                                # @rootfs is empty at this point; snapshot it
+                                # read-only so the boot rollback always has a
+                                # pristine template to clone from. `$device` is
+                                # the mapped LUKS device (/dev/mapper/core).
+                                postCreateHook = ''
+                                    MNTPOINT=$(mktemp -d)
+                                    mount "$device" "$MNTPOINT" -o subvol=/
+                                    btrfs subvolume snapshot -r "$MNTPOINT/@rootfs" "$MNTPOINT/@rootfs-blank"
+                                    umount "$MNTPOINT"
+                                    rmdir "$MNTPOINT"
+                                '';
                             };
-
-                            # @rootfs is empty at this point; snapshot it
-                            # read-only so the boot rollback always has a
-                            # pristine template to clone from.
-                            postCreateHook = ''
-                                MNTPOINT=$(mktemp -d)
-                                mount "$device" "$MNTPOINT" -o subvol=/
-                                btrfs subvolume snapshot -r "$MNTPOINT/@rootfs" "$MNTPOINT/@rootfs-blank"
-                                umount "$MNTPOINT"
-                                rmdir "$MNTPOINT"
-                            '';
                         };
                     };
                 };

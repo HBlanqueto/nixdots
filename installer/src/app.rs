@@ -955,6 +955,8 @@ impl App {
             root,
             settings: self.settings.clone(),
             password_hash: hash,
+            // Reuse the account password as the LUKS passphrase for the root.
+            luks_password: self.password.p1.value().to_string(),
             device: disk.path(),
             // uutils is only offered (and only applied) on the ThinkPad.
             keep_uutils: self.keep_uutils && self.uutils_available(),

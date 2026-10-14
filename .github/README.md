@@ -14,7 +14,7 @@ This NixOS system features the following core components:
 - [x] **Installer:** text-mode installer (`installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
-- [x] **Lanzaboote & LUKS:** Secure Boot with Btrfs decryption
+- [x] **Lanzaboote & LUKS:** Secure Boot with a LUKS2 root, auto-unlocked by Measured Boot (`systemd-pcrlock`) on the ThinkPad
 - [x] **iPhone tethering:** USB internet sharing (`usbmuxd` + `ipheth`)
 - [ ] **Agenix:** Secure secrets management
 
@@ -41,7 +41,7 @@ This NixOS system features the following core components:
 * **`flake.nix`:** discovers every `hosts/<name>/host.nix` and emits one `nixosConfigurations.<name>` per host; also packages the installer for `x86_64-linux` and `aarch64-linux`.
 * **`settings.nix`:** host-independent values (username, locale, `hashedPasswordFile`, Git identity).
 * **`hosts/<host>/`:** `host.nix` holds per-host metadata (`profile`, `system`); `default.nix` imports the host's hardware module and `hardware-configuration.nix`.
-* **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
+* **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `core` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
@@ -55,10 +55,6 @@ nix run .#installer -- --install    # real install from the NixOS ISO
 ```
 
 The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
-
-## iPhone USB tethering
-
-`modules/common/iphone-tethering.nix` enables iPhone internet sharing over the USB cable: `services.usbmuxd` handles pairing/trust and the `ipheth` kernel module exposes the phone as a USB Ethernet interface that NetworkManager brings up automatically. `libimobiledevice` and `ifuse` are installed for pairing and browsing the device. Once the iPhone is trusted, plug it in and enable *Personal Hotspot* — no manual `ip link`/DHCP is required.
 
 ## Setup
 
@@ -95,6 +91,26 @@ VM.
 ```shell
 nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
 ```
+
+### Disk encryption (LUKS + TPM)
+
+`disko.nix` formats the root as a **LUKS2** container (`core`) holding the btrfs
+subvolumes; only the ESP stays unencrypted (Lanzaboote must read the kernel and
+initrd before unlocking). The installer uses the account password as the LUKS
+passphrase, so early boots ask for it.
+
+On the **ThinkPad**, once reinstalled with encryption, `modules/hardware/luks-tpm.nix`
+enables Lanzaboote's **Measured Boot** (`systemd-pcrlock`): the passphrase is
+enrolled into the TPM2 chip, bound to the firmware, bootloader and Secure Boot
+PCRs (`0 4 7`), so boots unlock without typing. The `pcrlock` policy and
+directory are persisted (`/var/lib/systemd/pcrlock.json`, `/var/lib/pcrlock.d`)
+because the root is ephemeral. The UTM VM has no TPM and keeps asking for the
+passphrase.
+
+> [!NOTE]
+> Verify support with
+> `/run/current-system/systemd/lib/systemd/systemd-pcrlock is-supported`
+> (must print `yes`). If it does not, leave `nixdots.tpmUnlock.enable = false;`.
 
 > [!NOTE]
 > `settings.nix` points `hashedPasswordFile` at `/persist/secrets/humbe.hash`.

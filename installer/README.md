@@ -67,6 +67,10 @@ dentro del panel con `↑↓`, `PageUp/PageDown`, `Home/End` o la rueda del rat�
 
 ## Notas
 
+- `disko` formatea la raíz como un contenedor **LUKS2** (`core`); la contraseña
+  de la cuenta se usa como passphrase y se pasa a `disko` mediante un archivo
+  temporal `0600` (`--argstr passwordFile`), eliminado en cuanto termina. El
+  primer arranque la pide; en el ThinkPad el TPM la desbloquea (Measured Boot).
 - La paleta proviene de `share/themes/neptunia.nix`; un test (`cargo test`) falla
   si las constantes de `src/theme.rs` se desincronizan.
 - En la consola Linux (`TERM=linux`, la tty de la ISO) no hay truecolor: al
