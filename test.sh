@@ -35,12 +35,12 @@ ok()   { printf '\033[32mok\033[0m  %s\n' "$*"; }
 
 # ---------------------------------------------------------------------------
 say "cargo clippy -D warnings"
-nix-shell -p cargo rustc gcc clippy --run \
-    'cargo clippy --manifest-path installer/Cargo.toml --all-targets -- -D warnings'
+nix develop ".#installer" -c \
+    cargo clippy --manifest-path installer/Cargo.toml --all-targets -- -D warnings
 ok "clippy"
 
 say "cargo test"
-nix-shell -p cargo rustc gcc --run 'cargo test --manifest-path installer/Cargo.toml'
+nix develop ".#installer" -c cargo test --manifest-path installer/Cargo.toml
 ok "tests"
 
 # ---------------------------------------------------------------------------

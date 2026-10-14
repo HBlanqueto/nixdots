@@ -2,7 +2,6 @@
 //! test field to type into.
 
 use crate::app::{Action, App, PickItem, PickerKind};
-use crate::detect;
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -146,8 +145,10 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![
-        "locale -a".into(),
-        format!("localectl set-x11-keymap {} {}", app.keyboard_layout, app.keyboard_variant),
+        format!(
+            "localectl set-x11-keymap {} {}",
+            app.keyboard_layout, app.keyboard_variant
+        ),
         format!(
             "settings.nix: defaultLocale = \"{}\";",
             app.settings.default_locale
@@ -156,25 +157,16 @@ pub fn commands(app: &App) -> Vec<String> {
     ]
 }
 
-/// Locales the live system supports, via `locale -a`.
+/// `share/i18n/SUPPORTED` from glibc, embedded at compile time by the package
+/// (`NIXDOTS_LOCALES`). The live ISO only generates `C.UTF-8` and
+/// `en_US.UTF-8`, so the list cannot come from `locale -a`.
+const SUPPORTED: &str = include_str!(env!("NIXDOTS_LOCALES"));
+
+/// Every UTF-8 locale glibc supports, taken from the embedded table.
 pub fn load_items() -> Vec<PickItem> {
-    let mut codes: Vec<String> = detect::run_trim("locale", &["-a"])
-        .map(|out| {
-            out.lines()
-                .map(str::trim)
-                .filter(|c| is_utf8_locale(c))
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut codes = parse_supported(SUPPORTED);
     codes.sort();
     codes.dedup();
-    if codes.is_empty() {
-        codes = ["C.UTF-8", "en_US.UTF-8", "es_ES.UTF-8", "es_MX.UTF-8"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-    }
     codes
         .into_iter()
         .map(|code| PickItem {
@@ -185,9 +177,25 @@ pub fn load_items() -> Vec<PickItem> {
         .collect()
 }
 
-fn is_utf8_locale(code: &str) -> bool {
-    let lower = code.to_lowercase();
-    lower.ends_with(".utf-8") || lower.ends_with(".utf8")
+/// Turns entries like `en_US.UTF-8/UTF-8` (and `ca_ER/UTF-8`) into locale
+/// codes, keeping only the UTF-8 ones.
+fn parse_supported(text: &str) -> Vec<String> {
+    let mut codes = Vec::new();
+    for token in text.split_whitespace() {
+        let Some((name, charset)) = token.rsplit_once('/') else {
+            continue;
+        };
+        if charset != "UTF-8" {
+            continue;
+        }
+        let code = if name.contains('.') {
+            name.to_string()
+        } else {
+            format!("{name}.UTF-8")
+        };
+        codes.push(code);
+    }
+    codes
 }
 
 /// Human-readable name derived from the locale code (language + region).

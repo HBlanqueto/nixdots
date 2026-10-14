@@ -5,13 +5,13 @@ use ratatui::layout::{Alignment, Rect};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub fn height(_app: &App) -> u16 {
     3
 }
 
-/// `❄ nixdots` + a blank line + the Salir / Reiniciar capsule row.
+/// `* nixdots` + a blank line + the Salir / Reiniciar capsule row.
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let total: u16 = 3;
     let y = area.y + area.height.saturating_sub(total) / 2;
@@ -60,7 +60,7 @@ fn copy_log(app: &App) {
 }
 
 fn umount() {
-    let _ = Command::new("umount").arg("-R").arg("/mnt").status();
+    let _ = Command::new("umount").arg("-R").arg("/mnt").stdin(Stdio::null()).status();
 }
 
 /// Reiniciar: copy the log, unmount and reboot (simulation just closes).
@@ -71,7 +71,7 @@ pub fn restart(app: &mut App) {
         return;
     }
     umount();
-    let _ = Command::new("reboot").status();
+    let _ = Command::new("reboot").stdin(Stdio::null()).status();
     app.should_quit = true;
 }
 

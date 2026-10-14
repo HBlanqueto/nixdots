@@ -9,7 +9,7 @@
 //! Wi-Fi passwords are never written to the log or the command panel.
 
 use color_eyre::eyre::{eyre, Result};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,6 +128,7 @@ impl WifiBackend for Nmcli {
     fn is_saved(&self, ssid: &str) -> bool {
         let Ok(output) = Command::new("nmcli")
             .args(["-t", "-f", "NAME", "connection", "show"])
+            .stdin(Stdio::null())
             .output()
         else {
             return false;
@@ -226,6 +227,7 @@ fn which(cmd: &str) -> bool {
 fn scan_nmcli() -> Vec<Wifi> {
     let Ok(output) = Command::new("nmcli")
         .args(["-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"])
+        .stdin(Stdio::null())
         .output()
     else {
         return Vec::new();
@@ -276,9 +278,13 @@ fn scan_iwctl() -> Vec<Wifi> {
     let Some(device) = wireless_device() else {
         return Vec::new();
     };
-    let _ = Command::new("iwctl").args(["station", &device, "scan"]).output();
+    let _ = Command::new("iwctl")
+        .args(["station", &device, "scan"])
+        .stdin(Stdio::null())
+        .output();
     let Ok(output) = Command::new("iwctl")
         .args(["station", &device, "get-networks"])
+        .stdin(Stdio::null())
         .output()
     else {
         return Vec::new();
@@ -303,8 +309,12 @@ fn scan_iwctl() -> Vec<Wifi> {
 }
 
 fn scan_wpa_cli() -> Vec<Wifi> {
-    let _ = Command::new("wpa_cli").arg("scan").output();
-    let Ok(output) = Command::new("wpa_cli").arg("scan_results").output() else {
+    let _ = Command::new("wpa_cli").arg("scan").stdin(Stdio::null()).output();
+    let Ok(output) = Command::new("wpa_cli")
+        .arg("scan_results")
+        .stdin(Stdio::null())
+        .output()
+    else {
         return Vec::new();
     };
     let mut networks = Vec::new();
@@ -344,7 +354,7 @@ fn wireless_device() -> Option<String> {
 }
 
 fn run_connect(mut cmd: Command) -> Result<()> {
-    let output = cmd.output()?;
+    let output = cmd.stdin(Stdio::null()).output()?;
     if output.status.success() {
         return Ok(());
     }

@@ -7,8 +7,13 @@
 use color_eyre::eyre::{Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Output, Stdio};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
+use std::time::Duration;
+
+/// A command that produces no output for this long is assumed to be stuck and
+/// is killed, so the TUI never freezes waiting on a step that went quiet.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// One command to run.
 #[derive(Debug, Clone)]
@@ -70,11 +75,14 @@ pub enum Stream {
 }
 
 /// Runs `cmd` to completion, invoking `sink` for every output line, and returns
-/// the exit code (`-1` when it was killed by a signal).
+/// the exit code (`-1` when it was killed by a signal, `-2` when it was killed
+/// because it went silent). No command ever inherits the installer's stdin, so
+/// nothing can stop to ask for input and hang the TUI.
 pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
     let mut command = Command::new(&cmd.program);
     command
         .args(&cmd.args)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -101,17 +109,41 @@ pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
     }
     drop(tx);
 
-    // Forward every line as it arrives.
-    for (is_stderr, line) in rx {
-        if is_stderr {
-            sink(Stream::Stderr(line));
-        } else {
-            sink(Stream::Stdout(line));
+    // Forward every line as it arrives, aborting if the command goes silent.
+    let mut timed_out = false;
+    loop {
+        match rx.recv_timeout(IDLE_TIMEOUT) {
+            Ok((is_stderr, line)) => {
+                if is_stderr {
+                    sink(Stream::Stderr(line));
+                } else {
+                    sink(Stream::Stdout(line));
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                timed_out = true;
+                break;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
         }
+    }
+
+    if timed_out {
+        let _ = child.kill();
+        sink(Stream::Stderr(format!(
+            "{} no produjo salida en {} s; se cancela el comando",
+            cmd.program,
+            IDLE_TIMEOUT.as_secs()
+        )));
     }
 
     for reader in readers {
         let _ = reader.join();
+    }
+
+    if timed_out {
+        let _ = child.wait();
+        return -2;
     }
 
     match child.wait() {
@@ -135,6 +167,7 @@ fn read_lines<R: Read>(reader: R, is_stderr: bool, tx: &mpsc::Sender<(bool, Stri
 pub fn capture(cmd: &Cmd) -> Result<Output> {
     Command::new(&cmd.program)
         .args(&cmd.args)
+        .stdin(Stdio::null())
         .output()
         .with_context(|| format!("no se pudo ejecutar {}", cmd.program))
 }

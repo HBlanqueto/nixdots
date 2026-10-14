@@ -7,7 +7,7 @@
 use color_eyre::eyre::{eyre, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// Mirror of `settings.nix`. `hashedPasswordFile` is intentionally absent: it
 /// is always derived from `username` when writing, and ignored when reading.
@@ -69,6 +69,7 @@ impl Settings {
             .arg("--json")
             .arg("-f")
             .arg(&file)
+            .stdin(Stdio::null())
             .output()
             .wrap_err("no se pudo ejecutar `nix eval`")?;
         if !output.status.success() {

@@ -88,6 +88,13 @@
 
                     nativeBuildInputs = [ pkgs.makeWrapper ];
 
+                    # Data tables embedded at compile time with `include_str!`
+                    # so the installer never shells out to `locale -a`,
+                    # `localectl` or `timedatectl` for its choices.
+                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-installer \
                             --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
@@ -143,6 +150,13 @@
                             gcc
                             pkg-config
                         ];
+
+                        # The installer embeds these tables at compile time with
+                        # `include_str!(env!(...))`, so a bare `cargo build` in
+                        # the dev shell needs the same variables as the package.
+                        NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                        NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                        NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];

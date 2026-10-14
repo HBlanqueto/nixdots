@@ -136,8 +136,8 @@ pub enum Action {
     KeepInstalling,
     /// Installing Ctrl+C dialog: cancel and exit.
     CancelInstall,
-    /// Installing failure: open the full, scrollable log.
-    ViewLog,
+    /// Installing failure: run the install again from the start.
+    RetryInstall,
     Connect,
     Rescan,
     NetMenu,
@@ -558,7 +558,7 @@ impl App {
 
         let kb_active = keyboard::detect_active();
         let (kb_layout, kb_variant) = keyboard::by_id(&kb_active)
-            .map(|l| (l.xkb.to_string(), l.variant.to_string()))
+            .map(|l| (l.xkb, l.variant))
             .unwrap_or_else(|| ("us".to_string(), String::new()));
         settings.keyboard_layout = kb_layout.clone();
         settings.keyboard_variant = kb_variant.clone();
@@ -746,16 +746,16 @@ impl App {
     }
 
     fn keyboard_items(&self) -> Vec<PickItem> {
-        keyboard::LAYOUTS
+        keyboard::all()
             .iter()
             .map(|l| {
-                let name = if l.id == self.keyboard_active {
+                let name = if l.code == self.keyboard_active {
                     format!("{} · actual", l.name)
                 } else {
-                    l.name.to_string()
+                    l.name.clone()
                 };
                 PickItem {
-                    code: l.id.to_string(),
+                    code: l.code.clone(),
                     name,
                     extra: String::new(),
                 }
@@ -763,14 +763,18 @@ impl App {
             .collect()
     }
 
+    fn keyboard_index(&self) -> Option<usize> {
+        keyboard::all()
+            .iter()
+            .position(|l| l.code == self.keyboard_active)
+    }
+
     fn ensure_keyboards(&mut self) {
         if self.keyboards.is_some() {
             return;
         }
-        let items = self.keyboard_items();
-        let active = self.keyboard_active.clone();
-        let mut picker = Picker::new(items);
-        picker.selected = keyboard::LAYOUTS.iter().position(|l| l.id == active);
+        let mut picker = Picker::new(self.keyboard_items());
+        picker.selected = self.keyboard_index();
         self.keyboards = Some(picker);
     }
 
@@ -778,10 +782,8 @@ impl App {
         if self.key_modal.is_some() {
             return;
         }
-        let items = self.keyboard_items();
-        let active = self.keyboard_active.clone();
-        let mut picker = Picker::new(items);
-        picker.selected = keyboard::LAYOUTS.iter().position(|l| l.id == active);
+        let mut picker = Picker::new(self.keyboard_items());
+        picker.selected = self.keyboard_index();
         self.key_modal = Some(picker);
     }
 
@@ -796,13 +798,13 @@ impl App {
             return;
         };
         self.keyboard_active = id.to_string();
-        self.keyboard_layout = layout.xkb.to_string();
-        self.keyboard_variant = layout.variant.to_string();
-        self.settings.keyboard_layout = layout.xkb.to_string();
-        self.settings.keyboard_variant = layout.variant.to_string();
+        self.keyboard_layout = layout.xkb.clone();
+        self.keyboard_variant = layout.variant.clone();
+        self.settings.keyboard_layout = layout.xkb.clone();
+        self.settings.keyboard_variant = layout.variant.clone();
         if theme::console::is_linux_console() {
-            if !keyboard::apply_console(layout) {
-                self.status = Some(format!("no se pudo aplicar el teclado {}", layout.keymap));
+            if !keyboard::apply_console(&layout) {
+                self.status = Some(format!("no se pudo aplicar el teclado {}", layout.xkb));
             }
         } else if announce {
             self.status = Some("la distribución la controla tu escritorio".into());
@@ -1242,7 +1244,7 @@ impl App {
                     ]
                 } else if self.install.error.is_some() {
                     vec![
-                        (Btn::secondary("Ver log completo"), Action::ViewLog),
+                        (Btn::primary("Reintentar"), Action::RetryInstall),
                         (Btn::secondary("Salir"), Action::Finish),
                     ]
                 } else {
@@ -1493,10 +1495,7 @@ impl App {
                 self.install_cancel = false;
                 self.should_quit = true;
             }
-            Action::ViewLog => {
-                self.install_log_view = true;
-                self.install_log_scroll = 0;
-            }
+            Action::RetryInstall => self.restart_install(),
             Action::Connect => crate::screens::network::connect(self),
             Action::Rescan => crate::screens::network::rescan(self),
             Action::NetMenu => crate::screens::network::to_menu(self),
@@ -1572,11 +1571,7 @@ impl App {
         match self.screen.next() {
             Some(Screen::Installing) => {
                 self.screen = Screen::Installing;
-                self.focus_buttons = false;
-                self.install_cancel = false;
-                self.install_show_log = false;
-                self.install_log_view = false;
-                self.install_log_scroll = 0;
+                self.reset_install_view();
                 self.start_install();
             }
             Some(next) => {
@@ -1596,6 +1591,23 @@ impl App {
             }
             None => {}
         }
+    }
+
+    /// Clears the transient install-screen state before (re)starting a run.
+    fn reset_install_view(&mut self) {
+        self.focus_buttons = false;
+        self.button_focus = 0;
+        self.install_cancel = false;
+        self.install_show_log = false;
+        self.install_log_view = false;
+        self.install_log_scroll = 0;
+    }
+
+    /// Runs the installation again from the start, used by the error screen's
+    /// "Reintentar" button.
+    pub fn restart_install(&mut self) {
+        self.reset_install_view();
+        self.start_install();
     }
 
     pub fn refresh_network(&mut self) {
@@ -1942,11 +1954,11 @@ impl App {
         }
     }
 
-    /// The `❄ nixdots instalador` header line, shared by every screen.
+    /// The `* nixdots instalador` header line, shared by every screen.
     pub fn header_line(&self) -> Line<'static> {
         let mut spans = vec![
             Span::styled(
-                "❄ nixdots",
+                "* nixdots",
                 Style::default().fg(self.palette.primary).add_modifier(Modifier::BOLD),
             ),
             Span::styled("  instalador", Style::default().fg(self.palette.muted)),

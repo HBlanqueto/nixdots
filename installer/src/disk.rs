@@ -88,6 +88,7 @@ builtins.mapAttrs (name: part:
         .arg("deviceArg")
         .arg(device)
         .current_dir(repo)
+        .stdin(std::process::Stdio::null())
         .output()
         .wrap_err("no se pudo ejecutar nix-instantiate")?;
 

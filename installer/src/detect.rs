@@ -3,12 +3,16 @@
 use serde::Deserialize;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 /// Runs a command and returns its trimmed stdout, or `None` if it failed.
 pub fn run_trim(program: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(program).args(args).output().ok()?;
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }

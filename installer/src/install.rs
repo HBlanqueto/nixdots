@@ -215,9 +215,12 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
         key.flush()?;
     }
 
+    // The user already confirmed the wipe on the Disk screen, and stdin is
+    // closed, so disko must not stop to ask for confirmation.
     let cmd = Cmd::new("disko")
         .arg("--mode")
         .arg("destroy,format,mount")
+        .arg("--yes-wipe-all-disks")
         .arg("disko.nix")
         .arg("--argstr")
         .arg("device")
@@ -226,7 +229,7 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("passwordFile")
         .arg_path(&key_path)
         .with_display(format!(
-            "disko --mode destroy,format,mount disko.nix --argstr device {} --argstr passwordFile {}",
+            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr passwordFile {}",
             plan.device,
             key_path.display()
         ));
@@ -581,6 +584,7 @@ fn chown(path: &Path, owner: &str) -> std::io::Result<()> {
         .arg("-R")
         .arg(owner)
         .arg(path)
+        .stdin(std::process::Stdio::null())
         .status()?;
     if status.success() {
         Ok(())

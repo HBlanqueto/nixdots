@@ -1,10 +1,13 @@
 use crate::app::{Action, App, PickItem, PickerKind};
-use crate::detect;
 use crate::widgets::Btn;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
-use std::path::Path;
+use std::process::{Command, Stdio};
+
+/// `share/zoneinfo/zone1970.tab` from tzdata, embedded at compile time by the
+/// package (`NIXDOTS_ZONE1970_TAB`).
+const ZONE1970_TAB: &str = include_str!(env!("NIXDOTS_ZONE1970_TAB"));
 
 pub fn height(_app: &App) -> u16 {
     super::picker::height()
@@ -48,30 +51,12 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 }
 
 pub fn commands(app: &App) -> Vec<String> {
-    vec![
-        "timedatectl list-timezones".into(),
-        format!("settings.nix: timeZone = \"{}\";", app.settings.time_zone),
-    ]
+    vec![format!("settings.nix: timeZone = \"{}\";", app.settings.time_zone)]
 }
 
-/// Builds the timezone list with UTC offsets, from `timedatectl` or
-/// `/etc/zoneinfo`.
+/// Builds the timezone list with UTC offsets, from the embedded tzdata table.
 pub fn load_items() -> Vec<PickItem> {
-    let zones = match detect::run_trim("timedatectl", &["list-timezones"]) {
-        Some(list) => list
-            .lines()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(String::from)
-            .collect::<Vec<_>>(),
-        None => scan_zoneinfo(),
-    };
-    let zones = if zones.is_empty() {
-        vec!["UTC".to_string(), "America/Merida".to_string(), "Europe/Madrid".to_string()]
-    } else {
-        zones
-    };
-
+    let zones = parse_zones(ZONE1970_TAB);
     let offsets = zone_offsets(&zones);
     zones
         .into_iter()
@@ -91,16 +76,37 @@ pub fn load_items() -> Vec<PickItem> {
         .collect()
 }
 
+/// Parses the tab-separated `zone1970.tab` (country, coordinates, TZ, notes),
+/// always starting with UTC.
+fn parse_zones(text: &str) -> Vec<String> {
+    let mut zones = vec!["UTC".to_string()];
+    for line in text.lines() {
+        if line.starts_with('#') {
+            continue;
+        }
+        let Some(zone) = line.split('\t').nth(2) else {
+            continue;
+        };
+        let zone = zone.trim();
+        if !zone.is_empty() {
+            zones.push(zone.to_string());
+        }
+    }
+    zones
+}
+
 fn zone_offsets(zones: &[String]) -> Vec<(String, String)> {
-    let list = zones
+    let script = zones
         .iter()
-        .map(|z| format!("'{}'", z.replace('\'', "'\\''")))
+        .map(|zone| format!("printf '%s\\t%s\\n' {z} \"$(TZ={z} date +%:z)\"", z = shell_quote(zone)))
         .collect::<Vec<_>>()
-        .join(" ");
-    let script = format!(
-        "for z in {list}; do printf '%s\\t%s\\n' \"$z\" \"$(TZ=$z date +%:z 2>/dev/null)\"; done"
-    );
-    let Ok(output) = std::process::Command::new("sh").arg("-c").arg(&script).output() else {
+        .join("; ");
+    let Ok(output) = Command::new("sh")
+        .arg("-c")
+        .arg(&script)
+        .stdin(Stdio::null())
+        .output()
+    else {
         return Vec::new();
     };
     String::from_utf8_lossy(&output.stdout)
@@ -112,53 +118,6 @@ fn zone_offsets(zones: &[String]) -> Vec<(String, String)> {
         .collect()
 }
 
-fn scan_zoneinfo() -> Vec<String> {
-    for base in ["/etc/zoneinfo", "/usr/share/zoneinfo"] {
-        let mut zones = Vec::new();
-        walk(Path::new(base), Path::new(base), &mut zones);
-        if !zones.is_empty() {
-            zones.sort();
-            zones.dedup();
-            return zones;
-        }
-    }
-    Vec::new()
-}
-
-fn walk(base: &Path, dir: &Path, out: &mut Vec<String>) {
-    const SKIP_DIRS: [&str; 2] = ["posix", "right"];
-    const SKIP_FILES: [&str; 12] = [
-        "posix",
-        "right",
-        "zone.tab",
-        "zone1970.tab",
-        "iso3166.tab",
-        "leapseconds",
-        "leap-seconds.list",
-        "localtime",
-        "posixrules",
-        "Factory",
-        "+VERSION",
-        "tzdata.zi",
-    ];
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
-        if path.is_dir() {
-            if SKIP_DIRS.contains(&name.as_str()) {
-                continue;
-            }
-            walk(base, &path, out);
-        } else if !SKIP_FILES.contains(&name.as_str()) && name != "SECURITY" {
-            if let Ok(rel) = path.strip_prefix(base) {
-                let rel = rel.to_string_lossy().to_string();
-                if !rel.is_empty() {
-                    out.push(rel);
-                }
-            }
-        }
-    }
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }

@@ -8,7 +8,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+/// Plain ASCII so the spinner renders on the ISO's VGA console (TERM=linux).
+const SPINNER: [&str; 4] = ["|", "/", "-", "\\"];
 /// Cells of the big progress bar.
 const BAR: usize = 60;
 
@@ -130,7 +131,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         y += 1;
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
-                "ctrl+c cancelar · v log: on/off",
+                "ctrl+c cancelar · v log: on/off · l pantalla completa",
                 Style::default().fg(app.palette.muted),
             )))
             .alignment(Alignment::Center),
@@ -139,7 +140,8 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// The big `████` bar plus the percentage, from the real build progress.
+/// The big ASCII bar (`#` done, `-` pending) plus the percentage, from the real
+/// build progress. Drawn from a console-safe font, so it shows even at 0 %.
 fn bar_line(app: &App) -> Line<'static> {
     let total = app.install.total;
     let built = app.install.built.min(if total == 0 { 0 } else { total });
@@ -155,14 +157,14 @@ fn bar_line(app: &App) -> Line<'static> {
         app.palette.primary
     };
     Line::from(vec![
-        Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
+        Span::styled("#".repeat(filled), Style::default().fg(bar_color)),
         Span::styled(
-            "█".repeat(BAR - filled),
-            Style::default().fg(app.palette.row_bg),
+            "-".repeat(BAR - filled),
+            Style::default().fg(app.palette.muted),
         ),
         Span::styled(
             format!("  {}%", (frac * 100.0).round() as u64),
-            Style::default().fg(app.palette.white).add_modifier(Modifier::BOLD),
+            Style::default().fg(app.palette.white),
         ),
     ])
 }
@@ -190,7 +192,7 @@ fn status_line(app: &App) -> Line<'static> {
     Line::from(spans)
 }
 
-/// `✓ disco     ✓ ajustes     ● sistema     ○ arranque`.
+/// `[x] disco     [>] sistema     [ ] arranque` (ASCII, console-safe).
 fn steps_line(app: &App) -> Line<'static> {
     let mut spans: Vec<Span> = Vec::new();
     for (i, step) in Step::ALL.iter().enumerate() {
@@ -198,13 +200,13 @@ fn steps_line(app: &App) -> Line<'static> {
             spans.push(Span::raw("     "));
         }
         let (mark, mark_color, name_color) = if app.install.failed == Some(*step) {
-            ("✗", app.palette.error, app.palette.error)
+            ("[!]", app.palette.error, app.palette.error)
         } else if app.install.done.contains(step) {
-            ("✓", app.palette.success, app.palette.text)
+            ("[x]", app.palette.success, app.palette.text)
         } else if app.install.current == Some(*step) {
-            ("●", app.palette.primary, app.palette.highlight)
+            ("[>]", app.palette.primary, app.palette.highlight)
         } else {
-            ("○", app.palette.muted, app.palette.muted)
+            ("[ ]", app.palette.muted, app.palette.muted)
         };
         spans.push(Span::styled(format!("{mark} "), Style::default().fg(mark_color)));
         spans.push(Span::styled(step.label(), Style::default().fg(name_color)));
@@ -231,6 +233,12 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
     match key.code {
         KeyCode::Char('v') => {
             app.install_show_log = !app.install_show_log;
+            true
+        }
+        // Full, scrollable log overlay.
+        KeyCode::Char('l') => {
+            app.install_log_view = true;
+            app.install_log_scroll = 0;
             true
         }
         // Esc is a second way into the cancel confirmation.
