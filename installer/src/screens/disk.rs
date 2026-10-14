@@ -418,7 +418,9 @@ pub fn commands(app: &App) -> Vec<String> {
         }
     )];
     if app.disks.encrypt {
-        commands.push("cryptsetup luksFormat --type luks2 --key-file - (mapper cryptroot)".into());
+        commands.push(format!(
+            "cryptsetup luksAddKey <partición crypto_LUKS de {device}> <clave recuperación>"
+        ));
     }
     if app.disks.windows {
         commands.push("os-prober   (para la entrada de Windows)".into());

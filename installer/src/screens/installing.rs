@@ -99,16 +99,20 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             .border_style(Style::default().fg(app.palette.muted));
         let inner = block.inner(rect);
         f.render_widget(block, rect);
-        let lines: Vec<Line> = app
-            .install
-            .visible_log(log_h as usize)
-            .into_iter()
-            .map(|l| {
-                let text: String = l.chars().take(inner.width as usize).collect();
-                Line::from(Span::styled(text, Style::default().fg(app.palette.muted)))
-            })
-            .collect();
-        f.render_widget(Paragraph::new(lines), inner);
+        let width = inner.width.max(1) as usize;
+        // Wrap each logical line to the panel width, then keep only the last
+        // `inner.height` physical rows so the most recent output stays visible.
+        let mut rows: Vec<Line> = Vec::new();
+        for l in app.install.visible_log(200) {
+            for chunk in wrap_line(l, width) {
+                rows.push(Line::from(Span::styled(
+                    chunk,
+                    Style::default().fg(app.palette.muted),
+                )));
+            }
+        }
+        let rows = rows.split_off(rows.len().saturating_sub(inner.height as usize));
+        f.render_widget(Paragraph::new(rows), inner);
         y += log_h;
     }
 
@@ -256,6 +260,38 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, crate::app::Action)> {
     Vec::new()
+}
+
+/// Splits `s` into rows of at most `width` chars. An empty input yields a single
+/// empty row so blank log lines still advance the view.
+fn wrap_line(s: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![s.to_string()];
+    }
+    if s.is_empty() {
+        return vec![String::new()];
+    }
+    s.chars()
+        .collect::<Vec<char>>()
+        .chunks(width)
+        .map(|c| c.iter().collect())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wrap_line;
+
+    #[test]
+    fn wraps_at_width() {
+        assert_eq!(wrap_line("abcdef", 3), vec!["abc", "def"]);
+    }
+
+    #[test]
+    fn keeps_short_lines_and_empty() {
+        assert_eq!(wrap_line("hi", 80), vec!["hi"]);
+        assert_eq!(wrap_line("", 80), vec![""]);
+    }
 }
 
 pub fn commands(_app: &App) -> Vec<String> {

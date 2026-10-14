@@ -331,14 +331,17 @@ pub fn shortcuts(_app: &App) -> Vec<String> {
     vec!["espacio casilla".into(), "↑↓ mover".into()]
 }
 
-pub fn commands(_app: &App) -> Vec<String> {
+pub fn commands(app: &App) -> Vec<String> {
+    let device = app
+        .selected_disk()
+        .map(|d| d.path())
+        .unwrap_or_else(|| "/dev/xxx".into());
     vec![
-        "cryptsetup luksFormat --type luks2 --batch-mode --key-file - /dev/disk/by-partlabel/System HD"
-            .into(),
-        "cryptsetup luksAddKey --key-file <frase> /dev/disk/by-partlabel/System HD -  (clave de recuperación por stdin)"
-            .into(),
-        "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 /dev/disk/by-partlabel/System HD"
-            .into(),
+        "disko --argstr encrypt true  (luksFormat con la frase por stdin)".into(),
+        format!(
+            "cryptsetup luksAddKey --key-file /run/... <partición crypto_LUKS de {device}> /run/..."
+        ),
+        format!("systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <partición LUKS de {device}>"),
     ]
 }
 

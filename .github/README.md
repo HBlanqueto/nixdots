@@ -89,7 +89,7 @@ and `utm` (aarch64-linux). Replace `#thinkpad` with `#utm` when installing the
 VM.
 
 ```shell
-nixos-install --root /mnt --flake ~/nixdots#thinkpad --impure --show-trace
+nixos-install --root /mnt --flake ~/nixdots#thinkpad --show-trace
 ```
 
 ### Disk encryption (LUKS + TPM)

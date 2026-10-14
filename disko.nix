@@ -11,17 +11,18 @@
 # (label nixos); otherwise btrfs sits directly on the partition. Either way the
 # filesystem carries the subvolumes @rootfs (/), @nix, @home, @persist and @log
 # (/var/log). A read-only @rootfs-blank template is created right after
-# formatting; boot/snapshot.sh restores @rootfs from it on every boot, which is
-# what makes the root filesystem ephemeral.
+# formatting; modules/hardware/snapshot.sh restores @rootfs from it on every
+# boot, which is what makes the root filesystem ephemeral.
 #
-# The LUKS passphrase is supplied out-of-band: the installer passes a root-only
-# file via `--argstr passwordFile <path>`; a manual run without it (null) makes
-# disko prompt interactively. The unencrypted ESP keeps lanzaboote / Secure Boot
-# (which read the kernel and initrd before unlocking) working.
+# The LUKS passphrase is supplied out-of-band. The installer passes no
+# `passwordFile`, so disko prompts for it and reads it from stdin (twice), which
+# keeps it out of every file; a manual run without it (null) prompts
+# interactively too. The unencrypted ESP keeps lanzaboote / Secure Boot (which
+# read the kernel and initrd before unlocking) working.
 {
     device ? "/dev/vda",
-    # Path to a file containing the LUKS passphrase (absolute). `null` lets
-    # disko ask for it interactively.
+    # Optional path to a file holding the LUKS passphrase (absolute). `null`
+    # (the default) makes disko ask for it on stdin.
     passwordFile ? null,
     # Passed by the installer as `--argstr encrypt true` when the user checked
     # "Cifrar System HD" on the Disco screen.
@@ -101,6 +102,11 @@ in
 
                     "System HD" = {
                         size = "100%";
+                        # Visible GPT partition name only. It is never used as a
+                        # device path (udev escapes the space as `System\x20HD`);
+                        # the installer finds the partition by its filesystem
+                        # type (crypto_LUKS) and its UUID instead.
+                        label = "System HD";
 
                         content = if doEncrypt then {
                             type = "luks";

@@ -256,6 +256,8 @@ struct Node {
     #[serde(default)]
     fstype: Option<String>,
     #[serde(default)]
+    uuid: Option<String>,
+    #[serde(default)]
     children: Vec<Node>,
 }
 
@@ -306,6 +308,40 @@ fn holds_live_medium(node: &Node) -> bool {
         return true;
     }
     node.children.iter().any(holds_live_medium)
+}
+
+/// The LUKS2 partition disko created inside the target disk, with its UUID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LuksPartition {
+    /// Real device node, e.g. `/dev/vda2` (never a label: udev escapes spaces
+    /// and disko defaults the GPT label to `disk-<disk>-<name>`).
+    pub path: String,
+    /// LUKS UUID, for the installed system's `boot.initrd.luks.devices`.
+    pub uuid: String,
+}
+
+/// Finds the `crypto_LUKS` partition of `disk` and returns its real device path
+/// and UUID. `disk` is the install target as picked on the Disco screen.
+pub fn luks_partition(disk: &str) -> Option<LuksPartition> {
+    let json = run_trim("lsblk", &["-J", "-o", "NAME,TYPE,FSTYPE,UUID", disk])?;
+    let mut part = parse_luks(&json)?;
+    if part.uuid.is_empty() {
+        part.uuid = run_trim("blkid", &["-s", "UUID", "-o", "value", &part.path])?;
+    }
+    Some(part)
+}
+
+fn parse_luks(json: &str) -> Option<LuksPartition> {
+    let tree = serde_json::from_str::<Lsblk>(json).ok()?;
+    let node = tree.blockdevices.into_iter().next()?;
+    let part = node
+        .children
+        .into_iter()
+        .find(|c| c.fstype.as_deref() == Some("crypto_LUKS"))?;
+    Some(LuksPartition {
+        path: format!("/dev/{}", part.name),
+        uuid: part.uuid.unwrap_or_default(),
+    })
 }
 
 /// True when a TPM 2.0 chip is present (`/sys/class/tpm/tpm0`, major version 2).
@@ -458,5 +494,34 @@ mod tests {
         assert!(!live.available);
         let target = disks.iter().find(|d| d.name == "nvme0n1").unwrap();
         assert!(target.available);
+    }
+
+    #[test]
+    fn finds_crypto_luks_partition_by_type() {
+        let json = r#"{
+            "blockdevices": [
+                { "name": "vda", "type": "disk", "fstype": null, "uuid": null,
+                  "children": [
+                    { "name": "vda1", "type": "part", "fstype": "vfat", "uuid": "B7C1-02A5",
+                      "children": [] },
+                    { "name": "vda2", "type": "part", "fstype": "crypto_LUKS",
+                      "uuid": "1234abcd-0000-0000-0000-000000000000", "children": [] }
+                  ] }
+            ]
+        }"#;
+        let part = parse_luks(json).unwrap();
+        assert_eq!(part.path, "/dev/vda2");
+        assert_eq!(part.uuid, "1234abcd-0000-0000-0000-000000000000");
+    }
+
+    #[test]
+    fn no_luks_partition_is_none() {
+        let json = r#"{
+            "blockdevices": [
+                { "name": "vda", "type": "disk", "children": [
+                    { "name": "vda1", "type": "part", "fstype": "vfat", "children": [] } ] }
+            ]
+        }"#;
+        assert!(parse_luks(json).is_none());
     }
 }

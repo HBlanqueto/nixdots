@@ -16,13 +16,15 @@ in
     options.nixdots.tpmUnlock = {
         enable = lib.mkOption {
             type = lib.types.bool;
-            # Detected from the generated hardware-configuration.nix (a LUKS root
-            # is mounted at /dev/mapper/<name>) rather than from
-            # boot.initrd.luks.devices, which this module itself defines below
-            # and would therefore cause infinite recursion.
-            default = (config.fileSystems."/".device or "") == "/dev/mapper/${cfg.luksName}";
+            # Detected from the generated hardware-configuration.nix: when the
+            # installer pins `boot.initrd.luks.devices.<name>.device` to the LUKS
+            # UUID, the encrypted root exists and can be auto-unlocked. A host
+            # without encryption (and the UTM VM) has no such entry, so it stays
+            # unaffected. This module reads that attribute but never defines it,
+            # so there is no recursion.
+            default = config.boot.initrd.luks.devices ? cfg.luksName;
             defaultText = lib.literalExpression ''
-                config.fileSystems."/".device == "/dev/mapper/${cfg.luksName}"
+                config.boot.initrd.luks.devices ? "${cfg.luksName}"
             '';
             description = ''
                 Unlock the LUKS2 root with the TPM2 chip using Lanzaboote's

@@ -1,18 +1,6 @@
 { pkgs, lib, username, ... }:
 
 
-let
-    # 1.18.30 is pinned via a raw store path because the nixpkgs 1.18.3x
-    # builds hit an upstream bun bug. That path is an x86_64 closure, so on
-    # aarch64 we fall back to the nixpkgs `opencode` package instead.
-    opencode-good =
-        if pkgs.stdenv.hostPlatform.isx86_64 then
-            builtins.storePath
-                "/nix/store/kcwkilp2z25gbhiwmrqwjxs3w593k105-opencode-1.18.30"
-        else
-            pkgs.opencode;
-in
-
 {
     services.ollama = {
         enable = true;
@@ -35,35 +23,47 @@ in
     };
 
     home-manager.users.${username} = {
-        home.packages = [ opencode-good ];
+        # `uv` provides `uv tool install graphifyy`; installed tools land in
+        # ~/.local/bin, which is prepended to PATH below.
+        home = {
+            packages = [ pkgs.uv ];
+            sessionPath = [ "$HOME/.local/bin" ];
+        };
 
-        xdg.configFile."opencode/opencode.jsonc".text = builtins.toJSON {
-            "$schema" = "https://opencode.ai/config.json";
-            provider.ollama = {
-                npm = "@ai-sdk/openai-compatible";
-                name = "Ollama (local)";
-                options.baseURL = "http://127.0.0.1:11434/v1";
-                models."qwen3:8b" = {
-                    name = "Qwen3 8B";
-                    limit = {
-                        context = 16384;
-                        output = 4096;
+        programs.opencode = {
+            enable = true;
+            package = pkgs.opencode;
+
+            settings = {
+                provider.ollama = {
+                    npm = "@ai-sdk/openai-compatible";
+                    name = "Ollama (local)";
+                    options.baseURL = "http://127.0.0.1:11434/v1";
+                    models."qwen3:8b" = {
+                        name = "Qwen3 8B";
+                        limit = {
+                            context = 16384;
+                            output = 4096;
+                        };
+                    };
+                    models."qwen3:4b" = {
+                        name = "Qwen3 4B";
+                        limit = {
+                            context = 16384;
+                            output = 4096;
+                        };
                     };
                 };
-                models."qwen3:4b" = {
-                    name = "Qwen3 4B";
-                    limit = {
-                        context = 16384;
-                        output = 4096;
-                    };
-                };
-            };
-            plugin = [  ];
 
-            mcp = {
-                "mcp-nixos" = {
-                    type = "local";
-                    command = [ "${pkgs.mcp-nixos}/bin/mcp-nixos" ];
+                # npm plugins are fetched by opencode at startup, so there is
+                # nothing to package here.
+                plugin = [ "@dietrichgebert/ponytail" ];
+
+                mcp = {
+                    "mcp-nixos" = {
+                        type = "local";
+                        command = [ "${pkgs.mcp-nixos}/bin/mcp-nixos" ];
+                    };
                 };
             };
         };

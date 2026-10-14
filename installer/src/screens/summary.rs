@@ -116,7 +116,7 @@ pub fn commands(app: &App) -> Vec<String> {
     let mut commands = vec![
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
         format!(
-            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
+            "nix build /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
             app.settings.username, app.settings.host_name
         ),
         "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
