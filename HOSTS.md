@@ -29,7 +29,7 @@ lib/mkHost.nix            # helper: mkHost { hostName, system, modules }
 hosts/
   thinkpad/{host.nix, default.nix, hardware-configuration.nix}
   utm/{host.nix, default.nix, hardware-configuration.nix}   # placeholder
-installer/                # instalador TUI (Rust) + utilidad de disco (ver installer/README.md)
+installer/                # instalador TUI (Rust) (ver installer/README.md)
 disko.nix                 # layout de disco que aplica el instalador
 test.sh                   # lint + tests Rust + comprobaciones de la TUI por pty
 modules/
@@ -54,7 +54,6 @@ El instalador de terminal está en `installer/`:
 
 ```shell
 nix run .#installer                 # simulación (sin disco ni root)
-nix run .#disk                      # utilidad de disco
 nix run .#installer -- --install    # instalación real desde la ISO
 ```
 

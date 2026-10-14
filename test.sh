@@ -2,9 +2,9 @@
 #
 # test.sh — checks for nixdots-installer.
 #
-# Runs the Rust lints and tests, builds the flake outputs, then drives both
-# TUIs through a pty in simulation mode and asserts the expected screens and
-# widgets render. Nothing touches a disk and no root is needed.
+# Runs the Rust lints and tests, builds the installer, then drives its TUI
+# through a pty in simulation mode and asserts the expected screens and widgets
+# render. Nothing touches a disk and no root is needed.
 #
 # Usage:
 #   ./test.sh            # full run
@@ -53,13 +53,13 @@ INSTALLER="$REPO/result/bin/nixdots-installer"
 [ -x "$INSTALLER" ] || fail "no se encontró $INSTALLER (¿falta --no-build?)"
 
 # ---------------------------------------------------------------------------
-# pty driver: runs a TUI, sends keys, prints the raw terminal output to stdout.
+# pty driver: runs the installer, sends keys, prints the raw terminal output.
 driver() {
-    python3 - "$@" <<'PY'
+    python3 - "$1" "$2" <<'PY'
 import os, pty, sys, time, fcntl, termios, struct, select
 
-mode, binpath, repo = sys.argv[1], sys.argv[2], sys.argv[3]
-args = [binpath] + (["--repo", repo] if mode == "installer" else [])
+binpath, repo = sys.argv[1], sys.argv[2]
+args = [binpath, "--repo", repo]
 
 pid, fd = pty.fork()
 if pid == 0:
@@ -100,53 +100,49 @@ def wait_for(marker, timeout=15):
             return True
     return False
 
-if mode == "installer":
-    wait_for("Bienvenido")
-    send(b"\r")                       # -> Red (Lista)
-    wait_for("Red")
-    send(b"\r")                       # elegir red WPA -> Contrasena
-    wait_for("contraseña")
-    for c in b"contrasena-larga":
-        send(bytes([c]), 0.05)
-    send(b"\r")                       # Contrasena -> Conectando
-    wait_for("alcanzable", 12)        # -> Conectado
-    send(b"\r")                       # Conectado -> Continuar -> Licencia
-    wait_for("Licencia")
-    send(b" ")                        # acepto
-    send(b"\r")                       # Licencia -> Equipo
-    wait_for("Equipo")
-    send(b"\r")                       # Equipo -> Zona horaria
-    wait_for("Zona horaria")
-    send(b"\r")                       # Zona horaria -> Idioma
-    wait_for("Idioma")
-    send(b"\r")                       # Idioma -> Usuario
-    wait_for("Usuario")
-    send(b"\r")                       # Usuario -> Contraseña
-    wait_for("Contraseña")
-    send(b"test1234")
-    send(b"\x1b[B")
-    send(b"test1234")
-    send(b"\r")                       # Contraseña -> Git
-    wait_for("Git")
-    send(b"\r")                       # Git (omitir) -> Disco
-    wait_for("Disco")
-    send(b" ")                        # confirmar borrado
-    send(b"\r")                       # Disco -> Resumen
-    wait_for("Resumen")
-    send(b"\r")                       # Resumen -> Instalando
-    pump(6.0)                         # instalando (dry run)
-    send(b"\r", 1.0)                  # Listo -> reiniciar (dry run sale)
-else:
-    pump(1.0)
-    send(b"v", 0.4)       # comandos
-    send(b"\t")           # foco barra lateral
-    send(b"\x1b[B")
-    send(b"\x1b[B")
-    send(b"\t")           # foco barra de herramientas
-    send(b"\x1b[D")       # -> Borrar
-    send(b"\r")           # abrir hoja Borrar
-    send(b"\x1b")         # cerrar
-    send(b"q")
+# Inicio (splash) -> Bienvenido
+wait_for("Continuar")
+send(b"\r")
+wait_for("Bienvenido")
+send(b"\r")                       # -> Licencia
+# Licencia: tab al checkbox, espacio acepta, tab a los botones, enter Aceptar
+wait_for("Licencia")
+send(b"\t")
+send(b" ")
+send(b"\t")
+send(b"\r")                       # Aceptar -> Red
+# Red: elegir una red WPA, escribir la contraseña y conectar
+wait_for("Red")
+send(b"\r")
+wait_for("contraseña")
+for c in b"contrasena-larga":
+    send(bytes([c]), 0.05)
+send(b"\r")                       # Conectando
+wait_for("alcanzable", 12)        # Conectado
+send(b"\r")                       # Continuar -> Idioma
+wait_for("Idioma")
+send(b"\r")                       # Idioma -> Zona horaria
+wait_for("Zona horaria")
+send(b"\r")                       # Zona horaria -> Equipo
+wait_for("Equipo")
+send(b"\r")                       # Equipo -> Usuario
+wait_for("Usuario")
+send(b"\r")                       # Usuario -> Contraseña
+wait_for("Contraseña")
+send(b"test1234")
+send(b"\x1b[B")
+send(b"test1234")
+send(b"\r")                       # Contraseña -> Git
+wait_for("Git")
+send(b"\r")                       # Git (omitir) -> Disco
+wait_for("Disco")
+send(b" ")                        # confirmar borrado
+send(b"\r")                       # Disco -> Resumen
+wait_for("Resumen")
+send(b"\r")                       # Resumen -> Instalando (dry run ~20 s)
+wait_for("Instalando")
+wait_for("Reiniciar", 40)         # Instalando -> Listo (auto)
+send(b"\r", 1.0)                  # Listo -> Reiniciar (dry run sale)
 
 pump(0.5)
 try:
@@ -160,11 +156,11 @@ PY
 # Capture with retries: crossterm only emits changed cells, so a title can
 # occasionally land between frames. Prints the raw capture on success.
 MISSING=""
-capture() { # mode binary
-    local mode="$1" bin="$2" out attempt missing
+capture() { # binary
+    local bin="$1" out attempt missing
     out="$(mktemp)"
     for attempt in 1 2 3; do
-        driver "$mode" "$bin" "$REPO" >"$out"
+        driver "$bin" "$REPO" >"$out"
         missing=""
         for want in "${EXPECT[@]}"; do
             grep -aq -- "$want" "$out" || { missing="$want"; break; }
@@ -179,28 +175,23 @@ capture() { # mode binary
     return 1
 }
 
-check() { # mode, then expected strings
-    local mode="$1"; shift
-    EXPECT=("$@")
-    local bin="$INSTALLER"
-    say "simulación: $mode"
-    if capture "$mode" "$bin"; then
-        ok "$mode: ${#EXPECT[@]} comprobaciones"
-    else
-        fail "$mode: no apareció «$MISSING»"
-    fi
-}
-
-check installer \
-    Bienvenido Red Licencia Equipo "Zona horaria" Idioma Usuario \
-    "Contraseña" Git Disco Resumen Instalando Listo \
+# ---------------------------------------------------------------------------
+say "simulación: recorrido completo"
+EXPECT=(
+    Bienvenido Licencia Red "Idioma" "Zona horaria" Equipo Usuario
+    "Contraseña" Git Disco Resumen Instalando Reiniciar
     "simulación" "no se puede deshacer" "efímero" "alcanzable"
-
+)
+if capture "$INSTALLER"; then
+    ok "installer: ${#EXPECT[@]} comprobaciones"
+else
+    fail "installer: no apareció «$MISSING»"
+fi
 
 # ---------------------------------------------------------------------------
 say "paleta en TERM=linux (OSC P / OSC R)"
 LINUX="$(mktemp)"
-PTY_TERM=linux driver installer "$INSTALLER" "$REPO" >"$LINUX"
+PTY_TERM=linux driver "$INSTALLER" "$REPO" >"$LINUX"
 grep -aqU $'\x1b]P4' "$LINUX" || fail "no se programó el slot OSC P 4 en TERM=linux"
 grep -aqU $'\x1b]R'  "$LINUX" || fail "no se restauró la paleta (OSC R)"
 rm -f "$LINUX"

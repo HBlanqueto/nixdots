@@ -11,7 +11,7 @@ This NixOS system features the following core components:
 
 - [x] **Flakes:** Fully flake-based system configuration
 - [x] **Multi-host:** `thinkpad` (x86_64-linux) and `utm` (aarch64-linux), auto-discovered from `hosts/`
-- [x] **Installer:** text-mode installer and macOS-style disk utility (`installer/`, Rust)
+- [x] **Installer:** text-mode installer (`installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
 - [x] **Lanzaboote & LUKS:** Secure Boot with Btrfs decryption
@@ -33,7 +33,7 @@ An overview of the core configuration files and directories that make up this Ni
 │       ├── host.nix
 │       ├── default.nix
 │       └── hardware-configuration.nix
-├── installer/               # Rust text-mode installer + disk utility
+├── installer/               # Rust text-mode installer
 ├── lib/
 │   └── mkHost.nix           # helper: mkHost { hostName, system, modules }
 ├── modules/                 # shared NixOS configuration
@@ -76,13 +76,13 @@ An overview of the core configuration files and directories that make up this Ni
 └── settings.nix
 ```
 
-* **`flake.nix`:** discovers every `hosts/<name>/host.nix` and emits one `nixosConfigurations.<name>` per host; also packages the installer and disk utility for `x86_64-linux` and `aarch64-linux`.
+* **`flake.nix`:** discovers every `hosts/<name>/host.nix` and emits one `nixosConfigurations.<name>` per host; also packages the installer for `x86_64-linux` and `aarch64-linux`.
 * **`lib/mkHost.nix`:** builds a `nixosConfiguration` from `{ hostName, system, modules }`.
 * **`settings.nix`:** host-independent values (username, locale, `hashedPasswordFile`, Git identity).
 * **`hosts/<host>/host.nix`:** per-host metadata read by the flake (`profile` and `system`).
 * **`hosts/<host>/default.nix`:** imports the host's `hardware-configuration.nix` and its hardware module.
 * **`disko.nix`:** standalone disk layout (1 GiB ESP + btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`) used by the installer.
-* **`installer/`:** text-mode installer and macOS-style disk utility. See [installer/README.md](installer/README.md).
+* **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 * **`modules/common` + `modules/desktop`:** shared system configuration.
 * **`modules/hardware`:** ThinkPad/laptop and UTM/QEMU specifics.
@@ -92,20 +92,18 @@ See [HOSTS.md](HOSTS.md) for the multi-host workflow and how to install the VM.
 
 ## Installer
 
-`installer/` contains a text-mode installer (`nixdots-installer`) and a
-macOS-style disk utility (`nixdots-disk`). Both are Rust binaries that
-*orchestrate* existing tools — `disko`, `mkpasswd`, `nixos-generate-config`,
-`sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplement
-partitioning or hashing.
+`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust
+binary that *orchestrates* existing tools — `disko`, `mkpasswd`,
+`nixos-generate-config`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and
+never reimplements partitioning or hashing.
 
 ```shell
 nix run .#installer                 # simulation: no disk, no root
-nix run .#disk                      # disk utility (simulation)
 nix run .#installer -- --install    # real install from the NixOS ISO
 ```
 
-The flake exposes both as `packages.{x86_64-linux,aarch64-linux}.{installer,disk,default}`
-and `apps.<system>.{installer,disk,default}`. See
+The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}`
+and `apps.<system>.{installer,default}`. See
 [installer/README.md](installer/README.md) for the full flow and options, and
 `disko.nix` for the disk layout it applies.
 

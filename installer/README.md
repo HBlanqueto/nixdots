@@ -1,30 +1,23 @@
 # nixdots-installer
 
 Un instalador de terminal («siguiente, siguiente, aceptar») para la
-configuración NixOS de este repositorio, y una pequeña utilidad de disco al
-estilo de la de macOS. Ambos son ejecutables Rust que **orquestan** herramientas
-existentes — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`, `nix`,
-`nixos-install`, `nmcli`… — y nunca reimplementan el particionado ni el hashing.
+configuración NixOS de este repositorio. Es un ejecutable Rust que **orquesta**
+herramientas existentes — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`,
+`nix`, `nixos-install`, `nmcli`… — y nunca reimplementa el particionado ni el
+hashing.
 
 ## Simulación
 
-Sin argumentos, el instalador recorre sus doce pasos más la pantalla final,
-muestra los comandos que ejecutaría y no toca ningún disco. Funciona en
-cualquier Linux, sin root:
+Sin argumentos, el instalador recorre todas sus pantallas, muestra los comandos
+que ejecutaría y no toca ningún disco. Funciona en cualquier Linux, sin root:
 
 ```sh
 nix run .#installer                 # --repo <ruta|url> para elegir el repo
 ```
 
-En la cabecera aparece `simulación`. Pulsa `v` en cualquier pantalla para ver la
-columna de comandos (y, durante la instalación, el log en vivo).
-
-La utilidad de disco se abre aparte (o con `u` desde el paso **Disco**):
-
-```sh
-nix run .#disk                      # simulación con datos de ejemplo
-nix run .#disk -- --real            # opera sobre los discos reales
-```
+En la cabecera aparece `simulación`. Pulsa `v` para mostrar la columna de
+comandos (y, durante la instalación, el log en vivo). La simulación tarda ~20 s
+en instalar, para poder ver la pantalla completa.
 
 ## Instalación real (desde la ISO mínima de NixOS)
 
@@ -35,10 +28,10 @@ nix --extra-experimental-features 'nix-command flakes' \
 
 `--install` exige root y comprobar que se está ejecutando desde el entorno live
 (`/etc/NIXOS`). El log completo queda en `/tmp/nixdots-install.log` y se copia a
-`/persist/` al terminar.
+`/mnt/persist/` si ese montaje existe.
 
-Pasos: Bienvenido · Red · Licencia · Equipo · Zona horaria · Idioma · Usuario ·
-Contraseña · Git · Disco · Resumen · Instalando (→ Listo).
+Pantallas: Inicio · Bienvenido · Licencia · Red · Idioma y teclado · Zona horaria
+· Equipo · Usuario · Contraseña · Git · Disco · Resumen · Instalando · Listo.
 
 ### Opciones
 
@@ -46,18 +39,31 @@ Contraseña · Git · Disco · Resumen · Instalando (→ Listo).
 - `--repo <ruta|url>` — repositorio a instalar (por defecto
   `github:HBlanqueto/nixdots`, clonado a `/tmp/nixdots`).
 
+## Atajos
+
+- `tab` / `shift+tab` — moverse entre el contenido y los botones.
+- `←`/`→` — elegir entre botones u opciones.
+- `enter` — continuar / activar el botón enfocado.
+- `v` — columna de comandos (en **Instalando**, `v log: on/off`).
+- `F2` — selector flotante de distribución de teclado (salvo Inicio, Instalando
+  y Listo).
+- `ctrl+c` — cancelar (en **Instalando** abre la confirmación) o salir.
+- `q` — salir.
+
+El ratón también funciona: los botones, casillas, filas y barras de
+desplazamiento responden a clic y arrastre.
+
 ## Red
 
 La ISO mínima de NixOS activa `networking.networkmanager`, así que el instalador
 usa `nmcli` (y recurre a `iwctl` → `wpa_cli` solo si faltara). No se avanza sin
 conectividad comprobada contra `cache.nixos.org`.
 
-## Lector de licencia
+## Licencia
 
-`l` (o el botón «leer completa») abre un visor a pantalla completa dentro de la
-TUI (sin salir a `less`): ajuste de línea, barra de desplazamiento, progreso
-`línea n/total`, búsqueda incremental con resaltado (`/`, `n`/`N`) y `q`/Esc para
-volver.
+El texto GPL va incrustado (funciona sin red ni repositorio) y se desplaza
+dentro del panel con `↑↓`, `PageUp/PageDown`, `Home/End` o la rueda del ratón.
+`espacio` (o `x`) marca **Acepto**; no se avanza sin aceptarla.
 
 ## Notas
 

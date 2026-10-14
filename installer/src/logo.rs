@@ -41,7 +41,7 @@ pub fn nixos_logo(console: bool) -> Vec<Line<'static>> {
     while let Some(c) = chars.next() {
         if c == '\u{1b}' {
             let mut seq = String::new();
-            while let Some(n) = chars.next() {
+            for n in chars.by_ref() {
                 if n == 'm' {
                     break;
                 }
