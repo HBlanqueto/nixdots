@@ -988,7 +988,8 @@ mod tests {
 
     #[test]
     fn steps_have_labels() {
-        assert_eq!(Step::ALL.len(), 6);
+        assert_eq!(Step::ALL.len(), 7);
         assert_eq!(Step::Disk.label(), "disco");
+        assert_eq!(Step::Persist.label(), "persist");
     }
 }
