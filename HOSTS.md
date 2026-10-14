@@ -34,11 +34,11 @@ disko.nix                 # layout de disco que aplica el instalador
 test.sh                   # lint + tests Rust + comprobaciones de la TUI por pty
 modules/
   common/                 # usuario, fish, locale, nix, servicios, iPhone tethering -> ambos
-  desktop/                # somewm, quickshell, gnome/gdm -> ambos
+  desktop/                # GNOME/GDM -> ambos
   hardware/thinkpad.nix   # kernel CachyOS, amdgpu, microcode, Lanzaboote, impresora/escáner
   hardware/vm-utm.nix     # systemd-boot, virtio, spice-vdagent, qemu-guest, sin microcode
   home/common/            # HM: user, apps, style, configs
-  home/desktop/           # HM: wezterm, función nswm
+  home/desktop/           # HM: wezterm
 overlays/, packages/, share/, .github/
 ```
 
@@ -103,13 +103,10 @@ ni DHCP manual. Aplica a ambos hosts.
    nixos-install --root /mnt --flake ~/nixdots#utm --impure
    ```
 
-### Gráficos y SceneFX
+### Gráficos
 
-`somewm` enlaza SceneFX 0.5, que **requiere GLES2 en runtime**. En UTM usa
-`virtio-gpu-gl` (virgl) para tener contexto GL; así los efectos (esquinas
-redondeadas, sombras, blur) funcionan. Como último recurso hay un fallback
-comentado en `modules/hardware/vm-utm.nix` (`WLR_RENDERER=pixman`), pero con
-pixman no habrá efectos.
+En UTM usa `virtio-gpu-gl` (virgl) para tener contexto GL/VA-API. El escritorio
+es GNOME sobre Wayland (mutter); no requiere configuración extra.
 
 ### Rosetta
 

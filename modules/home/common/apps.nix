@@ -281,15 +281,6 @@ in
             theme = yaziConfig.theme;
         };
 
-        ncmpcpp = {
-            enable = true;
-            package = pkgs.ncmpcpp.override { 
-                visualizerSupport = true; 
-            };
-            
-            settings = import ./config/ncmpcpp.nix;
-        };
-
         # mpv exposes MPRIS (and mpris:artUrl from embedded/folder art) only
         # through the mpv-mpris plugin.
         mpv = {

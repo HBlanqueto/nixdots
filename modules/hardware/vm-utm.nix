@@ -27,15 +27,9 @@
     services.qemuGuest.enable = true;
 
     environment.sessionVariables = {
-        # WLROOTS: software cursor avoids a missing/hardware cursor artefact
-        # under virtio-gpu.
+        # Software cursor avoids a missing/hardware cursor artefact under
+        # virtio-gpu.
         WLR_NO_HARDWARE_CURSORS = "1";
-
-        # Fallback only: if virtio-gpu-gl (virgl) is unavailable and somewm
-        # cannot get a GLES2 context, force the pixman software renderer.
-        # NOTE: somewm links SceneFX 0.5, which requires GLES2 at runtime, so
-        # with pixman the rounded corners/shadows/blur will not render.
-        # WLR_RENDERER = "pixman";
     };
 
     # Optional shared folder with the Mac. Pick either virtiofs or 9p in the

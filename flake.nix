@@ -7,8 +7,6 @@
         home.url = "github:nix-community/home-manager";
         home.inputs.nixpkgs.follows = "nixpkgs";
 
-        somewm.url = "github:HBlanqueto/somewm";
-
         nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
         impermanence.url = "github:nix-community/impermanence";
         ucodenix.url = "github:e-tho/ucodenix";
@@ -35,7 +33,7 @@
             # host.nix declares the per-host `profile` and `system`; the flake
             # output name is the directory name and equals networking.hostName.
             hostNames = builtins.attrNames (
-                builtins.filterAttrs (_: type: type == "directory") (builtins.readDir ./hosts)
+                nixpkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ./hosts)
             );
 
             mkHostFromDir = name:

@@ -10,24 +10,6 @@ with theme.colors;
         mgr = {
             ratio = [ 0 1 1 ];
         };
-
-        opener = {
-            play_ncmpcpp = [
-                {
-                    run = "mpc clear && mpc add \"file://$@\" && mpc play && ncmpcpp";
-                    block = true;
-                }
-            ];
-        };
-
-        open = {
-            rules = [
-                {
-                    mime = "audio/*";
-                    use = [ "play_ncmpcpp" ];
-                }
-            ];
-        };
     };
 
     theme = {

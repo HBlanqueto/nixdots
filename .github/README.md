@@ -2,8 +2,7 @@ These files contain the foundation of my daily driver setup, tailored for both p
 
 This NixOS system features the following core components:
 
-* **Desktop Environment:** [GNOME](https://www.gnome.org/) / GDM
-* **Window Manager / Compositor:** [somewm](https://github.com/HBlanqueto/somewm) (AwesomeWM ported to Wayland, on wlroots + SceneFX)
+* **Desktop Environment:** [GNOME](https://www.gnome.org/) / GDM (Wayland)
 * **Shell:** [Fish](https://fishshell.com/)
 * **Terminal:** [Wezterm](https://wezfurlong.org/wezterm/)
 * **Editor:** [Neovim](https://neovim.io/)
@@ -49,11 +48,9 @@ An overview of the core configuration files and directories that make up this Ni
 │   │   ├── services.nix
 │   │   ├── user.nix
 │   │   └── uutils.nix
-│   ├── desktop/             # somewm, quickshell, gnome/gdm
+│   ├── desktop/             # GNOME/GDM
 │   │   ├── default.nix
-│   │   ├── gnome.nix
-│   │   ├── quickshell.nix
-│   │   └── somewm.nix
+│   │   └── gnome.nix
 │   ├── hardware/            # host-specific hardware
 │   │   ├── thinkpad.nix
 │   │   ├── vm-utm.nix
@@ -63,9 +60,9 @@ An overview of the core configuration files and directories that make up this Ni
 │       │   ├── apps.nix
 │       │   ├── default.nix
 │       │   ├── style.nix
-│       │   └── config/      # fastfetch, mopidy, ncmpcpp, starship, yazi
+│       │   └── config/      # fastfetch, mopidy, starship, yazi
 │       └── desktop/
-│           ├── default.nix  # wezterm + nswm helper
+│           ├── default.nix  # wezterm
 │           └── wezterm.lua
 ├── share/                   # static assets: themes, boot chime
 ├── overlays/
