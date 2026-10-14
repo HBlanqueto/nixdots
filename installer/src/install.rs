@@ -207,11 +207,20 @@ fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
 fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPartition>> {
     // A retry can find /mnt still mounted and `cryptroot` open from the run that
-    // failed; clear both so disko starts from a clean slate instead of choking
-    // on a half-prepared disk.
+    // failed; clear everything so disko starts from a clean slate instead of
+    // choking on a half-prepared disk.
     if !plan.dry_run {
-        clean_target(report);
+        clean_target(plan, report);
     }
+
+    // The passphrase is written once, verbatim (no trailing newline), and reused
+    // by disko, the slot check, luksAddKey and the TPM enroll. Nothing else
+    // writes it; `SecretFile` shreds it when this function returns.
+    let pass = if plan.encrypt && !plan.dry_run {
+        Some(SecretFile::write("luks.pass", &plan.luks_passphrase)?)
+    } else {
+        None
+    };
 
     let mut cmd = Cmd::new("disko")
         .arg("--mode")
@@ -223,6 +232,9 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPa
         .arg(&plan.device);
     if plan.encrypt {
         cmd = cmd.arg("--argstr").arg("encrypt").arg("true");
+        if let Some(pass) = &pass {
+            cmd = cmd.arg("--argstr").arg("luksPasswordFile").arg_path(pass.path());
+        }
         cmd = cmd.with_display(format!(
             "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr encrypt true",
             plan.device
@@ -234,25 +246,16 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPa
         ));
     }
 
-    if plan.encrypt {
-        // disko asks for the LUKS passphrase (twice) when it is given no
-        // passwordFile; feeding its stdin keeps the secret out of every file and
-        // off the command line. It never reaches the log. disko then runs
-        // `cryptsetup luksFormat ... --key-file <(...)` itself.
-        let mut input = Zeroizing::new(plan.luks_passphrase.as_bytes().to_vec());
-        input.push(b'\n');
-        input.extend_from_slice(plan.luks_passphrase.as_bytes());
-        input.push(b'\n');
-        ensure_ok(
-            exec_stdin(plan, report, &cmd, &plan.source, &input)?,
-            "no se pudo cifrar y formatear el disco",
-        )?;
-    } else {
-        ensure_ok(
-            exec(plan, report, &cmd, &plan.source)?,
-            "no se pudo formatear el disco",
-        )?;
-    }
+    // disko reads the passphrase from `luksPasswordFile` and runs luksFormat
+    // itself; the installer never formats the container.
+    ensure_ok(
+        exec(plan, report, &cmd, &plan.source)?,
+        if plan.encrypt {
+            "no se pudo cifrar y formatear el disco"
+        } else {
+            "no se pudo formatear el disco"
+        },
+    )?;
 
     if !plan.encrypt {
         return Ok(None);
@@ -275,24 +278,72 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPa
         luks.path, luks.uuid
     ));
 
-    step_recovery_key(plan, report, &luks.path)?;
+    let pass_path = pass.as_ref().map(SecretFile::path);
+    if let Some(pass_path) = pass_path {
+        // Bail out before touching any slot if disko's key and ours disagree.
+        verify_key(
+            report,
+            &luks.path,
+            pass_path,
+            "la frase del disco no coincide con la configurada",
+        )?;
+    }
+
+    step_recovery_key(plan, report, &luks.path, pass_path)?;
     if plan.luks_tpm {
-        step_tpm_enroll(plan, report, &luks.path)?;
+        step_tpm_enroll(plan, report, &luks.path, pass_path)?;
     }
     Ok(Some(luks))
 }
 
-/// Unmounts the target and closes the LUKS mapper left open by a previous
-/// attempt. Failures are ignored: on a first run there is nothing to clean.
-fn clean_target(report: &mut Reporter) {
-    report.log("$ umount -R /mnt; cryptsetup close cryptroot   (limpieza previa)");
+/// Unmounts the target, closes the LUKS mapper and wipes any LUKS header left
+/// behind by a previous attempt. Failures are ignored: on a first run there is
+/// nothing to clean.
+fn clean_target(plan: &Plan, report: &mut Reporter) {
+    report.log(
+        "$ umount -R /mnt; cryptsetup close cryptroot; wipefs -a <partición>   (limpieza previa)",
+    );
     let mut sink = |_: Stream| {};
     let _ = runner::run(&Cmd::new("umount").arg("-R").arg("/mnt"), &mut sink);
     let _ = runner::run(&Cmd::new("cryptsetup").arg("close").arg("cryptroot"), &mut sink);
+    if let Some(luks) = detect::luks_partition(&plan.device) {
+        let _ = runner::run(&Cmd::new("wipefs").arg("-a").arg(&luks.path), &mut sink);
+    }
+    // Drop stale /run secrets; the next step rewrites the ones it needs.
+    let _ = fs::remove_dir_all("/run/nixdots");
+}
+
+/// Runs `cryptsetup open --test-passphrase` with `key_file`, so a key that does
+/// not match the header is caught before any slot is touched. `what` is the
+/// failure message.
+fn verify_key(
+    report: &mut Reporter,
+    device: &str,
+    key_file: &Path,
+    what: &str,
+) -> Result<()> {
+    let cmd = Cmd::new("cryptsetup")
+        .arg("open")
+        .arg("--test-passphrase")
+        .arg("--key-file")
+        .arg_path(key_file)
+        .arg(device)
+        .with_display(format!(
+            "cryptsetup open --test-passphrase --key-file {} {device}",
+            key_file.display()
+        ));
+    report.log(format!("$ {}", cmd.display));
+    let mut sink = |_: Stream| {};
+    let code = runner::run(&cmd, &mut sink);
+    ensure_ok(code, what)
 }
 
 /// A root-only secret written to `/run` (tmpfs) and `shred -u`d the moment it
 /// goes out of scope, so it never survives on disk even when the step fails.
+///
+/// The bytes are written *verbatim*: `cryptsetup --key-file` consumes the whole
+/// file, so a trailing newline would become part of the passphrase and no longer
+/// match what disko's `cat`-based key file (or the user at boot) uses.
 struct SecretFile {
     path: PathBuf,
 }
@@ -311,7 +362,6 @@ impl SecretFile {
             .open(&path)
             .map_err(|err| eyre!("no se pudo crear {}: {err}", path.display()))?;
         file.write_all(secret.as_bytes())?;
-        file.write_all(b"\n")?;
         file.flush()?;
         Ok(Self { path })
     }
@@ -352,10 +402,16 @@ fn cryptsetup_has_new_keyfile() -> bool {
 }
 
 /// Adds the recovery key generated on the Cifrado screen as a second LUKS slot
-/// on `device`. The current passphrase goes in via `--key-file` and the new key
-/// via `--new-keyfile` (positional on older cryptsetup); both are short-lived
-/// `/run` files removed by [`SecretFile`] on the way out. Nothing is logged.
-fn step_recovery_key(plan: &Plan, report: &mut Reporter, device: &str) -> Result<()> {
+/// on `device`, unlocking with the shared `pass_path` file. The new key is the
+/// exact text shown on screen (no trailing newline), so what the user types at
+/// boot matches. Both files are short-lived `/run` files removed by
+/// [`SecretFile`] on the way out. Nothing is logged.
+fn step_recovery_key(
+    plan: &Plan,
+    report: &mut Reporter,
+    device: &str,
+    pass_path: Option<&Path>,
+) -> Result<()> {
     if plan.dry_run {
         report.log(format!(
             "(simulación) cryptsetup luksAddKey {device}  (clave de recuperación)"
@@ -364,14 +420,14 @@ fn step_recovery_key(plan: &Plan, report: &mut Reporter, device: &str) -> Result
         return Ok(());
     }
 
-    let pass = SecretFile::write("luks.pass", &plan.luks_passphrase)?;
+    let pass_path = pass_path.ok_or_else(|| eyre!("falta el archivo de la frase del disco"))?;
     let recovery = SecretFile::write("luks.recovery", &plan.recovery_key)?;
 
     let mut cmd = Cmd::new("cryptsetup").arg("luksAddKey");
     if cryptsetup_has_new_keyfile() {
         cmd = cmd
             .arg("--key-file")
-            .arg_path(pass.path())
+            .arg_path(pass_path)
             .arg("--new-keyfile")
             .arg_path(recovery.path())
             .arg(device);
@@ -379,13 +435,13 @@ fn step_recovery_key(plan: &Plan, report: &mut Reporter, device: &str) -> Result
         // Older cryptsetup: the new key is the trailing positional argument.
         cmd = cmd
             .arg("--key-file")
-            .arg_path(pass.path())
+            .arg_path(pass_path)
             .arg(device)
             .arg_path(recovery.path());
     }
     let cmd = cmd.with_display(format!(
         "cryptsetup luksAddKey --key-file {} {} {}",
-        pass.path().display(),
+        pass_path.display(),
         device,
         recovery.path().display()
     ));
@@ -399,12 +455,25 @@ fn step_recovery_key(plan: &Plan, report: &mut Reporter, device: &str) -> Result
     ensure_ok(
         code,
         &format!("no se pudo añadir la clave de recuperación a {device}"),
+    )?;
+
+    // Prove the new slot opens with the exact bytes we wrote.
+    verify_key(
+        report,
+        device,
+        recovery.path(),
+        "la clave de recuperación no coincide con la mostrada",
     )
 }
 
 /// Enrolls TPM2 auto-unlock (PCR 7 = Secure Boot state) on `device`, unlocking
-/// with the current passphrase from a short-lived `/run` file.
-fn step_tpm_enroll(plan: &Plan, report: &mut Reporter, device: &str) -> Result<()> {
+/// with the shared passphrase file before it is shredded.
+fn step_tpm_enroll(
+    plan: &Plan,
+    report: &mut Reporter,
+    device: &str,
+    pass_path: Option<&Path>,
+) -> Result<()> {
     if plan.dry_run {
         report.log(format!(
             "(simulación) systemd-cryptenroll --tpm2-device=auto {device}"
@@ -413,16 +482,16 @@ fn step_tpm_enroll(plan: &Plan, report: &mut Reporter, device: &str) -> Result<(
         return Ok(());
     }
 
-    let pass = SecretFile::write("luks.tpm.pass", &plan.luks_passphrase)?;
+    let pass_path = pass_path.ok_or_else(|| eyre!("falta el archivo de la frase del disco"))?;
     let cmd = Cmd::new("systemd-cryptenroll")
         .arg("--tpm2-device=auto")
         .arg("--tpm2-pcrs=7")
         .arg("--unlock-key-file")
-        .arg_path(pass.path())
+        .arg_path(pass_path)
         .arg(device)
         .with_display(format!(
             "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --unlock-key-file {} {device}",
-            pass.path().display()
+            pass_path.display()
         ));
     report.log(format!("$ {}", cmd.display));
 
@@ -972,38 +1041,6 @@ fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<
     Ok(runner::run(&wrapped, &mut sink))
 }
 
-/// Like [`exec_in`], but feeds `input` on the child's stdin. Used for disko,
-/// whose LUKS password prompt reads the passphrase from stdin (twice) instead
-/// of from a file on disk.
-fn exec_stdin(
-    plan: &Plan,
-    report: &mut Reporter,
-    cmd: &Cmd,
-    cwd: &Path,
-    input: &[u8],
-) -> Result<i32> {
-    report.log(format!("$ {}", cmd.display));
-    if plan.dry_run {
-        report.log("(simulación) comando no ejecutado");
-        thread::sleep(Duration::from_millis(500));
-        return Ok(0);
-    }
-
-    let wrapped = Cmd::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "cd {} && exec {}",
-            shell_quote(cwd),
-            shell_command(cmd)
-        ))
-        .with_display(cmd.display.clone());
-    let mut sink = |out: Stream| match out {
-        Stream::Stdout(l) => report.log(l),
-        Stream::Stderr(l) => report.log(l),
-    };
-    Ok(runner::run_with_stdin(&wrapped, input, &mut sink))
-}
-
 fn exec_capture(
     plan: &Plan,
     report: &mut Reporter,
@@ -1069,11 +1106,13 @@ pub fn hash_password(password: &str) -> Result<String> {
         .spawn()
         .map_err(|e| eyre!("no se pudo ejecutar mkpasswd: {e}"))?;
 
+    // Exact bytes on stdin, no trailing newline: `--stdin` reads the secret
+    // verbatim (EOF terminates it), so the hash matches what was typed.
     child
         .stdin
         .take()
         .ok_or_else(|| eyre!("mkpasswd no aceptó la entrada"))?
-        .write_all(format!("{password}\n").as_bytes())?;
+        .write_all(password.as_bytes())?;
 
     let output = child.wait_with_output()?;
     if !output.status.success() {

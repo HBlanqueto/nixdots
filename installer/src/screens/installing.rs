@@ -278,6 +278,10 @@ fn wrap_line(s: &str, width: usize) -> Vec<String> {
         .collect()
 }
 
+pub fn commands(_app: &App) -> Vec<String> {
+    Vec::new()
+}
+
 #[cfg(test)]
 mod tests {
     use super::wrap_line;
@@ -292,8 +296,4 @@ mod tests {
         assert_eq!(wrap_line("hi", 80), vec!["hi"]);
         assert_eq!(wrap_line("", 80), vec![""]);
     }
-}
-
-pub fn commands(_app: &App) -> Vec<String> {
-    Vec::new()
 }

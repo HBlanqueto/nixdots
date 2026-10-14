@@ -14,16 +14,19 @@
 # formatting; modules/hardware/snapshot.sh restores @rootfs from it on every
 # boot, which is what makes the root filesystem ephemeral.
 #
-# The LUKS passphrase is supplied out-of-band. The installer passes no
-# `passwordFile`, so disko prompts for it and reads it from stdin (twice), which
-# keeps it out of every file; a manual run without it (null) prompts
-# interactively too. The unencrypted ESP keeps lanzaboote / Secure Boot (which
-# read the kernel and initrd before unlocking) working.
+# The LUKS passphrase comes from a single source: the installer writes the exact
+# bytes typed on the password screen (no trailing newline) to a short-lived
+# /run/nixdots/luks.pass and passes it here as `--argstr luksPasswordFile`; the
+# same file is reused for the slot check, the recovery key and the TPM enroll.
+# A manual run without it (null) makes disko prompt for the passphrase on stdin.
+# The unencrypted ESP keeps lanzaboote / Secure Boot (which read the kernel and
+# initrd before unlocking) working.
 {
     device ? "/dev/vda",
-    # Optional path to a file holding the LUKS passphrase (absolute). `null`
+    # Absolute path to the file holding the LUKS passphrase, passed by the
+    # installer as `--argstr luksPasswordFile /run/nixdots/luks.pass`. `null`
     # (the default) makes disko ask for it on stdin.
-    passwordFile ? null,
+    luksPasswordFile ? null,
     # Passed by the installer as `--argstr encrypt true` when the user checked
     # "Cifrar System HD" on the Disco screen.
     encrypt ? "false",
@@ -111,7 +114,7 @@ in
                         content = if doEncrypt then {
                             type = "luks";
                             name = "cryptroot";
-                            inherit passwordFile;
+                            passwordFile = luksPasswordFile;
                             settings.allowDiscards = true;
                             extraFormatArgs = [ "--type" "luks2" ];
 
