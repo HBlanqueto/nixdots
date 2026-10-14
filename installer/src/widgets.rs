@@ -116,49 +116,41 @@ pub fn render_buttons(
             spans.push(Span::raw("   "));
         }
         let is_focus = focused && i == focus && button.enabled;
-        if !button.enabled {
-            spans.push(Span::styled(
-                format!(" {} ", btn_core(&button.label)),
+        // Every button always has the capsule shape (same width), so selecting
+        // it only changes the colors — nothing moves or jumps.
+        let core = btn_core(&button.label);
+        let (glyph_style, text_style) = if !button.enabled {
+            // Disabled: dim, no focus, no response.
+            (
                 Style::default().fg(palette.disabled),
-            ));
-            groups.push((spans, None));
-            continue;
-        }
-        if !is_focus {
-            spans.push(Span::styled(
-                format!(" {} ", btn_core(&button.label)),
-                Style::default().fg(palette.muted),
-            ));
-        } else {
+                Style::default().fg(palette.disabled),
+            )
+        } else if is_focus {
             let fill = fill_color(button.kind, palette);
-            let core = btn_core(&button.label);
-            if nerd {
-                spans.push(Span::styled(
-                    "\u{e0b6}",
-                    Style::default().fg(fill).bg(palette.reset),
-                ));
-                spans.push(Span::styled(
-                    format!(" {core} "),
-                    Style::default()
-                        .fg(palette.white)
-                        .bg(fill)
-                        .add_modifier(Modifier::BOLD),
-                ));
-                spans.push(Span::styled(
-                    "\u{e0b4}",
-                    Style::default().fg(fill).bg(palette.reset),
-                ));
-            } else {
-                spans.push(Span::styled(
-                    format!("‹ {core} ›"),
-                    Style::default()
-                        .fg(palette.white)
-                        .bg(fill)
-                        .add_modifier(Modifier::BOLD),
-                ));
-            }
+            (
+                Style::default().fg(fill).bg(palette.reset),
+                Style::default()
+                    .fg(palette.white)
+                    .bg(fill)
+                    .add_modifier(Modifier::BOLD),
+            )
+        } else {
+            // Unfocused: camouflaged — the ends take the (dark) inactive
+            // border colour and the text is muted, with no fill.
+            (
+                Style::default().fg(palette.border),
+                Style::default().fg(palette.muted),
+            )
+        };
+        if nerd {
+            spans.push(Span::styled("\u{e0b6}", glyph_style));
+            spans.push(Span::styled(format!(" {core} "), text_style));
+            spans.push(Span::styled("\u{e0b4}", glyph_style));
+        } else {
+            spans.push(Span::styled(format!("‹ {core} ›"), text_style));
         }
-        groups.push((spans, Some(i)));
+        // Disabled buttons get no hitbox (mouse ignores them).
+        groups.push((spans, if button.enabled { Some(i) } else { None }));
     }
 
     // Flatten for rendering, and record the hitbox of each enabled button.
