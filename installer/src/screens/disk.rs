@@ -294,7 +294,7 @@ fn draw_right(f: &mut Frame, app: &App, area: Rect) {
         false,
         area.width,
         true,
-        "System HD",
+        "Core HD",
     ));
     lines.push(Line::from(""));
 

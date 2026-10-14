@@ -42,9 +42,9 @@ in
                         };
                     };
 
-                    # GPT partition name: "System HD" (the btrfs volume that
+                    # GPT partition name: "Core HD" (the btrfs volume that
                     # holds every subvolume, including the persisted @persist).
-                    "System HD" = {
+                    "Core HD" = {
                         size = "100%";
 
                         content = {

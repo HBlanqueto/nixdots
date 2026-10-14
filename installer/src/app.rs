@@ -346,7 +346,7 @@ pub struct DiskState {
     pub confirmed: bool,
     /// GPT partition/volume name (editable).
     pub volume_name: Input,
-    /// Size (GB) the System HD partition gets when installing alongside.
+    /// Size (GB) the Core HD partition gets when installing alongside.
     pub partition_gb: u64,
 }
 
@@ -602,7 +602,7 @@ impl App {
                 windows: detect::windows_present(),
                 option: 0,
                 confirmed: false,
-                volume_name: Input::new("System HD".to_string()),
+                volume_name: Input::new("Core HD".to_string()),
                 partition_gb: 100,
             },
             net: NetState {
