@@ -9,7 +9,7 @@ use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -68,7 +68,7 @@ pub fn draw(
     let total = picker.filtered.len();
     let total_text = format!("{total} {unit}");
     let used: usize = search.iter().map(|s| s.content.chars().count()).sum();
-    let pad = (area.width as usize)
+    let pad = (area.width.saturating_sub(1) as usize)
         .saturating_sub(used)
         .saturating_sub(total_text.chars().count());
     search.push(Span::raw(" ".repeat(pad)));
@@ -102,7 +102,20 @@ pub fn draw(
         lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
     }
 
-    f.render_widget(Paragraph::new(lines), area);
+    // Leave the last column for a scrollbar, like the license text.
+    let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
+    f.render_widget(Paragraph::new(lines), content);
+
+    if total > ROWS {
+        let bar_area = Rect::new(area.x, area.y + 1, area.width, ROWS as u16);
+        let mut state = ScrollbarState::new(total)
+            .position(start)
+            .viewport_content_length(ROWS);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .style(Style::default().fg(palette.row_bg))
+            .thumb_style(Style::default().fg(palette.primary));
+        f.render_stateful_widget(scrollbar, bar_area, &mut state);
+    }
 }
 
 /// Handles typing, filtering and list navigation. Returns true if consumed.
