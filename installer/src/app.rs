@@ -130,6 +130,14 @@ pub enum Action {
     Next,
     Quit,
     Reboot,
+    /// Done screen "Salir": copy the log, umount /mnt and exit.
+    Finish,
+    /// Installing Ctrl+C dialog: go back to the running install.
+    KeepInstalling,
+    /// Installing Ctrl+C dialog: cancel and exit.
+    CancelInstall,
+    /// Installing failure: open the full, scrollable log.
+    ViewLog,
     Connect,
     Rescan,
     NetMenu,
@@ -139,7 +147,6 @@ pub enum Action {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quit {
     Normal,
-    Installing,
 }
 
 /// Which picker a clicked row belongs to.
@@ -358,13 +365,18 @@ pub struct InstallView {
     pub started: Instant,
     pub current: Option<Step>,
     pub done: Vec<Step>,
+    /// The step in which the install failed, if it did.
+    pub failed: Option<Step>,
     pub log: VecDeque<String>,
-    pub note: Option<String>,
     pub built: u64,
     pub total: u64,
     pub finished: bool,
+    /// When the install finished successfully (to hold the 100 % bar ~1 s).
+    pub finished_at: Option<Instant>,
     pub error: Option<String>,
     pub log_path: Option<PathBuf>,
+    /// (time, derivations done) samples, for the ETA (last 30 s).
+    samples: VecDeque<(Instant, u64)>,
 }
 
 impl InstallView {
@@ -373,13 +385,15 @@ impl InstallView {
             started: Instant::now(),
             current: None,
             done: Vec::new(),
+            failed: None,
             log: VecDeque::new(),
-            note: None,
             built: 0,
             total: 0,
             finished: false,
+            finished_at: None,
             error: None,
             log_path: None,
+            samples: VecDeque::new(),
         }
     }
 
@@ -394,12 +408,35 @@ impl InstallView {
         let skip = self.log.len().saturating_sub(lines);
         self.log.iter().skip(skip).collect()
     }
-}
 
-pub struct DoneInfo {
-    pub host: String,
-    pub duration: Duration,
-    pub ok: bool,
+    /// Records a progress sample, keeping only the last 30 s for the ETA.
+    pub fn record(&mut self, built: u64) {
+        let now = Instant::now();
+        self.samples.push_back((now, built));
+        while let Some(&(t, _)) = self.samples.front() {
+            if now.duration_since(t) > Duration::from_secs(30) {
+                self.samples.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// Estimated seconds remaining, from the mean speed over the last 30 s.
+    /// `None` until there is at least ~3 s of usable data.
+    pub fn eta_secs(&self) -> Option<u64> {
+        let &(first_t, first_b) = self.samples.front()?;
+        let &(last_t, last_b) = self.samples.back()?;
+        let dt = last_t.duration_since(first_t).as_secs_f64();
+        if dt < 3.0 || last_b <= first_b || self.total <= self.built {
+            return None;
+        }
+        let rate = (last_b - first_b) as f64 / dt;
+        if rate <= 0.0 {
+            return None;
+        }
+        Some(((self.total - self.built) as f64 / rate).ceil() as u64)
+    }
 }
 
 pub struct App {
@@ -434,7 +471,6 @@ pub struct App {
     pub license_focus: usize,
     /// The license text area, set during `draw` (for the scrollbar).
     pub license_text_area: Rect,
-    /// The license text area (for the scrollbar), set during `draw`.
 
     // host
     pub host: HostState,
@@ -469,7 +505,13 @@ pub struct App {
     pub install: InstallView,
     install_rx: Option<Receiver<InstallMsg>>,
     net_rx: Option<Receiver<(String, std::result::Result<bool, String>)>>,
-    pub done: Option<DoneInfo>,
+    /// Ctrl+C on Installing: the "¿Cancelar?" confirmation is showing.
+    pub install_cancel: bool,
+    /// `v log: on` — show the last build lines under the steps.
+    pub install_show_log: bool,
+    /// The full-log viewer overlay is open.
+    pub install_log_view: bool,
+    pub install_log_scroll: usize,
 
     /// Password hash, kept in memory only (never logged or written to temp).
     pub password_hash: Option<String>,
@@ -479,7 +521,7 @@ pub struct App {
     pub button_focus: usize,
     pub focus_buttons: bool,
     /// On-screen x-ranges of the enabled buttons, for mouse hover/click.
-    button_hitboxes: Vec<(u16, u16, usize)>,
+    pub button_hitboxes: Vec<(u16, u16, usize)>,
     /// Clickable regions of the current frame (checkboxes, rows, columns…).
     pub targets: std::cell::RefCell<Vec<(Rect, Click)>>,
     /// Scrollbar columns of the current frame (click/drag to scroll).
@@ -591,7 +633,10 @@ impl App {
             keep_uutils: false,
             install: InstallView::new(),
             install_rx: None,
-            done: None,
+            install_cancel: false,
+            install_show_log: false,
+            install_log_view: false,
+            install_log_scroll: 0,
             password_hash: None,
             button_focus: 1,
             // Welcome has no content, so the buttons start focused.
@@ -625,6 +670,7 @@ impl App {
             }
             self.tick = self.tick.wrapping_add(1);
             self.poll_install();
+            self.maybe_finish_install();
             self.poll_network();
 
             if self.should_quit {
@@ -933,15 +979,22 @@ impl App {
                         }
                     }
                 }
-                InstallMsg::Note(note) => self.install.note = Some(note),
                 InstallMsg::Log(line) => self.install.push_log(line),
                 InstallMsg::Progress { built, total } => {
                     self.install.built = built;
                     self.install.total = total;
+                    self.install.record(built);
                 }
                 InstallMsg::Finished { ok, error, log_path } => {
-                    if let Some(step) = self.install.current.take() {
-                        self.install.done.push(step);
+                    if ok {
+                        if let Some(step) = self.install.current.take() {
+                            self.install.done.push(step);
+                        }
+                        // Force the bar to 100 % for the closing second.
+                        self.install.built = self.install.total;
+                    } else {
+                        // The failed step stays current and is shown with ✗.
+                        self.install.failed = self.install.current.take();
                     }
                     self.install.log_path = Some(log_path);
                     finished = Some((ok, error));
@@ -952,16 +1005,32 @@ impl App {
             self.install.finished = true;
             self.install.error = error;
             if ok {
-                self.done = Some(DoneInfo {
-                    host: self.settings.host_name.clone(),
-                    duration: self.install.started.elapsed(),
-                    ok: true,
-                });
-                self.screen = Screen::Done;
-                self.reset_focus();
+                self.install.finished_at = Some(Instant::now());
+            } else {
+                // Open the log automatically and focus its buttons.
+                self.install_show_log = true;
+                self.focus_buttons = true;
+                self.button_focus = 0;
             }
         } else {
             self.install_rx = Some(rx);
+        }
+    }
+
+    /// Leaves Instalando for Listo ~1 s after a successful build.
+    fn maybe_finish_install(&mut self) {
+        if self.screen != Screen::Installing
+            || !self.install.finished
+            || self.install.error.is_some()
+        {
+            return;
+        }
+        if let Some(at) = self.install.finished_at {
+            if at.elapsed() >= Duration::from_secs(1) {
+                self.install_cancel = false;
+                self.screen = Screen::Done;
+                self.reset_focus();
+            }
         }
     }
 
@@ -983,24 +1052,32 @@ impl App {
             return;
         }
 
+        // The full install log overlay owns the keyboard while open.
+        if self.install_log_view {
+            self.install_log_key(key);
+            return;
+        }
+
         // Floating keyboard-layout selector (F2).
         if self.key_modal.is_some() {
             self.key_modal_key(key);
             return;
         }
 
-        // F2 opens it on any screen except Inicio.
-        if key.code == KeyCode::F(2) && self.screen != Screen::Splash {
+        // F2 opens it on any screen except Inicio / Instalando / Listo.
+        if key.code == KeyCode::F(2)
+            && !matches!(self.screen, Screen::Splash | Screen::Installing | Screen::Done)
+        {
             self.open_key_modal();
             return;
         }
 
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            self.quit = Some(if self.screen == Screen::Installing {
-                Quit::Installing
+            if self.screen == Screen::Installing {
+                self.open_install_cancel();
             } else {
-                Quit::Normal
-            });
+                self.quit = Some(Quit::Normal);
+            }
             return;
         }
 
@@ -1035,13 +1112,32 @@ impl App {
                     self.focus_buttons_on_primary();
                 }
             }
-            KeyCode::Esc => {
-                if self.screen == Screen::Installing {
-                    self.quit = Some(Quit::Installing);
-                } else {
-                    self.go_back();
-                }
-            }
+            KeyCode::Esc => self.go_back(),
+            _ => {}
+        }
+    }
+
+    /// Ctrl+C on Instalando opens the cancel confirmation (focus on Seguir).
+    fn open_install_cancel(&mut self) {
+        if self.screen == Screen::Installing {
+            self.install_cancel = true;
+            self.install_log_view = false;
+            self.focus_buttons = true;
+            self.button_focus = 0;
+        }
+    }
+
+    /// Keys for the full install-log overlay.
+    fn install_log_key(&mut self, key: KeyEvent) {
+        let page = 10usize;
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => self.install_log_view = false,
+            KeyCode::Down => self.install_log_scroll = self.install_log_scroll.saturating_add(1),
+            KeyCode::Up => self.install_log_scroll = self.install_log_scroll.saturating_sub(1),
+            KeyCode::PageDown => self.install_log_scroll = self.install_log_scroll.saturating_add(page),
+            KeyCode::PageUp => self.install_log_scroll = self.install_log_scroll.saturating_sub(page),
+            KeyCode::Home => self.install_log_scroll = 0,
+            KeyCode::End => self.install_log_scroll = usize::MAX,
             _ => {}
         }
     }
@@ -1136,7 +1232,21 @@ impl App {
             Screen::Git => crate::screens::git::buttons(self),
             Screen::Disk => crate::screens::disk::buttons(self),
             Screen::Summary => crate::screens::summary::buttons(self),
-            Screen::Installing => Vec::new(),
+            Screen::Installing => {
+                if self.install_cancel {
+                    vec![
+                        (Btn::secondary("‹ Seguir"), Action::KeepInstalling),
+                        (Btn::destructive("Cancelar"), Action::CancelInstall),
+                    ]
+                } else if self.install.error.is_some() {
+                    vec![
+                        (Btn::secondary("Ver log completo"), Action::ViewLog),
+                        (Btn::secondary("Salir"), Action::Finish),
+                    ]
+                } else {
+                    Vec::new()
+                }
+            }
             Screen::Done => crate::screens::done::buttons(self),
         }
     }
@@ -1371,7 +1481,20 @@ impl App {
             Action::Back => self.go_back(),
             Action::Next => self.advance(),
             Action::Quit => self.quit = Some(Quit::Normal),
-            Action::Reboot => crate::screens::done::reboot(self),
+            Action::Reboot => crate::screens::done::restart(self),
+            Action::Finish => crate::screens::done::salir(self),
+            Action::KeepInstalling => {
+                self.install_cancel = false;
+                self.focus_buttons = false;
+            }
+            Action::CancelInstall => {
+                self.install_cancel = false;
+                self.should_quit = true;
+            }
+            Action::ViewLog => {
+                self.install_log_view = true;
+                self.install_log_scroll = 0;
+            }
             Action::Connect => crate::screens::network::connect(self),
             Action::Rescan => crate::screens::network::rescan(self),
             Action::NetMenu => crate::screens::network::to_menu(self),
@@ -1448,7 +1571,10 @@ impl App {
             Some(Screen::Installing) => {
                 self.screen = Screen::Installing;
                 self.focus_buttons = false;
-                self.show_commands = true;
+                self.install_cancel = false;
+                self.install_show_log = false;
+                self.install_log_view = false;
+                self.install_log_scroll = 0;
                 self.start_install();
             }
             Some(next) => {
@@ -1596,6 +1722,19 @@ impl App {
             if self.quit.is_some() {
                 self.draw_quit(f, area);
             }
+            return;
+        }
+
+        // Instalando and Listo are chromeless: centered, no panel or chrome.
+        if self.screen == Screen::Installing {
+            crate::screens::installing::draw(f, self, area);
+            if self.install_log_view {
+                self.draw_install_log(f, area);
+            }
+            return;
+        }
+        if self.screen == Screen::Done {
+            crate::screens::done::draw(f, self, area);
             return;
         }
 
@@ -1801,13 +1940,14 @@ impl App {
         }
     }
 
-    fn draw_header(&self, f: &mut Frame, area: Rect) {
+    /// The `❄ nixdots instalador` header line, shared by every screen.
+    pub fn header_line(&self) -> Line<'static> {
         let mut spans = vec![
             Span::styled(
                 "❄ nixdots",
                 Style::default().fg(self.palette.primary).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" instalador", Style::default().fg(self.palette.muted)),
+            Span::styled("  instalador", Style::default().fg(self.palette.muted)),
         ];
         if self.dry_run {
             spans.push(Span::styled(
@@ -1815,7 +1955,56 @@ impl App {
                 Style::default().fg(self.palette.warning),
             ));
         }
-        f.render_widget(Paragraph::new(Line::from(spans)).alignment(Alignment::Center), area);
+        Line::from(spans)
+    }
+
+    fn draw_header(&self, f: &mut Frame, area: Rect) {
+        f.render_widget(
+            Paragraph::new(self.header_line()).alignment(Alignment::Center),
+            area,
+        );
+    }
+
+    /// Overlay with the full install log, scrollable.
+    fn draw_install_log(&self, f: &mut Frame, area: Rect) {
+        widgets::dim(f, area, &self.palette);
+        let rect = Rect::new(
+            area.x + 4,
+            area.y + 3,
+            area.width.saturating_sub(8),
+            area.height.saturating_sub(6),
+        );
+        f.render_widget(Clear, rect);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.primary))
+            .title(Span::styled(" Registro ", Style::default().fg(self.palette.primary)));
+        let inner = block.inner(rect);
+        f.render_widget(block, rect);
+
+        let body_h = inner.height.saturating_sub(1) as usize;
+        let max_scroll = self.install.log.len().saturating_sub(body_h.max(1));
+        let start = self.install_log_scroll.min(max_scroll);
+        let lines: Vec<Line> = self
+            .install
+            .log
+            .iter()
+            .skip(start)
+            .map(|l| self.log_line(l))
+            .collect();
+        f.render_widget(
+            Paragraph::new(lines).wrap(Wrap { trim: false }),
+            Rect::new(inner.x, inner.y, inner.width, body_h as u16),
+        );
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "↑↓ desplazar · esc cerrar",
+                Style::default().fg(self.palette.muted),
+            ))
+            .alignment(Alignment::Center),
+            Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1),
+        );
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
@@ -1974,10 +2163,7 @@ impl App {
     }
 
     fn draw_quit(&self, f: &mut Frame, area: Rect) {
-        let message = match self.quit {
-            Some(Quit::Installing) => "¿Cancelar la instalación?",
-            _ => "¿Salir del instalador?",
-        };
+        let message = "¿Salir del instalador?";
         widgets::dim(f, area, &self.palette);
         let width = 42.min(area.width);
         let height = 5;

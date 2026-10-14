@@ -1,99 +1,252 @@
 use crate::app::App;
-use crate::detect::Profile;
 use crate::install::Step;
-use ratatui::crossterm::event::KeyEvent;
-use ratatui::layout::Rect;
-use ratatui::style::Style;
+use crate::widgets::{self, Btn};
+use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"];
+const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+/// Cells of the big progress bar.
+const BAR: usize = 60;
 
-pub fn height(app: &App) -> u16 {
-    let mut h = 4;
-    if app.profile == Profile::Utm {
-        h += 1;
-    }
-    if app.install.error.is_some() {
-        h += 1;
-    }
-    h
+pub fn height(_app: &App) -> u16 {
+    9
 }
 
-pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let current = app.install.current;
-    let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
-    let step_text = current.map(|s| s.label()).unwrap_or("iniciando");
-    let note = app
-        .install
-        .note
-        .clone()
-        .unwrap_or_else(|| format!("{step_text}…"));
+pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
+    let cancel = app.install_cancel;
+    let show_log = app.install_show_log && !cancel;
+    let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
+    let has_buttons = !buttons.is_empty();
+    let show_shortcuts = !has_buttons;
+    // 6 lines normally; the support opens with 12 on failure.
+    let log_h: u16 = if show_log {
+        if app.install.error.is_some() {
+            12
+        } else {
+            6
+        }
+    } else {
+        0
+    };
 
-    let mut lines = vec![
-        Line::from(Span::styled(step_text.to_string(), Style::default().fg(app.palette.primary))),
-        Line::from(vec![
-            Span::styled(format!("{spinner} "), Style::default().fg(app.palette.focus)),
-            Span::styled(note, Style::default().fg(app.palette.text)),
-        ]),
+    // header + blank + title + blank + bar + blank + status + blank + steps,
+    // then optional log / buttons / shortcuts blocks, each preceded by a blank.
+    let total: u16 = 9
+        + if show_log { 1 + log_h } else { 0 }
+        + if has_buttons { 2 } else { 0 }
+        + if show_shortcuts { 2 } else { 0 };
+
+    let mut y = area.y + area.height.saturating_sub(total) / 2;
+    let line = |y: u16| Rect::new(area.x, y, area.width, 1);
+
+    f.render_widget(
+        Paragraph::new(app.header_line()).alignment(Alignment::Center),
+        line(y),
+    );
+    y += 2;
+
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            format!("Instalando nixdots en {}", app.settings.host_name),
+            Style::default().fg(app.palette.white).add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center),
+        line(y),
+    );
+    y += 2;
+
+    f.render_widget(
+        Paragraph::new(bar_line(app)).alignment(Alignment::Center),
+        line(y),
+    );
+    y += 2;
+
+    if cancel {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                "¿Cancelar la instalación? El disco quedará a medias.",
+                Style::default().fg(app.palette.text),
+            )))
+            .alignment(Alignment::Center),
+            line(y),
+        );
+    } else {
+        f.render_widget(
+            Paragraph::new(status_line(app)).alignment(Alignment::Center),
+            line(y),
+        );
+    }
+    y += 2;
+
+    f.render_widget(
+        Paragraph::new(steps_line(app)).alignment(Alignment::Center),
+        line(y),
+    );
+    y += 1;
+
+    if show_log {
+        y += 1;
+        let w = 84.min(area.width);
+        let x = area.x + area.width.saturating_sub(w) / 2;
+        let rect = Rect::new(x, y, w, log_h);
+        let block = Block::default()
+            .borders(Borders::LEFT)
+            .border_style(Style::default().fg(app.palette.muted));
+        let inner = block.inner(rect);
+        f.render_widget(block, rect);
+        let lines: Vec<Line> = app
+            .install
+            .visible_log(log_h as usize)
+            .into_iter()
+            .map(|l| {
+                let text: String = l.chars().take(inner.width as usize).collect();
+                Line::from(Span::styled(text, Style::default().fg(app.palette.muted)))
+            })
+            .collect();
+        f.render_widget(Paragraph::new(lines), inner);
+        y += log_h;
+    }
+
+    if has_buttons {
+        y += 1;
+        app.button_hitboxes = widgets::render_buttons(
+            f,
+            line(y),
+            &app.palette,
+            &buttons,
+            app.button_focus,
+            app.focus_buttons,
+        );
+        y += 1;
+    } else {
+        app.button_hitboxes.clear();
+    }
+
+    if show_shortcuts {
+        y += 1;
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                "ctrl+c cancelar · v log: on/off",
+                Style::default().fg(app.palette.muted),
+            )))
+            .alignment(Alignment::Center),
+            line(y),
+        );
+    }
+}
+
+/// The big `████` bar plus the percentage, from the real build progress.
+fn bar_line(app: &App) -> Line<'static> {
+    let total = app.install.total;
+    let built = app.install.built.min(if total == 0 { 0 } else { total });
+    let frac = if total == 0 {
+        0.0
+    } else {
+        built as f64 / total as f64
+    };
+    let filled = (frac * BAR as f64).round() as usize;
+    let bar_color = if app.install.error.is_some() {
+        app.palette.error
+    } else {
+        app.palette.primary
+    };
+    Line::from(vec![
+        Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
+        Span::styled(
+            "█".repeat(BAR - filled),
+            Style::default().fg(app.palette.row_bg),
+        ),
+        Span::styled(
+            format!("  {}%", (frac * 100.0).round() as u64),
+            Style::default().fg(app.palette.white).add_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
+/// Spinner + current step + `hechos de total` + `quedan ~n min`.
+fn status_line(app: &App) -> Line<'static> {
+    let spinner = SPINNER[(app.tick as usize) % SPINNER.len()];
+    let step = app.install.current.map(|s| s.label()).unwrap_or("iniciando");
+    let mut spans = vec![
+        Span::styled(format!("{spinner} "), Style::default().fg(app.palette.primary)),
+        Span::styled(step.to_string(), Style::default().fg(app.palette.muted)),
     ];
-
-    let total = app.install.total.max(1);
-    let built = app.install.built.min(total);
-    let width = area.width.saturating_sub(12).max(4) as usize;
-    let filled = ((built as f64 / total as f64) * width as f64).round() as usize;
-    let percent = (built as f64 / total as f64 * 100.0).round() as u64;
-    lines.push(Line::from(vec![
-        Span::styled("█".repeat(filled), Style::default().fg(app.palette.primary)),
-        Span::styled(
-            "░".repeat(width.saturating_sub(filled)),
+    if app.install.total > 0 {
+        spans.push(Span::styled(
+            format!(" · {} de {}", app.install.built, app.install.total),
             Style::default().fg(app.palette.muted),
-        ),
-        Span::styled(
-            format!("  {percent}% {built}/{total}"),
+        ));
+    }
+    if let Some(secs) = app.install.eta_secs() {
+        spans.push(Span::styled(
+            format!(" · quedan ~{} min", secs.div_ceil(60)),
             Style::default().fg(app.palette.muted),
-        ),
-    ]));
+        ));
+    }
+    Line::from(spans)
+}
 
-    let mut step_spans: Vec<Span> = Vec::new();
+/// `✓ disco     ✓ ajustes     ● sistema     ○ arranque`.
+fn steps_line(app: &App) -> Line<'static> {
+    let mut spans: Vec<Span> = Vec::new();
     for (i, step) in Step::ALL.iter().enumerate() {
         if i > 0 {
-            step_spans.push(Span::raw("  "));
+            spans.push(Span::raw("     "));
         }
-        let (mark, color) = if app.install.done.contains(step) {
-            ("✓", app.palette.success)
-        } else if Some(*step) == current {
-            ("●", app.palette.focus)
+        let (mark, mark_color, name_color) = if app.install.failed == Some(*step) {
+            ("✗", app.palette.error, app.palette.error)
+        } else if app.install.done.contains(step) {
+            ("✓", app.palette.success, app.palette.text)
+        } else if app.install.current == Some(*step) {
+            ("●", app.palette.primary, app.palette.highlight)
         } else {
-            ("○", app.palette.muted)
+            ("○", app.palette.muted, app.palette.muted)
         };
-        step_spans.push(Span::styled(format!("{mark} {}", step.label()), Style::default().fg(color)));
+        spans.push(Span::styled(format!("{mark} "), Style::default().fg(mark_color)));
+        spans.push(Span::styled(step.label(), Style::default().fg(name_color)));
     }
-    lines.push(Line::from(step_spans));
-
-    if app.profile == Profile::Utm {
-        lines.push(Line::from(Span::styled(
-            "utm: SceneFX necesita virtio-gpu-gl (virgl); con pixman no habrá bordes, sombras ni blur",
-            Style::default().fg(app.palette.muted),
-        )));
-    }
-
-    if let Some(error) = &app.install.error {
-        lines.push(Line::from(Span::styled(
-            format!("error: {error}"),
-            Style::default().fg(app.palette.error),
-        )));
-    }
-
-    f.render_widget(Paragraph::new(lines), area);
+    Line::from(spans)
 }
 
-pub fn key(_app: &mut App, _key: KeyEvent) -> bool {
-    false
+pub fn key(app: &mut App, key: KeyEvent) -> bool {
+    if app.install_cancel {
+        return match key.code {
+            KeyCode::Esc => {
+                app.install_cancel = false;
+                app.focus_buttons = false;
+                true
+            }
+            KeyCode::Char('v') => {
+                app.install_show_log = !app.install_show_log;
+                true
+            }
+            // Tab / arrows / Enter drive the two dialog buttons.
+            _ => false,
+        };
+    }
+    match key.code {
+        KeyCode::Char('v') => {
+            app.install_show_log = !app.install_show_log;
+            true
+        }
+        // Esc is a second way into the cancel confirmation.
+        KeyCode::Esc => {
+            if app.install.error.is_none() {
+                app.install_cancel = true;
+                app.focus_buttons = true;
+                app.button_focus = 0;
+            }
+            true
+        }
+        _ => false,
+    }
 }
 
-pub fn buttons(_app: &App) -> Vec<(crate::widgets::Btn, crate::app::Action)> {
+pub fn buttons(_app: &App) -> Vec<(Btn, crate::app::Action)> {
     Vec::new()
 }
 

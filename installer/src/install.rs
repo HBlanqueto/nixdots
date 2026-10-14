@@ -17,38 +17,26 @@ use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 
-/// The install steps, in order.
+/// The install steps shown in the UI, in order. The many real sub-steps are
+/// grouped into these four phases; `arranque` covers the bootloader (systemd-boot
+/// on utm, lanzaboote/sbctl keys on thinkpad), never a "secure boot" step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
     Disk,
-    Repo,
     Settings,
-    Hardware,
-    Persist,
-    SecureBoot,
     System,
+    Boot,
 }
 
 impl Step {
-    pub const ALL: [Step; 7] = [
-        Step::Disk,
-        Step::Repo,
-        Step::Settings,
-        Step::Hardware,
-        Step::Persist,
-        Step::SecureBoot,
-        Step::System,
-    ];
+    pub const ALL: [Step; 4] = [Step::Disk, Step::Settings, Step::System, Step::Boot];
 
     pub fn label(self) -> &'static str {
         match self {
             Step::Disk => "disco",
-            Step::Repo => "repo",
             Step::Settings => "ajustes",
-            Step::Hardware => "hardware",
-            Step::Persist => "persist",
-            Step::SecureBoot => "secure boot",
             Step::System => "sistema",
+            Step::Boot => "arranque",
         }
     }
 }
@@ -66,7 +54,6 @@ pub struct WifiSave {
 #[derive(Debug, Clone)]
 pub enum Msg {
     Step(Step),
-    Note(String),
     Log(String),
     Progress { built: u64, total: u64 },
     Finished { ok: bool, error: Option<String>, log_path: PathBuf },
@@ -120,11 +107,6 @@ impl Reporter {
         if let Some(file) = self.file.as_mut() {
             let _ = writeln!(file, "{line}");
         }
-    }
-
-    fn note(&mut self, line: impl Into<String>) {
-        let line = line.into();
-        let _ = self.tx.send(Msg::Note(line));
     }
 
     fn step(&self, step: Step) {
@@ -187,29 +169,30 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
     report.step(Step::Disk);
     step_disk(plan, report)?;
 
-    report.step(Step::Repo);
-    step_repo(plan, report)?;
-
     report.step(Step::Settings);
+    step_repo(plan, report)?;
     step_settings(plan, report)?;
-
-    report.step(Step::Hardware);
     step_hardware(plan, report)?;
-
-    report.step(Step::Persist);
     step_persist(plan, report)?;
-
-    // Lanzaboote/Secure Boot exists only on the ThinkPad profile; the UTM VM
-    // uses plain systemd-boot.
-    if plan.profile == crate::detect::Profile::Thinkpad {
-        report.step(Step::SecureBoot);
-        step_secure_boot(plan, report)?;
-    }
 
     report.step(Step::System);
     step_system(plan, report)?;
 
+    report.step(Step::Boot);
+    step_boot(plan, report)?;
+
     Ok(())
+}
+
+/// The final `arranque` phase: lanzaboote's sbctl keys on the ThinkPad; plain
+/// systemd-boot (already installed with the system) on the UTM VM.
+fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    if plan.profile == crate::detect::Profile::Thinkpad {
+        step_secure_boot(plan, report)
+    } else {
+        report.log("systemd-boot: instalado junto con el sistema");
+        Ok(())
+    }
 }
 
 fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
@@ -351,7 +334,7 @@ fn write_host_files(plan: &Plan, report: &mut Reporter, hardware_config: &str) -
         fs::create_dir_all(&dir)?;
         dir.join("hardware-configuration.nix")
     } else {
-        report.note("no hay hosts/; se escribe ./hardware-configuration.nix");
+        report.log("no hay hosts/; se escribe ./hardware-configuration.nix");
         repo.join("hardware-configuration.nix")
     };
     report.log(format!("$ escribir {}", target.display()));
@@ -538,7 +521,7 @@ fn persist_wifi(plan: &Plan, report: &mut Reporter) -> Result<()> {
         return Ok(());
     };
     if !wifi.networkmanager {
-        report.note(format!(
+        report.log(format!(
             "Wi-Fi {ssid}: guardada por iwd/wpa_supplicant, reconecta tras instalar",
             ssid = wifi.ssid
         ));
@@ -712,9 +695,10 @@ fn exec(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<i32
 fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<i32> {
     report.log(format!("$ {}", cmd.display));
     if plan.dry_run {
-        // Simulated, deterministic output; nothing is touched.
+        // Simulated, deterministic output; nothing is touched. The pause keeps
+        // the simulation in the ~20–30 s range so the whole screen is legible.
         report.log("(simulación) comando no ejecutado");
-        thread::sleep(Duration::from_millis(120));
+        thread::sleep(Duration::from_millis(500));
         return Ok(0);
     }
 
@@ -869,10 +853,16 @@ fn dry_hardware_config(system: &str) -> String {
 }
 
 fn simulate_build(report: &mut Reporter) {
-    let steps = 40u64;
+    let steps = 100u64;
     for i in 1..=steps {
         report.progress(i, steps);
-        thread::sleep(Duration::from_millis(15));
+        if i % 20 == 0 {
+            report.log(format!(
+                "building '/nix/store/{}000000000000000000000000000000000.drv'...",
+                i
+            ));
+        }
+        thread::sleep(Duration::from_millis(180));
     }
     report.log("(simulación) sistema construido");
 }
@@ -988,8 +978,10 @@ mod tests {
 
     #[test]
     fn steps_have_labels() {
-        assert_eq!(Step::ALL.len(), 7);
+        assert_eq!(Step::ALL.len(), 4);
         assert_eq!(Step::Disk.label(), "disco");
-        assert_eq!(Step::Persist.label(), "persist");
+        assert_eq!(Step::Settings.label(), "ajustes");
+        assert_eq!(Step::System.label(), "sistema");
+        assert_eq!(Step::Boot.label(), "arranque");
     }
 }
