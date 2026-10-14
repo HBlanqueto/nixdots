@@ -94,6 +94,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         let w = 84.min(area.width);
         let x = area.x + area.width.saturating_sub(w) / 2;
         let rect = Rect::new(x, y, w, log_h);
+        f.render_widget(ratatui::widgets::Clear, rect);
         let block = Block::default()
             .borders(Borders::LEFT)
             .border_style(Style::default().fg(app.palette.muted));

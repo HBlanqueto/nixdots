@@ -95,21 +95,62 @@ fn prepare_repo(spec: &str, dest: &Path) -> Result<()> {
     if dest.exists() {
         std::fs::remove_dir_all(dest).ok();
     }
+
+    // Prefer the repo embedded in the live ISO (`/etc/nixdots-src`), so the
+    // install does not depend on the network nor on what is pushed to GitHub.
+    let embedded = Path::new("/etc/nixdots-src");
+    if embedded.exists() {
+        let src = std::fs::canonicalize(embedded).unwrap_or_else(|_| embedded.to_path_buf());
+        return copy_dir(&src, dest);
+    }
+
     if let Some(slug) = spec.strip_prefix("github:") {
-        git_clone(&format!("https://github.com/{slug}.git"), dest)
+        git_clone(&format!("https://github.com/{slug}.git"), dest)?;
+        checkout_iso_rev(dest);
+        Ok(())
     } else if spec.contains("://") || spec.starts_with("git@") {
-        git_clone(spec, dest)
+        git_clone(spec, dest)?;
+        checkout_iso_rev(dest);
+        Ok(())
     } else {
         let src = PathBuf::from(spec);
         if !src.exists() {
             bail!("no existe el repositorio {spec}");
         }
-        let status = Command::new("cp").arg("-a").arg(&src).arg(dest).status()?;
-        if !status.success() {
-            bail!("no se pudo copiar {spec}");
-        }
-        Ok(())
+        copy_dir(&src, dest)
     }
+}
+
+fn copy_dir(src: &Path, dest: &Path) -> Result<()> {
+    let status = Command::new("cp").arg("-a").arg(src).arg(dest).status()?;
+    if !status.success() {
+        bail!("no se pudo copiar {}", src.display());
+    }
+    Ok(())
+}
+
+/// Checks out the commit recorded in `/etc/nixdots/rev` (written by the live
+/// ISO) so the install matches what was built, not the tip of the branch.
+/// Best-effort: a shallow clone may lack it, so it is fetched first.
+fn checkout_iso_rev(repo: &Path) {
+    let Ok(rev) = std::fs::read_to_string("/etc/nixdots/rev") else {
+        return;
+    };
+    let rev = rev.trim();
+    if rev.is_empty() {
+        return;
+    }
+    let safe = format!("safe.directory={}", repo.display());
+    let _ = Command::new("git")
+        .args(["-c", safe.as_str(), "-C"])
+        .arg(repo)
+        .args(["fetch", "--depth", "1", "origin", rev])
+        .status();
+    let _ = Command::new("git")
+        .args(["-c", safe.as_str(), "-C"])
+        .arg(repo)
+        .args(["checkout", rev])
+        .status();
 }
 
 fn git_clone(url: &str, dest: &Path) -> Result<()> {

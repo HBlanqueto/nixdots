@@ -19,7 +19,7 @@ use ratatui::crossterm::event::{
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -2213,15 +2213,15 @@ impl App {
         let body_h = inner.height.saturating_sub(1) as usize;
         let max_scroll = self.install.log.len().saturating_sub(body_h.max(1));
         let start = self.install_log_scroll.min(max_scroll);
-        let lines: Vec<Line> = self
-            .install
-            .log
-            .iter()
-            .skip(start)
-            .map(|l| self.log_line(l))
-            .collect();
+        let width = inner.width.max(1) as usize;
+        let mut rows: Vec<Line> = Vec::new();
+        for line in self.install.log.iter().skip(start) {
+            for chunk in hard_wrap(line, width) {
+                rows.push(self.log_line(&chunk));
+            }
+        }
         f.render_widget(
-            Paragraph::new(lines).wrap(Wrap { trim: false }),
+            Paragraph::new(rows),
             Rect::new(inner.x, inner.y, inner.width, body_h as u16),
         );
         f.render_widget(
@@ -2363,21 +2363,29 @@ impl App {
             .borders(Borders::LEFT)
             .border_style(Style::default().fg(self.palette.border));
         let inner = block.inner(area);
+        f.render_widget(Clear, inner);
         f.render_widget(block, area);
 
-        let visible: Vec<Line> = if self.screen == Screen::Installing {
+        let raw: Vec<String> = if self.screen == Screen::Installing {
             self.install
-                .visible_log(height as usize - 1)
+                .visible_log(height.saturating_sub(1) as usize)
                 .into_iter()
-                .map(|l| self.log_line(l))
+                .cloned()
                 .collect()
         } else {
-            lines
-                .iter()
-                .map(|l| Line::from(Span::styled(format!("$ {l}"), Style::default().fg(self.palette.muted))))
-                .collect()
+            lines.iter().map(|l| format!("$ {l}")).collect()
         };
-        f.render_widget(Paragraph::new(visible).wrap(Wrap { trim: true }), inner);
+
+        let width = inner.width.max(1) as usize;
+        let mut rows: Vec<Line> = Vec::new();
+        for line in raw {
+            for chunk in hard_wrap(&line, width) {
+                rows.push(self.log_line(&chunk));
+            }
+        }
+        // Keep the most recent rows visible when the wrapped log overflows.
+        let rows = rows.split_off(rows.len().saturating_sub(inner.height as usize));
+        f.render_widget(Paragraph::new(rows), inner);
     }
 
     fn log_line(&self, line: &str) -> Line<'static> {
@@ -2435,6 +2443,19 @@ impl App {
             Screen::Done => crate::screens::done::commands(self),
         }
     }
+}
+
+/// Hard-wraps `s` into chunks of at most `width` chars (no word trimming), so a
+/// long command line never spills past its panel and leaves stale cells behind.
+fn hard_wrap(s: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![s.to_string()];
+    }
+    let chars: Vec<char> = s.chars().collect();
+    if chars.is_empty() {
+        return vec![String::new()];
+    }
+    chars.chunks(width).map(|c| c.iter().collect()).collect()
 }
 
 

@@ -102,6 +102,35 @@ impl Plan {
     pub fn log_path(&self) -> PathBuf {
         PathBuf::from("/tmp/nixdots-install.log")
     }
+
+    /// Git identity for the installer's commits: the Git screen's when set,
+    /// else a throwaway one.
+    fn git_identity(&self) -> (String, String) {
+        (
+            self.settings
+                .git_name
+                .clone()
+                .unwrap_or_else(|| "nixdots-installer".to_string()),
+            self.settings
+                .git_email
+                .clone()
+                .unwrap_or_else(|| "installer@localhost".to_string()),
+        )
+    }
+}
+
+/// A `git` invocation rooted at `repo`, with `safe.directory` set per call (the
+/// repo belongs to the user but the installer runs as root).
+fn git_cmd(repo: &Path, args: &[&str]) -> Cmd {
+    let mut cmd = Cmd::new("git")
+        .arg("-c")
+        .arg(format!("safe.directory={}", repo.display()))
+        .arg("-C")
+        .arg_path(repo);
+    for arg in args {
+        cmd = cmd.arg(*arg);
+    }
+    cmd
 }
 
 /// Starts the install on a worker thread.
@@ -617,6 +646,7 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .with_display(format!("cp -a {} {}", plan.source.display(), dest.display()));
     let code = exec_in(plan, report, &cmd, plan.source.parent().unwrap_or(&plan.root))?;
     ensure_ok(code, "no se pudo copiar el repositorio")?;
+    ensure_repo_ready(plan, report, &dest)?;
     Ok(())
 }
 
@@ -642,60 +672,78 @@ fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
         return Ok(());
     }
 
-    let name = plan
-        .settings
-        .git_name
-        .clone()
-        .unwrap_or_else(|| "nixdots-installer".to_string());
-    let email = plan
-        .settings
-        .git_email
-        .clone()
-        .unwrap_or_else(|| "installer@localhost".to_string());
-    let safe = format!("safe.directory={}", repo.display());
+    let (name, email) = plan.git_identity();
+    let name_arg = format!("user.name={name}");
+    let email_arg = format!("user.email={email}");
+    let message = format!("hosts: add {}", plan.settings.host_name);
 
-    let add = Cmd::new("git")
-        .arg("-c")
-        .arg(&safe)
-        .arg("-C")
-        .arg_path(&repo)
-        .arg("add")
-        .arg("-A")
+    let add = git_cmd(&repo, &["add", "-A"])
         .with_display(format!("git -C {} add -A", repo.display()));
     ensure_ok(exec(plan, report, &add, &plan.source)?, "git add falló")?;
 
     // Nothing staged (e.g. a retry): HEAD already holds what the flake needs.
-    let check = Cmd::new("git")
-        .arg("-c")
-        .arg(&safe)
-        .arg("-C")
-        .arg_path(&repo)
-        .arg("diff")
-        .arg("--cached")
-        .arg("--quiet")
+    let check = git_cmd(&repo, &["diff", "--cached", "--quiet"])
         .with_display(format!("git -C {} diff --cached --quiet", repo.display()));
     if exec(plan, report, &check, &plan.source)? == 0 {
         report.log("git: sin cambios que confirmar");
         return Ok(());
     }
 
-    let commit = Cmd::new("git")
-        .arg("-c")
-        .arg(&safe)
-        .arg("-C")
-        .arg_path(&repo)
-        .arg("-c")
-        .arg(format!("user.name={name}"))
-        .arg("-c")
-        .arg(format!("user.email={email}"))
-        .arg("commit")
-        .arg("-m")
-        .arg(format!("hosts: add {}", plan.settings.host_name))
-        .with_display(format!(
-            "git -C {} commit -m \"hosts: add {}\"",
-            repo.display(),
-            plan.settings.host_name
-        ));
+    let commit = git_cmd(
+        &repo,
+        &[
+            "-c",
+            name_arg.as_str(),
+            "-c",
+            email_arg.as_str(),
+            "commit",
+            "-m",
+            message.as_str(),
+        ],
+    )
+    .with_display(format!(
+        "git -C {} commit -m \"{message}\"",
+        repo.display()
+    ));
+    ensure_ok(exec(plan, report, &commit, &plan.source)?, "git commit falló")
+}
+
+/// Makes the repo copied into `/mnt` usable by the flake. A snapshot copied from
+/// the ISO (`/etc/nixdots-src`, a read-only store path) arrives read-only and
+/// without `.git`; give it write permission and an initial commit.
+fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<()> {
+    let chmod = Cmd::new("chmod")
+        .arg("-R")
+        .arg("u+w")
+        .arg_path(repo)
+        .with_display(format!("chmod -R u+w {}", repo.display()));
+    let _ = exec(plan, report, &chmod, &plan.source);
+
+    if repo.join(".git").exists() {
+        return Ok(());
+    }
+
+    let (name, email) = plan.git_identity();
+    let name_arg = format!("user.name={name}");
+    let email_arg = format!("user.email={email}");
+    report.log("git: repo sin .git; se crea un commit inicial");
+
+    let init = git_cmd(repo, &["init"]);
+    ensure_ok(exec(plan, report, &init, &plan.source)?, "git init falló")?;
+    let add = git_cmd(repo, &["add", "-A"]);
+    ensure_ok(exec(plan, report, &add, &plan.source)?, "git add falló")?;
+    let commit = git_cmd(
+        repo,
+        &[
+            "-c",
+            name_arg.as_str(),
+            "-c",
+            email_arg.as_str(),
+            "commit",
+            "-m",
+            "nixdots: initial import",
+        ],
+    );
     ensure_ok(exec(plan, report, &commit, &plan.source)?, "git commit falló")
 }
 
@@ -780,12 +828,13 @@ fn step_hardware(
         .with_display("nixos-generate-config --root /mnt --show-hardware-config");
 
     let mut captured = String::new();
+    let mut err = String::new();
     let code = if plan.dry_run {
         report.log(format!("$ {}", cmd.display));
         captured.push_str(&dry_hardware_config(plan.profile.system()));
         0
     } else {
-        exec_capture(plan, report, &cmd, &plan.source, &mut captured)?
+        exec_capture(plan, report, &cmd, &plan.source, &mut captured, &mut err)?
     };
     ensure_ok(code, "nixos-generate-config falló")?;
 
@@ -899,7 +948,11 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
     }
 
     let mut captured = String::new();
-    let code = exec_capture(plan, report, &cmd, &repo, &mut captured)?;
+    let mut eval_err = String::new();
+    let code = exec_capture(plan, report, &cmd, &repo, &mut captured, &mut eval_err)?;
+    if code != 0 {
+        report_eval_failure(plan, report, &repo, &eval_err);
+    }
     ensure_ok(code, "no se pudo evaluar environment.persistence")?;
     let value: serde_json::Value =
         serde_json::from_str(&captured).map_err(|e| eyre!("persistencia ilegible: {e}"))?;
@@ -1242,6 +1295,7 @@ fn exec_capture(
     cmd: &Cmd,
     cwd: &Path,
     captured: &mut String,
+    err: &mut String,
 ) -> Result<i32> {
     report.log(format!("$ {}", cmd.display));
     if plan.dry_run {
@@ -1257,9 +1311,51 @@ fn exec_capture(
             captured.push('\n');
             report.log(l);
         }
-        Stream::Stderr(l) => report.log(l),
+        Stream::Stderr(l) => {
+            err.push_str(&l);
+            err.push('\n');
+            report.log(l);
+        }
     };
     Ok(runner::run(&wrapped, &mut sink))
+}
+
+/// On an evaluation failure, points at the missing file (nix reports
+/// `path '…' does not exist`) and prints the installed repo's commit.
+fn report_eval_failure(plan: &Plan, report: &mut Reporter, repo: &Path, err: &str) {
+    match missing_path_hint(err) {
+        Some(path) => report.log(format!(
+            "error: falta el archivo {path} en {} (revisa el commit del repo)",
+            repo.display()
+        )),
+        None => report.log("error: la evaluación del repo falló; revisa el log"),
+    }
+
+    let rev = git_cmd(repo, &["log", "-1", "--oneline"]);
+    let mut out = String::new();
+    let mut git_err = String::new();
+    if exec_capture(plan, report, &rev, &plan.source, &mut out, &mut git_err).unwrap_or(1) == 0 {
+        let line = out.trim();
+        if !line.is_empty() {
+            report.log(format!("repo en /mnt: {line}"));
+        }
+    }
+}
+
+/// Extracts the path from nix's `error: path '/nix/store/…' does not exist`.
+fn missing_path_hint(stderr: &str) -> Option<String> {
+    for line in stderr.lines() {
+        if !line.contains("does not exist") {
+            continue;
+        }
+        if let (Some(a), Some(b)) = (line.find('\''), line.rfind('\'')) {
+            if b > a + 1 {
+                return Some(line[a + 1..b].to_string());
+            }
+        }
+        return Some(line.trim().to_string());
+    }
+    None
 }
 
 fn ensure_ok(code: i32, what: &str) -> Result<()> {
