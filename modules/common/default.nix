@@ -14,6 +14,7 @@
         ./fonts.nix
         ./uutils.nix
         ./ai.nix
+        ./iphone-tethering.nix
         ./home.nix
     ];
 }
