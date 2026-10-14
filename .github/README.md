@@ -22,59 +22,63 @@ An overview of the core configuration files and directories that make up this Ni
 
 ```text
 .
-├── boot/                    # /boot — kernel, bootloader, impermanence rollback
-│   ├── default.nix
-│   └── snapshot.sh
-├── etc/                     # /etc — NixOS system configuration
-│   ├── desktop/
-│   │   └── gnome.nix
-│   ├── ai.nix               # ollama server + opencode AI stack
-│   ├── default.nix
-│   ├── fonts.nix
-│   ├── global.nix
-│   ├── services.nix
-│   └── uutils.nix
-├── home/                    # /home — home-manager configuration
-│   └── humbe/               # one directory per user (matches username in settings.nix)
-│       ├── config/
-│       │   ├── fastfetch/
-│       │   │   ├── config.jsonc
-│       │   │   └── logo.txt
-│       │   ├── mopidy.nix
-│       │   ├── ncmpcpp.nix
-│       │   ├── starship.nix
-│       │   ├── wezterm.lua
-│       │   └── yazi/
-│       │       ├── default.nix
-│       │       ├── icons.nix
-│       │       ├── init.lua
-│       │       └── yatline-icon.patch
-│       ├── apps.nix
+├── hosts/                   # one directory per host
+│   ├── thinkpad/            # physical L14 Gen 2a (x86_64-linux)
+│   │   ├── default.nix      # imports its hardware module + config
+│   │   └── hardware-configuration.nix
+│   └── utm/                 # UTM/QEMU VM on Apple Silicon (aarch64-linux)
 │       ├── default.nix
-│       └── style.nix
-├── share/                   # /usr/share — static assets
-│   ├── themes/
+│       └── hardware-configuration.nix
+├── lib/
+│   └── mkHost.nix           # helper: mkHost { hostName, system, modules }
+├── modules/                 # shared NixOS configuration
+│   ├── common/              # users, fish, locale, nix, services, CLI tools
+│   │   ├── ai.nix           # ollama server + opencode AI stack
+│   │   ├── boot.nix         # generic boot/plymouth/sysctl
 │   │   ├── default.nix
-│   │   ├── filecolors.nix
-│   │   ├── neptunia.nix
-│   │   └── vscode.nix
-│   └── chime.wav
+│   │   ├── fonts.nix
+│   │   ├── home.nix         # home-manager wiring
+│   │   ├── nix.nix          # nix/nixpkgs settings + impermanence
+│   │   ├── services.nix
+│   │   ├── user.nix
+│   │   └── uutils.nix
+│   ├── desktop/             # somewm, quickshell, gnome/gdm
+│   │   ├── default.nix
+│   │   ├── gnome.nix
+│   │   ├── quickshell.nix
+│   │   └── somewm.nix
+│   ├── hardware/            # host-specific hardware
+│   │   ├── thinkpad.nix
+│   │   ├── vm-utm.nix
+│   │   └── snapshot.sh      # impermanence rollback (ThinkPad only)
+│   └── home/                # home-manager configuration
+│       ├── common/
+│       │   ├── apps.nix
+│       │   ├── default.nix
+│       │   ├── style.nix
+│       │   └── config/      # fastfetch, mopidy, ncmpcpp, starship, yazi
+│       └── desktop/
+│           ├── default.nix  # wezterm + nswm helper
+│           └── wezterm.lua
+├── share/                   # static assets: themes, boot chime
 ├── overlays/
 │   └── default.nix
 ├── packages/
 │   └── sf-mono-liga-bin.nix
 ├── flake.nix
 ├── flake.lock
-├── hardware-configuration.nix
 └── settings.nix
 ```
 
-* **`flake.nix`:** The minimal main entry point for the system setup.
-* **`settings.nix`:** Single source of truth for global user values (username, hostname, language, Git email).
-* **`boot/`:** Startup settings, kernel, and Impermanence snapshot script.
-* **`etc/`:** Core system environment (desktop, services, fonts, system-wide tools, and the local AI stack).
-* **`home/`:** User-specific configurations (XDG) for each user in `settings.nix`, including app configs, programs (`apps.nix`), and theming (`style.nix`).
-* **`share/`:** Static assets: the color themes and the boot audio.
+* **`flake.nix`:** emits one configuration per host (`thinkpad`, `utm`).
+* **`lib/mkHost.nix`:** builds a `nixosConfiguration` from `{ hostName, system, modules }`.
+* **`settings.nix`:** host-independent values (username, locale, Git email).
+* **`hosts/`:** per-host entry point and `hardware-configuration.nix`.
+* **`modules/common` + `modules/desktop`:** shared system configuration.
+* **`modules/hardware`:** ThinkPad/laptop and UTM/QEMU specifics.
+* **`modules/home`:** shared home-manager configuration.
+
+See [HOSTS.md](HOSTS.md) for the multi-host workflow and how to install the VM.
 
 ## Setup
 
@@ -190,11 +194,12 @@ btrfs subvolume delete "$snapshot"
 
 ### Installation
 
-> [!NOTE]
-> If you changed the hostname in `settings.nix`, make sure to replace `#nixos` with your new hostname in the command below.
+The flake provides two hosts: `thinkpad` (x86_64-linux) and `utm`
+(aarch64-linux). Replace `#thinkpad` below with `#utm` when installing the VM
+(see [HOSTS.md](HOSTS.md)).
 
 ```shell
-nixos-install --root /mnt --flake '#nixos' --impure --show-trace
+nixos-install --root /mnt --flake '#thinkpad' --impure --show-trace
 ```
 
 ## Credits

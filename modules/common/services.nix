@@ -28,6 +28,7 @@
     };
 
     services = {
+        bpftune.enable = true;
         dbus.enable = true;
         fstrim.enable = true;
         gnome.gnome-keyring.enable = true;
