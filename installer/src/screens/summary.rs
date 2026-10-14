@@ -13,8 +13,8 @@ fn uutils_option(app: &App) -> bool {
 }
 
 pub fn height(app: &App) -> u16 {
-    // 5 rows + blank + warning (+ checkbox on ThinkPad) (+ mv note).
-    let mut h = 7;
+    // 6 rows + blank + warning (+ checkbox on ThinkPad) (+ mv note).
+    let mut h = 8;
     if uutils_option(app) {
         h += 1;
     }
@@ -41,6 +41,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         Some(name) if app.git.enabled => name.clone(),
         _ => "no configurado".into(),
     };
+    let cifrado = if !app.disks.encrypt {
+        "sin cifrar".to_string()
+    } else if app.enc.tpm && app.enc.tpm_present {
+        "LUKS2 · TPM".to_string()
+    } else {
+        "LUKS2".to_string()
+    };
 
     let mut lines = vec![
         row(app, "hostname", app.settings.host_name.clone()),
@@ -48,6 +55,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         row(app, "usuario", app.settings.username.clone()),
         row(app, "git", git),
         row(app, "disco", disk),
+        row(app, "cifrado", cifrado),
         Line::from(""),
     ];
 
@@ -74,10 +82,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     )));
 
     f.render_widget(Paragraph::new(lines), area);
-    // The uutils checkbox is on line 6 (5 rows + a blank).
+    // The uutils checkbox is on line 8 (6 rows + a blank + the warning below).
     if uutils_option(app) {
         app.targets.borrow_mut().push((
-            Rect::new(area.x, area.y + 6, area.width, 1),
+            Rect::new(area.x, area.y + 7, area.width, 1),
             Click::SummaryUutils,
         ));
     }

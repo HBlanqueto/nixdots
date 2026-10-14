@@ -5,7 +5,7 @@
 //! [`Cmd::display`] string for the command panel and the install log.
 
 use color_eyre::eyre::{Context, Result};
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Command, Output, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
@@ -85,17 +85,48 @@ pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    spawn_and_stream(command, &cmd.program, None, sink)
+}
 
+/// Like [`run`], but feeds `input` on the child's stdin. Used for secrets
+/// (LUKS passphrases, recovery keys) that must never appear as an argument, in
+/// the display string or in the log. The data is sent from a helper thread and
+/// the pipe is closed right after, so the child sees EOF.
+pub fn run_with_stdin(cmd: &Cmd, input: &[u8], sink: &mut dyn FnMut(Stream)) -> i32 {
+    let mut command = Command::new(&cmd.program);
+    command
+        .args(&cmd.args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    spawn_and_stream(command, &cmd.program, Some(input), sink)
+}
+
+fn spawn_and_stream(
+    mut command: Command,
+    program: &str,
+    input: Option<&[u8]>,
+    sink: &mut dyn FnMut(Stream),
+) -> i32 {
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(err) => {
             sink(Stream::Stderr(format!(
-                "no se pudo ejecutar {}: {err}",
-                cmd.program
+                "no se pudo ejecutar {program}: {err}"
             )));
             return 127;
         }
     };
+
+    if let Some(input) = input {
+        if let Some(mut stdin) = child.stdin.take() {
+            let data = input.to_vec();
+            thread::spawn(move || {
+                let _ = stdin.write_all(&data);
+                let _ = stdin.flush();
+            });
+        }
+    }
 
     let (tx, rx) = mpsc::channel::<(bool, String)>();
     let mut readers = Vec::new();
@@ -132,7 +163,7 @@ pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
         let _ = child.kill();
         sink(Stream::Stderr(format!(
             "{} no produjo salida en {} s; se cancela el comando",
-            cmd.program,
+            program,
             IDLE_TIMEOUT.as_secs()
         )));
     }
@@ -149,7 +180,7 @@ pub fn run(cmd: &Cmd, sink: &mut dyn FnMut(Stream)) -> i32 {
     match child.wait() {
         Ok(status) => status.code().unwrap_or(-1),
         Err(err) => {
-            sink(Stream::Stderr(format!("error esperando a {}: {err}", cmd.program)));
+            sink(Stream::Stderr(format!("error esperando a {program}: {err}")));
             -1
         }
     }

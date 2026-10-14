@@ -46,7 +46,7 @@
                 before = [ "sysroot.mount" ];
                 # The btrfs we roll back lives inside the LUKS container, so it
                 # must already be open before snapshot.sh can mount it.
-                after = [ "systemd-cryptsetup@core.service" ];
+                after = [ "systemd-cryptsetup@cryptroot.service" ];
                 unitConfig.DefaultDependencies = "no";
                 serviceConfig.Type = "oneshot";
                 script = builtins.readFile ./snapshot.sh;

@@ -33,7 +33,7 @@ in
 
         luksName = lib.mkOption {
             type = lib.types.str;
-            default = "core";
+            default = "cryptroot";
             description = "Name of the LUKS device created by disko.nix.";
         };
     };

@@ -27,7 +27,7 @@ pub fn height(app: &App) -> u16 {
     // list + blank + "cómo instalar" + cards(4) + blank + "así quedará"(1) + bar+legend(2)
     // + blank + two columns
     let single = if app.disks.options().len() == 1 { 1 } else { 0 };
-    n.max(1) + 1 + 1 + 5 + single + 1 + 1 + 2 + 1 + tree.max(5)
+    n.max(1) + 1 + 1 + 5 + single + 1 + 1 + 2 + 1 + tree.max(6)
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
@@ -278,25 +278,37 @@ fn draw_right(f: &mut Frame, app: &App, area: Rect) {
     app.targets
         .borrow_mut()
         .push((Rect::new(area.x, area.y, area.width, 1), Click::DiskName));
+    app.targets
+        .borrow_mut()
+        .push((Rect::new(area.x, area.y + 2, area.width, 1), Click::DiskEncrypt));
     if app.disks.option == 0 {
         app.targets
             .borrow_mut()
-            .push((Rect::new(area.x, area.y + 2, area.width, 1), Click::DiskConfirm));
+            .push((Rect::new(area.x, area.y + 4, area.width, 1), Click::DiskConfirm));
     }
-    let mut lines: Vec<Line> = Vec::new();
-    // Volume name (editable).
-    lines.push(widgets::input_line(
-        &app.palette,
-        "nombre",
-        app.disks.volume_name.value(),
-        app.disks.volume_name.visual_cursor(),
-        app.disk_focus == 1 && !app.focus_buttons,
-        false,
-        area.width,
-        true,
-        "Core HD",
-    ));
-    lines.push(Line::from(""));
+    let mut lines: Vec<Line> = vec![
+        // Volume name (editable).
+        widgets::input_line(
+            &app.palette,
+            "nombre",
+            app.disks.volume_name.value(),
+            app.disks.volume_name.visual_cursor(),
+            app.disk_focus == 1 && !app.focus_buttons,
+            false,
+            area.width,
+            true,
+            "System HD",
+        ),
+        Line::from(""),
+        // Encrypt the System HD partition (the whole Cifrado screen follows).
+        widgets::checkbox(
+            &app.palette,
+            app.disks.encrypt,
+            "Cifrar System HD",
+            false,
+        ),
+        Line::from(""),
+    ];
 
     if app.disks.option == 1 {
         // Alongside Windows: size stepper + warning.
@@ -372,6 +384,11 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             app.disks.confirmed = !app.disks.confirmed;
             true
         }
+        // Cifrar System HD: toggleable with 'c' or a click.
+        KeyCode::Char('c') | KeyCode::Char('C') if app.disk_focus == 0 => {
+            app.disks.encrypt = !app.disks.encrypt;
+            true
+        }
         _ if app.disk_focus == 1 && super::is_edit_key(&key) => {
             app.disks.volume_name.handle_event(&Event::Key(key));
             true
@@ -393,8 +410,16 @@ pub fn commands(app: &App) -> Vec<String> {
         .map(|d| d.path())
         .unwrap_or_else(|| "/dev/xxx".into());
     let mut commands = vec![format!(
-        "disko --mode destroy,format,mount disko.nix --argstr device {device}"
+        "disko --mode destroy,format,mount disko.nix --argstr device {device}{}",
+        if app.disks.encrypt {
+            " --arg encrypt true"
+        } else {
+            ""
+        }
     )];
+    if app.disks.encrypt {
+        commands.push("cryptsetup luksFormat --type luks2 --key-file - (mapper cryptroot)".into());
+    }
     if app.disks.windows {
         commands.push("os-prober   (para la entrada de Windows)".into());
     }

@@ -1,7 +1,7 @@
 //! Application state and the terminal chrome shared by every screen.
 //!
-//! Chrome is always: one header line, a 36-cell text progress bar (3 cells per
-//! step, `n/12`), one centered rounded panel with its title embedded in the top
+//! Chrome is always: one header line, a 39-cell text progress bar (3 cells per
+//! step, `n/13`), one centered rounded panel with its title embedded in the top
 //! border, a button row, and an optional `v` commands column.
 
 use crate::detect::{self, Disk};
@@ -26,8 +26,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 use tui_input::Input;
+use zeroize::Zeroizing;
 
-const STEPS: usize = 12;
+const STEPS: usize = 13;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -43,13 +44,14 @@ pub enum Screen {
     Password,
     Git,
     Disk,
+    Encryption,
     Summary,
     Installing,
     Done,
 }
 
 impl Screen {
-    pub const ORDER: [Screen; 13] = [
+    pub const ORDER: [Screen; 14] = [
         Screen::Welcome,
         Screen::License,
         Screen::Network,
@@ -60,6 +62,7 @@ impl Screen {
         Screen::Password,
         Screen::Git,
         Screen::Disk,
+        Screen::Encryption,
         Screen::Summary,
         Screen::Installing,
         Screen::Done,
@@ -82,6 +85,7 @@ impl Screen {
             Screen::Password => "Contraseña",
             Screen::Git => "Git",
             Screen::Disk => "Disco",
+            Screen::Encryption => "Cifrado",
             Screen::Summary => "Resumen",
             Screen::Installing => "Instalando",
             Screen::Done => "Listo",
@@ -100,7 +104,8 @@ impl Screen {
             Screen::User => Some(Screen::Password),
             Screen::Password => Some(Screen::Git),
             Screen::Git => Some(Screen::Disk),
-            Screen::Disk => Some(Screen::Summary),
+            Screen::Disk => Some(Screen::Encryption),
+            Screen::Encryption => Some(Screen::Summary),
             Screen::Summary => Some(Screen::Installing),
             _ => None,
         }
@@ -118,7 +123,8 @@ impl Screen {
             Screen::Password => Some(Screen::User),
             Screen::Git => Some(Screen::Password),
             Screen::Disk => Some(Screen::Git),
-            Screen::Summary => Some(Screen::Disk),
+            Screen::Encryption => Some(Screen::Disk),
+            Screen::Summary => Some(Screen::Encryption),
         }
     }
 }
@@ -175,6 +181,12 @@ pub enum Click {
     DiskName,
     DiskRow(usize),
     DiskOption(usize),
+    DiskEncrypt,
+    EncAccount,
+    EncTpm,
+    EncNoted,
+    EncUsb,
+    EncUsbRow(usize),
     LocaleColumn(usize),
     PickerRow(PickerKind, usize),
     WifiRow(usize),
@@ -348,6 +360,8 @@ pub struct DiskState {
     pub volume_name: Input,
     /// Size (GB) the Core HD partition gets when installing alongside.
     pub partition_gb: u64,
+    /// Wrap the System HD partition in LUKS2 (the whole Cifrado screen).
+    pub encrypt: bool,
 }
 
 impl DiskState {
@@ -358,6 +372,98 @@ impl DiskState {
         } else {
             &["Borrar todo el disco"]
         }
+    }
+}
+
+/// Focus targets inside the Cifrado screen (skipped when not applicable).
+pub const ENC_ACCOUNT: usize = 0;
+pub const ENC_PASS: usize = 1;
+pub const ENC_CONFIRM: usize = 2;
+pub const ENC_TPM: usize = 3;
+pub const ENC_NOTED: usize = 4;
+
+pub struct EncState {
+    /// Reuse the account password as the LUKS passphrase.
+    pub use_account: bool,
+    /// Custom LUKS passphrase (when `use_account` is off).
+    pub pass: Input,
+    pub confirm: Input,
+    /// One of the `ENC_*` targets.
+    pub focus: usize,
+    /// "Desbloquear automáticamente con TPM" (only when `tpm_present`).
+    pub tpm: bool,
+    pub tpm_present: bool,
+    /// "La anoté en un lugar seguro".
+    pub noted: bool,
+    /// The recovery key, kept only in memory and wiped on drop.
+    pub recovery: Zeroizing<String>,
+    /// Removable-media picker state for "guardar en USB".
+    pub usb_open: bool,
+    pub usb: Vec<crate::detect::RemovableMedium>,
+    pub usb_index: usize,
+    /// Device the key was last written to.
+    pub usb_saved: Option<String>,
+}
+
+impl EncState {
+    pub fn new(tpm_present: bool) -> Self {
+        Self {
+            use_account: true,
+            pass: Input::default(),
+            confirm: Input::default(),
+            focus: ENC_ACCOUNT,
+            tpm: tpm_present,
+            tpm_present,
+            noted: false,
+            recovery: crate::crypto::recovery_key(),
+            usb_open: false,
+            usb: Vec::new(),
+            usb_index: 0,
+            usb_saved: None,
+        }
+    }
+
+    /// The password the user actually typed (when not reusing the account).
+    pub fn passphrase_matches(&self) -> bool {
+        !self.pass.value().is_empty() && self.pass.value() == self.confirm.value()
+    }
+
+    /// Logical targets in display order, minus the ones that do not apply.
+    pub fn targets(&self) -> Vec<usize> {
+        let mut targets = vec![ENC_ACCOUNT];
+        if !self.use_account {
+            targets.push(ENC_PASS);
+            targets.push(ENC_CONFIRM);
+        }
+        if self.tpm_present {
+            targets.push(ENC_TPM);
+        }
+        targets.push(ENC_NOTED);
+        targets
+    }
+
+    /// Moves the focus by `delta` positions within `targets()`.
+    pub fn move_focus(&mut self, delta: isize) {
+        let targets = self.targets();
+        let pos = targets.iter().position(|&t| t == self.focus).unwrap_or(0);
+        let next = (pos as isize + delta).clamp(0, targets.len() as isize - 1) as usize;
+        self.focus = targets[next];
+    }
+
+    /// Whether the "switching the account checkbox" should send focus to the
+    /// phrase field (it becomes visible) or back to the checkbox list.
+    pub fn set_use_account(&mut self, reuse: bool) {
+        self.use_account = reuse;
+        self.focus = if reuse { ENC_ACCOUNT } else { ENC_PASS };
+    }
+
+    /// The Cifrado screen can advance only once the key was acknowledged and
+    /// the chosen passphrase is usable.
+    pub fn ready(&self) -> bool {
+        if !self.noted {
+            return false;
+        }
+        self.use_account || self.passphrase_matches()
     }
 }
 
@@ -497,6 +603,7 @@ pub struct App {
 
     // disk / summary
     pub disks: DiskState,
+    pub enc: EncState,
     /// 0 = disk list, 1 = volume name field.
     pub disk_focus: usize,
     pub keep_uutils: bool,
@@ -602,9 +709,11 @@ impl App {
                 windows: detect::windows_present(),
                 option: 0,
                 confirmed: false,
-                volume_name: Input::new("Core HD".to_string()),
+                volume_name: Input::new("System HD".to_string()),
                 partition_gb: 100,
+                encrypt: true,
             },
+            enc: EncState::new(detect::tpm2_present()),
             net: NetState {
                 backend: net::backend(dry_run),
                 phase: RedFase::Lista,
@@ -952,13 +1061,29 @@ impl App {
             _ => None,
         };
 
+        // The LUKS2 passphrase is either the account password (default) or the
+        // one typed on the Cifrado screen; both travel over stdin, never argv.
+        let encrypt = self.disks.encrypt;
+        let luks_passphrase = Zeroizing::new(if self.enc.use_account {
+            self.password.p1.value().to_string()
+        } else {
+            self.enc.pass.value().to_string()
+        });
+        let recovery_key = Zeroizing::new(if encrypt {
+            self.enc.recovery.to_string()
+        } else {
+            String::new()
+        });
+
         let plan = Plan {
             source: self.repo_dir.clone(),
             root,
             settings: self.settings.clone(),
             password_hash: hash,
-            // Reuse the account password as the LUKS passphrase for the root.
-            luks_password: self.password.p1.value().to_string(),
+            encrypt,
+            luks_passphrase,
+            recovery_key,
+            luks_tpm: encrypt && self.enc.tpm && self.enc.tpm_present,
             device: disk.path(),
             // uutils is only offered (and only applied) on the ThinkPad.
             keep_uutils: self.keep_uutils && self.uutils_available(),
@@ -1068,6 +1193,12 @@ impl App {
             return;
         }
 
+        // The "guardar en USB" picker on the Cifrado screen owns the keyboard.
+        if self.enc.usb_open {
+            crate::screens::encryption::usb_key(self, key);
+            return;
+        }
+
         // F2 opens it on any screen except Inicio / Instalando / Listo.
         if key.code == KeyCode::F(2)
             && !matches!(self.screen, Screen::Splash | Screen::Installing | Screen::Done)
@@ -1159,6 +1290,7 @@ impl App {
             Screen::Password => crate::screens::password::key(self, key),
             Screen::Git => crate::screens::git::key(self, key),
             Screen::Disk => crate::screens::disk::key(self, key),
+            Screen::Encryption => crate::screens::encryption::key(self, key),
             Screen::Summary => crate::screens::summary::key(self, key),
             Screen::Installing => crate::screens::installing::key(self, key),
             Screen::Done => crate::screens::done::key(self, key),
@@ -1235,6 +1367,7 @@ impl App {
             Screen::Password => crate::screens::password::buttons(self),
             Screen::Git => crate::screens::git::buttons(self),
             Screen::Disk => crate::screens::disk::buttons(self),
+            Screen::Encryption => crate::screens::encryption::buttons(self),
             Screen::Summary => crate::screens::summary::buttons(self),
             Screen::Installing => {
                 if self.install_cancel {
@@ -1467,6 +1600,21 @@ impl App {
                 self.disks.option = i;
                 self.disks.confirmed = false;
             }
+            Click::DiskEncrypt => self.disks.encrypt = !self.disks.encrypt,
+            Click::EncAccount => {
+                let reuse = !self.enc.use_account;
+                self.enc.set_use_account(reuse);
+            }
+            Click::EncTpm => {
+                if self.enc.tpm_present {
+                    self.enc.tpm = !self.enc.tpm;
+                }
+            }
+            Click::EncNoted => self.enc.noted = !self.enc.noted,
+            Click::EncUsb => self.open_usb_modal(),
+            Click::EncUsbRow(i) => {
+                self.enc.usb_index = i;
+            }
             Click::LocaleColumn(i) => self.locale_focus = i,
             Click::PickerRow(kind, index) => self.select_picker(kind, index),
             Click::WifiRow(i) => {
@@ -1553,10 +1701,35 @@ impl App {
             self.disk_focus = 0;
             self.disks.confirmed = false;
         }
+        if self.screen == Screen::Encryption {
+            self.enc.focus = if self.enc.use_account {
+                ENC_ACCOUNT
+            } else {
+                ENC_PASS
+            };
+            self.enc.usb_open = false;
+        }
+    }
+
+    /// Opens the "guardar en USB" media list on the Cifrado screen.
+    pub fn open_usb_modal(&mut self) {
+        let target = self
+            .selected_disk()
+            .map(|d| d.path())
+            .unwrap_or_default();
+        self.enc.usb = detect::removable_media(&target);
+        self.enc.usb_index = 0;
+        self.enc.usb_open = true;
     }
 
     pub fn go_back(&mut self) {
-        if let Some(prev) = self.screen.previous() {
+        // The Cifrado screen does not exist when encryption is off.
+        let prev = if self.screen == Screen::Summary && !self.disks.encrypt {
+            Some(Screen::Disk)
+        } else {
+            self.screen.previous()
+        };
+        if let Some(prev) = prev {
             self.screen = prev;
             self.reset_focus();
             self.status = None;
@@ -1568,7 +1741,13 @@ impl App {
         if !self.primary_enabled() {
             return;
         }
-        match self.screen.next() {
+        // Skip Cifrado entirely when the user unchecked "Cifrar System HD".
+        let next = if self.screen == Screen::Disk && !self.disks.encrypt {
+            Some(Screen::Summary)
+        } else {
+            self.screen.next()
+        };
+        match next {
             Some(Screen::Installing) => {
                 self.screen = Screen::Installing;
                 self.reset_install_view();
@@ -1701,6 +1880,7 @@ impl App {
                 .unwrap_or(false),
             Screen::Locale => self.loc.as_ref().map(|p| p.selected.is_some()).unwrap_or(false),
             Screen::Disk => self.disk_ready(),
+            Screen::Encryption => self.enc.ready(),
             _ => true,
         }
     }
@@ -1821,6 +2001,9 @@ impl App {
             self.draw_commands(f, commands, &commands_lines, commands_h);
         }
 
+        if self.enc.usb_open {
+            crate::screens::encryption::draw_usb(f, self, area);
+        }
         if self.key_modal.is_some() {
             self.draw_key_modal(f, area);
         }
@@ -1948,6 +2131,7 @@ impl App {
             Screen::Password => crate::screens::password::height(self),
             Screen::Git => crate::screens::git::height(self),
             Screen::Disk => crate::screens::disk::height(self),
+            Screen::Encryption => crate::screens::encryption::height(self),
             Screen::Summary => crate::screens::summary::height(self),
             Screen::Installing => crate::screens::installing::height(self),
             Screen::Done => crate::screens::done::height(self),
@@ -2022,8 +2206,8 @@ impl App {
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
-        // 36 cells, 3 per step from Bienvenido (1/12) to Instalando (12/12).
-        let cells: usize = 36;
+        // 3 cells per step, from Bienvenido (1/13) to Instalando (13/13).
+        let cells: usize = STEPS * 3;
         let step = (self.screen.index() + 1).min(STEPS);
         let filled = (step * 3).min(cells);
         let line = Line::from(vec![
@@ -2079,6 +2263,7 @@ impl App {
             Screen::Password => crate::screens::password::draw(f, self, content),
             Screen::Git => crate::screens::git::draw(f, self, content),
             Screen::Disk => crate::screens::disk::draw(f, self, content),
+            Screen::Encryption => crate::screens::encryption::draw(f, self, content),
             Screen::Summary => crate::screens::summary::draw(f, self, content),
             Screen::Installing => crate::screens::installing::draw(f, self, content),
             Screen::Done => crate::screens::done::draw(f, self, content),
@@ -2101,6 +2286,7 @@ impl App {
             Screen::Password => vec!["↑↓ campo".into()],
             Screen::Git => vec!["espacio marcar".into()],
             Screen::Disk => vec!["←→ opción".into(), "↑↓ disco".into()],
+            Screen::Encryption => crate::screens::encryption::shortcuts(self),
             Screen::Summary => vec!["no se puede deshacer".into()],
             Screen::Installing => vec!["ctrl+c cancelar".into()],
             Screen::Done => vec!["retira la ISO antes de reiniciar".into()],
@@ -2214,6 +2400,7 @@ impl App {
             Screen::Password => crate::screens::password::commands(self),
             Screen::Git => crate::screens::git::commands(self),
             Screen::Disk => crate::screens::disk::commands(self),
+            Screen::Encryption => crate::screens::encryption::commands(self),
             Screen::Summary => crate::screens::summary::commands(self),
             Screen::Installing => crate::screens::installing::commands(self),
             Screen::Done => crate::screens::done::commands(self),

@@ -66,6 +66,8 @@
                         btrfs-progs
                         dosfstools
                         util-linux
+                        cryptsetup
+                        systemd
                         mkpasswd
                         sbctl
                         less

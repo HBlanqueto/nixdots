@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
+use zeroize::Zeroizing;
 
 /// The install steps shown in the UI, in order. The many real sub-steps are
 /// grouped into these four phases; `arranque` covers the bootloader (systemd-boot
@@ -68,9 +69,15 @@ pub struct Plan {
     pub root: PathBuf,
     pub settings: Settings,
     pub password_hash: String,
-    /// Passphrase for the LUKS-encrypted root (same as the account password).
-    /// Written to a root-only temp file for disko and removed right after.
-    pub luks_password: String,
+    /// Whether the System HD partition is wrapped in LUKS2.
+    pub encrypt: bool,
+    /// Passphrase for the LUKS-encrypted root (the account password, or the
+    /// one typed on the Cifrado screen). Never logged, only fed over stdin.
+    pub luks_passphrase: Zeroizing<String>,
+    /// Recovery key enrolled as a second LUKS slot. Wiped after use.
+    pub recovery_key: Zeroizing<String>,
+    /// Enroll TPM2 (PCR 7) auto-unlock in addition to the passphrase.
+    pub luks_tpm: bool,
     pub device: String,
     pub keep_uutils: bool,
     pub dry_run: bool,
@@ -202,43 +209,130 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // disko cannot prompt inside the TUI, so the LUKS passphrase goes through a
     // root-only file (0600) passed as `--argstr passwordFile`. It is removed
     // again as soon as disko returns, success or failure.
-    let key_path = std::env::temp_dir().join("nixdots-luks.key");
-    if !plan.dry_run {
-        let mut key = OpenOptions::new()
+    let key_path = PathBuf::from("/tmp/nixdots-luks.key");
+    if plan.encrypt && !plan.dry_run {
+        let mut file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .mode(0o600)
             .open(&key_path)
             .map_err(|err| eyre!("no se pudo crear {}: {err}", key_path.display()))?;
-        key.write_all(plan.luks_password.as_bytes())?;
-        key.flush()?;
+        file.write_all(plan.luks_passphrase.as_bytes())?;
+        file.write_all(b"\n")?;
+        file.flush()?;
     }
 
-    // The user already confirmed the wipe on the Disk screen, and stdin is
-    // closed, so disko must not stop to ask for confirmation.
-    let cmd = Cmd::new("disko")
-        .arg("--mode")
-        .arg("destroy,format,mount")
-        .arg("--yes-wipe-all-disks")
-        .arg("disko.nix")
-        .arg("--argstr")
-        .arg("device")
-        .arg(&plan.device)
-        .arg("--argstr")
-        .arg("passwordFile")
-        .arg_path(&key_path)
-        .with_display(format!(
-            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr passwordFile {}",
-            plan.device,
-            key_path.display()
-        ));
+    let result = (|| -> Result<()> {
+        // The user already confirmed the wipe on the Disk screen, and stdin is
+        // closed, so disko must not stop to ask for confirmation.
+        let mut cmd = Cmd::new("disko")
+            .arg("--mode")
+            .arg("destroy,format,mount")
+            .arg("--yes-wipe-all-disks")
+            .arg("disko.nix")
+            .arg("--argstr")
+            .arg("device")
+            .arg(&plan.device);
+        if plan.encrypt {
+            cmd = cmd
+                .arg("--argstr")
+                .arg("encrypt")
+                .arg("true")
+                .arg("--argstr")
+                .arg("passwordFile")
+                .arg_path(&key_path);
+            cmd = cmd.with_display(format!(
+                "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr encrypt true --argstr passwordFile {}",
+                plan.device,
+                key_path.display()
+            ));
+        } else {
+            cmd = cmd.with_display(format!(
+                "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {}",
+                plan.device
+            ));
+        }
 
-    let result = exec(plan, report, &cmd, &plan.source);
+        ensure_ok(exec(plan, report, &cmd, &plan.source)?, "disko falló")?;
+
+        if plan.encrypt {
+            step_recovery_key(plan, report, &key_path)?;
+            if plan.luks_tpm {
+                step_tpm_enroll(plan, report, &key_path)?;
+            }
+        }
+        Ok(())
+    })();
+
     if !plan.dry_run {
         let _ = fs::remove_file(&key_path);
     }
-    ensure_ok(result?, "disko falló")
+    result
+}
+
+/// The `System HD` GPT partition, which becomes the LUKS2/btrfs container.
+const SYSTEM_PARTITION: &str = "/dev/disk/by-partlabel/System HD";
+
+/// Adds the recovery key generated on the Cifrado screen as a second LUKS slot.
+/// The new key travels on the child's stdin (positional `-`); the existing
+/// passphrase comes from the root-only temp file. Neither appears in the log.
+fn step_recovery_key(plan: &Plan, report: &mut Reporter, key_path: &Path) -> Result<()> {
+    let cmd = Cmd::new("cryptsetup")
+        .arg("luksAddKey")
+        .arg("--key-file")
+        .arg_path(key_path)
+        .arg(SYSTEM_PARTITION)
+        .arg("-")
+        .with_display(format!(
+            "cryptsetup luksAddKey --key-file {} {SYSTEM_PARTITION} -   (clave de recuperación por stdin)",
+            key_path.display()
+        ));
+    report.log(format!("$ {}", cmd.display));
+
+    if plan.dry_run {
+        report.log("(simulación) clave de recuperación inscrita como segunda ranura");
+        thread::sleep(Duration::from_millis(300));
+        return Ok(());
+    }
+
+    let mut key = Zeroizing::new(plan.recovery_key.as_bytes().to_vec());
+    key.push(b'\n');
+    let mut sink = |out: Stream| match out {
+        Stream::Stdout(l) => report.log(l),
+        Stream::Stderr(l) => report.log(l),
+    };
+    let code = runner::run_with_stdin(&cmd, &key, &mut sink);
+    ensure_ok(code, "no se pudo inscribir la clave de recuperación")
+}
+
+/// Enrolls TPM2 auto-unlock (PCR 7 = Secure Boot state) in addition to the
+/// passphrase and the recovery key.
+fn step_tpm_enroll(plan: &Plan, report: &mut Reporter, key_path: &Path) -> Result<()> {
+    let cmd = Cmd::new("systemd-cryptenroll")
+        .arg("--tpm2-device=auto")
+        .arg("--tpm2-pcrs=7")
+        .arg("--unlock-key-file")
+        .arg_path(key_path)
+        .arg(SYSTEM_PARTITION)
+        .with_display(format!(
+            "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --unlock-key-file {} {SYSTEM_PARTITION}",
+            key_path.display()
+        ));
+    report.log(format!("$ {}", cmd.display));
+
+    if plan.dry_run {
+        report.log("(simulación) TPM2 inscrito para desbloqueo automático");
+        thread::sleep(Duration::from_millis(300));
+        return Ok(());
+    }
+
+    let mut sink = |out: Stream| match out {
+        Stream::Stdout(l) => report.log(l),
+        Stream::Stderr(l) => report.log(l),
+    };
+    let code = runner::run(&cmd, &mut sink);
+    ensure_ok(code, "no se pudo inscribir el TPM2")
 }
 
 fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {

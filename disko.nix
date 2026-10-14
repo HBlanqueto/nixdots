@@ -6,8 +6,10 @@
 #   disko --mode destroy,format,mount disko.nix --argstr device /dev/nvme0n1
 #
 # Layout: a GPT with a 1 GiB vfat ESP (label BOOT) mounted at /boot, and the
-# rest under a LUKS2 container (name `core`) holding a btrfs filesystem (label
-# nixos) with the subvolumes @rootfs (/), @nix, @home, @persist and @log
+# rest as the `System HD` partition. With `encrypt = "true"` that partition is
+# wrapped in a LUKS2 container (mapper `cryptroot`) holding a btrfs filesystem
+# (label nixos); otherwise btrfs sits directly on the partition. Either way the
+# filesystem carries the subvolumes @rootfs (/), @nix, @home, @persist and @log
 # (/var/log). A read-only @rootfs-blank template is created right after
 # formatting; boot/snapshot.sh restores @rootfs from it on every boot, which is
 # what makes the root filesystem ephemeral.
@@ -21,11 +23,57 @@
     # Path to a file containing the LUKS passphrase (absolute). `null` lets
     # disko ask for it interactively.
     passwordFile ? null,
+    # Passed by the installer as `--argstr encrypt true` when the user checked
+    # "Cifrar System HD" on the Disco screen.
+    encrypt ? "false",
     ...
 }:
 let
+    doEncrypt = encrypt == "true";
+
     # Shared btrfs mount options for every subvolume.
     mountOptions = [ "noatime" "compress=zstd" "space_cache=v2" ];
+
+    # The btrfs filesystem itself, shared by the encrypted and plain layouts.
+    # `$device` is the device btrfs is created on, i.e. /dev/mapper/cryptroot
+    # when encrypted.
+    btrfsContent = {
+        type = "btrfs";
+        extraArgs = [ "-L" "nixos" ];
+
+        subvolumes = {
+            "@rootfs" = {
+                mountpoint = "/";
+                inherit mountOptions;
+            };
+            "@nix" = {
+                mountpoint = "/nix";
+                inherit mountOptions;
+            };
+            "@home" = {
+                mountpoint = "/home";
+                inherit mountOptions;
+            };
+            "@persist" = {
+                mountpoint = "/persist";
+                inherit mountOptions;
+            };
+            "@log" = {
+                mountpoint = "/var/log";
+                inherit mountOptions;
+            };
+        };
+
+        # @rootfs is empty at this point; snapshot it read-only so the boot
+        # rollback always has a pristine template to clone from.
+        postCreateHook = ''
+            MNTPOINT=$(mktemp -d)
+            mount "$device" "$MNTPOINT" -o subvol=/
+            btrfs subvolume snapshot -r "$MNTPOINT/@rootfs" "$MNTPOINT/@rootfs-blank"
+            umount "$MNTPOINT"
+            rmdir "$MNTPOINT"
+        '';
+    };
 in
 {
     disko.devices = {
@@ -51,54 +99,18 @@ in
                         };
                     };
 
-                    "Core HD" = {
-                        content = {
+                    "System HD" = {
+                        size = "100%";
+
+                        content = if doEncrypt then {
                             type = "luks";
-                            name = "core";
+                            name = "cryptroot";
                             inherit passwordFile;
                             settings.allowDiscards = true;
                             extraFormatArgs = [ "--type" "luks2" ];
 
-                            content = {
-                                type = "btrfs";
-                                extraArgs = [ "-L" "nixos" ];
-
-                                subvolumes = {
-                                    "@rootfs" = {
-                                        mountpoint = "/";
-                                        inherit mountOptions;
-                                    };
-                                    "@nix" = {
-                                        mountpoint = "/nix";
-                                        inherit mountOptions;
-                                    };
-                                    "@home" = {
-                                        mountpoint = "/home";
-                                        inherit mountOptions;
-                                    };
-                                    "@persist" = {
-                                        mountpoint = "/persist";
-                                        inherit mountOptions;
-                                    };
-                                    "@log" = {
-                                        mountpoint = "/var/log";
-                                        inherit mountOptions;
-                                    };
-                                };
-
-                                # @rootfs is empty at this point; snapshot it
-                                # read-only so the boot rollback always has a
-                                # pristine template to clone from. `$device` is
-                                # the mapped LUKS device (/dev/mapper/core).
-                                postCreateHook = ''
-                                    MNTPOINT=$(mktemp -d)
-                                    mount "$device" "$MNTPOINT" -o subvol=/
-                                    btrfs subvolume snapshot -r "$MNTPOINT/@rootfs" "$MNTPOINT/@rootfs-blank"
-                                    umount "$MNTPOINT"
-                                    rmdir "$MNTPOINT"
-                                '';
-                            };
-                        };
+                            content = btrfsContent;
+                        } else btrfsContent;
                     };
                 };
             };

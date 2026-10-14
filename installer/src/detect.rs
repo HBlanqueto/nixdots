@@ -308,6 +308,100 @@ fn holds_live_medium(node: &Node) -> bool {
     node.children.iter().any(holds_live_medium)
 }
 
+/// True when a TPM 2.0 chip is present (`/sys/class/tpm/tpm0`, major version 2).
+pub fn tpm2_present() -> bool {
+    let dir = Path::new("/sys/class/tpm/tpm0");
+    if !dir.exists() {
+        return false;
+    }
+    match std::fs::read_to_string(dir.join("tpm_version_major")) {
+        Ok(version) => version.trim() == "2",
+        // The attribute is not on every kernel; a tpm0 device is close enough.
+        Err(_) => true,
+    }
+}
+
+/// A mountable removable medium offered by the Cifrado screen's "guardar en
+/// USB" list.
+#[derive(Debug, Clone)]
+pub struct RemovableMedium {
+    pub path: String,
+    pub label: String,
+}
+
+/// Removable/USB partitions that can hold the recovery key, excluding the
+/// install target and the live ISO.
+pub fn removable_media(target: &str) -> Vec<RemovableMedium> {
+    let target_name = target.rsplit('/').next().unwrap_or("").to_string();
+    let Some(json) = run_trim(
+        "lsblk",
+        &["-J", "-o", "NAME,PATH,RM,TRAN,TYPE,FSTYPE,LABEL,SIZE,PKNAME"],
+    ) else {
+        return Vec::new();
+    };
+    let Ok(tree) = serde_json::from_str::<serde_json::Value>(&json) else {
+        return Vec::new();
+    };
+
+    let truthy = |value: &serde_json::Value| {
+        value.as_bool().unwrap_or_else(|| value.as_str() == Some("1"))
+    };
+
+    let mut out = Vec::new();
+    let Some(disks) = tree.get("blockdevices").and_then(|d| d.as_array()) else {
+        return out;
+    };
+    for disk in disks {
+        let disk_name = disk.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        if disk_name == target_name {
+            continue;
+        }
+        let removable = disk
+            .get("rm")
+            .map(&truthy)
+            .unwrap_or(false)
+            || disk.get("tran").and_then(|v| v.as_str()) == Some("usb");
+        if !removable {
+            continue;
+        }
+        let Some(parts) = disk.get("children").and_then(|c| c.as_array()) else {
+            continue;
+        };
+        for part in parts {
+            if part.get("type").and_then(|v| v.as_str()) != Some("part") {
+                continue;
+            }
+            let path = part.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.is_empty() {
+                continue;
+            }
+            let Some(fstype) = part.get("fstype").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            if fstype.is_empty() || fstype == "iso9660" {
+                continue;
+            }
+            let name = part.get("name").and_then(|v| v.as_str()).unwrap_or(path);
+            let label = part
+                .get("label")
+                .and_then(|v| v.as_str())
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .unwrap_or_else(|| name.to_string());
+            let size = part
+                .get("size")
+                .and_then(|v| v.as_u64())
+                .map(human_size)
+                .unwrap_or_default();
+            out.push(RemovableMedium {
+                path: path.to_string(),
+                label: format!("{label}  {size}"),
+            });
+        }
+    }
+    out
+}
+
 /// Human-readable size, matching `lsblk`'s style closely enough.
 pub fn human_size(bytes: u64) -> String {
     const UNITS: [&str; 6] = ["B", "K", "M", "G", "T", "P"];

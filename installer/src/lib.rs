@@ -1,6 +1,7 @@
 //! Library for the nixdots installer (`nixdots-installer`).
 
 pub mod app;
+pub mod crypto;
 pub mod detect;
 pub mod disk;
 pub mod install;

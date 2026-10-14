@@ -4,9 +4,9 @@
     
     mkdir -p /btrfs_tmp
 
-    # The btrfs lives inside the LUKS container; by the time this runs
-    # systemd-cryptsetup has already opened it at /dev/mapper/core, so the
-    # label (stable across reinstall) is the right handle.
+    # The btrfs lives inside the LUKS container (when encrypted); by the time
+    # this runs systemd-cryptsetup has already opened it at /dev/mapper/cryptroot,
+    # so the label (stable across reinstall) is the right handle.
     mount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp
 
     if [ -e /btrfs_tmp/@rootfs ]; then
