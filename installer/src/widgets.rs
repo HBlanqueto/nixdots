@@ -309,7 +309,14 @@ pub fn input_line(
 }
 
 pub fn checkbox(palette: &Palette, checked: bool, label: &str, focused: bool) -> Line<'static> {
-    let mark = if checked { "[x]" } else { "[ ]" };
+    // Nerd Font tick boxes on a real terminal; ASCII on the Linux console.
+    let mark = if crate::theme::console::is_linux_console() {
+        if checked { "[x]" } else { "[ ]" }
+    } else if checked {
+        "\u{f14a}" // nf-fa-check_square_o
+    } else {
+        "\u{f096}" // nf-fa-square_o
+    };
     let label_style = if focused && checked {
         // Focused+toggled rows read as selected.
         Style::default().fg(palette.text).bg(palette.well)
