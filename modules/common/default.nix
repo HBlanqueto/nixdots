@@ -8,6 +8,7 @@
     inputs.home.nixosModules.home-manager
 
     ./nix.nix
+    ./filesystems.nix
     ./kernel.nix
     ./encryption.nix
     ./boot.nix

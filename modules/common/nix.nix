@@ -58,12 +58,5 @@
         man.enable = false;
     };
 
-    # declared here rather than in the generated hardware-configuration.nix so
-    # the file nixos-generate-config writes during an install works unpatched.
-    fileSystems = {
-        "/persist".neededForBoot = true;
-        "/var/log".neededForBoot = true;
-    };
-
     system.stateVersion = stateVersion;
 }

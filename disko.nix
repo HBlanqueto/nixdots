@@ -35,8 +35,8 @@
 let
     doEncrypt = encrypt == "true";
 
-    # Shared btrfs mount options for every subvolume.
-    mountOptions = [ "noatime" "compress=zstd" "space_cache=v2" ];
+    # Debe coincidir con btrfsBase en modules/common/filesystems.nix.
+    mountOptions = [ "noatime" "compress=zstd" ];
 
     # The btrfs filesystem itself, shared by the encrypted and plain layouts.
     # `$device` is the device btrfs is created on, i.e. /dev/mapper/cryptroot
@@ -99,7 +99,7 @@ in
                             mountpoint = "/boot";
                             # -n BOOT sets the filesystem label.
                             extraArgs = [ "-n" "BOOT" ];
-                            mountOptions = [ "fmask=0022" "dmask=0022" ];
+                            mountOptions = [ "fmask=0077" "dmask=0077" ];
                         };
                     };
 
