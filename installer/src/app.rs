@@ -661,6 +661,8 @@ pub struct App {
     pub status: Option<String>,
     pub quit: Option<Quit>,
     pub should_quit: bool,
+    /// Wipe the terminal before the next draw (a child may have printed).
+    pub force_clear: bool,
     pub tick: u64,
 }
 
@@ -785,6 +787,7 @@ impl App {
             status: None,
             quit: None,
             should_quit: false,
+            force_clear: false,
             tick: 0,
             arch,
             virt: detect::environment(),
@@ -799,6 +802,10 @@ impl App {
         terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
         loop {
+            if self.force_clear {
+                terminal.clear()?;
+                self.force_clear = false;
+            }
             terminal.draw(|f| self.draw(f))?;
 
             if ratatui::crossterm::event::poll(Duration::from_millis(100))? {
@@ -1149,6 +1156,7 @@ impl App {
                     }
                 }
                 InstallMsg::Log(line) => self.install.push_log(line),
+                InstallMsg::Repaint => self.force_clear = true,
                 InstallMsg::Progress { built, total } => {
                     self.install.built = built;
                     self.install.total = total;

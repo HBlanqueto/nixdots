@@ -58,6 +58,8 @@ pub enum Msg {
     Step(Step),
     Log(String),
     Progress { built: u64, total: u64 },
+    /// A child process finished; the UI should wipe and fully redraw.
+    Repaint,
     Finished { ok: bool, error: Option<String>, log_path: PathBuf },
 }
 
@@ -158,6 +160,10 @@ impl Reporter {
 
     fn progress(&self, built: u64, total: u64) {
         let _ = self.tx.send(Msg::Progress { built, total });
+    }
+
+    fn repaint(&self) {
+        let _ = self.tx.send(Msg::Repaint);
     }
 }
 
@@ -511,6 +517,7 @@ fn verify_key(
     report.log(format!("$ {}", cmd.display));
     let mut sink = |_: Stream| {};
     let code = runner::run(&cmd, &mut sink);
+    report.repaint();
     ensure_ok(code, what)
 }
 
@@ -634,6 +641,7 @@ fn step_recovery_key(
         }
     };
     let code = runner::run(&cmd, &mut sink);
+    report.repaint();
     ensure_ok(
         code,
         &format!("no se pudo añadir la clave de recuperación a {device}"),
@@ -688,6 +696,7 @@ fn step_tpm_enroll(
         }
     };
     let code = runner::run(&cmd, &mut sink);
+    report.repaint();
     ensure_ok(
         code,
         &format!("no se pudo inscribir el TPM2 para el desbloqueo automático de {device}"),
@@ -1304,7 +1313,9 @@ fn run_with_progress(plan: &Plan, report: &mut Reporter, cmd: &Cmd) -> i32 {
             report.log(clean);
         }
     };
-    runner::run(cmd, &mut sink)
+    let code = runner::run(cmd, &mut sink);
+    report.repaint();
+    code
 }
 
 // -- command execution helpers ------------------------------------------------
@@ -1342,7 +1353,9 @@ fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<
             report.log(clean);
         }
     };
-    Ok(runner::run(&wrapped, &mut sink))
+    let code = runner::run(&wrapped, &mut sink);
+    report.repaint();
+    Ok(code)
 }
 
 fn exec_capture(
@@ -1378,7 +1391,9 @@ fn exec_capture(
             }
         }
     };
-    Ok(runner::run(&wrapped, &mut sink))
+    let code = runner::run(&wrapped, &mut sink);
+    report.repaint();
+    Ok(code)
 }
 
 /// On an evaluation failure, points at the missing file (nix reports
