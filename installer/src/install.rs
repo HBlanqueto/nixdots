@@ -1349,7 +1349,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     fs::create_dir_all(dest.join("hosts"))?;
     fs::create_dir_all(dest.join("modules/common"))?;
     fs::create_dir_all(dest.join("modules/hardware"))?;
-    fs::write(dest.join("settings.nix"), plan.settings.render())?;
+    fs::write(dest.join("settings.nix"), plan.settings.without_user().render())?;
     fs::write(
         dest.join("modules/common/default.nix"),
         "{\n    imports = [\n        ./user.nix\n        ./uutils.nix\n    ];\n}\n",
@@ -1362,9 +1362,25 @@ const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/di
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo()?;
-    report.log("escribiendo settings.nix, la contraseña y hardware-configuration");
+    report.log("escribiendo settings.nix, user.json, la contraseña y hardware-configuration");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
-    plan.settings.write(&repo)?;
+    plan.settings.without_user().write(&repo)?;
+
+    // Datos personales fuera del repo; el flake los mezcla con settings.nix.
+    // `NIXDOTS_ROOT` es el target (prepare_target_tmp), así que va a
+    // /mnt/persist/nixdots/user.json.
+    let user = nixdots_core::user_data::UserData {
+        username: plan.settings.username_required()?.to_string(),
+        userdescription: plan.settings.userdescription.clone(),
+        git_name: plan.settings.git_name.clone(),
+        git_email: plan.settings.git_email.clone(),
+        default_locale: None,
+        time_zone: None,
+        keyboard_layout: None,
+        keyboard_variant: None,
+    };
+    report.log(format!("$ escribir {}", nixdots_core::user_data::path().display()));
+    user.write()?;
 
     // Keep a copy of the license in the installed system.
     let lic_dst = plan.root.join("etc/nixdots");
@@ -2164,17 +2180,8 @@ pub fn check_source(repo: &Path, host: &str) -> Result<(), String> {
         .arg(&tmp)
         .status();
 
-    // A marker hash so `hashedPasswordFile` resolves during evaluation.
-    let user = crate::settings::Settings::read(repo)
-        .ok()
-        .and_then(|settings| settings.username)
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "nixdots".to_string());
-    let secrets = tmp.join("persist/secrets");
-    fs::create_dir_all(&secrets).map_err(|err| err.to_string())?;
-    fs::write(secrets.join(format!("{user}.hash")), "$y$marker")
-        .map_err(|err| err.to_string())?;
-
+    // Sin user.json (NIXDOTS_ROOT=tmp) el config no declara cuenta, así que no
+    // hace falta un hash marcador: la evaluación solo valida la estructura.
     ensure_git_tree(&tmp);
 
     let expr = format!(
