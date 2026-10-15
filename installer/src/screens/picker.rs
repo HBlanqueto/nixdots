@@ -51,10 +51,10 @@ pub fn draw_centered(
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
     let text_w = inner.width.saturating_sub(1) as usize;
-    let (capsule, text) = if focused {
-        (palette.primary, palette.white)
+    let accent = if focused {
+        palette.primary
     } else {
-        (palette.rule, palette.highlight)
+        palette.highlight
     };
 
     for row in 0..rows as u16 {
@@ -66,7 +66,7 @@ pub fn draw_centered(
         let selected = picker.selected == Some(start + row as usize);
         let is_suggested = suggested == Some(item_idx);
         let style = if selected {
-            Style::default().fg(text).add_modifier(Modifier::BOLD)
+            Style::default().fg(accent).add_modifier(Modifier::BOLD)
         } else if is_suggested {
             Style::default().fg(palette.focus).add_modifier(Modifier::BOLD)
         } else {
@@ -81,7 +81,7 @@ pub fn draw_centered(
             Span::styled(" ".repeat(pad - left), style),
         ]);
         if selected {
-            line = line.style(Style::default().bg(capsule));
+            line = line.style(Style::default().bg(palette.well));
         }
         f.render_widget(Paragraph::new(line), row_rect);
     }
@@ -111,10 +111,10 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focus
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
     let text_w = inner.width.saturating_sub(1) as usize;
-    let (capsule, text) = if focused {
-        (palette.primary, palette.white)
+    let accent = if focused {
+        palette.primary
     } else {
-        (palette.rule, palette.highlight)
+        palette.highlight
     };
     let mut lines: Vec<Line> = Vec::new();
     for row in 0..rows {
@@ -125,7 +125,7 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focus
         let item = &picker.items[item_idx];
         let selected = picker.selected == Some(start + row);
         let style = if selected {
-            Style::default().fg(text).add_modifier(Modifier::BOLD)
+            Style::default().fg(accent).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.text)
         };
@@ -135,7 +135,7 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focus
             (true, _) => item.name.clone(),
         };
         let trailing_style = if selected {
-            style
+            Style::default().fg(accent).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.muted)
         };
@@ -148,7 +148,7 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focus
             Span::styled(trailing, trailing_style),
         ]);
         if selected {
-            line = line.style(Style::default().bg(capsule));
+            line = line.style(Style::default().bg(palette.well));
         }
         lines.push(line);
     }

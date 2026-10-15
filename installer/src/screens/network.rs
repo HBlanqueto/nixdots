@@ -151,29 +151,31 @@ fn wifi_row(app: &App, i: usize, width: u16, focused: bool) -> Line<'static> {
         26..=50 => 2,
         _ => 1,
     };
-    let (capsule, text) = if focused {
-        (app.palette.primary, app.palette.white)
+    let accent = if focused {
+        app.palette.primary
     } else {
-        (app.palette.rule, app.palette.highlight)
+        app.palette.highlight
     };
     let name_style = if selected {
         Style::default()
-            .fg(text)
+            .fg(accent)
             .add_modifier(ratatui::style::Modifier::BOLD)
     } else {
         Style::default().fg(app.palette.text)
     };
+    let sec_style = if selected {
+        Style::default().fg(accent)
+    } else {
+        Style::default().fg(app.palette.muted)
+    };
     let bright = if selected {
-        text
+        accent
     } else {
         app.palette.secondary
     };
     let mut spans = vec![
         Span::styled(format!("{name:<name_w$}"), name_style),
-        Span::styled(
-            format!("{:<10}", wifi.security()),
-            Style::default().fg(app.palette.muted),
-        ),
+        Span::styled(format!("{:<10}", wifi.security()), sec_style),
     ];
     for (k, ch) in ["▂", "▄", "▆", "█"].iter().enumerate() {
         let color = if k < level { bright } else { app.palette.disabled };
@@ -181,7 +183,7 @@ fn wifi_row(app: &App, i: usize, width: u16, focused: bool) -> Line<'static> {
     }
     let line = Line::from(spans);
     if selected {
-        line.style(Style::default().bg(capsule))
+        line.style(Style::default().bg(app.palette.well))
     } else {
         line
     }
