@@ -48,6 +48,12 @@
                 map (name: { inherit name; value = mkHostFromDir name; }) hostNames
             );
 
+            # Settings de prueba para el arranque inicial: sin usuario, para que
+            # firstBoot = !(settings ? username) sea true. No es un host real.
+            firstBootSettings = builtins.removeAttrs settings [
+                "username" "userdescription" "hashedPasswordFile" "gitName" "gitEmail"
+            ];
+
             # The installer is built for both architectures the ISO is offered
             # on; it only orchestrates other tools.
             supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
@@ -121,7 +127,33 @@
                 });
         in
         {
-            nixosConfigurations = hosts;
+            nixosConfigurations = hosts // {
+                # VM mínima para probar el primer arranque:
+                #   nixos-rebuild build-vm --flake .#firstboot-vm
+                # Vive en el flake, no en hosts/, porque toda carpeta bajo hosts/
+                # se convierte en un host real. Solo desktop + first-boot + user.
+                firstboot-vm = nixpkgs.lib.nixosSystem {
+                    system = "x86_64-linux";
+
+                    specialArgs = {
+                        inherit inputs;
+                        hostName = "firstboot-vm";
+                    } // import ./lib/specialArgs.nix { settings = firstBootSettings; };
+
+                    modules = [
+                        ./modules/desktop
+                        ./modules/common/first-boot.nix
+                        ./modules/common/user.nix
+                        { system.stateVersion = settings.stateVersion; }
+                        {
+                            virtualisation.vmVariant.virtualisation = {
+                                memorySize = 4096;
+                                cores = 4;
+                            };
+                        }
+                    ];
+                };
+            };
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
