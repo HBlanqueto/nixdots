@@ -1389,7 +1389,7 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // closure lands on the target disk, never in the live ISO's RAM-backed
     // store. `--option build-dir` and `TMPDIR` keep the build's scratch there
     // too. No separate `nix build` runs in the ISO store.
-    let cmd = Cmd::new("nixos-install")
+    let mut cmd = Cmd::new("nixos-install")
         .arg("--flake")
         .arg(&flake)
         .arg("--root")
@@ -1400,14 +1400,35 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("build-dir")
         .arg_path(&tmp)
         .arg("--log-format")
-        .arg("internal-json")
-        .with_display(format!(
-            "nixos-install --flake {flake} --root {} --no-root-passwd --option build-dir {}",
-            plan.root.display(),
-            tmp.display()
-        ));
+        .arg("internal-json");
+
+    let mut display = format!(
+        "nixos-install --flake {flake} --root {} --no-root-passwd --option build-dir {}",
+        plan.root.display(),
+        tmp.display()
+    );
+
+    // On little RAM, build fewer things at once so the OOM killer stays away.
+    if mem_total_gib().is_none_or(|g| g < LOW_MEM_GIB) {
+        cmd = cmd
+            .arg("--max-jobs")
+            .arg("2")
+            .arg("--option")
+            .arg("max-substitution-jobs")
+            .arg("4")
+            .arg("--option")
+            .arg("http-connections")
+            .arg("8");
+        display.push_str(" --max-jobs 2 --option max-substitution-jobs 4 --option http-connections 8");
+    }
+    let cmd = cmd.with_display(display);
 
     let code = run_with_progress(plan, report, &cmd);
+    if code == 137 {
+        return Err(eyre!(
+            "nixos-install se quedó sin memoria (código 137). Da más RAM a la máquina (8 GB o más) y pulsa Reintentar."
+        ));
+    }
     ensure_ok(code, "nixos-install falló")?;
     Ok(())
 }
