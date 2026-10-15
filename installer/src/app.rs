@@ -1606,6 +1606,17 @@ impl App {
         self.button_focus = self.primary_index();
     }
 
+    /// A modal dialog is open: the screen behind it is drawn without any focus
+    /// (no button capsule, no field cursor) before being dimmed.
+    pub fn no_focus(&self) -> bool {
+        self.license_modal
+            || self.quit.is_some()
+            || self.install_cancel
+            || self.disks.erase_modal
+            || self.enc.usb_open
+            || self.key_modal.is_some()
+    }
+
     /// Renders the current screen's buttons on a raw row (chromeless screens).
     pub fn draw_buttons(&self, f: &mut Frame, area: Rect) {
         let enabled = self.primary_enabled();
@@ -1625,7 +1636,7 @@ impl App {
         let row = ButtonRow {
             buttons: &buttons,
             focus: self.button_focus,
-            focused: self.focus_buttons,
+            focused: self.focus_buttons && !self.no_focus(),
             palette: &self.palette,
         };
         f.render_widget(row, area);
@@ -1977,7 +1988,6 @@ impl App {
             }
             return;
         }
-
         // Every wizard screen shares the same centered StepLayout.
         let commands_lines = self.command_list();
         let commands_h = if self.show_commands {
@@ -2020,7 +2030,7 @@ impl App {
             self.draw_key_modal(f, area);
         }
         if self.quit.is_some() {
-            self.draw_quit(f, area);
+            self.draw_quit(f, layout.body);
         }
     }
 
@@ -2471,42 +2481,35 @@ impl App {
         }
     }
 
-    fn draw_quit(&self, f: &mut Frame, area: Rect) {
+    fn draw_quit(&self, f: &mut Frame, over: Rect) {
         let palette = self.palette;
-        widgets::draw_dialog(f, area, &palette, 42, 5, |f, inner| {
-            let text = vec![
-                Line::from(Span::styled(
-                    "¿Salir del instalador?",
-                    Style::default().fg(palette.text),
-                ))
-                .alignment(Alignment::Center),
-                Line::from(""),
-                Line::from(Span::styled(
+        let message = Line::from(Span::styled(
+            "¿Salir del instalador?",
+            Style::default().fg(palette.text),
+        ));
+        widgets::draw_dialog(f, over, &palette, message, |f, row| {
+            f.render_widget(
+                Paragraph::new(Span::styled(
                     "s / enter · n / esc",
                     Style::default().fg(palette.muted),
                 ))
                 .alignment(Alignment::Center),
-            ];
-            f.render_widget(Paragraph::new(text), inner);
+                row,
+            );
         });
     }
 
     /// Ctrl+C on Instalando: confirm over the dimmed progress screen.
-    fn draw_install_cancel(&self, f: &mut Frame, area: Rect) {
+    fn draw_install_cancel(&self, f: &mut Frame, over: Rect) {
         let palette = self.palette;
         let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
         let focus = self.button_focus;
         let focused = self.focus_buttons;
-        widgets::draw_dialog(f, area, &palette, 52, 6, |f, inner| {
-            f.render_widget(
-                Paragraph::new(Span::styled(
-                    "¿Cancelar la instalación? El disco quedará a medias.",
-                    Style::default().fg(palette.text),
-                ))
-                .alignment(Alignment::Center),
-                Rect::new(inner.x, inner.y + 1, inner.width, 1),
-            );
-            let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+        let message = Line::from(Span::styled(
+            "¿Cancelar la instalación? El disco quedará a medias.",
+            Style::default().fg(palette.text),
+        ));
+        widgets::draw_dialog(f, over, &palette, message, |f, row| {
             let widget = ButtonRow {
                 buttons: &buttons,
                 focus,

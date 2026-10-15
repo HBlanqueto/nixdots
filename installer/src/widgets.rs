@@ -111,41 +111,60 @@ impl StepLayout {
     }
 }
 
-/// Dims the whole frame behind a dialog: every cell keeps its glyph but loses
-/// the bold weight, takes the muted foreground and the base background, so the
-/// screen (logo, text, buttons) is still legible underneath. There is no alpha
-/// in a terminal.
+/// Dims the whole frame behind a dialog: every cell keeps its glyph but takes
+/// the muted foreground, loses the bold/underline weights and any background
+/// other than the app's base is darkened, so the screen (logo, text, buttons)
+/// is still legible underneath. Half-block glyphs get both halves in the same
+/// color so the logo stays uniform.
 pub fn dim_buffer(f: &mut Frame, palette: &Palette) {
     let area = f.area();
+    let base = palette.reset;
     let buf = f.buffer_mut();
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
             if let Some(cell) = buf.cell_mut((x, y)) {
+                let half_block = matches!(cell.symbol(), "▀" | "▄" | "▌" | "▐");
                 cell.fg = palette.disabled;
-                cell.bg = palette.reset;
-                cell.modifier.remove(Modifier::BOLD);
+                cell.modifier.remove(Modifier::BOLD | Modifier::UNDERLINED);
+                if cell.bg != base {
+                    // A half block paints fg on one half and bg on the other;
+                    // use the dimmed foreground on both so it reads as one tone.
+                    cell.bg = if half_block {
+                        palette.disabled
+                    } else {
+                        palette.dim_bg
+                    };
+                }
             }
         }
     }
 }
 
-/// Dims the frame and draws a centered dialog: one rounded accent border on
-/// the well background. `content` fills the inner rectangle.
+/// Dims the frame and draws a dialog centered over `over` (the screen's main
+/// box, so the title is never covered): a rounded accent border on the well
+/// background, a centered message and a button row. Height is fixed at seven
+/// rows (border, blank, text, blank, buttons, blank, border); the width is the
+/// message plus an 8-column margin, clamped to 44..=60 % of the terminal.
 pub fn draw_dialog(
     f: &mut Frame,
-    area: Rect,
+    over: Rect,
     palette: &Palette,
-    width: u16,
-    height: u16,
-    content: impl FnOnce(&mut Frame, Rect),
+    message: Line<'static>,
+    buttons: impl FnOnce(&mut Frame, Rect),
 ) {
     dim_buffer(f, palette);
-    let w = width.min(area.width);
-    let h = height.min(area.height);
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let y = area.y + area.height.saturating_sub(h) / 2;
-    let rect = Rect::new(x, y, w, h);
+
+    let screen = f.area();
+    let max_w = (screen.width * 60 / 100).max(1);
+    let width = (message.width() as u16 + 8).max(44).min(max_w);
+    let height: u16 = 7;
+    let x = over.x + over.width.saturating_sub(width) / 2;
+    let y = over.y + over.height.saturating_sub(height) / 2;
+    let rect = Rect::new(x, y, width.min(screen.width), height);
+
     f.render_widget(Clear, rect);
+    f.buffer_mut()
+        .set_style(rect, Style::default().bg(palette.well));
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -153,7 +172,12 @@ pub fn draw_dialog(
         .style(Style::default().bg(palette.well));
     let inner = block.inner(rect);
     f.render_widget(block, rect);
-    content(f, inner);
+
+    f.render_widget(
+        Paragraph::new(message).alignment(Alignment::Center),
+        Rect::new(inner.x, inner.y + 1, inner.width, 1),
+    );
+    buttons(f, Rect::new(inner.x, inner.y + 3, inner.width, 1));
 }
 
 /// A centered row of buttons, shared by every screen and dialog.

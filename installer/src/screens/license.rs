@@ -65,7 +65,8 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     y += 2;
 
     let box_x = area.x + area.width.saturating_sub(box_w) / 2;
-    draw_box(f, app, Rect::new(box_x, y, box_w, box_h));
+    let box_rect = Rect::new(box_x, y, box_w, box_h);
+    draw_box(f, app, box_rect);
     y += box_h;
 
     let gray = format!(
@@ -83,7 +84,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     app.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
 
     if app.license_modal {
-        draw_modal(f, app, area);
+        draw_modal(f, app, box_rect);
     }
 }
 
@@ -133,24 +134,19 @@ fn draw_box(f: &mut Frame, app: &mut App, rect: Rect) {
     f.render_stateful_widget(scrollbar, text_area, &mut state);
 }
 
-/// The small confirmation dialog, centered over the dimmed license screen.
-fn draw_modal(f: &mut Frame, app: &mut App, area: Rect) {
+/// The small confirmation dialog, centered over the license text box.
+fn draw_modal(f: &mut Frame, app: &mut App, over: Rect) {
     let palette = app.palette;
     let buttons = vec![Btn::new("No acepto"), Btn::new("Acepto")];
     let focus = app.license_modal_focus;
-    widgets::draw_dialog(f, area, &palette, 48, 6, |f, inner| {
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("❄ ", Style::default().fg(palette.primary)),
-                Span::styled(
-                    "Leí y acepto los términos de la licencia.",
-                    Style::default().fg(palette.text),
-                ),
-            ]))
-            .alignment(Alignment::Center),
-            Rect::new(inner.x, inner.y + 1, inner.width, 1),
-        );
-        let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+    let message = Line::from(vec![
+        Span::styled("❄  ", Style::default().fg(palette.primary)),
+        Span::styled(
+            "Leí y acepto los términos de la licencia.",
+            Style::default().fg(palette.text),
+        ),
+    ]);
+    widgets::draw_dialog(f, over, &palette, message, |f, row| {
         let widget = ButtonRow {
             buttons: &buttons,
             focus,

@@ -271,21 +271,23 @@ fn details(app: &App) -> Vec<String> {
     ]
 }
 
-/// The "borrar todo" confirmation, over the dimmed disk picker.
+/// The "borrar todo" confirmation, over the dimmed disk picker. `area` is the
+/// box content, so the dialog is centered over the box itself.
 fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
     let palette = app.palette;
     let buttons = vec![Btn::new("No"), Btn::danger("Borrar todo")];
     let focus = app.disks.erase_focus;
-    widgets::draw_dialog(f, area, &palette, 48, 6, |f, inner| {
-        f.render_widget(
-            Paragraph::new(Span::styled(
-                "Se borrará Windows y todos sus archivos.",
-                Style::default().fg(palette.text),
-            ))
-            .alignment(Alignment::Center),
-            Rect::new(inner.x, inner.y + 1, inner.width, 1),
-        );
-        let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+    let over = Rect::new(
+        area.x.saturating_sub(1),
+        area.y.saturating_sub(1),
+        area.width + 2,
+        area.height + 2,
+    );
+    let message = Line::from(Span::styled(
+        "Se borrará Windows y todos sus archivos.",
+        Style::default().fg(palette.text),
+    ));
+    widgets::draw_dialog(f, over, &palette, message, |f, row| {
         let widget = ButtonRow {
             buttons: &buttons,
             focus,

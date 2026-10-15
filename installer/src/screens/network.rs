@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 "contraseña",
                 input.value(),
                 input.visual_cursor(),
-                !app.focus_buttons,
+                !app.focus_buttons && !app.no_focus(),
                 !*visible,
                 area.width,
                 true,

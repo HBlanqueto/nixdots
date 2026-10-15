@@ -22,7 +22,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         &app.palette,
         enabled,
         "Configurar git ahora",
-        app.git.focus == 0 && !app.focus_buttons,
+        app.git.focus == 0 && !app.focus_buttons && !app.no_focus(),
     );
     let mut lines = vec![checkbox];
     if enabled {
@@ -31,7 +31,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "nombre",
             app.git.name.value(),
             app.git.name.visual_cursor(),
-            app.git.focus == 1,
+            app.git.focus == 1 && !app.focus_buttons && !app.no_focus(),
             false,
             area.width,
             true,
@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "email",
             app.git.email.value(),
             app.git.email.visual_cursor(),
-            app.git.focus == 2,
+            app.git.focus == 2 && !app.no_focus(),
             false,
             area.width,
             true,

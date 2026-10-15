@@ -23,7 +23,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         "buscar idioma",
         "idiomas",
         area.width,
-        !app.focus_buttons,
+        !app.focus_buttons && !app.no_focus(),
     );
     f.render_widget(Paragraph::new(search), Rect::new(area.x, area.y, area.width, 1));
     let list = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
