@@ -1,11 +1,18 @@
 name: installer release
 
-# Builds the static installer for both architectures and attaches the binaries
-# plus SHA256SUMS to the GitHub release of the pushed tag.
+# Tags v* publish a release named after the tag. Pushes to master that touch the
+# installer publish (or replace) the rolling `latest` release, which install.sh
+# downloads. Path filters do not apply to tag pushes, so tags always run.
 on:
   push:
     tags:
       - "v*"
+    branches:
+      - master
+    paths:
+      - "installer/**"
+      - "disko.nix"
+      - "install.sh"
 
 permissions:
   contents: write
@@ -64,6 +71,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -73,6 +84,18 @@ jobs:
         working-directory: dist
         run: sha256sum nixdots-installer-* > SHA256SUMS
 
+      # On a master push, move the rolling `latest` tag to this commit so the
+      # release (and install.sh) point at it.
+      - name: Point the `latest` tag at this commit
+        if: github.ref_type == 'branch'
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+          prerelease: false
+          make_latest: ${{ github.ref_type == 'branch' }}
           files: dist/*

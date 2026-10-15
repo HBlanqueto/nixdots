@@ -29,7 +29,9 @@
 set -eu
 
 REPO="github:HBlanqueto/nixdots"
-RELEASES="https://github.com/HBlanqueto/nixdots/releases/latest/download"
+# The rolling `latest` release (replaced on every master push that touches the
+# installer); tags publish their own release.
+RELEASES="https://github.com/HBlanqueto/nixdots/releases/download/latest"
 WORK="/tmp/nixdots-installer"
 
 # Every nix invocation below may use flakes.
