@@ -1643,11 +1643,16 @@ impl NixLog {
                 let disp = match ty {
                     105 => field(0).map(|p| format!("compilando {}", store_name(&p))),
                     108 => field(0).map(|p| {
-                        format!(
-                            "descargando {} · {}",
-                            store_name(&p),
-                            field(1).unwrap_or_default()
-                        )
+                        let name = store_name(&p);
+                        match field(1) {
+                            // From the ISO's own store to the target's: not a
+                            // download, just a local copy.
+                            Some(src) if src.starts_with("local://") => {
+                                format!("copiando {name}")
+                            }
+                            Some(src) => format!("descargando {name} · {}", cache_host(&src)),
+                            None => format!("descargando {name}"),
+                        }
                     }),
                     _ => None,
                 };
@@ -1697,6 +1702,16 @@ fn store_name(p: &str) -> String {
         Some((hash, name)) if hash.len() == 32 => name.to_string(),
         _ => base.to_string(),
     }
+}
+
+/// The host of a substitution cache URL: `https://cache.nixos.org/x` →
+/// `cache.nixos.org`. A value without a scheme is returned unchanged.
+fn cache_host(url: &str) -> String {
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url);
+    rest.split('/').next().unwrap_or(rest).to_string()
 }
 
 /// Removes ANSI CSI escape sequences (`\x1b[…m` and friends).
