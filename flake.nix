@@ -128,6 +128,13 @@
                 launcher = launchers.${system};
                 default = launchers.${system};
 
+                # The kmscon `--palette*` arguments, generated from the theme.
+                # `install.sh` reads the committed copy at
+                # share/themes/kmscon-palette; regenerate it with
+                # `nix build .#kmscon-palette --print-out-paths`.
+                kmscon-palette =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/kmscon-palette.nix { };
+
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };

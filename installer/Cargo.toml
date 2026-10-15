@@ -12,3 +12,11 @@ serde_json = "1.0.154"
 tui-input = "0.15.5"
 rand = "0.8"
 zeroize = "1"
+
+# Small, self-contained release binary for the precompiled GitHub release.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
