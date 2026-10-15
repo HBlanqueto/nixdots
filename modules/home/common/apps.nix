@@ -165,6 +165,7 @@ in
             bitwarden-desktop
 
             imagemagick
+            quickemu
 
             # Safe nixos-rebuild wrapper (flake package); also the backend of
             # the flake-update-* aliases below.
