@@ -72,7 +72,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             crate::keyboard::display(&app.settings.keyboard_layout, &app.settings.keyboard_variant),
         ),
         row(app, "Zona horaria", app.settings.time_zone.clone()),
-        row(app, "Usuario", app.settings.username.clone()),
+        row(app, "Usuario", app.settings.username.clone().unwrap_or_default()),
         row(app, "Git", git),
         row(app, "Disco", disk),
         row(app, "Cifrado", cifrado),
@@ -138,7 +138,8 @@ pub fn commands(app: &App) -> Vec<String> {
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
         format!(
             "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
-            app.settings.username, app.settings.host_name
+            app.settings.username.as_deref().unwrap_or(""),
+            app.settings.host_name
         ),
         "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
     ];

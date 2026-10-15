@@ -121,11 +121,12 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn installed_repo(&self) -> PathBuf {
-        self.root
+    pub fn installed_repo(&self) -> Result<PathBuf> {
+        Ok(self
+            .root
             .join("home")
-            .join(&self.settings.username)
-            .join("nixdots")
+            .join(self.settings.username_required()?)
+            .join("nixdots"))
     }
 
     pub fn log_path(&self) -> PathBuf {
@@ -225,11 +226,16 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         if plan.dry_run { "simulación" } else { "real" }
     ));
     report.raw(&format!("host: {}", plan.settings.host_name));
-    report.raw(&format!("usuario: {}", plan.settings.username));
+    report.raw(&format!(
+        "usuario: {}",
+        plan.settings.username.as_deref().unwrap_or("(ninguno)")
+    ));
     report.raw(&format!("dispositivo: {}", plan.device));
     report.raw(&format!(
         "repo destino: {}",
-        plan.installed_repo().display()
+        plan.installed_repo()
+            .map(|repo| repo.display().to_string())
+            .unwrap_or_else(|_| "(sin usuario)".to_string())
     ));
 
     match run_steps(&plan, &mut report) {
@@ -271,6 +277,9 @@ fn run(plan: Plan, tx: Sender<Msg>) {
 }
 
 fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    // The installer always installs an account; fail clearly if the plan
+    // somehow has none instead of writing a nameless user.
+    plan.settings.username_required()?;
     let resume = plan.resume_from;
 
     // Disk is only formatted when it is the (re)starting point. When resuming
@@ -1209,7 +1218,7 @@ fn step_tpm_enroll(
 }
 
 fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let dest = plan.installed_repo();
+    let dest = plan.installed_repo()?;
     if plan.dry_run {
         report.log(format!("$ cp -a {} {}", plan.source.display(), dest.display()));
         fs::create_dir_all(&dest)?;
@@ -1243,7 +1252,7 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
 /// `safe.directory` are passed per-invocation (`-c`), so nothing is written to
 /// the user's git config; the Git screen's identity is used when provided.
 fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo();
+    let repo = plan.installed_repo()?;
 
     if plan.dry_run {
         report.log(format!(
@@ -1352,7 +1361,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
 const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo();
+    let repo = plan.installed_repo()?;
     report.log("escribiendo settings.nix, la contraseña y hardware-configuration");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.write(&repo)?;
@@ -1371,7 +1380,7 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // `${NIXDOTS_ROOT}${hashedPasswordFile}`, so this is the file the install
     // evaluates.
     let secrets = plan.root.join("persist/secrets");
-    let hash_path = secrets.join(format!("{}.hash", plan.settings.username));
+    let hash_path = secrets.join(format!("{}.hash", plan.settings.username_required()?));
     report.log(format!("$ escribir {}", hash_path.display()));
     if !plan.dry_run {
         fs::create_dir_all(&secrets)?;
@@ -1458,7 +1467,7 @@ fn write_host_files(
     hardware_config: &str,
     luks: Option<&detect::LuksPartition>,
 ) -> Result<()> {
-    let repo = plan.installed_repo();
+    let repo = plan.installed_repo()?;
     let host = &plan.settings.host_name;
     let dir = repo.join("hosts").join(host);
     let target = if repo.join("hosts").is_dir() {
@@ -1522,7 +1531,7 @@ fn write_host_files(
 /// secrets directory and (when NetworkManager connected) the saved Wi-Fi
 /// profile. Runs after the disk is mounted and before nixos-install.
 fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo();
+    let repo = plan.installed_repo()?;
     let persist = plan.root.join("persist");
 
     // The flake only sees git-tracked paths, so stage what the installer wrote
@@ -1762,7 +1771,7 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo();
+    let repo = plan.installed_repo()?;
     let flake = format!("{}#{}", repo.display(), plan.settings.host_name);
     let build = target_build_dir(plan);
 
@@ -2158,7 +2167,7 @@ pub fn check_source(repo: &Path, host: &str) -> Result<(), String> {
     // A marker hash so `hashedPasswordFile` resolves during evaluation.
     let user = crate::settings::Settings::read(repo)
         .ok()
-        .map(|settings| settings.username)
+        .and_then(|settings| settings.username)
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "nixdots".to_string());
     let secrets = tmp.join("persist/secrets");

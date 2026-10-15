@@ -789,8 +789,8 @@ impl App {
         // Hostname defaults per machine profile; everything else starts empty
         // (only stateVersion is kept from the repo).
         settings.host_name = profile.default_hostname().to_string();
-        settings.username = String::new();
-        settings.userdescription = String::new();
+        settings.username = None;
+        settings.userdescription = None;
         settings.git_name = None;
         settings.git_email = None;
         settings.time_zone = String::new();
@@ -1162,8 +1162,8 @@ impl App {
     fn apply_current(&mut self) {
         match self.screen {
             Screen::User => {
-                self.settings.username = self.final_username();
-                self.settings.userdescription = self.user.name.value().to_string();
+                self.settings.username = Some(self.final_username());
+                self.settings.userdescription = Some(self.user.name.value().to_string());
                 self.settings.pretty_host_name = self.pretty_host_name();
             }
             Screen::Git => {
@@ -1211,6 +1211,10 @@ impl App {
             self.status = Some("no hay disco seleccionado".into());
             return;
         };
+        if self.settings.username.is_none() {
+            self.status = Some("no hay usuario: completa la pantalla Usuario".into());
+            return;
+        }
         let hash = if let Some(hash) = self.password_hash.clone() {
             hash
         } else {

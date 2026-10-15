@@ -165,7 +165,7 @@ pub fn commands(app: &App) -> Vec<String> {
         "mkpasswd -m yescrypt --stdin".into(),
         format!(
             "→ /persist/secrets/{}.hash (0600)",
-            app.settings.username
+            app.settings.username.as_deref().unwrap_or("")
         ),
     ]
 }

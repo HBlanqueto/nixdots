@@ -21,12 +21,13 @@ pub struct Settings {
     pub host_name: String,
     pub time_zone: String,
     pub default_locale: String,
-    /// Optional: the first-boot assistant runs before the account exists, so a
-    /// settings.nix without these parses (empty string) instead of failing.
+    /// Optional: the first-boot assistant runs before the account exists. `None`
+    /// means the key is not written at all, which is how `first-boot.nix` knows
+    /// there is no account yet (`settings.username or null`).
     #[serde(default)]
-    pub username: String,
+    pub username: Option<String>,
     #[serde(default)]
-    pub userdescription: String,
+    pub userdescription: Option<String>,
     /// macOS-style visible name («ThinkPad L14 de Humberto»). Empty on old
     /// settings.nix files, in which case the line is not written.
     #[serde(default)]
@@ -47,9 +48,20 @@ fn default_keyboard() -> String {
 }
 
 impl Settings {
-    /// `hashedPasswordFile`, derived from the username.
-    pub fn password_file(&self) -> String {
-        format!("/persist/secrets/{}.hash", self.username)
+    /// `hashedPasswordFile`, derived from the username. `None` when there is no
+    /// account yet, in which case the key is not written.
+    pub fn password_file(&self) -> Option<String> {
+        self.username
+            .as_deref()
+            .map(|username| format!("/persist/secrets/{username}.hash"))
+    }
+
+    /// The username, or a clear error. The installer always has one; the
+    /// first-boot assistant runs before it exists.
+    pub fn username_required(&self) -> Result<&str> {
+        self.username
+            .as_deref()
+            .ok_or_else(|| eyre!("settings.nix no tiene `username` (todavía no hay cuenta)"))
     }
 
     /// Values used when `settings.nix` cannot be evaluated (e.g. the simulation
@@ -60,8 +72,8 @@ impl Settings {
             host_name: "nixos".into(),
             time_zone: "America/Merida".into(),
             default_locale: "es_MX.UTF-8".into(),
-            username: "humbe".into(),
-            userdescription: "H. Blanqueto".into(),
+            username: Some("humbe".into()),
+            userdescription: Some("H. Blanqueto".into()),
             pretty_host_name: String::new(),
             keyboard_layout: "us".into(),
             keyboard_variant: String::new(),
@@ -90,28 +102,40 @@ impl Settings {
                 String::from_utf8_lossy(&output.stderr).trim()
             ));
         }
-        serde_json::from_slice(&output.stdout)
-            .wrap_err("settings.nix no tiene el formato esperado")
+        let mut settings: Self = serde_json::from_slice(&output.stdout)
+            .wrap_err("settings.nix no tiene el formato esperado")?;
+        // An empty string counts as absent, so `settings.username or null` stays
+        // null (otherwise the first-boot assistant would never open).
+        settings.username = settings.username.filter(|value| !value.is_empty());
+        settings.userdescription = settings.userdescription.filter(|value| !value.is_empty());
+        Ok(settings)
     }
 
-    /// Renders the template.
+    /// Renders the template. `username`/`userdescription`/`hashedPasswordFile`
+    /// are omitted when there is no account, so `first-boot.nix` can detect it.
     pub fn render(&self) -> String {
         let pretty = if self.pretty_host_name.is_empty() {
             String::new()
         } else {
             format!("    prettyHostName = {};\n", nix_str(&self.pretty_host_name))
         };
+        let user = match (&self.username, self.password_file()) {
+            (Some(username), Some(password_file)) => format!(
+                "    username = {};\n    userdescription = {};\n{pretty}    hashedPasswordFile = {};\n",
+                nix_str(username),
+                nix_str(self.userdescription.as_deref().unwrap_or("")),
+                nix_str(&password_file),
+            ),
+            _ => pretty,
+        };
         format!(
-            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n    username = {username};\n    userdescription = {userdescription};\n{pretty}    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
+            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n{user}\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
             state_version = nix_str(&self.state_version),
             time_zone = nix_str(&self.time_zone),
             keyboard_layout = nix_str(&self.keyboard_layout),
             keyboard_variant = nix_str(&self.keyboard_variant),
             default_locale = nix_str(&self.default_locale),
-            username = nix_str(&self.username),
-            userdescription = nix_str(&self.userdescription),
-            pretty = pretty,
-            password_file = nix_str(&self.password_file()),
+            user = user,
             git_name = nix_opt(&self.git_name),
             git_email = nix_opt(&self.git_email),
         )
@@ -146,8 +170,8 @@ mod tests {
             host_name: "nixos".into(),
             time_zone: "America/Merida".into(),
             default_locale: "es_MX.UTF-8".into(),
-            username: "humbe".into(),
-            userdescription: "H. Blanqueto".into(),
+            username: Some("humbe".into()),
+            userdescription: Some("H. Blanqueto".into()),
             pretty_host_name: String::new(),
             keyboard_layout: "us".into(),
             keyboard_variant: String::new(),
@@ -168,8 +192,8 @@ mod tests {
     #[test]
     fn password_file_follows_username() {
         let mut s = sample();
-        s.username = "ana".into();
-        assert_eq!(s.password_file(), "/persist/secrets/ana.hash");
+        s.username = Some("ana".into());
+        assert_eq!(s.password_file().as_deref(), Some("/persist/secrets/ana.hash"));
     }
 
     #[test]
