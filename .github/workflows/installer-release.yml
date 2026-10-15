@@ -26,10 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install musl and the embedded data tables
+      - name: Install clang, lld and the embedded data tables
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools locales xkb-data tzdata
+          sudo apt-get install -y clang lld locales xkb-data tzdata
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -38,6 +38,10 @@ jobs:
       - name: Build
         working-directory: installer
         env:
+          # clang + lld as the linker (see installer/.cargo/config.toml); CC is
+          # only used if some crate ever compiles C.
+          CC_x86_64_unknown_linux_musl: clang
+          CC_aarch64_unknown_linux_musl: clang
           # Data tables the installer embeds at compile time (same as flake.nix).
           NIXDOTS_LOCALES: /usr/share/i18n/SUPPORTED
           NIXDOTS_LOCALE_DIR: /usr/share/i18n/locales
