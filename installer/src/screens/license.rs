@@ -22,7 +22,8 @@ pub fn height(_app: &App) -> u16 {
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let console = crate::theme::console::is_linux_console();
-    let logo = crate::logo::nixos_logo_compact(console);
+    // Same full logo as the Inicio screen (never the compact version).
+    let logo = crate::logo::nixos_logo(console);
     let logo_h = logo.len() as u16;
     let logo_w = logo
         .iter()
@@ -33,7 +34,8 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let box_w = 84.min(area.width.saturating_sub(4)).max(24);
     // logo + gap + nixdots + desc + gap + box + gray + gap + buttons
     let overhead = logo_h + 1 + 1 + 1 + 1 + 1 + 1 + 2;
-    let box_h = area.height.saturating_sub(overhead).clamp(5, 20);
+    // The logo always keeps its height; the text box shrinks instead.
+    let box_h = area.height.saturating_sub(overhead).clamp(3, 20);
     let total = logo_h + 1 + 1 + 1 + 1 + box_h + 1 + 1 + 1;
     let mut y = area.y + area.height.saturating_sub(total) / 2;
 
