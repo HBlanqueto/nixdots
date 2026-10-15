@@ -64,6 +64,15 @@ impl Settings {
             .ok_or_else(|| eyre!("settings.nix no tiene `username` (todavía no hay cuenta)"))
     }
 
+    /// A copy without the user fields: the installed `settings.nix` does not
+    /// carry them (they live in `user.json`).
+    pub fn without_user(&self) -> Self {
+        let mut copy = self.clone();
+        copy.username = None;
+        copy.userdescription = None;
+        copy
+    }
+
     /// Values used when `settings.nix` cannot be evaluated (e.g. the simulation
     /// run on a machine without nix). Mirrors the repo's defaults.
     pub fn fallback() -> Self {
