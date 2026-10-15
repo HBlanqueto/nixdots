@@ -11,11 +11,8 @@ inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     specialArgs = {
-        inherit inputs hostName settings;
-        inherit (settings)
-            stateVersion timeZone defaultLocale username userdescription
-            hashedPasswordFile keyboardLayout keyboardVariant gitName gitEmail;
-    };
+        inherit inputs hostName;
+    } // import ./specialArgs.nix { inherit settings; };
 
     # Common + desktop layers are shared; the host supplies its own
     # hardware module and hardware-configuration.nix.
