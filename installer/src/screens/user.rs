@@ -3,13 +3,14 @@ use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::text::Span;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(_app: &App) -> u16 {
-    4
+    // two fields + separator + the visible-name line
+    6
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
@@ -48,6 +49,18 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
     let mut lines = name;
     lines.extend(username);
+    // Separator + the macOS-style visible name, updated as the name is typed.
+    lines.push(Line::from(Span::styled(
+        "─".repeat(area.width as usize),
+        Style::default().fg(app.palette.rule),
+    )));
+    lines.push(Line::from(vec![
+        Span::styled("este equipo se llamará ", Style::default().fg(app.palette.muted)),
+        Span::styled(
+            app.pretty_host_name(),
+            Style::default().fg(app.palette.highlight),
+        ),
+    ]));
     f.render_widget(Paragraph::new(lines), area);
 }
 

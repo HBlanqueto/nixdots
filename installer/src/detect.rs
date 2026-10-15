@@ -148,6 +148,107 @@ pub fn environment() -> Option<String> {
     }
 }
 
+/// The machine's commercial model, macOS-style: «Máquina virtual», the DMI
+/// product name (or Lenovo's product version), the ARM device-tree model, or
+/// «Laptop»/«PC» as a last resort. Detected in the background at startup.
+pub fn machine_model() -> String {
+    let arch = arch().unwrap_or_default();
+    let is_arm = arch.starts_with("arm") || arch == "aarch64";
+
+    if let Some(virt) = run_trim("systemd-detect-virt", &[]) {
+        if virt != "none" {
+            return "Máquina virtual".to_string();
+        }
+    }
+
+    let mut vendor = String::new();
+    let mut candidate = None;
+    if !is_arm {
+        vendor = dmi_field("sys_vendor").unwrap_or_default();
+        let product = dmi_field("product_name");
+        let version = dmi_field("product_version");
+        // Lenovo's product_name is a code (20X5…); the version is the real name.
+        candidate = if vendor.to_lowercase().contains("lenovo") {
+            version.or(product)
+        } else {
+            product.or(version)
+        };
+    }
+    if candidate.is_none() {
+        candidate = device_tree_model();
+    }
+
+    let model = candidate.unwrap_or_else(|| {
+        if battery_present() {
+            "Laptop".to_string()
+        } else {
+            "PC".to_string()
+        }
+    });
+    simplify_model(&model, &vendor)
+}
+
+fn dmi_field(name: &str) -> Option<String> {
+    let text = std::fs::read_to_string(format!("/sys/class/dmi/id/{name}")).ok()?;
+    let value = text.trim();
+    if value.is_empty() || is_placeholder(value) {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn device_tree_model() -> Option<String> {
+    let text = std::fs::read_to_string("/proc/device-tree/model").ok()?;
+    let value = text.trim_end_matches('\0').trim();
+    if value.is_empty() || is_placeholder(value) {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+/// Firmware placeholders that are not a real model name.
+fn is_placeholder(value: &str) -> bool {
+    matches!(
+        value.to_lowercase().as_str(),
+        "to be filled by o.e.m."
+            | "system product name"
+            | "default string"
+            | "none"
+            | "not applicable"
+    )
+}
+
+fn battery_present() -> bool {
+    std::fs::read_dir("/sys/class/power_supply")
+        .map(|entries| {
+            entries.flatten().any(|entry| {
+                entry.file_name().to_string_lossy().starts_with("BAT")
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Shortens a model the way macOS does: drop a trailing generation, drop the
+/// vendor when it repeats at the start, and collapse whitespace.
+fn simplify_model(model: &str, vendor: &str) -> String {
+    let mut model = model.trim().to_string();
+    if let Some(idx) = model.rfind(" Gen ") {
+        let tail = &model[idx + 5..];
+        if !tail.is_empty() && tail.chars().all(|c| c.is_alphanumeric()) {
+            model.truncate(idx);
+        }
+    }
+    if !vendor.is_empty() && model.to_lowercase().starts_with(&vendor.to_lowercase()) {
+        let rest = model[vendor.len()..].trim_start();
+        if !rest.is_empty() {
+            model = rest.to_string();
+        }
+    }
+    model.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// True when something answers on `cache.nixos.org:443`.
 pub fn network_online() -> bool {
     let Ok(addrs) = ("cache.nixos.org", 443).to_socket_addrs() else {

@@ -23,6 +23,10 @@ pub struct Settings {
     pub default_locale: String,
     pub username: String,
     pub userdescription: String,
+    /// macOS-style visible name («ThinkPad L14 de Humberto»). Empty on old
+    /// settings.nix files, in which case the line is not written.
+    #[serde(default)]
+    pub pretty_host_name: String,
     #[serde(default = "default_keyboard")]
     pub keyboard_layout: String,
     #[serde(default)]
@@ -54,6 +58,7 @@ impl Settings {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
+            pretty_host_name: String::new(),
             keyboard_layout: "us".into(),
             keyboard_variant: String::new(),
             git_name: Some("H. Blanqueto".into()),
@@ -87,8 +92,13 @@ impl Settings {
 
     /// Renders the template.
     pub fn render(&self) -> String {
+        let pretty = if self.pretty_host_name.is_empty() {
+            String::new()
+        } else {
+            format!("    prettyHostName = {};\n", nix_str(&self.pretty_host_name))
+        };
         format!(
-            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n    username = {username};\n    userdescription = {userdescription};\n    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
+            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n    username = {username};\n    userdescription = {userdescription};\n{pretty}    hashedPasswordFile = {password_file};\n\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
             state_version = nix_str(&self.state_version),
             time_zone = nix_str(&self.time_zone),
             keyboard_layout = nix_str(&self.keyboard_layout),
@@ -96,6 +106,7 @@ impl Settings {
             default_locale = nix_str(&self.default_locale),
             username = nix_str(&self.username),
             userdescription = nix_str(&self.userdescription),
+            pretty = pretty,
             password_file = nix_str(&self.password_file()),
             git_name = nix_opt(&self.git_name),
             git_email = nix_opt(&self.git_email),
@@ -133,6 +144,7 @@ mod tests {
             default_locale: "es_MX.UTF-8".into(),
             username: "humbe".into(),
             userdescription: "H. Blanqueto".into(),
+            pretty_host_name: String::new(),
             keyboard_layout: "us".into(),
             keyboard_variant: String::new(),
             git_name: Some("H. Blanqueto".into()),

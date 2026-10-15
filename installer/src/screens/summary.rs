@@ -65,7 +65,15 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let mut lines = vec![
-        row(app, "equipo", app.settings.host_name.clone()),
+        Line::from(vec![
+            Span::styled(format!("{:<12}", "equipo"), Style::default().fg(app.palette.muted)),
+            Span::styled(app.pretty_host_name(), Style::default().fg(app.palette.text)),
+            Span::styled(" · ", Style::default().fg(app.palette.muted)),
+            Span::styled(
+                app.settings.host_name.clone(),
+                Style::default().fg(app.palette.muted),
+            ),
+        ]),
         row(app, "lenguaje", app.settings.default_locale.clone()),
         row(app, "teclado", app.keyboard_layout.clone()),
         row(app, "zona", app.settings.time_zone.clone()),

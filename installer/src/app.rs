@@ -624,6 +624,9 @@ pub struct App {
     // machine detection (only used for the default hostname)
     pub arch: Option<String>,
     pub virt: Option<String>,
+    /// The commercial model, detected in the background at startup.
+    pub model: String,
+    model_rx: Option<Receiver<String>>,
 
     // network
     pub net: NetState,
@@ -728,6 +731,11 @@ impl App {
 
         let disks = detect::disks();
         let disk_index = disks.iter().position(|d| d.available).unwrap_or(0);
+        // Detect the machine model in the background so startup is never blocked.
+        let (model_tx, model_rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = model_tx.send(detect::machine_model());
+        });
         // The Red screen only appears when there is no connection yet; the
         // simulation always shows it so the flow is reproducible.
         let show_network = dry_run || !net::connection_up();
@@ -821,6 +829,8 @@ impl App {
             tick: 0,
             arch,
             virt: detect::environment(),
+            model: String::new(),
+            model_rx: Some(model_rx),
             settings,
         };
         app.disks.refresh_decision();
@@ -851,6 +861,7 @@ impl App {
             self.maybe_finish_install();
             self.poll_network();
             self.poll_source_check();
+            self.poll_model();
 
             if self.should_quit {
                 break;
@@ -1062,6 +1073,7 @@ impl App {
                 }
                 self.settings.username = self.user.username.value().to_string();
                 self.settings.userdescription = self.user.name.value().to_string();
+                self.settings.pretty_host_name = self.pretty_host_name();
             }
             Screen::Git => {
                 if self.git.enabled {
@@ -1877,6 +1889,39 @@ impl App {
         }
     }
 
+    /// Picks up the model detected in the background at startup.
+    fn poll_model(&mut self) {
+        let Some(rx) = self.model_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(model) => self.model = model,
+            Err(std::sync::mpsc::TryRecvError::Empty) => self.model_rx = Some(rx),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+        }
+    }
+
+    /// The macOS-style visible name: the model plus the user's first name, in
+    /// the chosen language («ThinkPad L14 de Humberto», «Humberto's ThinkPad
+    /// L14»). Falls back to the bare model.
+    pub fn pretty_host_name(&self) -> String {
+        let model = if self.model.is_empty() {
+            "PC"
+        } else {
+            self.model.as_str()
+        };
+        let first = first_name(self.user.name.value());
+        if first.is_empty() {
+            return model.to_string();
+        }
+        match language_code(&self.settings.default_locale) {
+            "en" => format!("{first}'s {model}"),
+            "de" => format!("{model} von {first}"),
+            "it" => format!("{model} di {first}"),
+            _ => format!("{model} de {first}"),
+        }
+    }
+
     // -- rendering ------------------------------------------------------------
 
     pub fn draw(&mut self, f: &mut Frame) {
@@ -2490,6 +2535,19 @@ impl App {
             Screen::Done => crate::screens::done::commands(self),
         }
     }
+}
+
+/// The first whitespace-separated token of a full name.
+fn first_name(full: &str) -> &str {
+    full.split_whitespace().next().unwrap_or("")
+}
+
+/// The language of a locale code (`es_MX.UTF-8` → `es`).
+fn language_code(locale: &str) -> &str {
+    locale
+        .split(['_', '.'])
+        .next()
+        .unwrap_or("")
 }
 
 /// Clips `s` to `width` columns, ending with '…' when it had to cut.
