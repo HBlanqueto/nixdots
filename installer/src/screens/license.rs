@@ -212,6 +212,10 @@ fn reflow(palette: &crate::theme::Palette, width: usize) -> Vec<Line<'static>> {
         while i < src.len() && !src[i].trim().is_empty() {
             i += 1;
         }
+        // One blank line between blocks (never at the start or doubled).
+        if !out.is_empty() {
+            out.push(Line::from(""));
+        }
         emit_block(palette, &src[start..i], width, &mut out, block == 0);
         block += 1;
     }
