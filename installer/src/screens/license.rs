@@ -3,13 +3,13 @@
 //! Acepto opens a small confirmation dialog; No acepto returns to Inicio.
 
 use crate::app::{Action, App};
-use crate::widgets::{Btn, ButtonRow};
+use crate::widgets::{self, Btn, ButtonRow};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
 use ratatui::Frame;
 
@@ -133,61 +133,32 @@ fn draw_box(f: &mut Frame, app: &mut App, rect: Rect) {
     f.render_stateful_widget(scrollbar, text_area, &mut state);
 }
 
-/// The small confirmation dialog, centered over the (dimmed) screen.
+/// The small confirmation dialog, centered over the dimmed license screen.
 fn draw_modal(f: &mut Frame, app: &mut App, area: Rect) {
-    let console = crate::theme::console::is_linux_console();
-    let gray = if console { app.palette.row_bg } else { Color::Rgb(0x2f, 0x3a, 0x49) };
-    let bg = if console { app.palette.row_bg } else { Color::Rgb(0x17, 0x1d, 0x27) };
-
-    // Dim everything behind the dialog.
-    {
-        let buf = f.buffer_mut();
-        let r = area.intersection(*buf.area());
-        for y in r.top()..r.bottom() {
-            for x in r.left()..r.right() {
-                if let Some(cell) = buf.cell_mut((x, y)) {
-                    cell.fg = gray;
-                    cell.bg = gray;
-                }
-            }
-        }
-    }
-
-    let w = 58.min(area.width);
-    let h = 7;
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let y = area.y + area.height.saturating_sub(h) / 2;
-    let rect = Rect::new(x, y, w, h);
-    f.render_widget(Clear, rect);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(app.palette.primary))
-        .style(Style::default().bg(bg));
-    let inner = block.inner(rect);
-    f.render_widget(block, rect);
-
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("❄ ", Style::default().fg(app.palette.primary)),
-            Span::styled(
-                "Leí y acepto los términos de la licencia.",
-                Style::default().fg(app.palette.text),
-            ),
-        ]))
-        .alignment(Alignment::Center),
-        Rect::new(inner.x, inner.y + 1, inner.width, 1),
-    );
-
+    let palette = app.palette;
     let buttons = vec![Btn::new("No acepto"), Btn::new("Acepto")];
-    let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let widget = ButtonRow {
-        buttons: &buttons,
-        focus: app.license_modal_focus,
-        focused: true,
-        palette: &app.palette,
-    };
-    f.render_widget(widget, row);
+    let focus = app.license_modal_focus;
+    widgets::draw_dialog(f, area, &palette, 48, 6, |f, inner| {
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("❄ ", Style::default().fg(palette.primary)),
+                Span::styled(
+                    "Leí y acepto los términos de la licencia.",
+                    Style::default().fg(palette.text),
+                ),
+            ]))
+            .alignment(Alignment::Center),
+            Rect::new(inner.x, inner.y + 1, inner.width, 1),
+        );
+        let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+        let widget = ButtonRow {
+            buttons: &buttons,
+            focus,
+            focused: true,
+            palette: &palette,
+        };
+        f.render_widget(widget, row);
+    });
 }
 
 /// Keys while the confirmation dialog is open: Esc / No acepto close it,

@@ -1945,6 +1945,8 @@ impl App {
             crate::screens::installing::draw(f, self, area);
             if self.install_log_view {
                 self.draw_install_log(f, area);
+            } else if self.install_cancel {
+                self.draw_install_cancel(f, area);
             }
             return;
         }
@@ -2060,7 +2062,7 @@ impl App {
 
     /// Floating keyboard-layout selector.
     fn draw_key_modal(&self, f: &mut Frame, area: Rect) {
-        widgets::dim(f, area, &self.palette);
+        widgets::dim_buffer(f, &self.palette);
         let w = 54.min(area.width);
         let h = 13.min(area.height);
         let x = area.x + area.width.saturating_sub(w) / 2;
@@ -2475,28 +2477,49 @@ impl App {
     }
 
     fn draw_quit(&self, f: &mut Frame, area: Rect) {
-        let message = "¿Salir del instalador?";
-        widgets::dim(f, area, &self.palette);
-        let width = 42.min(area.width);
-        let height = 5;
-        let x = area.x + area.width.saturating_sub(width) / 2;
-        let y = area.y + area.height.saturating_sub(height) / 2;
-        let rect = Rect::new(x, y, width, height);
-        f.render_widget(Clear, rect);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.warning));
-        let inner = block.inner(rect);
-        f.render_widget(block, rect);
-        let text = vec![
-            Line::from(Span::styled(message, Style::default().fg(self.palette.text)))
+        let palette = self.palette;
+        widgets::draw_dialog(f, area, &palette, 42, 5, |f, inner| {
+            let text = vec![
+                Line::from(Span::styled(
+                    "¿Salir del instalador?",
+                    Style::default().fg(palette.text),
+                ))
                 .alignment(Alignment::Center),
-            Line::from(""),
-            Line::from(Span::styled("s / enter · n / esc", Style::default().fg(self.palette.muted)))
+                Line::from(""),
+                Line::from(Span::styled(
+                    "s / enter · n / esc",
+                    Style::default().fg(palette.muted),
+                ))
                 .alignment(Alignment::Center),
-        ];
-        f.render_widget(Paragraph::new(text), inner);
+            ];
+            f.render_widget(Paragraph::new(text), inner);
+        });
+    }
+
+    /// Ctrl+C on Instalando: confirm over the dimmed progress screen.
+    fn draw_install_cancel(&self, f: &mut Frame, area: Rect) {
+        let palette = self.palette;
+        let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
+        let focus = self.button_focus;
+        let focused = self.focus_buttons;
+        widgets::draw_dialog(f, area, &palette, 52, 6, |f, inner| {
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    "¿Cancelar la instalación? El disco quedará a medias.",
+                    Style::default().fg(palette.text),
+                ))
+                .alignment(Alignment::Center),
+                Rect::new(inner.x, inner.y + 1, inner.width, 1),
+            );
+            let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+            let widget = ButtonRow {
+                buttons: &buttons,
+                focus,
+                focused,
+                palette: &palette,
+            };
+            f.render_widget(widget, row);
+        });
     }
 
     pub fn command_list(&self) -> Vec<String> {

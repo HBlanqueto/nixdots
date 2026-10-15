@@ -305,39 +305,29 @@ fn details(app: &App) -> Vec<String> {
     ]
 }
 
-/// The "borrar todo" confirmation, in the license dialog's style.
+/// The "borrar todo" confirmation, over the dimmed disk picker.
 fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
-    widgets::dim(f, area, &app.palette);
-    let w = 58.min(area.width);
-    let h = 7;
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let y = area.y + area.height.saturating_sub(h) / 2;
-    let rect = Rect::new(x, y, w, h);
-    f.render_widget(Clear, rect);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(app.palette.warning));
-    let inner = block.inner(rect);
-    f.render_widget(block, rect);
-
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "Se borrará Windows y todos sus archivos.",
-            Style::default().fg(app.palette.text),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(inner.x, inner.y + 1, inner.width, 1),
-    );
+    let palette = app.palette;
     let buttons = vec![Btn::new("No"), Btn::new("Borrar todo")];
-    let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let widget = ButtonRow {
-        buttons: &buttons,
-        focus: app.disks.erase_focus,
-        focused: true,
-        palette: &app.palette,
-    };
-    f.render_widget(widget, row);
+    let focus = app.disks.erase_focus;
+    widgets::draw_dialog(f, area, &palette, 48, 6, |f, inner| {
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "Se borrará Windows y todos sus archivos.",
+                Style::default().fg(palette.text),
+            ))
+            .alignment(Alignment::Center),
+            Rect::new(inner.x, inner.y + 1, inner.width, 1),
+        );
+        let row = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+        let widget = ButtonRow {
+            buttons: &buttons,
+            focus,
+            focused: true,
+            palette: &palette,
+        };
+        f.render_widget(widget, row);
+    });
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

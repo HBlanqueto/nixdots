@@ -352,7 +352,7 @@ pub fn usb_key(app: &mut App, key: KeyEvent) -> bool {
 }
 
 pub fn draw_usb(f: &mut Frame, app: &App, area: Rect) {
-    widgets::dim(f, area, &app.palette);
+    widgets::dim_buffer(f, &app.palette);
     let w = 58.min(area.width);
     let rows = app.enc.usb.len() as u16;
     let h = (rows + 4).clamp(5, area.height.saturating_sub(2));

@@ -18,8 +18,13 @@ pub fn height(_app: &App) -> u16 {
 }
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    let cancel = app.install_cancel;
-    let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
+    // The Ctrl+C confirmation is drawn as a dialog by the app, so while it is
+    // open the screen shows no buttons of its own.
+    let buttons: Vec<Btn> = if app.install_cancel {
+        Vec::new()
+    } else {
+        app.buttons().into_iter().map(|(b, _)| b).collect()
+    };
     let has_buttons = !buttons.is_empty();
     let show_shortcuts = !has_buttons;
 
@@ -48,24 +53,13 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     );
     y += 2;
 
-    if cancel {
-        f.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                "¿Cancelar la instalación? El disco quedará a medias.",
-                Style::default().fg(app.palette.text),
-            )))
-            .alignment(Alignment::Center),
-            line(y),
-        );
-    } else {
-        f.render_widget(
-            Paragraph::new(status_line(app, area.width)).alignment(Alignment::Center),
-            line(y),
-        );
-    }
+    f.render_widget(
+        Paragraph::new(status_line(app, area.width)).alignment(Alignment::Center),
+        line(y),
+    );
     y += 1;
 
-    if app.install.error.is_some() && !cancel {
+    if app.install.error.is_some() {
         f.render_widget(
             Paragraph::new(Span::styled(
                 "registro completo: /tmp/nixdots-install.log",

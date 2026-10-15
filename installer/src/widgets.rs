@@ -7,7 +7,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget};
 use ratatui::Frame;
 
 #[derive(Debug, Clone)]
@@ -23,25 +23,51 @@ impl Btn {
             enabled: true,
         }
     }
-
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
 }
 
-/// Dims a rectangle by re-styling its cells to the muted foreground color
-/// (there is no alpha in a terminal).
-pub fn dim(f: &mut Frame, area: Rect, palette: &Palette) {
+/// Dims the whole frame behind a dialog: every cell keeps its glyph but loses
+/// the bold weight, takes the muted foreground and the base background, so the
+/// screen (logo, text, buttons) is still legible underneath. There is no alpha
+/// in a terminal.
+pub fn dim_buffer(f: &mut Frame, palette: &Palette) {
+    let area = f.area();
     let buf = f.buffer_mut();
-    let rect = area.intersection(*buf.area());
-    for y in rect.top()..rect.bottom() {
-        for x in rect.left()..rect.right() {
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
             if let Some(cell) = buf.cell_mut((x, y)) {
-                cell.fg = palette.muted;
+                cell.fg = palette.disabled;
+                cell.bg = palette.reset;
+                cell.modifier.remove(Modifier::BOLD);
             }
         }
     }
+}
+
+/// Dims the frame and draws a centered dialog: one rounded accent border on
+/// the well background. `content` fills the inner rectangle.
+pub fn draw_dialog(
+    f: &mut Frame,
+    area: Rect,
+    palette: &Palette,
+    width: u16,
+    height: u16,
+    content: impl FnOnce(&mut Frame, Rect),
+) {
+    dim_buffer(f, palette);
+    let w = width.min(area.width);
+    let h = height.min(area.height);
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.primary))
+        .style(Style::default().bg(palette.well));
+    let inner = block.inner(rect);
+    f.render_widget(block, rect);
+    content(f, inner);
 }
 
 /// A centered row of buttons, shared by every screen and dialog.
