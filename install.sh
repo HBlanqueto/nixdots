@@ -56,10 +56,12 @@ case "$machine" in
 esac
 
 # 3. nixpkgs pinned to the revision the flake is built against, so the tools
-#    match (falls back to the registry if flake.lock or jq is unavailable).
+#    match (falls back to the registry if flake.lock is unavailable).
 rev=""
-if command -v jq >/dev/null 2>&1 && [ -r "$here/flake.lock" ]; then
-    rev=$(jq -r '.nodes.nixpkgs.locked.rev // empty' "$here/flake.lock" 2>/dev/null || true)
+if [ -r "$here/flake.lock" ]; then
+    rev=$(nix eval --impure --raw --expr \
+        "(builtins.fromJSON (builtins.readFile $here/flake.lock)).nodes.nixpkgs.locked.rev" \
+        2>/dev/null || true)
 fi
 if [ -n "$rev" ]; then
     nixpkgs="github:nixos/nixpkgs/$rev"
@@ -139,13 +141,25 @@ EOF
                 hwaccel=
                 if [ -e /dev/dri/renderD128 ]; then hwaccel=--hwaccel; fi
 
+                # Clear the markers so a leftover from a previous run is never
+                # mistaken for this one.
+                rm -f "$WORK/started" "$WORK/exit-code"
+
                 # shellcheck disable=SC2086
-                if nix --extra-experimental-features 'nix-command flakes' \
+                nix --extra-experimental-features 'nix-command flakes' \
                     shell "$nixpkgs#kmscon" "$nixpkgs#nerd-fonts.jetbrains-mono" $tool_pkgs -c \
                     kmscon --vt auto --switchvt $hwaccel \
                     --font-name "JetBrainsMono Nerd Font Mono" --font-size 14 \
-                    $palette --login -- "$binary" --install "$@"; then
-                    exit 0
+                    $palette --login -- "$binary" --install "$@" || true
+
+                # If the installer started inside kmscon, kmscon did not fail:
+                # reuse the installer's exit code instead of relaunching it.
+                if [ -e "$WORK/started" ]; then
+                    code=$(cat "$WORK/exit-code" 2>/dev/null || true)
+                    case "$code" in
+                        '' | *[!0-9]*) code=1 ;;
+                    esac
+                    exit "$code"
                 fi
                 echo "kmscon no pudo iniciar; se usa el modo ASCII." >&2
             fi
