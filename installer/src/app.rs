@@ -803,6 +803,10 @@ impl App {
 
             if ratatui::crossterm::event::poll(Duration::from_millis(100))? {
                 let event = ratatui::crossterm::event::read()?;
+                if let ratatui::crossterm::event::Event::Resize(_, _) = event {
+                    // A stray line from a child process may be on screen; wipe it.
+                    terminal.clear()?;
+                }
                 self.handle_event(event);
             }
             self.tick = self.tick.wrapping_add(1);
@@ -2378,7 +2382,7 @@ impl App {
         if let Some(status) = &self.status {
             f.render_widget(
                 Paragraph::new(Span::styled(
-                    status.clone(),
+                    truncate_ellipsis(status, area.width as usize),
                     Style::default().fg(self.palette.warning),
                 ))
                 .alignment(Alignment::Center),
@@ -2493,6 +2497,20 @@ impl App {
             Screen::Done => crate::screens::done::commands(self),
         }
     }
+}
+
+/// Clips `s` to `width` columns, ending with '…' when it had to cut.
+fn truncate_ellipsis(s: &str, width: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= width {
+        return s.to_string();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    let mut out: String = chars[..width.saturating_sub(1)].iter().collect();
+    out.push('…');
+    out
 }
 
 /// Hard-wraps `s` into chunks of at most `width` chars (no word trimming), so a
