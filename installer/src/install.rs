@@ -218,15 +218,19 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         .ok();
     let mut report = Reporter { tx: tx.clone(), file };
 
-    report.log("== nixdots installer ==");
-    report.log(format!(
+    // Kept in the on-disk log only; the UI log starts with the steps.
+    report.raw("== nixdots installer ==");
+    report.raw(&format!(
         "modo: {}",
         if plan.dry_run { "simulación" } else { "real" }
     ));
-    report.log(format!("host: {}", plan.settings.host_name));
-    report.log(format!("usuario: {}", plan.settings.username));
-    report.log(format!("dispositivo: {}", plan.device));
-    report.log(format!("repo destino: {}", plan.installed_repo().display()));
+    report.raw(&format!("host: {}", plan.settings.host_name));
+    report.raw(&format!("usuario: {}", plan.settings.username));
+    report.raw(&format!("dispositivo: {}", plan.device));
+    report.raw(&format!(
+        "repo destino: {}",
+        plan.installed_repo().display()
+    ));
 
     match run_steps(&plan, &mut report) {
         Ok(()) => {

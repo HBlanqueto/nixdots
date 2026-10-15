@@ -2223,25 +2223,6 @@ impl App {
         self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
     }
 
-    /// The `❄ nixdots instalador` header line, kept only on the final screen.
-    pub fn header_line(&self) -> Line<'static> {
-        let mark = if theme::console::is_linux_console() { "*" } else { "❄" };
-        let mut spans = vec![
-            Span::styled(
-                format!("{mark} nixdots"),
-                Style::default().fg(self.palette.primary).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("  instalador", Style::default().fg(self.palette.muted)),
-        ];
-        if self.dry_run {
-            spans.push(Span::styled(
-                "  · simulación",
-                Style::default().fg(self.palette.warning),
-            ));
-        }
-        Line::from(spans)
-    }
-
     /// Full-screen C-style log: title + percentage, a stages line, the
     /// translated output and a footer.
     fn draw_install_log(&self, f: &mut Frame, area: Rect) {
@@ -2253,7 +2234,7 @@ impl App {
             .eta_secs()
             .map(|s| format!(" · ~{} min", s.div_ceil(60)))
             .unwrap_or_default();
-        let title_full = format!("Instalando nixdots en {}", self.settings.host_name);
+        let title_full = format!("Instalando en {}", self.settings.host_name);
         let right = format!("{pct}%{eta}");
         // Reserve the percentage's width first, plus the title's leading space
         // and a 2-column margin at the edge, so it is never cut.

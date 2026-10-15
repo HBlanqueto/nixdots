@@ -1,22 +1,15 @@
 use crate::app::{Action, App};
 use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Rect};
-use ratatui::widgets::Paragraph;
+use ratatui::layout::Rect;
 use ratatui::Frame;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// `* nixdots` + a blank line + the Salir / Reiniciar capsule row.
+/// The Salir / Reiniciar capsule row, centered.
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    let total: u16 = 3;
-    let y = area.y + area.height.saturating_sub(total) / 2;
-    f.render_widget(
-        Paragraph::new(app.header_line()).alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-
-    app.draw_buttons(f, Rect::new(area.x, y + 2, area.width, 1));
+    let y = area.y + area.height / 2;
+    app.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

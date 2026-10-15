@@ -35,7 +35,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            format!("Instalando nixdots en {}", app.settings.host_name),
+            format!("Instalando en {}", app.settings.host_name),
             Style::default().fg(app.palette.white).add_modifier(Modifier::BOLD),
         )))
         .alignment(Alignment::Center),
