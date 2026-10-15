@@ -21,7 +21,7 @@ use tui_input::backend::crossterm::EventHandler;
 pub fn height(app: &App) -> u16 {
     let mut h = 1; // account checkbox
     if !app.enc.use_account {
-        h += 4; // pass, confirm, security, warning
+        h += 6; // frase(2), confirmar(2), seguridad(1), aviso(1)
         h += 1; // muted note
         if pass_has_non_ascii(app) {
             h += 1;
@@ -58,7 +58,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         let indent = area.x + 4;
         let indent_w = area.width.saturating_sub(4);
 
-        let first = widgets::input_line(
+        let first = widgets::field(
             &app.palette,
             "frase",
             app.enc.pass.value(),
@@ -69,10 +69,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             true,
             "",
         );
-        f.render_widget(Paragraph::new(first), Rect::new(indent, y, indent_w, 1));
-        y += 1;
+        f.render_widget(Paragraph::new(first), Rect::new(indent, y, indent_w, 2));
+        y += 2;
 
-        let mut second = widgets::input_line(
+        let mut second = widgets::field(
             &app.palette,
             "confirmar",
             app.enc.confirm.value(),
@@ -84,13 +84,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "",
         );
         if app.enc.passphrase_matches() {
-            second.spans.push(Span::styled(
+            second[1].spans.push(Span::styled(
                 "  ✓ coinciden",
                 Style::default().fg(app.palette.success),
             ));
         }
-        f.render_widget(Paragraph::new(second), Rect::new(indent, y, indent_w, 1));
-        y += 1;
+        f.render_widget(Paragraph::new(second), Rect::new(indent, y, indent_w, 2));
+        y += 2;
 
         // Strength bar (12 cells).
         let (filled, label, color) = strength(app.enc.pass.value());

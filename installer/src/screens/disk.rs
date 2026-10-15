@@ -1,6 +1,6 @@
-//! "Disco": a minimalist, macOS-style disk picker. One card per disk, an
-//! automatic decision sentence, and — only when Windows must be shrunk — a
-//! distribution bar.
+//! "Disco": a minimalist, macOS-style disk picker inside the shared box. One
+//! card per disk (the selected one), an automatic decision sentence, and — only
+//! when Windows must be shrunk — a distribution bar.
 
 use crate::app::{Action, App};
 use crate::detect::{human_size, Disk};
@@ -17,56 +17,27 @@ use ratatui::Frame;
 const DISK_ICON: [&str; 3] = [" .------.", "|  ____  |", "|__|  |__|"];
 
 const CARD_W: u16 = 26;
-const CARD_GAP: u16 = 2;
 
-pub fn height(_app: &App) -> u16 {
-    0
+pub fn height(app: &App) -> u16 {
+    let mut h = 8 + 1 + 1; // card + gap + sentence
+    if !app.disks.erase_all && app.disks.decision.is_shrink() {
+        h += 1;
+    }
+    if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all {
+        h += 1;
+    }
+    if app.disks.details {
+        h += 1 + details(app).len() as u16;
+    }
+    h
 }
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    let shrink_case = !app.disks.erase_all && app.disks.decision.is_shrink();
-    let link_case = app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all;
-    let details_h = if app.disks.details {
-        1 + details(app).len() as u16
-    } else {
-        0
-    };
-    // heading + sub+gap + cards+gap + sentence+gap (+ shrink + link + details)
-    let total = 1 + 2 + 9 + 1 + shrink_case as u16 * 2 + link_case as u16 * 2 + details_h;
-    let top = area.y + 3;
-    let bottom = area.bottom().saturating_sub(4);
-    let mut y = top + bottom.saturating_sub(top).saturating_sub(total) / 2;
+    let mut y = area.y;
 
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "¿Dónde quieres instalar nixdots?",
-            Style::default()
-                .fg(app.palette.text)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "Elige un disco",
-            Style::default().fg(app.palette.muted),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 2;
-
-    // Disk cards, centered as a row.
-    let count = app.disks.disks.len() as u16;
-    let row_w = count * CARD_W + count.saturating_sub(1) * CARD_GAP;
-    let mut x = area.x + area.width.saturating_sub(row_w) / 2;
-    for i in 0..count {
-        let rect = Rect::new(x, y, CARD_W, 8);
-        draw_card(f, app, rect, i as usize);
-        x += CARD_W + CARD_GAP;
-    }
+    // The selected disk card, centered.
+    let cx = area.x + area.width.saturating_sub(CARD_W) / 2;
+    draw_card(f, app, Rect::new(cx, y, CARD_W, 8), app.disks.index);
     y += 8 + 1;
 
     // Decision sentence.
@@ -81,7 +52,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     // Shrink distribution bar.
     if !app.disks.erase_all {
         if let DiskDecision::Shrink { volume, max_free, .. } = app.disks.decision {
-            y += 1;
             draw_shrink(f, app, Rect::new(area.x, y, area.width, 1), volume, max_free);
             y += 1;
         }
@@ -89,7 +59,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     // "o borrar todo el disco" (only with Windows, and not already chosen).
     if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all {
-        y += 1;
         let link = "o borrar todo el disco";
         let pad = (area.width as usize).saturating_sub(link.chars().count()) / 2;
         f.render_widget(
@@ -104,7 +73,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Details (`d`).
     if app.disks.details {
-        y += 1;
         for line in details(app) {
             f.render_widget(
                 Paragraph::new(Span::styled(line, Style::default().fg(app.palette.muted)))
@@ -114,8 +82,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             y += 1;
         }
     }
-
-    app.draw_buttons(f, Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1));
 
     if app.disks.erase_modal {
         draw_erase_modal(f, app, area);
@@ -308,7 +274,7 @@ fn details(app: &App) -> Vec<String> {
 /// The "borrar todo" confirmation, over the dimmed disk picker.
 fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
     let palette = app.palette;
-    let buttons = vec![Btn::new("No"), Btn::new("Borrar todo")];
+    let buttons = vec![Btn::new("No"), Btn::danger("Borrar todo")];
     let focus = app.disks.erase_focus;
     widgets::draw_dialog(f, area, &palette, 48, 6, |f, inner| {
         f.render_widget(

@@ -1,112 +1,52 @@
-//! "Teclado": a searchable list of layouts in the same centered style as
-//! Lenguaje, the language's suggestion highlighted, and a test field under a
-//! separator.
+//! "Teclado": a searchable list of layouts in the shared box, the language's
+//! suggestion highlighted, and a test field under the box.
 
 use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::Span;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(_app: &App) -> u16 {
-    (super::picker::ROWS + 7) as u16
+    super::picker::ROWS as u16 + 1
 }
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    let box_w = super::picker::CENTERED_W
-        .min(area.width.saturating_sub(4))
-        .max(24);
-    let box_h = (super::picker::ROWS as u16 + 2)
-        .min(area.height.saturating_sub(9))
-        .max(4);
-
-    // heading + search + box + gray + separator + prueba + buttons
-    let total = 1 + 1 + box_h + 1 + 1 + 1 + 2;
-    let mut y = area.y + area.height.saturating_sub(total) / 2 + 1;
-
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "Teclado",
-            Style::default()
-                .fg(app.palette.text)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
+    let Some(picker) = &app.keyboards else {
+        return;
+    };
+    let search = super::picker::search_line(
+        &app.palette,
+        picker,
+        "buscar distribución",
+        "distribuciones",
+        area.width,
+        !app.focus_buttons && !app.key_test_focus,
     );
-    y += 1;
+    f.render_widget(Paragraph::new(search), Rect::new(area.x, area.y, area.width, 1));
+    let list = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
+    super::picker::draw_centered(f, &app.palette, list, picker, app.keyboard_suggested);
+}
 
-    let box_x = area.x + area.width.saturating_sub(box_w) / 2;
-    if let Some(picker) = &app.keyboards {
-        let search = super::picker::search_line(
-            &app.palette,
-            picker,
-            "buscar distribución",
-            "distribuciones",
-            box_w,
-            !app.focus_buttons && !app.key_test_focus,
-        );
-        f.render_widget(Paragraph::new(search), Rect::new(box_x, y, box_w, 1));
-    }
-    y += 1;
-
-    if let Some(picker) = &app.keyboards {
-        super::picker::draw_centered(
-            f,
-            &app.palette,
-            Rect::new(box_x, y, box_w, box_h),
-            picker,
-            app.keyboard_suggested,
-        );
-    }
-    y += box_h + 1;
-
-    // The layout currently applied, in gray.
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            app.keyboard_layout.clone(),
-            Style::default().fg(app.palette.muted),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
-
-    // Separator above the test field, spanning the box.
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "─".repeat(box_w as usize),
-            Style::default().fg(app.palette.row_bg),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
-
-    let test_focus = app.key_test_focus && !app.focus_buttons;
-    let field = widgets::input_line(
+/// The `prueba` field shown under the box (the screen's note, two lines).
+pub fn draw_test(f: &mut Frame, app: &App, area: Rect) {
+    let focus = app.key_test_focus && !app.focus_buttons;
+    let lines = widgets::field(
         &app.palette,
         "prueba",
         app.key_test.value(),
         app.key_test.visual_cursor(),
-        test_focus,
+        focus,
         false,
-        box_w,
+        area.width,
         true,
         "escribe aquí para probar el teclado",
     );
     f.render_widget(
-        Paragraph::new(field).alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-
-    app.draw_buttons(
-        f,
-        Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1),
+        Paragraph::new(lines).alignment(Alignment::Center),
+        area,
     );
 }
 

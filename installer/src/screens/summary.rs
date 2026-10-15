@@ -17,20 +17,20 @@ fn gb(bytes: u64) -> String {
 }
 
 pub fn height(app: &App) -> u16 {
-    // 6 rows + check + blank (+ checkbox on ThinkPad) (+ mv note).
-    let mut h = 8;
+    // 8 pairs + separator + check line (+ uutils checkbox and its note).
+    let mut h = 10;
     if uutils_option(app) {
         h += 1;
-    }
-    if app.keep_uutils && uutils_option(app) {
-        h += 1;
+        if app.keep_uutils {
+            h += 1;
+        }
     }
     h
 }
 
 fn row(app: &App, label: &str, value: String) -> Line<'static> {
     Line::from(vec![
-        Span::styled(format!("{label:<14}"), Style::default().fg(app.palette.muted)),
+        Span::styled(format!("{label:<12}"), Style::default().fg(app.palette.muted)),
         Span::styled(value, Style::default().fg(app.palette.text)),
     ])
 }
@@ -52,7 +52,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             format!("{} · {}", d.short_name(), action)
         })
         .unwrap_or_default();
-    let region = format!("{} · {}", app.settings.time_zone, app.settings.default_locale);
     let git = match &app.settings.git_name {
         Some(name) if app.git.enabled => name.clone(),
         _ => "no configurado".into(),
@@ -66,12 +65,18 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let mut lines = vec![
-        row(app, "hostname", app.settings.host_name.clone()),
-        row(app, "región", region),
+        row(app, "equipo", app.settings.host_name.clone()),
+        row(app, "lenguaje", app.settings.default_locale.clone()),
+        row(app, "teclado", app.keyboard_layout.clone()),
+        row(app, "zona", app.settings.time_zone.clone()),
         row(app, "usuario", app.settings.username.clone()),
         row(app, "git", git),
         row(app, "disco", disk),
         row(app, "cifrado", cifrado),
+        Line::from(Span::styled(
+            "─".repeat(area.width as usize),
+            Style::default().fg(app.palette.rule),
+        )),
     ];
 
     // The background repo evaluation, launched when the license was accepted.
@@ -85,7 +90,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(mark.to_string(), Style::default().fg(color)),
         Span::styled(text, Style::default().fg(color)),
     ]));
-    lines.push(Line::from(""));
 
     if uutils_option(app) {
         lines.push(widgets::checkbox(

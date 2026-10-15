@@ -13,21 +13,9 @@ pub fn height(_app: &App) -> u16 {
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let profile = app.profile;
-    let default_hint = match profile {
-        crate::detect::Profile::Utm => "por defecto: máquina virtual aarch64",
-        crate::detect::Profile::Thinkpad => "por defecto: x86_64",
-    };
-    let profile_line = Line::from(vec![
-        Span::styled("perfil  ", Style::default().fg(app.palette.muted)),
-        Span::styled(
-            format!("{} ({})", profile.name(), profile.description()),
-            Style::default().fg(app.palette.text),
-        ),
-    ]);
-    let mut line = widgets::input_line(
+    let mut lines = widgets::field(
         &app.palette,
-        "hostname",
+        "nombre del equipo",
         app.host.input.value(),
         app.host.input.visual_cursor(),
         !app.focus_buttons,
@@ -36,16 +24,20 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         true,
         "",
     );
-    if !app.host.input.value().is_empty() && app.hostname_valid() {
-        line.spans.push(Span::styled("  ✓", Style::default().fg(app.palette.success)));
-    } else if !app.host.input.value().is_empty() {
-        line.spans.push(Span::styled("  ✗", Style::default().fg(app.palette.error)));
+    if !app.host.input.value().is_empty() {
+        let (mark, color) = if app.hostname_valid() {
+            ("✓", app.palette.success)
+        } else {
+            ("✗", app.palette.error)
+        };
+        lines[1]
+            .spans
+            .push(Span::styled(format!("  {mark}"), Style::default().fg(color)));
     }
-    let lines = vec![
-        profile_line,
-        line,
-        Line::from(Span::styled(default_hint, Style::default().fg(app.palette.muted))),
-    ];
+    lines.push(Line::from(Span::styled(
+        "letras, números y guiones",
+        Style::default().fg(app.palette.muted),
+    )));
     f.render_widget(Paragraph::new(lines), area);
 }
 

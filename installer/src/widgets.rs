@@ -14,6 +14,8 @@ use ratatui::Frame;
 pub struct Btn {
     pub label: String,
     pub enabled: bool,
+    /// A destructive action ("Borrar todo"): red text while unfocused.
+    pub danger: bool,
 }
 
 impl Btn {
@@ -21,6 +23,90 @@ impl Btn {
         Self {
             label: label.into(),
             enabled: true,
+            danger: false,
+        }
+    }
+
+    pub fn danger(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            enabled: true,
+            danger: true,
+        }
+    }
+}
+
+/// The vertical layout shared by every wizard screen: a progress bar, a bold
+/// title, a 46-column rounded box, an optional line outside it, the buttons and
+/// the shortcut line. The shortcut line is dropped first on a short terminal;
+/// the box and buttons are never hidden.
+pub struct StepLayout {
+    pub progress: Rect,
+    pub title: Rect,
+    pub body: Rect,
+    pub inner: Rect,
+    pub note: Rect,
+    pub buttons: Rect,
+    pub shortcuts: Rect,
+    pub commands: Rect,
+}
+
+impl StepLayout {
+    pub const WIDTH: u16 = 46;
+
+    /// `body_h` is the full box height (content + two borders); `note_h`
+    /// reserves lines between the box and the buttons; `commands_h` appends the
+    /// `v` commands column.
+    pub fn compute(area: Rect, body_h: u16, note_h: u16, commands_h: u16) -> Self {
+        let width = Self::WIDTH.min(area.width);
+        let x = area.x + area.width.saturating_sub(width) / 2;
+        let gap: u16 = 1;
+        let shortcuts_h = u16::from(area.height >= 30);
+        let mut total = 1 + gap + 1 + gap + body_h + gap + 1;
+        if note_h > 0 {
+            total += note_h + gap;
+        }
+        if shortcuts_h > 0 {
+            total += shortcuts_h + gap;
+        }
+        if commands_h > 0 {
+            total += commands_h + gap;
+        }
+        let mut y = area.y + area.height.saturating_sub(total) / 2;
+
+        let progress = Rect::new(x, y, width, 1);
+        y += 1 + gap;
+        let title = Rect::new(x, y, width, 1);
+        y += 1 + gap;
+        let body = Rect::new(x, y, width, body_h);
+        let inner = Rect::new(
+            body.x + 1,
+            body.y + 1,
+            body.width.saturating_sub(2),
+            body.height.saturating_sub(2),
+        );
+        y += body_h + gap;
+        let note = Rect::new(x, y, width, note_h);
+        if note_h > 0 {
+            y += note_h + gap;
+        }
+        let buttons = Rect::new(x, y, width, 1);
+        y += 1 + gap;
+        let shortcuts = Rect::new(x, y, width, shortcuts_h);
+        if shortcuts_h > 0 {
+            y += shortcuts_h + gap;
+        }
+        let commands = Rect::new(x, y, width, commands_h);
+
+        Self {
+            progress,
+            title,
+            body,
+            inner,
+            note,
+            buttons,
+            shortcuts,
+            commands,
         }
     }
 }
@@ -105,7 +191,12 @@ impl Widget for ButtonRow<'_> {
                     .add_modifier(Modifier::BOLD);
                 push_button(&mut flat, &button.label, glyph, text, nerd, true);
             } else {
-                let style = Style::default().fg(self.palette.muted);
+                let color = if button.danger {
+                    self.palette.error
+                } else {
+                    self.palette.muted
+                };
+                let style = Style::default().fg(color);
                 push_button(&mut flat, &button.label, style, style, nerd, false);
             }
         }
@@ -139,10 +230,12 @@ fn push_button(
     }
 }
 
-/// An editable field with a block cursor. `masked` shows bullets; an empty
-/// field shows `placeholder` in muted until something is typed.
+/// An editable text field: a gray label on top and, below it, the value with an
+/// underline that turns accent while the field has the focus. `masked` shows
+/// bullets; an empty field shows `placeholder` in muted until something is
+/// typed. Returns the two lines (label, value) to push inside the box.
 #[allow(clippy::too_many_arguments)]
-pub fn input_line(
+pub fn field(
     palette: &Palette,
     label: &str,
     value: &str,
@@ -152,18 +245,28 @@ pub fn input_line(
     width: u16,
     enabled: bool,
     placeholder: &str,
-) -> Line<'static> {
-    let marker = if focused { "› " } else { "  " };
+) -> Vec<Line<'static>> {
     let label_style = if !enabled {
-        Style::default().fg(palette.border)
-    } else if focused {
-        Style::default()
-            .fg(palette.primary)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(palette.disabled)
     } else {
         Style::default().fg(palette.muted)
     };
+    let label_line = Line::from(Span::styled(label.to_string(), label_style));
+
+    let rule = if !enabled {
+        palette.disabled
+    } else if focused {
+        palette.primary
+    } else {
+        palette.rule
+    };
+    let underline = Style::default()
+        .underline_color(rule)
+        .add_modifier(Modifier::UNDERLINED);
+    let empty = value.is_empty();
     let value_color = if !enabled {
+        palette.disabled
+    } else if empty {
         palette.muted
     } else if focused {
         palette.white
@@ -171,134 +274,83 @@ pub fn input_line(
         palette.text
     };
 
-    if value.is_empty() {
-        let mut spans = vec![
-            Span::styled(
-                marker,
-                Style::default().fg(if focused && enabled {
-                    palette.primary
-                } else {
-                    palette.muted
-                }),
-            ),
-            Span::styled(format!("{label}: "), label_style),
-        ];
-        if focused && enabled {
-            spans.push(Span::styled(
-                " ",
-                Style::default().fg(palette.white).bg(palette.primary),
-            ));
-        }
-        if !placeholder.is_empty() {
-            spans.push(Span::styled(
-                placeholder.to_string(),
-                Style::default().fg(palette.muted),
-            ));
-        }
-        let mut line = Line::from(spans);
-        if focused && enabled {
-            line = line.style(Style::default().bg(palette.row_bg));
-        }
-        return line;
-    }
-
-    let chars: Vec<char> = if masked {
+    let mut display: Vec<char> = if empty {
+        placeholder.chars().collect()
+    } else if masked {
         vec!['•'; value.chars().count()]
     } else {
         value.chars().collect()
     };
-    let cursor = cursor.min(chars.len());
-    let available = width.saturating_sub(label.len() as u16 + 4).max(1) as usize;
-    let start = if chars.len() > available {
-        cursor.saturating_sub(available.saturating_sub(1))
+    let cursor = cursor.min(if empty { 0 } else { display.len() });
+    let avail = width.max(1) as usize;
+    let start = if display.len() > avail {
+        cursor.saturating_sub(avail.saturating_sub(1))
     } else {
         0
     };
-    let end = (start + available).min(chars.len());
-    let window: Vec<char> = chars[start..end].to_vec();
-    let cursor_in_window = cursor.saturating_sub(start);
+    let end = (start + avail).min(display.len());
+    let mut window: Vec<char> = display.drain(start..end).collect();
+    while window.len() < avail {
+        window.push(' ');
+    }
+    let cw = cursor.saturating_sub(start);
+    let before: String = window[..cw.min(window.len())].iter().collect();
+    let at: char = window.get(cw).copied().unwrap_or(' ');
+    let after: String = window.get(cw + 1..).unwrap_or(&[]).iter().collect();
 
-    let before: String = window[..cursor_in_window.min(window.len())].iter().collect();
-    let at: char = window.get(cursor_in_window).copied().unwrap_or(' ');
-    let after: String = window
-        .get(cursor_in_window + 1..)
-        .unwrap_or(&[])
-        .iter()
-        .collect();
-
-    let mut spans = vec![
-        Span::styled(
-            marker,
-            Style::default().fg(if focused && enabled {
-                palette.primary
-            } else {
-                palette.muted
-            }),
-        ),
-        Span::styled(format!("{label}: "), label_style),
-        Span::styled(before, Style::default().fg(value_color)),
-    ];
+    let mut spans = vec![Span::styled(
+        before,
+        Style::default().fg(value_color).patch(underline),
+    )];
     if focused && enabled {
         spans.push(Span::styled(
             at.to_string(),
-            Style::default().fg(palette.white).bg(palette.primary),
+            Style::default()
+                .fg(palette.on_primary)
+                .bg(palette.primary)
+                .patch(underline),
         ));
     } else {
-        spans.push(Span::styled(at.to_string(), Style::default().fg(value_color)));
+        spans.push(Span::styled(
+            at.to_string(),
+            Style::default().fg(value_color).patch(underline),
+        ));
     }
-    spans.push(Span::styled(after, Style::default().fg(value_color)));
-    let mut line = Line::from(spans);
-    if focused && enabled {
-        line = line.style(Style::default().bg(palette.row_bg));
-    }
-    line
+    spans.push(Span::styled(
+        after,
+        Style::default().fg(value_color).patch(underline),
+    ));
+    vec![label_line, Line::from(spans)]
 }
 
-/// The tick-box glyph: Nerd Font on a real terminal, ASCII on the Linux
-/// console (`U+F096` empty / `U+F14A` ticked).
-pub fn tick(checked: bool) -> &'static str {
-    if crate::theme::console::is_linux_console() {
-        if checked {
-            "[x]"
-        } else {
-            "[ ]"
-        }
-    } else if checked {
-        "\u{f14a}"
-    } else {
-        "\u{f096}"
-    }
-}
-
+/// A tick box: `[ ]` / `[x]`, the mark in accent, the label in text.
 pub fn checkbox(palette: &Palette, checked: bool, label: &str, focused: bool) -> Line<'static> {
-    let mark = tick(checked);
-    let label_style = if focused && checked {
-        // Focused+toggled rows read as selected.
-        Style::default().fg(palette.text).bg(palette.well)
+    let mark = if checked { "[x]" } else { "[ ]" };
+    let mark_style = Style::default().fg(if checked {
+        palette.primary
+    } else {
+        palette.muted
+    });
+    let label_style = if focused {
+        Style::default().fg(palette.white)
     } else {
         Style::default().fg(palette.text)
     };
     Line::from(vec![
-        Span::styled(
-            format!("{mark} "),
-            Style::default().fg(if checked {
-                palette.success
-            } else {
-                palette.muted
-            }),
-        ),
+        Span::styled(format!("{mark} "), mark_style),
         Span::styled(label.to_string(), label_style),
     ])
 }
 
-/// A selectable list row: `›`, lbg background and white text when selected.
+/// A selectable list row: an accent capsule with white bold text when selected,
+/// plain `#adbac7` otherwise. The trailing text is muted.
 pub fn list_row(palette: &Palette, selected: bool, text: String, trailing: Option<String>) -> Line<'static> {
     let (marker, style) = if selected {
         (
             "› ",
             Style::default()
                 .fg(palette.white)
-                .bg(palette.row_bg)
+                .bg(palette.primary)
                 .add_modifier(Modifier::BOLD),
         )
     } else {

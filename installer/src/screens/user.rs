@@ -9,14 +9,14 @@ use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(_app: &App) -> u16 {
-    2
+    4
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     // Nombre first, usuario second.
-    let name = widgets::input_line(
+    let name = widgets::field(
         &app.palette,
-        "nombre",
+        "nombre completo",
         app.user.name.value(),
         app.user.name.visual_cursor(),
         app.user.focus == 0 && !app.focus_buttons,
@@ -25,9 +25,9 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         true,
         "Nombre y apellido",
     );
-    let mut username = widgets::input_line(
+    let mut username = widgets::field(
         &app.palette,
-        "usuario",
+        "usuario · se genera del nombre",
         app.user.username.value(),
         app.user.username.visual_cursor(),
         app.user.focus == 1 && !app.focus_buttons,
@@ -42,21 +42,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         } else {
             ("✗", app.palette.error)
         };
-        username
+        username[1]
             .spans
             .push(Span::styled(format!("  {mark}"), Style::default().fg(color)));
     }
-    let origin = if app.username_is_auto() {
-        "generado"
-    } else {
-        "editado"
-    };
-    username.spans.push(Span::styled(
-        format!("  {origin}"),
-        Style::default().fg(app.palette.muted),
-    ));
-
-    f.render_widget(Paragraph::new(vec![name, username]), area);
+    let mut lines = name;
+    lines.extend(username);
+    f.render_widget(Paragraph::new(lines), area);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

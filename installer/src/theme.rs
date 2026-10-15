@@ -48,6 +48,8 @@ pub mod hex {
 
     /// UI-only tone (not in neptunia.nix): a disabled control.
     pub const DISABLED: &str = "2f3a49";
+    /// UI-only tone (not in neptunia.nix): the underline of a text field.
+    pub const RULE: &str = "2a3442";
 }
 
 const fn nibble(c: u8) -> u8 {
@@ -124,6 +126,8 @@ pub struct Palette {
     pub row_bg: Color,
     /// UI-only: a disabled control.
     pub disabled: Color,
+    /// UI-only: the underline under a text field.
+    pub rule: Color,
     /// The terminal's own colors.
     pub reset: Color,
 }
@@ -145,6 +149,7 @@ impl Palette {
             well: rgb(hex::C0),
             snapshot: rgb(hex::C5),
             disabled: rgb(hex::DISABLED),
+            rule: rgb(hex::RULE),
             on_primary: rgb(hex::BG),
             row_bg: rgb(hex::LBG),
             reset: Color::Reset,
@@ -169,6 +174,7 @@ impl Palette {
             well: Color::Indexed(0),
             snapshot: Color::Indexed(5),
             disabled: Color::Indexed(0),
+            rule: Color::Indexed(0),
             on_primary: Color::Indexed(0),
             row_bg: Color::Indexed(0),
             reset: Color::Reset,

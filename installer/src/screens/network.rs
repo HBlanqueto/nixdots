@@ -15,31 +15,29 @@ const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "�
 pub fn height(app: &App) -> u16 {
     match &app.net.phase {
         RedFase::Lista => app.net.wifi.len().clamp(1, MAX_ROWS) as u16,
-        RedFase::Contrasena { .. } => 2,
+        // list + separator + password field (two lines)
+        RedFase::Contrasena { .. } => app.net.wifi.len().clamp(1, MAX_ROWS) as u16 + 3,
         RedFase::Conectando { .. } => 1,
         RedFase::Error { .. } => 2,
-        RedFase::Conectado { .. } => 2,
+        RedFase::Conectado { .. } => 1,
     }
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     match &app.net.phase {
         RedFase::Lista => draw_list(f, app, area),
-        RedFase::Contrasena { ssid, input, visible } => {
-            let security = app
-                .net
-                .wifi
-                .iter()
-                .find(|w| &w.ssid == ssid)
-                .map(|w| w.security())
-                .unwrap_or("WPA2");
-            let header = Line::from(vec![
-                Span::styled("red  ", Style::default().fg(app.palette.muted)),
-                Span::styled(ssid.clone(), Style::default().fg(app.palette.text)),
-                Span::raw("  "),
-                Span::styled(security.to_string(), Style::default().fg(app.palette.secondary)),
-            ]);
-            let field = widgets::input_line(
+        RedFase::Contrasena { input, visible, .. } => {
+            let list_h = app.net.wifi.len().clamp(1, MAX_ROWS) as u16;
+            draw_list(f, app, Rect::new(area.x, area.y, area.width, list_h));
+            let sep_y = area.y + list_h;
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    "─".repeat(area.width as usize),
+                    Style::default().fg(app.palette.rule),
+                )),
+                Rect::new(area.x, sep_y, area.width, 1),
+            );
+            let field = widgets::field(
                 &app.palette,
                 "contraseña",
                 input.value(),
@@ -50,7 +48,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 true,
                 "",
             );
-            f.render_widget(Paragraph::new(vec![header, field]), area);
+            f.render_widget(
+                Paragraph::new(field),
+                Rect::new(area.x, sep_y + 1, area.width, 2),
+            );
         }
         RedFase::Conectando { ssid } => {
             let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
@@ -82,20 +83,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             } else {
                 format!("conectado a {ssid}")
             };
-            let lines = vec![
-                Line::from(vec![
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
                     Span::styled("✓ ", Style::default().fg(app.palette.success)),
                     Span::styled(head, Style::default().fg(app.palette.text)),
-                ]),
-                Line::from(vec![
-                    Span::styled("✓ ", Style::default().fg(app.palette.success)),
-                    Span::styled(
-                        "cache.nixos.org alcanzable",
-                        Style::default().fg(app.palette.text),
-                    ),
-                ]),
-            ];
-            f.render_widget(Paragraph::new(lines), area);
+                ])),
+                area,
+            );
         }
     }
 }

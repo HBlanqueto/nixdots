@@ -10,14 +10,12 @@ use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub const ROWS: usize = 8;
-/// Width of the centered list box used by Lenguaje and Teclado.
-pub const CENTERED_W: u16 = 46;
 
 pub fn height() -> u16 {
     ROWS as u16 + 1
@@ -75,9 +73,9 @@ pub fn search_line(
     Line::from(spans)
 }
 
-/// A centered, searchable list in a rounded box (no border title), with
-/// centered names, an accent capsule on the chosen row and a `█`/`│`
-/// scrollbar. `suggested` highlights a row without selecting it.
+/// A centered, searchable list with centered names, an accent capsule on the
+/// chosen row and a `█`/`│` scrollbar. `suggested` highlights a row without
+/// selecting it. The box border is drawn by the screen's `StepLayout`.
 pub fn draw_centered(
     f: &mut Frame,
     palette: &Palette,
@@ -85,31 +83,21 @@ pub fn draw_centered(
     picker: &Picker,
     suggested: Option<usize>,
 ) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(palette.muted));
-    let inner = block.inner(area);
-    f.render_widget(Clear, area);
-    f.render_widget(block, area);
-
+    let rows = (area.height as usize).min(ROWS);
     let total = picker.filtered.len();
     // With nothing chosen, scroll to the suggested row so it is visible (it
     // stays unselected).
-    let anchor = picker.selected.or_else(|| {
-        suggested.and_then(|s| picker.filtered.iter().position(|&i| i == s))
-    });
+    let anchor = picker
+        .selected
+        .or_else(|| suggested.and_then(|s| picker.filtered.iter().position(|&i| i == s)));
     let start = anchor
         .unwrap_or(0)
-        .saturating_sub(ROWS / 2)
-        .min(total.saturating_sub(ROWS));
-    let text_w = inner.width.saturating_sub(1) as usize;
+        .saturating_sub(rows / 2)
+        .min(total.saturating_sub(rows));
+    let text_w = area.width.saturating_sub(1) as usize;
 
-    for row in 0..ROWS as u16 {
-        if inner.y + row >= inner.bottom() {
-            break;
-        }
-        let row_rect = Rect::new(inner.x, inner.y + row, inner.width, 1);
+    for row in 0..rows as u16 {
+        let row_rect = Rect::new(area.x, area.y + row, area.width, 1);
         let Some(&item_idx) = picker.filtered.get(start + row as usize) else {
             continue;
         };
@@ -138,9 +126,8 @@ pub fn draw_centered(
     }
 
     // Scrollbar.
-    if total > ROWS && inner.width > 0 {
-        let x = inner.right().saturating_sub(1);
-        let rows = ROWS.min(inner.height as usize);
+    if total > rows && area.width > 0 {
+        let x = area.right().saturating_sub(1);
         let thumb_h = (rows * rows / total).max(1);
         let travel = rows.saturating_sub(thumb_h);
         let max_start = total.saturating_sub(rows);
@@ -157,7 +144,7 @@ pub fn draw_centered(
             };
             f.render_widget(
                 Paragraph::new(Span::styled(ch, style)),
-                Rect::new(x, inner.y + row as u16, 1, 1),
+                Rect::new(x, area.y + row as u16, 1, 1),
             );
         }
     }
@@ -217,23 +204,24 @@ pub fn draw(
     search.push(Span::styled(total_text, Style::default().fg(palette.muted)));
     lines.push(Line::from(search));
 
+    let rows = (area.height.saturating_sub(1) as usize).clamp(1, ROWS);
     let start = picker
         .selected
         .unwrap_or(0)
-        .saturating_sub(ROWS / 2)
-        .min(total.saturating_sub(ROWS));
-    for row in 0..ROWS {
+        .saturating_sub(rows / 2)
+        .min(total.saturating_sub(rows));
+    for row in 0..rows {
         let Some(&item_idx) = picker.filtered.get(start + row) else {
             lines.push(Line::from(""));
             continue;
         };
         let item = &picker.items[item_idx];
         let selected = picker.selected == Some(start + row);
-        let text = format!("{:<28}", item.code);
-        let trailing = if item.extra.is_empty() {
-            format!("  {}", item.name)
-        } else {
-            format!("{:<10} {}", item.extra, item.name)
+        let text = format!("{:<26}", item.code);
+        let trailing = match (item.extra.is_empty(), item.name.is_empty()) {
+            (false, false) => format!("{}  {}", item.extra, item.name),
+            (false, true) => item.extra.clone(),
+            (true, _) => item.name.clone(),
         };
         lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
     }
@@ -242,11 +230,11 @@ pub fn draw(
     let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     f.render_widget(Paragraph::new(lines), content);
 
-    if total > ROWS {
-        let bar_area = Rect::new(area.x, area.y + 1, area.width, ROWS as u16);
+    if total > rows {
+        let bar_area = Rect::new(area.x, area.y + 1, area.width, rows as u16);
         let mut state = ScrollbarState::new(total)
             .position(start)
-            .viewport_content_length(ROWS);
+            .viewport_content_length(rows);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .style(Style::default().fg(palette.row_bg))
             .thumb_style(Style::default().fg(palette.primary));

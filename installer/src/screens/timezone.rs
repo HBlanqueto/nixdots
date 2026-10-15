@@ -51,23 +51,23 @@ pub fn commands(app: &App) -> Vec<String> {
     vec![format!("settings.nix: timeZone = \"{}\";", app.settings.time_zone)]
 }
 
-/// Builds the timezone list with UTC offsets, from the embedded tzdata table.
+/// Builds the timezone list with each zone's current local time, from the
+/// embedded tzdata table.
 pub fn load_items() -> Vec<PickItem> {
     let zones = parse_zones(ZONE1970_TAB);
-    let offsets = zone_offsets(&zones);
+    let times = zone_times(&zones);
     zones
         .into_iter()
         .map(|zone| {
-            let name = zone.rsplit('/').next().unwrap_or(&zone).replace('_', " ");
-            let extra = offsets
+            let time = times
                 .iter()
                 .find(|(z, _)| z == &zone)
-                .map(|(_, off)| off.clone())
+                .map(|(_, t)| t.clone())
                 .unwrap_or_default();
             PickItem {
                 code: zone,
-                name,
-                extra,
+                name: String::new(),
+                extra: time,
             }
         })
         .collect()
@@ -92,10 +92,15 @@ fn parse_zones(text: &str) -> Vec<String> {
     zones
 }
 
-fn zone_offsets(zones: &[String]) -> Vec<(String, String)> {
+fn zone_times(zones: &[String]) -> Vec<(String, String)> {
     let script = zones
         .iter()
-        .map(|zone| format!("printf '%s\\t%s\\n' {z} \"$(TZ={z} date +%:z)\"", z = shell_quote(zone)))
+        .map(|zone| {
+            format!(
+                "printf '%s\\t%s\\n' {z} \"$(TZ={z} date +%H:%M)\"",
+                z = shell_quote(zone)
+            )
+        })
         .collect::<Vec<_>>()
         .join("; ");
     let Ok(output) = Command::new("sh")
@@ -109,8 +114,8 @@ fn zone_offsets(zones: &[String]) -> Vec<(String, String)> {
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(|line| {
-            let (zone, off) = line.split_once('\t')?;
-            Some((zone.to_string(), off.to_string()))
+            let (zone, time) = line.split_once('\t')?;
+            Some((zone.to_string(), time.to_string()))
         })
         .collect()
 }

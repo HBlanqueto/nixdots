@@ -10,41 +10,47 @@ use tui_input::backend::crossterm::EventHandler;
 
 pub fn height(app: &App) -> u16 {
     if app.git.enabled {
-        3
+        5
     } else {
-        4
+        2
     }
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let enabled = app.git.enabled;
-    let checkbox = widgets::checkbox(&app.palette, enabled, "Configurar git", app.git.focus == 0 && !app.focus_buttons);
-    let name = widgets::input_line(
+    let checkbox = widgets::checkbox(
         &app.palette,
-        "nombre",
-        app.git.name.value(),
-        app.git.name.visual_cursor(),
-        app.git.focus == 1 && enabled,
-        false,
-        area.width,
         enabled,
-        "tu nombre",
+        "Configurar git ahora",
+        app.git.focus == 0 && !app.focus_buttons,
     );
-    let email = widgets::input_line(
-        &app.palette,
-        "email",
-        app.git.email.value(),
-        app.git.email.visual_cursor(),
-        app.git.focus == 2 && enabled,
-        false,
-        area.width,
-        enabled,
-        "tu@correo",
-    );
-    let mut lines = vec![checkbox, name, email];
-    if !enabled {
+    let mut lines = vec![checkbox];
+    if enabled {
+        lines.extend(widgets::field(
+            &app.palette,
+            "nombre",
+            app.git.name.value(),
+            app.git.name.visual_cursor(),
+            app.git.focus == 1,
+            false,
+            area.width,
+            true,
+            "tu nombre",
+        ));
+        lines.extend(widgets::field(
+            &app.palette,
+            "email",
+            app.git.email.value(),
+            app.git.email.visual_cursor(),
+            app.git.focus == 2,
+            false,
+            area.width,
+            true,
+            "tu@correo",
+        ));
+    } else {
         lines.push(Line::from(Span::styled(
-            "git se deja sin configurar (gitName/gitEmail = null)",
+            "opcional · se puede configurar después",
             Style::default().fg(app.palette.muted),
         )));
     }
