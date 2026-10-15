@@ -166,6 +166,10 @@
                             clippy
                             watchexec
                             gcc
+                            # The released musl binaries link with clang + lld
+                            # (see installer/.cargo/config.toml).
+                            clang
+                            lld
                             pkg-config
                         ];
 
