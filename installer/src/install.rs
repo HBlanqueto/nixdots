@@ -268,6 +268,9 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
     if resume <= Step::System {
         ensure_target_space(plan)?;
+        // Kept alive for the whole system build; dropped (swapoff + delete) when
+        // this block ends, so it is also recreated on every retry.
+        let _swap = ensure_build_memory(plan, report)?;
         report.step(Step::System);
         step_system(plan, report)?;
     }
@@ -340,6 +343,106 @@ fn target_free_gib(root: &Path) -> Result<u64> {
         .and_then(|v| v.parse().ok())
         .ok_or_else(|| eyre!("no se pudo leer el espacio libre de {}", root.display()))?;
     Ok(avail_kb / 1024 / 1024)
+}
+
+/// Total RAM in GiB, read from `MemTotal` in `/proc/meminfo`. `None` when it
+/// cannot be read, which callers treat as "little RAM".
+fn mem_total_gib() -> Option<u64> {
+    let text = fs::read_to_string("/proc/meminfo").ok()?;
+    let kb: u64 = text
+        .lines()
+        .find_map(|line| line.strip_prefix("MemTotal:"))?
+        .split_whitespace()
+        .next()?
+        .parse()
+        .ok()?;
+    Some(kb / 1024 / 1024)
+}
+
+/// Below this much RAM the build is throttled and a temporary swap is enabled.
+const LOW_MEM_GIB: u64 = 12;
+
+/// A temporary 8 GiB swapfile on the target disk, alive only while the system is
+/// built. `swapoff` and deletion happen on drop, so it never reaches the
+/// installed system whether the step succeeds or fails.
+struct TempSwap {
+    path: PathBuf,
+}
+
+impl TempSwap {
+    fn create(plan: &Plan, report: &mut Reporter) -> Result<Self> {
+        let path = plan.root.join("persist/.nixdots-install.swap");
+        // Clear any leftover from an attempt that was cut short; it may still be
+        // active. Failures are ignored (nothing to clean on a first run).
+        let mut sink = |_: Stream| {};
+        let _ = runner::run(&Cmd::new("swapoff").arg_path(&path), &mut sink);
+        let _ = fs::remove_file(&path);
+
+        let mkswap = Cmd::new("btrfs")
+            .arg("filesystem")
+            .arg("mkswapfile")
+            .arg("--size")
+            .arg("8g")
+            .arg_path(&path);
+        ensure_ok(
+            exec(plan, report, &mkswap, &plan.source)?,
+            "no se pudo crear el swap temporal",
+        )?;
+
+        let swapon = Cmd::new("swapon").arg_path(&path);
+        ensure_ok(
+            exec(plan, report, &swapon, &plan.source)?,
+            "no se pudo activar el swap temporal",
+        )?;
+
+        Ok(Self { path })
+    }
+}
+
+impl Drop for TempSwap {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("swapoff")
+            .arg(&self.path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Frees memory for the build on small machines. On the live ISO the store and
+/// `/tmp` live in RAM and `nixos-install` unpacks many paths at once, so the OOM
+/// killer can hit it (exit 137). Under [`LOW_MEM_GIB`] we turn on a temporary
+/// swapfile on the target disk; with plenty of RAM nothing changes.
+fn ensure_build_memory(plan: &Plan, report: &mut Reporter) -> Result<Option<TempSwap>> {
+    if plan.dry_run {
+        return Ok(None);
+    }
+    let ram = mem_total_gib();
+    if ram.is_some_and(|g| g >= LOW_MEM_GIB) {
+        return Ok(None);
+    }
+    let ram_label = ram
+        .map(|g| format!("{g} GiB"))
+        .unwrap_or_else(|| "desconocida".to_string());
+
+    // The swapfile and the build's closure both live on the target disk.
+    let needed = MIN_TARGET_GIB + 8;
+    let free = target_free_gib(&plan.root)?;
+    if free < needed {
+        report.log(format!(
+            "RAM: {ram_label} — sin espacio en {} para el swap temporal ({} GiB libres, se necesitan {needed} GiB); se continúa sin él",
+            plan.root.display(),
+            free
+        ));
+        return Ok(None);
+    }
+
+    report.log(format!(
+        "RAM: {ram_label} — se activa un swap temporal de 8 GiB en el disco destino para la instalación"
+    ));
+    Ok(Some(TempSwap::create(plan, report)?))
 }
 
 /// Reattaches the already-prepared disk for a retry: if `/mnt` is not mounted
@@ -1473,9 +1576,13 @@ struct NixLog {
     activities: std::collections::HashMap<u64, u64>,
 }
 
+/// [`NixLog::feed`]'s result: display lines (each with an error flag) plus the
+/// optional `(built, total)` progress.
+type NixLogOut = (Vec<(bool, String)>, Option<(u64, u64)>);
+
 impl NixLog {
     /// Returns the display lines (each with an error flag) and the progress.
-    fn feed(&mut self, line: &str) -> (Vec<(bool, String)>, Option<(u64, u64)>) {
+    fn feed(&mut self, line: &str) -> NixLogOut {
         let line = line.trim_end();
         let Some(json) = line.strip_prefix("@nix ") else {
             return (vec![(false, strip_ansi(line))], None);
