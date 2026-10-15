@@ -593,9 +593,12 @@ fn ensure_alongside_ready(
 /// systemd-boot (already installed with the system) on the UTM VM.
 fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
     if plan.profile == crate::detect::Profile::Thinkpad {
-        step_secure_boot(plan, report)
+        report.log("instalando lanzaboote en /boot");
+        step_secure_boot(plan, report)?;
+        report.log("firmando el kernel y el initrd…");
+        Ok(())
     } else {
-        report.log("systemd-boot: instalado junto con el sistema");
+        report.log("instalando systemd-boot en /boot");
         Ok(())
     }
 }
@@ -621,6 +624,7 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
     // The passphrase is written once, verbatim (no trailing newline), and reused
     // by disko, the slot check, luksAddKey and the TPM enroll. Nothing else
     // writes it; `SecretFile` shreds it when this function returns.
+    report.log("creando las particiones y formateando el disco");
     let pass = if plan.encrypt && !plan.dry_run {
         Some(SecretFile::write("luks.pass", &plan.luks_passphrase)?)
     } else {
@@ -1349,6 +1353,7 @@ const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/di
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
+    report.log("escribiendo settings.nix, la contraseña y hardware-configuration");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.write(&repo)?;
 
@@ -1745,7 +1750,7 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
         return Ok(());
     }
 
-    report.log("sbctl: no hay llaves, se generan en /mnt/persist/var/lib/sbctl");
+    report.log("generando claves de Secure Boot en /mnt/persist/var/lib/sbctl");
     let cmd = Cmd::new("sbctl")
         .arg("create-keys")
         .arg("--directory")

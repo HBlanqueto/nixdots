@@ -506,6 +506,9 @@ pub struct InstallView {
     pub log_path: Option<PathBuf>,
     /// The last level-0 nix message (the real cause, for the status line).
     pub last_error: Option<String>,
+    /// When the current step started, and how long each finished one took.
+    step_started: Instant,
+    pub durations: Vec<(Step, Duration)>,
     /// (time, derivations done) samples, for the ETA (last 30 s).
     samples: VecDeque<(Instant, u64)>,
 }
@@ -525,6 +528,8 @@ impl InstallView {
             error: None,
             log_path: None,
             last_error: None,
+            step_started: Instant::now(),
+            durations: Vec::new(),
             samples: VecDeque::new(),
         }
     }
@@ -543,6 +548,7 @@ impl InstallView {
             self.finished_at = None;
             self.built = 0;
             self.total = 0;
+            self.step_started = Instant::now();
             self.samples.clear();
         }
     }
@@ -1236,11 +1242,16 @@ impl App {
         while let Ok(msg) = rx.try_recv() {
             match msg {
                 InstallMsg::Step(step) => {
+                    let now = Instant::now();
                     if let Some(prev) = self.install.current.replace(step) {
                         if !self.install.done.contains(&prev) {
                             self.install.done.push(prev);
+                            self.install
+                                .durations
+                                .push((prev, now.duration_since(self.install.step_started)));
                         }
                     }
+                    self.install.step_started = now;
                 }
                 InstallMsg::Log(line) => self.install.push_log(line),
                 InstallMsg::Error(line) => self.install.push_error(line),
@@ -1251,15 +1262,18 @@ impl App {
                     self.install.record(built);
                 }
                 InstallMsg::Finished { ok, error, log_path } => {
-                    if ok {
-                        if let Some(step) = self.install.current.take() {
+                    if let Some(step) = self.install.current.take() {
+                        let dur = Instant::now().duration_since(self.install.step_started);
+                        self.install.durations.push((step, dur));
+                        if ok {
                             self.install.done.push(step);
+                        } else {
+                            self.install.failed = Some(step);
                         }
+                    }
+                    if ok {
                         // Force the bar to 100 % for the closing second.
                         self.install.built = self.install.total;
-                    } else {
-                        // The failed step stays current and is shown with ✗.
-                        self.install.failed = self.install.current.take();
                     }
                     self.install.log_path = Some(log_path);
                     finished = Some((ok, error));
@@ -2245,28 +2259,37 @@ impl App {
         self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
     }
 
-    /// Full-screen C-style log: title + percentage, a stages line, the
-    /// translated output and a footer.
+    /// The staged install log (`v`): a header, a progress bar and a box with
+    /// one line per step, the running step's last few messages under it.
     fn draw_install_log(&self, f: &mut Frame, area: Rect) {
         f.render_widget(Clear, area);
-        let mut y = area.y + 1;
+        let width = (area.width * 80 / 100).clamp(40, 100);
+        let x = area.x + area.width.saturating_sub(width) / 2;
+
+        // Height: header + gap + bar + gap + box, centered vertically.
+        let current = self.install.current;
+        let sub_steps = if current.is_some() {
+            self.sub_steps()
+        } else {
+            Vec::new()
+        };
+        let inner_h = Step::ALL.len() as u16 + sub_steps.len() as u16;
+        let box_h = inner_h + 2;
+        let content_h = 1 + 1 + 1 + 1 + box_h;
+        let top = area.y + area.height.saturating_sub(content_h) / 2;
+
+        // 1. Header: title left, percentage (bold) + ETA right.
         let pct = crate::screens::installing::overall_percent(self);
         let eta = self
             .install
             .eta_secs()
             .map(|s| format!(" · ~{} min", s.div_ceil(60)))
             .unwrap_or_default();
-        let title_full = format!("Instalando en {}", self.settings.host_name);
+        let left = format!("Instalando en {}", self.settings.host_name);
         let right = format!("{pct}%{eta}");
-        // Reserve the percentage's width first, plus the title's leading space
-        // and a 2-column margin at the edge, so it is never cut.
         let right_w = right.chars().count();
-        let title = truncate_ellipsis(
-            &title_full,
-            (area.width as usize).saturating_sub(right_w + 3),
-        );
-        let pad = (area.width as usize)
-            .saturating_sub(title.chars().count() + right_w + 3);
+        let title = truncate_ellipsis(&left, (width as usize).saturating_sub(right_w + 2));
+        let pad = (width as usize).saturating_sub(title.chars().count() + right_w + 1);
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(
@@ -2276,64 +2299,164 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" ".repeat(pad)),
-                Span::styled(right, Style::default().fg(self.palette.muted)),
+                Span::styled(
+                    format!("{pct}%"),
+                    Style::default()
+                        .fg(self.palette.white)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(eta.clone(), Style::default().fg(self.palette.muted)),
+                Span::raw(" "),
             ])),
-            Rect::new(area.x, y, area.width, 1),
+            Rect::new(x, top, width, 1),
         );
-        y += 2;
 
-        // Stages with ✓ / spinner / ○.
+        // 2. Progress bar, full width.
+        let bar_y = top + 2;
+        let filled = (pct as usize * width as usize / 100).min(width as usize);
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
+                Span::styled(
+                    "─".repeat(width as usize - filled),
+                    Style::default().fg(self.palette.row_bg),
+                ),
+            ])),
+            Rect::new(x, bar_y, width, 1),
+        );
+
+        // 3. The stages box.
+        let box_y = bar_y + 2;
+        let box_rect = Rect::new(x, box_y, width, box_h);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.rule));
+        let inner = block.inner(box_rect);
+        f.render_widget(block, box_rect);
+
         let spinner = ["|", "/", "-", "\\"][(self.tick as usize) % 4];
-        let mut spans: Vec<Span> = Vec::new();
+        let mut y = inner.y;
         for step in Step::ALL {
             let (mark, color) = if self.install.failed == Some(step) {
                 ("✗", self.palette.error)
             } else if self.install.done.contains(&step) {
                 ("✓", self.palette.success)
-            } else if self.install.current == Some(step) {
+            } else if current == Some(step) {
                 (spinner, self.palette.primary)
             } else {
                 ("○", self.palette.muted)
             };
-            spans.push(Span::styled(
-                format!("{mark} {}", step.label()),
-                Style::default().fg(color),
-            ));
-            spans.push(Span::raw("     "));
-        }
-        f.render_widget(
-            Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
-            Rect::new(area.x, y, area.width, 1),
-        );
-        y += 2;
+            let name = capitalize(step.label());
+            let summary = self.step_summary(step);
+            let dur = self
+                .install
+                .durations
+                .iter()
+                .find(|(s, _)| *s == step)
+                .map(|(_, d)| human_duration(*d))
+                .unwrap_or_default();
+            let prefix = format!(" {mark}  {name:<9} ");
+            let avail = (inner.width as usize)
+                .saturating_sub(prefix.chars().count() + dur.chars().count() + 1);
+            let summary = truncate_ellipsis(&summary, avail);
+            let pad = avail.saturating_sub(summary.chars().count());
+            f.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled(prefix, Style::default().fg(color)),
+                    Span::styled(summary, Style::default().fg(self.palette.muted)),
+                    Span::raw(" ".repeat(pad)),
+                    Span::styled(dur, Style::default().fg(self.palette.muted)),
+                ])),
+                Rect::new(inner.x, y, inner.width, 1),
+            );
+            y += 1;
 
-        // Body: the translated lines.
-        let body_h = area.bottom().saturating_sub(y).saturating_sub(2) as usize;
-        let max_scroll = self.install.log.len().saturating_sub(body_h.max(1));
-        let start = self.install_log_scroll.min(max_scroll);
-        let width = area.width as usize;
-        let mut rows: Vec<Line> = Vec::new();
-        for line in self.install.log.iter().skip(start) {
-            self.log_rows(line, width, &mut rows);
+            if current == Some(step) {
+                for (i, line) in sub_steps.iter().enumerate() {
+                    let last = i + 1 == sub_steps.len();
+                    let color = if last {
+                        self.palette.highlight
+                    } else {
+                        self.palette.muted
+                    };
+                    let text = truncate_ellipsis(line, inner.width.saturating_sub(5) as usize);
+                    f.render_widget(
+                        Paragraph::new(Line::from(vec![
+                            Span::styled("   │ ", Style::default().fg(self.palette.rule)),
+                            Span::styled(text, Style::default().fg(color)),
+                        ])),
+                        Rect::new(inner.x, y, inner.width, 1),
+                    );
+                    y += 1;
+                }
+            }
         }
-        f.render_widget(
-            Paragraph::new(rows),
-            Rect::new(area.x, y, area.width, body_h as u16),
-        );
+    }
 
-        // Footer.
-        let pos = if self.install.total > 0 {
-            format!(" · {} de {}", self.install.built, self.install.total)
-        } else {
-            String::new()
-        };
-        let stage = self.install.current.map(|s| s.label()).unwrap_or("");
-        let footer = format!("{stage}{pos} · v ocultar registro · ↑↓ desplazar");
-        f.render_widget(
-            Paragraph::new(Span::styled(footer, Style::default().fg(self.palette.muted)))
-                .alignment(Alignment::Center),
-            Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1),
-        );
+    /// The summary line under each stage, from what is already known.
+    fn step_summary(&self, step: Step) -> String {
+        match step {
+            Step::Disk => {
+                let action = match self.disks.effective() {
+                    DiskDecision::WholeDisk => "todo el disco",
+                    DiskDecision::FreeSpace { .. } => "espacio libre",
+                    DiskDecision::Shrink { .. } => "junto a Windows",
+                    _ => "sin decidir",
+                };
+                let cif = if self.disks.encrypt {
+                    "cifrado"
+                } else {
+                    "sin cifrar"
+                };
+                format!("{action} · EFI + System HD (btrfs, {cif})")
+            }
+            Step::Settings => {
+                "settings.nix · contraseña · hardware-configuration".to_string()
+            }
+            Step::System => {
+                if self.install.total > 0 {
+                    format!(
+                        "{} paquetes · {} de {}",
+                        self.install.total, self.install.built, self.install.total
+                    )
+                } else {
+                    "compilando el sistema".to_string()
+                }
+            }
+            Step::Boot => {
+                if self.profile == detect::Profile::Thinkpad {
+                    "lanzaboote · claves de Secure Boot".to_string()
+                } else {
+                    "systemd-boot".to_string()
+                }
+            }
+        }
+    }
+
+    /// The running step's last three messages, in plain language.
+    fn sub_steps(&self) -> Vec<String> {
+        self.install
+            .log
+            .iter()
+            .rev()
+            .filter(|line| {
+                let line = line.strip_prefix('\u{1}').unwrap_or(line);
+                !line.starts_with('$')
+                    && !line.starts_with('(')
+                    && !line.trim().is_empty()
+                    && !line.starts_with('=')
+            })
+            .take(3)
+            .map(|line| {
+                line.strip_prefix('\u{1}')
+                    .unwrap_or(line.as_str())
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect()
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
@@ -2555,6 +2678,25 @@ impl App {
 /// The first whitespace-separated token of a full name.
 fn first_name(full: &str) -> &str {
     full.split_whitespace().next().unwrap_or("")
+}
+
+/// Uppercases the first letter of a step label.
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+/// `12s`, `1m 20s`.
+fn human_duration(d: Duration) -> String {
+    let secs = d.as_secs();
+    if secs < 60 {
+        format!("{secs}s")
+    } else {
+        format!("{}m {}s", secs / 60, secs % 60)
+    }
 }
 
 /// The language of a locale code (`es_MX.UTF-8` → `es`).
