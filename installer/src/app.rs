@@ -1147,23 +1147,7 @@ impl App {
         if !self.user.custom || self.user.username.value().is_empty() {
             return None;
         }
-        let name = self.user.username.value();
-        let mut chars = name.chars();
-        match chars.next() {
-            Some(c) if c.is_ascii_lowercase() || c == '_' => {}
-            Some(c) if c.is_ascii_digit() => return Some("no puede empezar por número"),
-            _ => return Some("solo a-z, 0-9, - y _"),
-        }
-        if name.chars().count() > 32 {
-            return Some("máximo 32 caracteres");
-        }
-        if !chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
-            return Some("solo a-z, 0-9, - y _");
-        }
-        if RESERVED_USERS.contains(&name) {
-            return Some("nombre reservado");
-        }
-        None
+        nixdots_core::user::username_error(self.user.username.value())
     }
 
     pub fn username_valid(&self) -> bool {
@@ -3158,34 +3142,6 @@ impl App {
         }
     }
 }
-
-/// Usernames that already exist on the system.
-const RESERVED_USERS: &[&str] = &[
-    "root",
-    "nixos",
-    "bin",
-    "daemon",
-    "nobody",
-    "adm",
-    "lp",
-    "sync",
-    "shutdown",
-    "halt",
-    "mail",
-    "operator",
-    "games",
-    "ftp",
-    "http",
-    "systemd-network",
-    "systemd-resolve",
-    "systemd-timesync",
-    "messagebus",
-    "polkitd",
-    "sshd",
-    "dbus",
-    "nscd",
-    "tss",
-];
 
 /// The first whitespace-separated token of a full name.
 fn first_name(full: &str) -> &str {
