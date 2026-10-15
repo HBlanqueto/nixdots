@@ -22,11 +22,12 @@ en instalar, para poder ver la pantalla completa.
 ## Instalación real (desde la ISO mínima de NixOS)
 
 La vía normal no compila nada: descarga el binario precompilado de la última
-release y lo ejecuta (en una VT real abre antes `kmscon` con la fuente y la
-paleta de neptunia).
+release y lo ejecuta, añadiendo con `nix shell` las herramientas que la ISO no
+trae (en una VT real abre antes `kmscon` con la fuente y la paleta de neptunia).
 
 ```sh
-git clone --depth 1 https://github.com/HBlanqueto/nixdots ~/nixdots && sudo ~/nixdots/install.sh
+nix-shell -p git --run "git clone --depth 1 https://github.com/HBlanqueto/nixdots"
+sudo ./nixdots/install.sh
 ```
 
 Para desarrollo (compila desde el código):
