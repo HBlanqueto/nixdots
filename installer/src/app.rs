@@ -2273,12 +2273,15 @@ impl App {
             .unwrap_or_default();
         let title_full = format!("Instalando nixdots en {}", self.settings.host_name);
         let right = format!("{pct}%{eta}");
-        // Reserve the right side's width before trimming the title, so the
-        // percentage is never cut at the edge.
-        let avail = (area.width as usize).saturating_sub(right.chars().count() + 2);
-        let title = truncate_ellipsis(&title_full, avail);
+        // Reserve the percentage's width first, plus the title's leading space
+        // and a 2-column margin at the edge, so it is never cut.
+        let right_w = right.chars().count();
+        let title = truncate_ellipsis(
+            &title_full,
+            (area.width as usize).saturating_sub(right_w + 3),
+        );
         let pad = (area.width as usize)
-            .saturating_sub(title.chars().count() + right.chars().count() + 2);
+            .saturating_sub(title.chars().count() + right_w + 3);
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(
