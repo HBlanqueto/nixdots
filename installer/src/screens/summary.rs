@@ -1,4 +1,4 @@
-use crate::app::{Action, App, Click};
+use crate::app::{Action, App, CheckState, Click};
 use crate::detect::Profile;
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -13,8 +13,8 @@ fn uutils_option(app: &App) -> bool {
 }
 
 pub fn height(app: &App) -> u16 {
-    // 6 rows + blank (+ checkbox on ThinkPad) (+ mv note).
-    let mut h = 7;
+    // 6 rows + check + blank (+ checkbox on ThinkPad) (+ mv note).
+    let mut h = 8;
     if uutils_option(app) {
         h += 1;
     }
@@ -56,8 +56,20 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         row(app, "git", git),
         row(app, "disco", disk),
         row(app, "cifrado", cifrado),
-        Line::from(""),
     ];
+
+    // The background repo evaluation, launched when the license was accepted.
+    let (mark, text, color) = match &app.source_check {
+        CheckState::Ok => ("✓ ", "configuración evalúa sin errores".to_string(), app.palette.success),
+        CheckState::Failed(err) => ("✗ ", err.clone(), app.palette.error),
+        CheckState::Running => ("… ", "evaluando configuración".to_string(), app.palette.muted),
+        CheckState::Idle => ("", String::new(), app.palette.muted),
+    };
+    lines.push(Line::from(vec![
+        Span::styled(mark.to_string(), Style::default().fg(color)),
+        Span::styled(text, Style::default().fg(color)),
+    ]));
+    lines.push(Line::from(""));
 
     if uutils_option(app) {
         lines.push(widgets::checkbox(
@@ -75,10 +87,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 
     f.render_widget(Paragraph::new(lines), area);
-    // The uutils checkbox is on line 8 (6 rows + a blank).
+    // The uutils checkbox follows the 6 rows, the check line and a blank.
     if uutils_option(app) {
         app.targets.borrow_mut().push((
-            Rect::new(area.x, area.y + 7, area.width, 1),
+            Rect::new(area.x, area.y + 8, area.width, 1),
             Click::SummaryUutils,
         ));
     }

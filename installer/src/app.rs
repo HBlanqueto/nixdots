@@ -28,18 +28,16 @@ use std::time::{Duration, Instant};
 use tui_input::Input;
 use zeroize::Zeroizing;
 
-const STEPS: usize = 12;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     /// Startup splash: logo + prompt + a single Continuar button.
     Splash,
-    Welcome,
-    Network,
     License,
-    Host,
-    Timezone,
+    Network,
     Locale,
+    Keyboard,
+    Timezone,
+    Host,
     User,
     Password,
     Git,
@@ -51,34 +49,37 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ORDER: [Screen; 12] = [
-        Screen::License,
-        Screen::Welcome,
-        Screen::Network,
-        Screen::Locale,
-        Screen::Timezone,
-        Screen::Host,
-        Screen::User,
-        Screen::Password,
-        Screen::Git,
-        Screen::Disk,
-        Screen::Encryption,
-        Screen::Summary,
-    ];
-
-    pub fn index(self) -> usize {
-        Self::ORDER.iter().position(|&s| s == self).unwrap_or(0)
+    /// The settings screens that carry the shared progress bar, from Red to
+    /// Resumen. Red is included only when it is shown; the count drops by one
+    /// when it is skipped. Cifrado is always counted, even when it is skipped.
+    pub fn flow(show_network: bool) -> Vec<Screen> {
+        let mut steps = vec![
+            Screen::Locale,
+            Screen::Keyboard,
+            Screen::Timezone,
+            Screen::Host,
+            Screen::User,
+            Screen::Password,
+            Screen::Git,
+            Screen::Disk,
+            Screen::Encryption,
+            Screen::Summary,
+        ];
+        if show_network {
+            steps.insert(0, Screen::Network);
+        }
+        steps
     }
 
     pub fn title(self) -> &'static str {
         match self {
             Screen::Splash => "Inicio",
-            Screen::Welcome => "Bienvenido",
-            Screen::Network => "Red",
             Screen::License => "Licencia",
-            Screen::Host => "Equipo",
+            Screen::Network => "Red",
+            Screen::Locale => "Lenguaje",
+            Screen::Keyboard => "Teclado",
             Screen::Timezone => "Zona horaria",
-            Screen::Locale => "Idioma y teclado",
+            Screen::Host => "Equipo",
             Screen::User => "Usuario",
             Screen::Password => "Contraseña",
             Screen::Git => "Git",
@@ -90,13 +91,17 @@ impl Screen {
         }
     }
 
-    fn next(self) -> Option<Screen> {
+    fn next(self, show_network: bool) -> Option<Screen> {
         match self {
             Screen::Splash => Some(Screen::License),
-            Screen::License => Some(Screen::Welcome),
-            Screen::Welcome => Some(Screen::Network),
+            Screen::License => Some(if show_network {
+                Screen::Network
+            } else {
+                Screen::Locale
+            }),
             Screen::Network => Some(Screen::Locale),
-            Screen::Locale => Some(Screen::Timezone),
+            Screen::Locale => Some(Screen::Keyboard),
+            Screen::Keyboard => Some(Screen::Timezone),
             Screen::Timezone => Some(Screen::Host),
             Screen::Host => Some(Screen::User),
             Screen::User => Some(Screen::Password),
@@ -109,14 +114,18 @@ impl Screen {
         }
     }
 
-    fn previous(self) -> Option<Screen> {
+    fn previous(self, show_network: bool) -> Option<Screen> {
         match self {
             Screen::Splash | Screen::Installing | Screen::Done => None,
             Screen::License => Some(Screen::Splash),
-            Screen::Welcome => Some(Screen::License),
-            Screen::Network => Some(Screen::Welcome),
-            Screen::Locale => Some(Screen::Network),
-            Screen::Timezone => Some(Screen::Locale),
+            Screen::Network => Some(Screen::License),
+            Screen::Locale => Some(if show_network {
+                Screen::Network
+            } else {
+                Screen::License
+            }),
+            Screen::Keyboard => Some(Screen::Locale),
+            Screen::Timezone => Some(Screen::Keyboard),
             Screen::Host => Some(Screen::Timezone),
             Screen::User => Some(Screen::Host),
             Screen::Password => Some(Screen::User),
@@ -189,7 +198,6 @@ pub enum Click {
     EncNoted,
     EncUsb,
     EncUsbRow(usize),
-    LocaleColumn(usize),
     PickerRow(PickerKind, usize),
     WifiRow(usize),
     WifiPassword,
@@ -469,6 +477,15 @@ impl EncState {
     }
 }
 
+/// Result of the background repo evaluation run after accepting the license.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckState {
+    Idle,
+    Running,
+    Ok,
+    Failed(String),
+}
+
 pub struct InstallView {
     pub started: Instant,
     pub current: Option<Step>,
@@ -584,6 +601,11 @@ pub struct App {
     pub repo_dir: PathBuf,
     pub source_ok: bool,
     pub network: bool,
+    /// Show the Red screen; skipped when a connection is already up.
+    pub show_network: bool,
+    /// Background repo evaluation, launched when the license is accepted.
+    pub source_check: CheckState,
+    source_check_rx: Option<Receiver<Result<(), String>>>,
 
     pub settings: Settings,
     pub settings_ok: bool,
@@ -618,11 +640,17 @@ pub struct App {
     // pickers
     pub timezones: Option<Picker>,
     pub loc: Option<Picker>,
+    /// The Lenguaje list's hidden search field is active (`/` opens it).
+    pub locale_search: bool,
 
     // keyboard
     pub keyboards: Option<Picker>,
-    /// On the "Idioma y teclado" screen: 0 = language, 1 = keyboard, 2 = test.
-    pub locale_focus: usize,
+    /// The keyboard list's `⌕`/search field is active.
+    pub keyboard_search: bool,
+    /// Layout suggested from the chosen language: highlighted, never selected.
+    pub keyboard_suggested: Option<usize>,
+    /// The "prueba" field holds the focus (below the list).
+    pub key_test_focus: bool,
     pub key_test: Input,
     /// Floating layout selector (F2). `None` when closed.
     pub key_modal: Option<Picker>,
@@ -707,6 +735,9 @@ impl App {
 
         let disks = detect::disks();
         let disk_index = disks.iter().position(|d| d.available).unwrap_or(0);
+        // The Red screen only appears when there is no connection yet; the
+        // simulation always shows it so the flow is reproducible.
+        let show_network = dry_run || !net::connection_up();
         let mut app = Self {
             palette,
             screen: Screen::Splash,
@@ -715,6 +746,9 @@ impl App {
             repo_dir,
             source_ok: false,
             network: false,
+            show_network,
+            source_check: CheckState::Idle,
+            source_check_rx: None,
             settings_ok,
             profile,
             host: HostState {
@@ -770,8 +804,11 @@ impl App {
             license_text_area: Rect::default(),
             timezones: None,
             loc: None,
+            locale_search: false,
             keyboards: None,
-            locale_focus: 0,
+            keyboard_search: false,
+            keyboard_suggested: None,
+            key_test_focus: false,
             key_test: Input::default(),
             key_modal: None,
             keyboard_active: kb_active,
@@ -785,8 +822,8 @@ impl App {
             install_log_view: false,
             install_log_scroll: 0,
             password_hash: None,
-            button_focus: 1,
-            // Welcome has no content, so the buttons start focused.
+            button_focus: 0,
+            // Inicio has no content, so the buttons start focused.
             focus_buttons: true,
             button_hitboxes: Vec::new(),
             targets: std::cell::RefCell::new(Vec::new()),
@@ -828,6 +865,7 @@ impl App {
             self.poll_install();
             self.maybe_finish_install();
             self.poll_network();
+            self.poll_source_check();
 
             if self.should_quit {
                 break;
@@ -929,9 +967,17 @@ impl App {
         if self.keyboards.is_some() {
             return;
         }
-        let mut picker = Picker::new(self.keyboard_items());
-        picker.selected = self.keyboard_index();
-        self.keyboards = Some(picker);
+        let items = self.keyboard_items();
+        // Nothing is selected by default; the language's suggestion is only
+        // highlighted.
+        self.keyboards = Some(Picker::new(items));
+        self.keyboard_suggested = self.suggested_keyboard();
+    }
+
+    /// Index (into `keyboard::all`) of the layout suggested by the language.
+    fn suggested_keyboard(&self) -> Option<usize> {
+        let code = keyboard::suggest(&self.settings.default_locale)?;
+        keyboard::all().iter().position(|l| l.code == code)
     }
 
     pub fn open_key_modal(&mut self) {
@@ -958,16 +1004,25 @@ impl App {
         self.keyboard_variant = layout.variant.clone();
         self.settings.keyboard_layout = layout.xkb.clone();
         self.settings.keyboard_variant = layout.variant.clone();
+        self.status = None;
         if theme::console::is_linux_console() {
-            if !keyboard::apply_console(&layout) {
-                self.status = Some(format!("no se pudo aplicar el teclado {}", layout.xkb));
+            match keyboard::apply_console(&layout) {
+                keyboard::ConsoleOutcome::Applied => {}
+                keyboard::ConsoleOutcome::Fallback => {
+                    self.status = Some("sin equivalente en consola: se usa us".into())
+                }
+                keyboard::ConsoleOutcome::Failed => {
+                    self.status = Some(format!("no se pudo aplicar el teclado {}", layout.xkb))
+                }
             }
         } else if announce {
             self.status = Some("la distribución la controla tu escritorio".into());
         }
-        // Refresh the column list so the "· actual" marker moves.
-        self.keyboards = None;
-        self.ensure_keyboards();
+        // Refresh the list so the "· actual" marker moves, keeping the cursor.
+        let items = self.keyboard_items();
+        if let Some(picker) = self.keyboards.as_mut() {
+            picker.items = items;
+        }
     }
 
     pub fn hostname_valid(&self) -> bool {
@@ -1345,12 +1400,12 @@ impl App {
     fn route_screen_key(&mut self, key: KeyEvent) -> bool {
         match self.screen {
             Screen::Splash => false,
-            Screen::Welcome => crate::screens::welcome::key(self, key),
             Screen::Network => crate::screens::network::key(self, key),
             Screen::License => crate::screens::license::key(self, key),
             Screen::Host => crate::screens::host::key(self, key),
             Screen::Timezone => crate::screens::timezone::key(self, key),
             Screen::Locale => crate::screens::locale::key(self, key),
+            Screen::Keyboard => crate::screens::keyboard::key(self, key),
             Screen::User => crate::screens::user::key(self, key),
             Screen::Password => crate::screens::password::key(self, key),
             Screen::Git => crate::screens::git::key(self, key),
@@ -1422,12 +1477,12 @@ impl App {
     pub fn buttons(&self) -> Vec<(Btn, Action)> {
         match self.screen {
             Screen::Splash => vec![(Btn::primary("Continuar ›"), Action::Next)],
-            Screen::Welcome => crate::screens::welcome::buttons(self),
             Screen::Network => crate::screens::network::buttons(self),
             Screen::License => crate::screens::license::buttons(self),
             Screen::Host => crate::screens::host::buttons(self),
             Screen::Timezone => crate::screens::timezone::buttons(self),
             Screen::Locale => crate::screens::locale::buttons(self),
+            Screen::Keyboard => crate::screens::keyboard::buttons(self),
             Screen::User => crate::screens::user::buttons(self),
             Screen::Password => crate::screens::password::buttons(self),
             Screen::Git => crate::screens::git::buttons(self),
@@ -1613,15 +1668,22 @@ impl App {
                 if let Some(p) = self.keyboards.as_mut() {
                     p.selected = Some(index);
                 }
-                let code = self
-                    .keyboards
-                    .as_ref()
-                    .and_then(|p| p.current())
-                    .map(|i| i.code.clone());
-                if let Some(code) = code {
-                    self.apply_keyboard_q(&code, false);
-                }
             }
+        }
+    }
+
+    /// Selects a keyboard row and applies it (click / Enter).
+    pub fn choose_keyboard(&mut self, index: usize) {
+        if let Some(picker) = self.keyboards.as_mut() {
+            picker.selected = Some(index);
+        }
+        let code = self
+            .keyboards
+            .as_ref()
+            .and_then(|p| p.current())
+            .map(|item| item.code.clone());
+        if let Some(code) = code {
+            self.apply_keyboard_q(&code, false);
         }
     }
 
@@ -1700,7 +1762,7 @@ impl App {
             Click::EncUsbRow(i) => {
                 self.enc.usb_index = i;
             }
-            Click::LocaleColumn(i) => self.locale_focus = i,
+            Click::PickerRow(PickerKind::Keyboard, index) => self.choose_keyboard(index),
             Click::PickerRow(kind, index) => self.select_picker(kind, index),
             Click::WifiRow(i) => {
                 if i < self.net.wifi.len() {
@@ -1777,15 +1839,63 @@ impl App {
         self.button_focus = self.primary_index();
     }
 
+    /// Moves the language picker's cursor by `delta` within the filtered list.
+    pub fn move_locale_by(&mut self, delta: isize) {
+        let total = self.loc.as_ref().map(|p| p.filtered.len()).unwrap_or(0);
+        if total == 0 {
+            return;
+        }
+        let current = self.loc.as_ref().and_then(|p| p.selected).unwrap_or(0) as isize;
+        let index = (current + delta).clamp(0, total as isize - 1) as usize;
+        if let Some(picker) = self.loc.as_mut() {
+            picker.selected = Some(index);
+        }
+    }
+
+    /// Renders the current screen's buttons on a raw row (chromeless screens).
+    pub fn draw_buttons_at(&mut self, f: &mut Frame, area: Rect) {
+        let enabled = self.primary_enabled();
+        let buttons: Vec<Btn> = self
+            .buttons()
+            .into_iter()
+            .map(|(mut b, action)| {
+                if action == Action::Next {
+                    b.enabled = enabled;
+                }
+                b
+            })
+            .collect();
+        if buttons.is_empty() {
+            self.button_hitboxes.clear();
+            return;
+        }
+        self.button_hitboxes = widgets::render_buttons(
+            f,
+            area,
+            &self.palette,
+            &buttons,
+            self.button_focus,
+            self.focus_buttons,
+        );
+    }
+
     /// Resets the focus when entering a screen: the content (a field or the
-    /// list) holds it, except on screens without content (Welcome, Done) where
+    /// list) holds it, except on screens without content (Inicio, Listo) where
     /// the buttons start focused.
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
         self.focus_buttons = matches!(
             self.screen,
-            Screen::Splash | Screen::Welcome | Screen::Done | Screen::License
+            Screen::Splash | Screen::Done | Screen::License
         );
+        if self.screen == Screen::Locale {
+            self.locale_search = false;
+        }
+        if self.screen == Screen::Keyboard {
+            self.keyboard_search = false;
+            self.key_test_focus = false;
+            self.keyboard_suggested = self.suggested_keyboard();
+        }
         if self.screen == Screen::License {
             self.license_modal = false;
             self.license_modal_focus = 1;
@@ -1820,7 +1930,7 @@ impl App {
         let prev = if self.screen == Screen::Summary && !self.disks.encrypt {
             Some(Screen::Disk)
         } else {
-            self.screen.previous()
+            self.screen.previous(self.show_network)
         };
         if let Some(prev) = prev {
             self.screen = prev;
@@ -1834,11 +1944,15 @@ impl App {
         if !self.primary_enabled() {
             return;
         }
+        // Accepting the license kicks off the repo evaluation in the background.
+        if self.screen == Screen::License {
+            self.spawn_source_check();
+        }
         // Skip Cifrado entirely when the user unchecked "Cifrar System HD".
         let next = if self.screen == Screen::Disk && !self.disks.encrypt {
             Some(Screen::Summary)
         } else {
-            self.screen.next()
+            self.screen.next(self.show_network)
         };
         match next {
             Some(Screen::Installing) => {
@@ -1852,11 +1966,8 @@ impl App {
                 self.status = None;
                 match next {
                     Screen::Timezone => self.ensure_timezones(),
-                    Screen::Locale => {
-                        self.locale_focus = 0;
-                        self.ensure_locales();
-                        self.ensure_keyboards();
-                    }
+                    Screen::Locale => self.ensure_locales(),
+                    Screen::Keyboard => self.ensure_keyboards(),
                     Screen::Network => self.refresh_network(),
                     _ => {}
                 }
@@ -1972,9 +2083,62 @@ impl App {
                 .map(|p| p.selected.is_some())
                 .unwrap_or(false),
             Screen::Locale => self.loc.as_ref().map(|p| p.selected.is_some()).unwrap_or(false),
+            Screen::Keyboard => self
+                .keyboards
+                .as_ref()
+                .map(|p| p.selected.is_some())
+                .unwrap_or(false),
+            // Install is refused if the repo evaluation already failed.
+            Screen::Summary => !matches!(self.source_check, CheckState::Failed(_)),
             Screen::Disk => self.disk_ready(),
             Screen::Encryption => self.enc.ready(),
             _ => true,
+        }
+    }
+
+    /// Launches the repo evaluation in the background; its result shows on the
+    /// Resumen screen. Called when the license is accepted.
+    pub fn spawn_source_check(&mut self) {
+        if self.source_check != CheckState::Idle {
+            return;
+        }
+        if self.dry_run {
+            self.source_check = CheckState::Running;
+            return;
+        }
+        if !self.source_ok {
+            self.source_check = CheckState::Failed("no hay repositorio para evaluar".into());
+            return;
+        }
+        let repo = self.repo_dir.clone();
+        let host = self.settings.host_name.clone();
+        let (tx, rx) = mpsc::channel();
+        self.source_check_rx = Some(rx);
+        self.source_check = CheckState::Running;
+        std::thread::spawn(move || {
+            let result = crate::install::check_source(&repo, &host);
+            let _ = tx.send(result);
+        });
+    }
+
+    fn poll_source_check(&mut self) {
+        if self.dry_run {
+            if self.source_check == CheckState::Running {
+                self.source_check = CheckState::Ok;
+            }
+            return;
+        }
+        let Some(rx) = self.source_check_rx.take() else {
+            return;
+        };
+        let mut reply = None;
+        while let Ok(result) = rx.try_recv() {
+            reply = Some(result);
+        }
+        match reply {
+            Some(Ok(())) => self.source_check = CheckState::Ok,
+            Some(Err(err)) => self.source_check = CheckState::Failed(err),
+            None => self.source_check_rx = Some(rx),
         }
     }
 
@@ -2025,13 +2189,29 @@ impl App {
             return;
         }
 
-        // Licencia is chromeless: a centered logo, the text box and the pills,
-        // under the shared progress bar.
+        // Licencia is chromeless: a centered logo, the text box and the pills.
         if self.screen == Screen::License {
+            crate::screens::license::draw(f, self, area);
+            if self.quit.is_some() {
+                self.draw_quit(f, area);
+            }
+            return;
+        }
+
+        // Lenguaje and Teclado are chromeless: a centered globe/heading or a
+        // titled list box, with the shared progress bar and shortcut line.
+        if matches!(self.screen, Screen::Locale | Screen::Keyboard) {
             let width = 84.min(area.width * 80 / 100);
             let x = area.x + area.width.saturating_sub(width) / 2;
             self.draw_progress(f, Rect::new(x, area.y + 1, width, 1));
-            crate::screens::license::draw(f, self, area);
+            match self.screen {
+                Screen::Locale => crate::screens::locale::draw(f, self, area),
+                _ => crate::screens::keyboard::draw(f, self, area),
+            }
+            self.draw_shortcuts(
+                f,
+                Rect::new(x, area.bottom().saturating_sub(1), width, 1),
+            );
             if self.quit.is_some() {
                 self.draw_quit(f, area);
             }
@@ -2225,12 +2405,12 @@ impl App {
     fn content_height(&self) -> u16 {
         match self.screen {
             Screen::Splash => 0,
-            Screen::Welcome => crate::screens::welcome::height(self),
             Screen::Network => crate::screens::network::height(self),
             Screen::License => crate::screens::license::height(self),
             Screen::Host => crate::screens::host::height(self),
             Screen::Timezone => crate::screens::timezone::height(self),
             Screen::Locale => crate::screens::locale::height(self),
+            Screen::Keyboard => crate::screens::keyboard::height(self),
             Screen::User => crate::screens::user::height(self),
             Screen::Password => crate::screens::password::height(self),
             Screen::Git => crate::screens::git::height(self),
@@ -2242,11 +2422,12 @@ impl App {
         }
     }
 
-    /// The `* nixdots instalador` header line, kept only on the final screen.
+    /// The `❄ nixdots instalador` header line, kept only on the final screen.
     pub fn header_line(&self) -> Line<'static> {
+        let mark = if theme::console::is_linux_console() { "*" } else { "❄" };
         let mut spans = vec![
             Span::styled(
-                "* nixdots",
+                format!("{mark} nixdots"),
                 Style::default().fg(self.palette.primary).add_modifier(Modifier::BOLD),
             ),
             Span::styled("  instalador", Style::default().fg(self.palette.muted)),
@@ -2329,9 +2510,7 @@ impl App {
         let width = area.width as usize;
         let mut rows: Vec<Line> = Vec::new();
         for line in self.install.log.iter().skip(start) {
-            for chunk in hard_wrap(line, width) {
-                rows.push(self.log_line(&chunk));
-            }
+            self.log_rows(line, width, &mut rows);
         }
         f.render_widget(
             Paragraph::new(rows),
@@ -2354,9 +2533,15 @@ impl App {
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
-        // 3 cells per step, from Bienvenido (1/13) to Instalando (13/13).
-        let cells: usize = STEPS * 3;
-        let step = (self.screen.index() + 1).min(STEPS);
+        // 3 cells per step, counted from Red to Resumen.
+        let flow = Screen::flow(self.show_network);
+        let total = flow.len().max(1);
+        let step = flow
+            .iter()
+            .position(|&s| s == self.screen)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let cells: usize = total * 3;
         let filled = (step * 3).min(cells);
         let line = Line::from(vec![
             Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
@@ -2366,7 +2551,7 @@ impl App {
                 Style::default().fg(self.palette.row_bg),
             ),
             Span::styled(
-                format!("  {step}/{STEPS}"),
+                format!("  {step}/{total}"),
                 Style::default().fg(self.palette.muted),
             ),
         ])
@@ -2405,12 +2590,12 @@ impl App {
 
         match self.screen {
             Screen::Splash => {}
-            Screen::Welcome => crate::screens::welcome::draw(f, self, content),
             Screen::Network => crate::screens::network::draw(f, self, content),
             Screen::License => crate::screens::license::draw(f, self, content),
             Screen::Host => crate::screens::host::draw(f, self, content),
             Screen::Timezone => crate::screens::timezone::draw(f, self, content),
             Screen::Locale => crate::screens::locale::draw(f, self, content),
+            Screen::Keyboard => crate::screens::keyboard::draw(f, self, content),
             Screen::User => crate::screens::user::draw(f, self, content),
             Screen::Password => crate::screens::password::draw(f, self, content),
             Screen::Git => crate::screens::git::draw(f, self, content),
@@ -2428,10 +2613,10 @@ impl App {
     fn screen_shortcuts(&self) -> Vec<String> {
         match self.screen {
             Screen::Splash => Vec::new(),
-            Screen::Welcome => vec!["enter continuar".into(), "esc salir".into()],
             Screen::License => vec!["↑↓ desplazar".into(), "espacio aceptar".into()],
             Screen::Network => vec![crate::screens::network::shortcut(self)],
-            Screen::Locale => vec!["tab columna".into(), "↑↓ elegir".into()],
+            Screen::Locale => vec!["↑↓ elegir".into(), "/ buscar".into()],
+            Screen::Keyboard => vec!["↑↓ elegir".into(), "/ buscar".into()],
             Screen::Timezone => vec!["↑↓ elegir".into()],
             Screen::Host => vec!["enter continuar".into()],
             Screen::User => vec!["↑↓ campo".into()],
@@ -2502,9 +2687,7 @@ impl App {
         let width = inner.width.max(1) as usize;
         let mut rows: Vec<Line> = Vec::new();
         for line in raw {
-            for chunk in hard_wrap(&line, width) {
-                rows.push(self.log_line(&chunk));
-            }
+            self.log_rows(&line, width, &mut rows);
         }
         // Keep the most recent rows visible when the wrapped log overflows.
         let rows = rows.split_off(rows.len().saturating_sub(inner.height as usize));
@@ -2526,6 +2709,28 @@ impl App {
             self.palette.text
         };
         Line::from(Span::styled(line.to_string(), Style::default().fg(color)))
+    }
+
+    /// Wraps one log line into `out`, keeping the embedded line breaks. A whole
+    /// error block (`\u{1}`-prefixed) is red and indented two spaces.
+    fn log_rows(&self, line: &str, width: usize, out: &mut Vec<Line>) {
+        let is_error = line.starts_with('\u{1}');
+        let text = line.strip_prefix('\u{1}').unwrap_or(line);
+        let avail = if is_error {
+            width.saturating_sub(2).max(1)
+        } else {
+            width
+        };
+        for chunk in hard_wrap(text, avail) {
+            if is_error {
+                out.push(Line::from(Span::styled(
+                    format!("  {chunk}"),
+                    Style::default().fg(self.palette.error),
+                )));
+            } else {
+                out.push(self.log_line(&chunk));
+            }
+        }
     }
 
     fn draw_quit(&self, f: &mut Frame, area: Rect) {
@@ -2556,12 +2761,12 @@ impl App {
     pub fn command_list(&self) -> Vec<String> {
         match self.screen {
             Screen::Splash => Vec::new(),
-            Screen::Welcome => crate::screens::welcome::commands(self),
             Screen::Network => crate::screens::network::commands(self),
             Screen::License => crate::screens::license::commands(self),
             Screen::Host => crate::screens::host::commands(self),
             Screen::Timezone => crate::screens::timezone::commands(self),
             Screen::Locale => crate::screens::locale::commands(self),
+            Screen::Keyboard => crate::screens::keyboard::commands(self),
             Screen::User => crate::screens::user::commands(self),
             Screen::Password => crate::screens::password::commands(self),
             Screen::Git => crate::screens::git::commands(self),

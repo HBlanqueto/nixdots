@@ -98,6 +98,43 @@ pub fn online() -> bool {
     crate::detect::network_online()
 }
 
+/// Whether a connection is already up, so the Red screen can be skipped:
+/// NetworkManager reports `connected`, or (fallback) there is a default route
+/// and `cache.nixos.org` resolves.
+pub fn connection_up() -> bool {
+    if let Ok(output) = Command::new("nmcli")
+        .args(["-t", "-f", "STATE", "general"])
+        .stdin(Stdio::null())
+        .output()
+    {
+        if output.status.success()
+            && String::from_utf8_lossy(&output.stdout).trim() == "connected"
+        {
+            return true;
+        }
+    }
+    has_default_route() && resolves("cache.nixos.org")
+}
+
+/// A default route (destination 00000000, gateway set) in `/proc/net/route`.
+fn has_default_route() -> bool {
+    let Ok(text) = std::fs::read_to_string("/proc/net/route") else {
+        return false;
+    };
+    text.lines().skip(1).any(|line| {
+        let mut fields = line.split_whitespace();
+        let _iface = fields.next();
+        let dest = fields.next().unwrap_or("");
+        let gateway = fields.next().unwrap_or("");
+        dest == "00000000" && gateway != "00000000" && !gateway.is_empty()
+    })
+}
+
+fn resolves(host: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    (host, 443).to_socket_addrs().is_ok()
+}
+
 // -- concrete backends --------------------------------------------------------
 
 pub struct Nmcli;

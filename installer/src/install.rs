@@ -218,6 +218,10 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         }
         Err(err) => {
             report.log(format!("error: {err}"));
+            // Keep a copy of the full log on the target too, when /mnt is up.
+            if !plan.dry_run {
+                copy_log_to_persist(&plan, &mut report);
+            }
             let _ = tx.send(Msg::Finished {
                 ok: false,
                 error: Some(err.to_string()),
@@ -1785,8 +1789,113 @@ pub fn hash_password(password: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-// -- misc ---------------------------------------------------------------------
+/// Evaluates the repo in a temporary copy to catch configuration errors before
+/// the install starts. The password hash the config asserts on is a marker file
+/// under `NIXDOTS_ROOT`, so the evaluation only checks that the repo is sound;
+/// the real target is never touched.
+pub fn check_source(repo: &Path, host: &str) -> Result<(), String> {
+    let tmp = std::env::temp_dir().join("nixdots-eval");
+    let _ = fs::remove_dir_all(&tmp);
+    copy_tree(repo, &tmp).map_err(|err| format!("no se pudo copiar el repo: {err}"))?;
+    let _ = std::process::Command::new("chmod")
+        .args(["-R", "u+w"])
+        .arg(&tmp)
+        .status();
 
+    // A marker hash so `hashedPasswordFile` resolves during evaluation.
+    let user = crate::settings::Settings::read(repo)
+        .ok()
+        .map(|settings| settings.username)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "nixdots".to_string());
+    let secrets = tmp.join("persist/secrets");
+    fs::create_dir_all(&secrets).map_err(|err| err.to_string())?;
+    fs::write(secrets.join(format!("{user}.hash")), "$y$marker")
+        .map_err(|err| err.to_string())?;
+
+    ensure_git_tree(&tmp);
+
+    let expr = format!(
+        "{}#nixosConfigurations.{}.config.system.build.toplevel.drvPath",
+        tmp.display(),
+        host
+    );
+    let output = std::process::Command::new("nix")
+        .args([
+            "eval",
+            "--raw",
+            "--impure",
+            "--extra-experimental-features",
+            "nix-command flakes",
+        ])
+        .arg(&expr)
+        .env("NIXDOTS_ROOT", &tmp)
+        .env("NIX_CONFIG", runner::nix_config())
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|err| format!("no se pudo ejecutar nix eval: {err}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(last_error_line(&String::from_utf8_lossy(&output.stderr)))
+    }
+}
+
+/// Copies `src` into `dest` (which must not exist) with `cp -a`.
+fn copy_tree(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
+    let status = std::process::Command::new("cp")
+        .arg("-a")
+        .arg(src)
+        .arg(dest)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other("cp -a falló"))
+    }
+}
+
+/// Gives the temporary copy a git tree, since a flake evaluation needs one.
+fn ensure_git_tree(repo: &Path) {
+    if repo.join(".git").exists() {
+        return;
+    }
+    let run = |args: &[&str]| {
+        let _ = std::process::Command::new("git")
+            .args(args)
+            .arg(repo)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    };
+    run(&["init", "-q"]);
+    run(&["add", "-A"]);
+    run(&[
+        "-c",
+        "user.name=nixdots-installer",
+        "-c",
+        "user.email=installer@localhost",
+        "commit",
+        "-q",
+        "-m",
+        "nixdots: check snapshot",
+    ]);
+}
+
+/// The last `error: …` line of nix's stderr, or its last non-empty line.
+fn last_error_line(stderr: &str) -> String {
+    let lines: Vec<&str> = stderr.lines().filter(|l| !l.trim().is_empty()).collect();
+    lines
+        .iter()
+        .rev()
+        .find(|l| l.contains("error:"))
+        .or_else(|| lines.last())
+        .map(|l| l.trim().to_string())
+        .unwrap_or_else(|| "la configuración no evalúa".to_string())
+}
+
+// -- misc ---------------------------------------------------------------------
 fn set_mode_dir(path: &Path, mode: u32) -> Result<()> {
     let mut perms = fs::metadata(path)?.permissions();
     perms.set_mode(mode);

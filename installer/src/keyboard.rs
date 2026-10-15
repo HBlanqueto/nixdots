@@ -147,31 +147,85 @@ pub fn detect_active() -> String {
 
 /// Applies a layout to the bare Linux console with `loadkeys`.
 ///
-/// Its output is discarded: many xkb layouts have no console keymap, so
-/// `loadkeys` fails often, and anything it writes to the terminal would land
-/// on top of the TUI. The caller only needs the success flag.
-pub fn apply_console(layout: &Layout) -> bool {
-    Command::new("loadkeys")
-        .arg(console_keymap(layout))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+/// Its output is captured through [`crate::runner`] (a real command, never a
+/// raw terminal write), so nothing lands on top of the TUI.
+pub fn apply_console(layout: &Layout) -> ConsoleOutcome {
+    match console_keymap(layout) {
+        Some(keymap) => {
+            if run_loadkeys(&keymap) {
+                ConsoleOutcome::Applied
+            } else {
+                ConsoleOutcome::Failed
+            }
+        }
+        None => {
+            // No console equivalent: fall back to `us` and let the caller warn.
+            let _ = run_loadkeys("us");
+            ConsoleOutcome::Fallback
+        }
+    }
 }
 
-/// The console keymap (`loadkeys`) that matches an xkb layout/variant. When
-/// there is no exact match the xkb layout name is used, which is correct for
-/// the common layouts whose names coincide.
-fn console_keymap(layout: &Layout) -> String {
-    match (layout.xkb.as_str(), layout.variant.as_str()) {
-        ("us", "") => "us".to_string(),
-        ("us", "intl") => "us-acentos".to_string(),
-        ("latam", "") => "la-latin1".to_string(),
-        ("gb", "") => "uk".to_string(),
-        ("br", "") => "br-abnt2".to_string(),
-        ("jp", "") => "jp106".to_string(),
-        _ => layout.xkb.clone(),
-    }
+/// What happened when applying a layout on the console.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsoleOutcome {
+    Applied,
+    /// No console keymap for this layout; `us` was applied instead.
+    Fallback,
+    Failed,
+}
+
+fn run_loadkeys(keymap: &str) -> bool {
+    let cmd = crate::runner::Cmd::new("loadkeys").arg(keymap);
+    let mut sink = |_out: crate::runner::Stream| {};
+    crate::runner::run(&cmd, &mut sink) == 0
+}
+
+/// The console keymap (`loadkeys`) that matches an xkb layout/variant. `None`
+/// when the layout has no console equivalent.
+fn console_keymap(layout: &Layout) -> Option<String> {
+    Some(
+        match (layout.xkb.as_str(), layout.variant.as_str()) {
+            ("us", "") => "us",
+            ("us", "intl") => "us-acentos",
+            ("latam", "") => "la-latin1",
+            ("es", "") => "es",
+            ("gb", "") => "uk",
+            ("br", "") => "br-abnt2",
+            ("fr", "") => "fr",
+            ("de", "") => "de",
+            ("it", "") => "it",
+            ("pt", "") => "pt-latin1",
+            ("ru", "") => "ru",
+            ("pl", "") => "pl",
+            ("nl", "") => "nl",
+            ("jp", "") => "jp106",
+            _ => return None,
+        }
+        .to_string(),
+    )
+}
+
+/// The base layout suggested by a locale code (`es_MX` → `latam`, `en_US` →
+/// `us`, …). `None` when there is no known suggestion.
+pub fn suggest(locale: &str) -> Option<&'static str> {
+    let mut parts = locale.split(['_', '.', '@']);
+    let lang = parts.next().unwrap_or("");
+    let region = parts.next().unwrap_or("");
+    Some(match (lang, region) {
+        ("es", "MX") => "latam",
+        ("es", _) => "es",
+        ("en", "GB") => "gb",
+        ("en", _) => "us",
+        ("pt", "BR") => "br",
+        ("pt", _) => "pt",
+        ("fr", _) => "fr",
+        ("de", _) => "de",
+        ("it", _) => "it",
+        ("nl", _) => "nl",
+        ("ru", _) => "ru",
+        ("ja", _) | ("jp", _) => "jp",
+        ("pl", _) => "pl",
+        _ => return None,
+    })
 }
