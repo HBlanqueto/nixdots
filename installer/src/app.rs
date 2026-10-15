@@ -1814,9 +1814,9 @@ impl App {
                 },
                 Err(msg) => RedFase::Error { ssid, msg },
             };
-            // On success, light up Continuar so Enter advances right away.
+            // On success the Red screen is done: advance straight to Lenguaje.
             if self.net.phase.is_connected() {
-                self.focus_buttons_on_primary();
+                self.advance();
             } else {
                 self.focus_primary();
             }
@@ -1918,10 +1918,10 @@ impl App {
         );
 
         // Minimum supported size: show a warning instead of a broken layout.
-        if area.width < 90 || area.height < 30 {
+        if area.width < widgets::StepLayout::WIDTH || area.height < 20 {
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(
-                    "Agranda la ventana (mín. 90×30)",
+                    "Agranda la ventana (mín. 46×20)",
                     Style::default()
                         .fg(self.palette.warning)
                         .add_modifier(Modifier::BOLD),
@@ -1964,71 +1964,40 @@ impl App {
             return;
         }
 
-        // Lenguaje, Teclado and Disco are chromeless: their own centered
-        // layout, with the shared progress bar and shortcut line.
-        if matches!(self.screen, Screen::Locale | Screen::Keyboard | Screen::Disk) {
-            let width = 84.min(area.width * 80 / 100);
-            let x = area.x + area.width.saturating_sub(width) / 2;
-            self.draw_progress(f, Rect::new(x, area.y + 1, width, 1));
-            match self.screen {
-                Screen::Locale => crate::screens::locale::draw(f, self, area),
-                Screen::Keyboard => crate::screens::keyboard::draw(f, self, area),
-                _ => crate::screens::disk::draw(f, self, area),
-            }
-            self.draw_shortcuts(
-                f,
-                Rect::new(x, area.bottom().saturating_sub(1), width, 1),
-            );
-            if self.quit.is_some() {
-                self.draw_quit(f, area);
-            }
-            return;
-        }
-
-        let content_h = self.content_height();
+        // Every wizard screen shares the same centered StepLayout.
         let commands_lines = self.command_list();
         let commands_h = if self.show_commands {
             (commands_lines.len() as u16 + 2).clamp(2, area.height / 2)
         } else {
             0
         };
-        let panel_h = content_h + 2;
-        // 84 columns, or 80 % of the terminal width if that is smaller.
-        // Disco uses a wider box.
-        let width = if self.screen == Screen::Disk {
-            area.width.saturating_sub(4).min(140)
-        } else {
-            84.min(area.width * 80 / 100)
-        };
-        let gap: u16 = 1;
-        // progress + gap + heading + gap + box + gap + buttons + gap + shortcuts
-        let mut total = 1 + gap + 1 + gap + panel_h + gap + 1 + gap + 1;
-        if commands_h > 0 {
-            total += gap + commands_h;
+        let body_h = self.content_height() + 2;
+        let layout = widgets::StepLayout::compute(area, body_h, self.note_height(), commands_h);
+
+        self.draw_progress(f, layout.progress);
+        self.draw_heading(f, layout.title);
+        self.draw_body(f, layout.body);
+        match self.screen {
+            Screen::Splash | Screen::License | Screen::Installing | Screen::Done => {}
+            Screen::Network => crate::screens::network::draw(f, self, layout.inner),
+            Screen::Host => crate::screens::host::draw(f, self, layout.inner),
+            Screen::Timezone => crate::screens::timezone::draw(f, self, layout.inner),
+            Screen::Locale => crate::screens::locale::draw(f, self, layout.inner),
+            Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.inner),
+            Screen::User => crate::screens::user::draw(f, self, layout.inner),
+            Screen::Password => crate::screens::password::draw(f, self, layout.inner),
+            Screen::Git => crate::screens::git::draw(f, self, layout.inner),
+            Screen::Disk => crate::screens::disk::draw(f, self, layout.inner),
+            Screen::Encryption => crate::screens::encryption::draw(f, self, layout.inner),
+            Screen::Summary => crate::screens::summary::draw(f, self, layout.inner),
         }
-        let top = area.y + area.height.saturating_sub(total) / 2;
-        let x = area.x + area.width.saturating_sub(width) / 2;
-
-        let mut cursor = top;
-        let progress = Rect::new(x, cursor, width, 1);
-        cursor += 1 + gap;
-        let heading = Rect::new(x, cursor, width, 1);
-        cursor += 1 + gap;
-        let panel = Rect::new(x, cursor, width, panel_h);
-        cursor += panel_h + gap;
-        let buttons_row = Rect::new(x, cursor, width, 1);
-        cursor += 1 + gap;
-        let shortcuts = Rect::new(x, cursor, width, 1);
-        cursor += 1 + gap;
-        let commands = Rect::new(x, cursor, width, commands_h);
-
-        self.draw_progress(f, progress);
-        self.draw_heading(f, heading);
-        self.draw_panel(f, panel);
-        self.draw_buttons(f, buttons_row);
-        self.draw_shortcuts(f, shortcuts);
+        self.draw_note(f, layout.note);
+        self.draw_buttons(f, layout.buttons);
+        if layout.shortcuts.height > 0 {
+            self.draw_shortcuts(f, layout.shortcuts);
+        }
         if self.show_commands {
-            self.draw_commands(f, commands, &commands_lines, commands_h);
+            self.draw_commands(f, layout.commands, &commands_lines, commands_h);
         }
 
         if self.enc.usb_open {
@@ -2052,12 +2021,55 @@ impl App {
             Paragraph::new(Span::styled(
                 text,
                 Style::default()
-                    .fg(self.palette.text)
+                    .fg(self.palette.white)
                     .add_modifier(Modifier::BOLD),
             ))
             .alignment(Alignment::Center),
             area,
         );
+    }
+
+    /// Lines reserved between the box and the buttons for a screen's note.
+    fn note_height(&self) -> u16 {
+        match self.screen {
+            Screen::Keyboard => 2,
+            Screen::Locale | Screen::Summary => 1,
+            _ => 0,
+        }
+    }
+
+    /// The optional line(s) drawn between the box and the buttons.
+    fn draw_note(&self, f: &mut Frame, area: Rect) {
+        if area.height == 0 {
+            return;
+        }
+        match self.screen {
+            Screen::Locale => {
+                let code = self
+                    .loc
+                    .as_ref()
+                    .and_then(|p| p.current())
+                    .map(|i| i.code.clone())
+                    .unwrap_or_default();
+                f.render_widget(
+                    Paragraph::new(Span::styled(code, Style::default().fg(self.palette.muted)))
+                        .alignment(Alignment::Center),
+                    area,
+                );
+            }
+            Screen::Keyboard => crate::screens::keyboard::draw_test(f, self, area),
+            Screen::Summary => {
+                f.render_widget(
+                    Paragraph::new(Span::styled(
+                        "Al instalar se aplican los cambios al disco. No se puede deshacer.",
+                        Style::default().fg(self.palette.warning),
+                    ))
+                    .alignment(Alignment::Center),
+                    area,
+                );
+            }
+            _ => {}
+        }
     }
 
     /// Floating keyboard-layout selector.
@@ -2312,44 +2324,14 @@ impl App {
         f.render_widget(Paragraph::new(line), area);
     }
 
-    /// Draws the content box (rounded, muted border, no title) and renders the
-    /// current screen's content inside it.
-    fn draw_panel(&mut self, f: &mut Frame, area: Rect) -> Rect {
+    /// Draws the content box: a rounded `#55657e` border, no title.
+    fn draw_body(&self, f: &mut Frame, area: Rect) {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.palette.muted));
-        let inner = block.inner(area);
         f.render_widget(Clear, area);
         f.render_widget(block, area);
-
-        let content_h = self.content_height();
-        let content = Rect::new(
-            inner.x + 2,
-            inner.y,
-            inner.width.saturating_sub(4),
-            content_h.min(inner.height),
-        );
-
-        match self.screen {
-            Screen::Splash => {}
-            Screen::Network => crate::screens::network::draw(f, self, content),
-            Screen::License => crate::screens::license::draw(f, self, content),
-            Screen::Host => crate::screens::host::draw(f, self, content),
-            Screen::Timezone => crate::screens::timezone::draw(f, self, content),
-            Screen::Locale => crate::screens::locale::draw(f, self, content),
-            Screen::Keyboard => crate::screens::keyboard::draw(f, self, content),
-            Screen::User => crate::screens::user::draw(f, self, content),
-            Screen::Password => crate::screens::password::draw(f, self, content),
-            Screen::Git => crate::screens::git::draw(f, self, content),
-            Screen::Disk => crate::screens::disk::draw(f, self, content),
-            Screen::Encryption => crate::screens::encryption::draw(f, self, content),
-            Screen::Summary => crate::screens::summary::draw(f, self, content),
-            Screen::Installing => crate::screens::installing::draw(f, self, content),
-            Screen::Done => crate::screens::done::draw(f, self, content),
-        }
-
-        inner
     }
 
     /// Screen-specific shortcut hints (without F2 or the v toggle).
