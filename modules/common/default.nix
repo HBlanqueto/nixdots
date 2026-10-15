@@ -13,6 +13,7 @@
     ./encryption.nix
     ./boot.nix
     ./user.nix
+    ./machine-info.nix
     ./services.nix
     ./fonts.nix
     ./uutils.nix

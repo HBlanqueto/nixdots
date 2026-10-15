@@ -11,7 +11,7 @@ inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     specialArgs = {
-        inherit inputs hostName;
+        inherit inputs hostName settings;
         inherit (settings)
             stateVersion timeZone defaultLocale username userdescription
             hashedPasswordFile keyboardLayout keyboardVariant gitName gitEmail;
