@@ -392,7 +392,7 @@ fn sentence(app: &App) -> (String, ratatui::style::Color) {
 }
 
 /// Whether at least one disk can be installed to.
-fn has_usable_disk(app: &App) -> bool {
+pub fn has_usable_disk(app: &App) -> bool {
     app.disks.disks.iter().any(|d| d.unusable_reason().is_none())
 }
 

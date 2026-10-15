@@ -68,7 +68,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
 }
 
 /// A basic email check for the note: `a@b.c`, no spaces.
-fn email_valid(email: &str) -> bool {
+pub fn email_valid(email: &str) -> bool {
     let Some((local, domain)) = email.split_once('@') else {
         return false;
     };

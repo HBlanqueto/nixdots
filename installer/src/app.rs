@@ -1794,6 +1794,7 @@ impl App {
             .map(|(mut b, action)| {
                 if action == Action::Next {
                     b.enabled = enabled;
+                    b.label = format!("{}  ⏎", b.label);
                 }
                 b
             })
@@ -2011,6 +2012,87 @@ impl App {
         }
     }
 
+    /// What is still missing to advance, shown under the buttons.
+    pub fn faltante(&self) -> Option<String> {
+        match self.screen {
+            Screen::Splash | Screen::License | Screen::Installing | Screen::Done => None,
+            Screen::Network => match &self.net.phase {
+                RedFase::Contrasena { input, .. } if input.value().is_empty() => {
+                    Some("falta: escribir la contraseña".into())
+                }
+                _ => None,
+            },
+            Screen::Locale => self
+                .loc
+                .as_ref()
+                .filter(|p| p.selected.is_none())
+                .map(|_| "falta: elegir un lenguaje".to_string()),
+            Screen::Keyboard => self
+                .keyboards
+                .as_ref()
+                .filter(|p| p.selected.is_none())
+                .map(|_| "falta: elegir una distribución".to_string()),
+            Screen::Timezone => self
+                .timezones
+                .as_ref()
+                .filter(|p| p.selected.is_none())
+                .map(|_| "falta: elegir una zona horaria".to_string()),
+            Screen::User => {
+                if self.user.username.value().is_empty() {
+                    Some("falta: escribir un nombre".into())
+                } else if !self.username_valid() {
+                    Some("falta: un usuario válido".into())
+                } else {
+                    None
+                }
+            }
+            Screen::Password => {
+                if self.password.p1.value().is_empty() {
+                    Some("falta: escribir la contraseña".into())
+                } else if self.password.p2.value().is_empty() {
+                    Some("falta: confirmar contraseña".into())
+                } else if !self.passwords_match() {
+                    Some("las contraseñas no coinciden".into())
+                } else {
+                    None
+                }
+            }
+            Screen::Git => {
+                if !self.git.enabled {
+                    None
+                } else if self.git.name.value().is_empty() {
+                    Some("falta: nombre de git".into())
+                } else if !crate::screens::git::email_valid(self.git.email.value()) {
+                    Some("falta: correo de git".into())
+                } else {
+                    None
+                }
+            }
+            Screen::Disk => {
+                if !crate::screens::disk::has_usable_disk(self) {
+                    Some("falta: un disco donde instalar".into())
+                } else if !self.disk_ready() {
+                    Some("falta: elegir un disco".into())
+                } else {
+                    None
+                }
+            }
+            Screen::Encryption => {
+                if !self.enc.noted {
+                    Some("falta: marcar que anotaste la clave de recuperación".into())
+                } else if !self.enc.use_account && !self.enc.passphrase_matches() {
+                    Some("falta: confirmar la frase de desbloqueo".into())
+                } else {
+                    None
+                }
+            }
+            Screen::Summary => match &self.source_check {
+                CheckState::Failed(_) => Some("la configuración no evalúa".into()),
+                _ => None,
+            },
+        }
+    }
+
     pub fn primary_enabled(&self) -> bool {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
@@ -2217,6 +2299,7 @@ impl App {
         }
         self.draw_note(f, layout.note);
         self.draw_buttons(f, layout.buttons);
+        self.draw_faltante(f, layout.faltante);
         if layout.shortcuts.height > 0 {
             self.draw_shortcuts(f, layout.shortcuts);
         }
@@ -2701,6 +2784,21 @@ impl App {
             }
         }
         spans
+    }
+
+    /// The gray «falta: …» line under the buttons (empty when nothing is
+    /// missing, but always one row so nothing moves).
+    fn draw_faltante(&self, f: &mut Frame, area: Rect) {
+        if let Some(text) = self.faltante() {
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    truncate_ellipsis(&text, area.width as usize),
+                    Style::default().fg(self.palette.muted),
+                ))
+                .alignment(Alignment::Center),
+                area,
+            );
+        }
     }
 
     fn draw_shortcuts(&self, f: &mut Frame, area: Rect) {

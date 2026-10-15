@@ -49,6 +49,8 @@ pub struct StepLayout {
     pub content: Rect,
     pub note: Rect,
     pub buttons: Rect,
+    /// The always-present line under the buttons («falta: …»).
+    pub faltante: Rect,
     pub shortcuts: Rect,
     pub commands: Rect,
 }
@@ -62,7 +64,8 @@ impl StepLayout {
         let x = area.x + area.width.saturating_sub(width) / 2;
         let gap: u16 = 1;
         let shortcuts_h = u16::from(area.height >= 30);
-        let mut total = 1 + gap + 1 + gap + height + gap + 1;
+        // progress + title + body + buttons + faltante (always one row)
+        let mut total = 1 + gap + 1 + gap + height + gap + 1 + gap + 1;
         if note_h > 0 {
             total += note_h + gap;
         }
@@ -99,6 +102,8 @@ impl StepLayout {
         }
         let buttons = Rect::new(x, y, width, 1);
         y += 1 + gap;
+        let faltante = Rect::new(x, y, width, 1);
+        y += 1 + gap;
         let shortcuts = Rect::new(x, y, width, shortcuts_h);
         if shortcuts_h > 0 {
             y += shortcuts_h + gap;
@@ -112,6 +117,7 @@ impl StepLayout {
             content,
             note,
             buttons,
+            faltante,
             shortcuts,
             commands,
         }
@@ -251,9 +257,14 @@ impl Widget for ButtonRow<'_> {
                 flat.push(Span::raw("   "));
             }
             let is_focus = self.focused && i == self.focus && button.enabled;
+            let accent = Style::default().fg(if is_focus {
+                self.palette.white
+            } else {
+                self.palette.primary
+            });
             if !button.enabled {
                 let style = Style::default().fg(self.palette.disabled);
-                push_button(&mut flat, &button.label, style, style, nerd, false);
+                push_button(&mut flat, &button.label, style, style, style, nerd, false);
             } else if is_focus {
                 let glyph = Style::default()
                     .fg(self.palette.primary)
@@ -262,7 +273,7 @@ impl Widget for ButtonRow<'_> {
                     .fg(self.palette.white)
                     .bg(self.palette.primary)
                     .add_modifier(Modifier::BOLD);
-                push_button(&mut flat, &button.label, glyph, text, nerd, true);
+                push_button(&mut flat, &button.label, glyph, text, accent, nerd, true);
             } else {
                 let color = if button.danger {
                     self.palette.error
@@ -270,7 +281,7 @@ impl Widget for ButtonRow<'_> {
                     self.palette.muted
                 };
                 let style = Style::default().fg(color);
-                push_button(&mut flat, &button.label, style, style, nerd, false);
+                push_button(&mut flat, &button.label, style, style, accent, nerd, false);
             }
         }
         Paragraph::new(Line::from(flat))
@@ -286,9 +297,15 @@ fn push_button(
     label: &str,
     glyph: Style,
     text: Style,
+    accent: Style,
     nerd: bool,
     capsule: bool,
 ) {
+    // A trailing `⏎` in the label is the Enter hint, drawn in accent.
+    let (core, enter) = match label.split_once('⏎') {
+        Some((core, _)) => (core.trim_end(), true),
+        None => (label, false),
+    };
     if nerd {
         let (left, right) = if capsule {
             ("\u{e0b6}", "\u{e0b4}")
@@ -296,10 +313,16 @@ fn push_button(
             (" ", " ")
         };
         flat.push(Span::styled(left.to_string(), glyph));
-        flat.push(Span::styled(format!(" {label} "), text));
+        flat.push(Span::styled(format!(" {core} "), text));
+        if enter {
+            flat.push(Span::styled(" ⏎", accent));
+        }
         flat.push(Span::styled(right.to_string(), glyph));
     } else {
-        flat.push(Span::styled(format!("‹ {label} ›"), text));
+        flat.push(Span::styled(format!("‹ {core} ›"), text));
+        if enter {
+            flat.push(Span::styled(" ⏎", accent));
+        }
     }
 }
 
