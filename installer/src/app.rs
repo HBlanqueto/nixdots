@@ -1234,7 +1234,7 @@ impl App {
             let hash = if self.dry_run {
                 "$y$j9T$SIMULATED".to_string()
             } else {
-                match install::hash_password(&password) {
+                match crate::crypto::hash_password(&password) {
                     Ok(hash) => hash,
                     Err(err) => {
                         self.status = Some(format!("mkpasswd: {err}"));
