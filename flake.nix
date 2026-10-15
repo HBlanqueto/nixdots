@@ -73,6 +73,9 @@
                     ./modules/common/first-boot.nix
                     ./modules/common/user.nix
                     { system.stateVersion = settings.stateVersion; }
+                    # Solo en la VM de prueba: root con contraseña para poder
+                    # depurar desde tty2. Nunca en los hosts reales.
+                    { users.users.root.password = "test"; }
                     {
                         virtualisation.vmVariant.virtualisation = {
                             memorySize = 4096;

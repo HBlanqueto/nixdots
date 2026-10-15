@@ -8,20 +8,17 @@ let
     firstBoot = (settings.username or null) == null;
 
     # Contrato del asistente: salir con código 0 significa que ya escribió
-    # settings.nix con un usuario y ejecutó `nixos-rebuild switch`, lo que
-    # desactiva este módulo y activa GDM. Mientras salga != 0 se relanza; el
-    # propio asistente debe ofrecer «Apagar» y «Reiniciar» (`systemctl poweroff`
-    # / `reboot`), porque con esta sesión no hay un login de rescate. Entre
-    # intentos se espera un segundo para no girar en vacío si cage no arranca.
+    # settings.nix con un usuario y ejecutó `nixos-rebuild switch`; entonces se
+    # reinicia para arrancar con GDM. Mientras salga != 0 se relanza (con una
+    # espera de un segundo para no girar en vacío si cage no llega a arrancar).
+    # El bucle nunca deja salir a la sesión de greetd: greetd no ve un greeter
+    # que muere y no se cae. El propio asistente debe ofrecer «Apagar» y
+    # «Reiniciar» (`systemctl poweroff` / `reboot`).
     firstBootSession = pkgs.writeShellScript "nixdots-first-boot" ''
-        while true; do
-            ${pkgs.cage}/bin/cage -s -- ${cfg.command}
-            status=$?
-            if [ "$status" -eq 0 ]; then
-                exit 0
-            fi
+        until ${pkgs.cage}/bin/cage -s -- ${cfg.command}; do
             ${pkgs.coreutils}/bin/sleep 1
         done
+        ${pkgs.systemd}/bin/systemctl reboot
     '';
 in
 
@@ -51,11 +48,10 @@ in
                     user = "root";
                 };
 
-                # Si greetd se reinicia, vuelve al asistente (y no a un login
-                # inútil sin cuentas). El propio asistente da apagar/reiniciar.
+                # Respaldo si greetd arranca sin initial_session (p. ej. tras un
+                # reinicio suyo): login de texto, no el asistente.
                 default_session = {
-                    command = "${firstBootSession}";
-                    user = "root";
+                    command = "${pkgs.greetd}/bin/agreety --cmd ${pkgs.bash}/bin/bash";
                 };
             };
         };
