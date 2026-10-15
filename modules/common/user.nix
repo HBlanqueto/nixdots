@@ -21,7 +21,9 @@ in
 {
     assertions = [
         {
-            assertion = missingHashes == [ ];
+            # Pure evaluation (nix flake check, the ISO's own build) has no
+            # getEnv and no filesystem access, so skip the check there.
+            assertion = !(builtins ? currentSystem) || missingHashes == [ ];
             message =
                 "Falta el archivo de contraseña de: "
                 + builtins.concatStringsSep ", "
