@@ -20,6 +20,7 @@ use tui_input::backend::crossterm::EventHandler;
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let w = area.width;
+    let blink = app.blink();
     let has_focus = !app.focus_buttons && !app.no_focus();
     let mut lines: Vec<Line> = Vec::new();
     let mut slots: Vec<(usize, u16)> = Vec::new();
@@ -43,6 +44,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             app.enc.pass.value(),
             app.enc.pass.visual_cursor(),
             has_focus && app.enc.focus == ENC_PASS,
+            blink,
             true,
             "",
             w,
@@ -75,6 +77,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             app.enc.confirm.value(),
             app.enc.confirm.visual_cursor(),
             has_focus && app.enc.focus == ENC_CONFIRM,
+            blink,
             true,
             "",
             w,

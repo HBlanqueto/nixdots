@@ -18,8 +18,16 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         area,
         picker,
         !app.focus_buttons && !app.no_focus(),
+        app.blink(),
     );
-    super::picker::draw_centered(f, &app.palette, list, picker, None);
+    super::picker::draw_centered(
+        f,
+        &app.palette,
+        list,
+        picker,
+        None,
+        app.list_focus && !app.focus_buttons && !app.no_focus(),
+    );
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

@@ -9,7 +9,7 @@ use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -25,8 +25,21 @@ pub fn draw_centered(
     area: Rect,
     picker: &Picker,
     suggested: Option<usize>,
+    focused: bool,
 ) {
-    let rows = area.height as usize;
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if focused {
+            palette.primary
+        } else {
+            palette.rule
+        }));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let rows = inner.height as usize;
     let total = picker.filtered.len();
     // With nothing chosen, scroll to the suggested row so it is visible (it
     // stays unselected).
@@ -37,10 +50,15 @@ pub fn draw_centered(
         .unwrap_or(0)
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
-    let text_w = area.width.saturating_sub(1) as usize;
+    let text_w = inner.width.saturating_sub(1) as usize;
+    let (capsule, text) = if focused {
+        (palette.primary, palette.white)
+    } else {
+        (palette.rule, palette.highlight)
+    };
 
     for row in 0..rows as u16 {
-        let row_rect = Rect::new(area.x, area.y + row, area.width, 1);
+        let row_rect = Rect::new(inner.x, inner.y + row, inner.width, 1);
         let Some(&item_idx) = picker.filtered.get(start + row as usize) else {
             continue;
         };
@@ -48,9 +66,7 @@ pub fn draw_centered(
         let selected = picker.selected == Some(start + row as usize);
         let is_suggested = suggested == Some(item_idx);
         let style = if selected {
-            Style::default()
-                .fg(palette.white)
-                .add_modifier(Modifier::BOLD)
+            Style::default().fg(text).add_modifier(Modifier::BOLD)
         } else if is_suggested {
             Style::default().fg(palette.focus).add_modifier(Modifier::BOLD)
         } else {
@@ -65,24 +81,41 @@ pub fn draw_centered(
             Span::styled(" ".repeat(pad - left), style),
         ]);
         if selected {
-            line = line.style(Style::default().bg(palette.primary));
+            line = line.style(Style::default().bg(capsule));
         }
         f.render_widget(Paragraph::new(line), row_rect);
     }
 
-    scrollbar(f, palette, area, start, rows, total);
+    scrollbar(f, palette, inner, start, rows, total);
 }
 
 /// The timezone list: the zone on the left, its local time on the right.
-pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker) {
-    let rows = area.height as usize;
+pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focused: bool) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if focused {
+            palette.primary
+        } else {
+            palette.rule
+        }));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+
+    let rows = inner.height as usize;
     let total = picker.filtered.len();
     let start = picker
         .selected
         .unwrap_or(0)
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
-    let text_w = area.width.saturating_sub(1) as usize;
+    let text_w = inner.width.saturating_sub(1) as usize;
+    let (capsule, text) = if focused {
+        (palette.primary, palette.white)
+    } else {
+        (palette.rule, palette.highlight)
+    };
     let mut lines: Vec<Line> = Vec::new();
     for row in 0..rows {
         let Some(&item_idx) = picker.filtered.get(start + row) else {
@@ -92,9 +125,7 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker) {
         let item = &picker.items[item_idx];
         let selected = picker.selected == Some(start + row);
         let style = if selected {
-            Style::default()
-                .fg(palette.white)
-                .add_modifier(Modifier::BOLD)
+            Style::default().fg(text).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.text)
         };
@@ -117,13 +148,13 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker) {
             Span::styled(trailing, trailing_style),
         ]);
         if selected {
-            line = line.style(Style::default().bg(palette.primary));
+            line = line.style(Style::default().bg(capsule));
         }
         lines.push(line);
     }
-    let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
+    let content = Rect::new(inner.x, inner.y, inner.width.saturating_sub(1), inner.height);
     f.render_widget(Paragraph::new(lines), content);
-    scrollbar(f, palette, area, start, rows, total);
+    scrollbar(f, palette, inner, start, rows, total);
 }
 
 /// A `█`/`│` scrollbar on the last column of `area`, full height.
@@ -154,13 +185,21 @@ fn scrollbar(f: &mut Frame, palette: &Palette, area: Rect, start: usize, rows: u
 }
 
 /// Renders the `Buscar` box into `area` (four rows).
-pub fn search_box(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focused: bool) {
+pub fn search_box(
+    f: &mut Frame,
+    palette: &Palette,
+    area: Rect,
+    picker: &Picker,
+    focused: bool,
+    blink: bool,
+) {
     let search = widgets::text_field(
         palette,
         "Buscar",
         picker.query.value(),
         picker.query.visual_cursor(),
         focused,
+        focused && blink,
         false,
         "escribe para filtrar",
         area.width,
@@ -178,6 +217,7 @@ pub fn draw_search(
     area: Rect,
     picker: &Picker,
     focused: bool,
+    blink: bool,
 ) -> Rect {
     let chunks = Layout::vertical([
         Constraint::Length(4),
@@ -185,7 +225,7 @@ pub fn draw_search(
         Constraint::Min(0),
     ])
     .split(area);
-    search_box(f, palette, chunks[0], picker, focused);
+    search_box(f, palette, chunks[0], picker, focused, blink);
     chunks[2]
 }
 

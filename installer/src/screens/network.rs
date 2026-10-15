@@ -4,7 +4,7 @@ use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
@@ -14,8 +14,10 @@ const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "�
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     match &app.net.phase {
         RedFase::Lista => {
-            let lines = list_lines(app, area.width, area.height as usize);
-            f.render_widget(Paragraph::new(lines), area);
+            let focused = app.list_focus && !app.focus_buttons && !app.no_focus();
+            let inner = list_frame(f, app, area, focused);
+            let lines = list_lines(app, inner.width, inner.height as usize, focused);
+            f.render_widget(Paragraph::new(lines), inner);
         }
         RedFase::Contrasena { ssid, input, visible } => {
             let chunks = Layout::vertical([
@@ -24,8 +26,13 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 Constraint::Length(4),
             ])
             .split(area);
-            let rows = chunks[0].height as usize;
-            f.render_widget(Paragraph::new(list_lines(app, area.width, rows)), chunks[0]);
+            let focused = app.list_focus && !app.focus_buttons && !app.no_focus();
+            let inner = list_frame(f, app, chunks[0], focused);
+            let rows = inner.height as usize;
+            f.render_widget(
+                Paragraph::new(list_lines(app, inner.width, rows, focused)),
+                inner,
+            );
             f.render_widget(
                 Paragraph::new(Span::styled(
                     "─".repeat(area.width as usize),
@@ -39,6 +46,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 input.value(),
                 input.visual_cursor(),
                 !app.focus_buttons && !app.no_focus(),
+                app.blink(),
                 !*visible,
                 "",
                 area.width,
@@ -88,10 +96,26 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+/// A rounded frame around the list, accent when it holds the focus.
+fn list_frame(f: &mut Frame, app: &App, area: Rect, focused: bool) -> Rect {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if focused {
+            app.palette.primary
+        } else {
+            app.palette.rule
+        }));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+    inner
+}
+
 /// The Wi-Fi list rows filling `rows` lines (or the empty message). Fixed
 /// columns: the SSID, a 10-column security label and four signal bars (missing
-/// ones dimmed). The selected row is filled border to border, with no `›`.
-fn list_lines(app: &App, width: u16, rows: usize) -> Vec<Line<'static>> {
+/// ones dimmed). The selected row is filled border to border, with no marker.
+fn list_lines(app: &App, width: u16, rows: usize, focused: bool) -> Vec<Line<'static>> {
     if app.net.wifi.is_empty() {
         let msg = if app.net.backend.name() == "ninguno" {
             "no hay backend de red (nmcli/iwctl/wpa_cli)"
@@ -111,11 +135,11 @@ fn list_lines(app: &App, width: u16, rows: usize) -> Vec<Line<'static>> {
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
     (start..(start + rows).min(total))
-        .map(|i| wifi_row(app, i, width))
+        .map(|i| wifi_row(app, i, width, focused))
         .collect()
 }
 
-fn wifi_row(app: &App, i: usize, width: u16) -> Line<'static> {
+fn wifi_row(app: &App, i: usize, width: u16, focused: bool) -> Line<'static> {
     let wifi = &app.net.wifi[i];
     let selected = i == app.net.selected;
     let width = width as usize;
@@ -127,15 +151,20 @@ fn wifi_row(app: &App, i: usize, width: u16) -> Line<'static> {
         26..=50 => 2,
         _ => 1,
     };
+    let (capsule, text) = if focused {
+        (app.palette.primary, app.palette.white)
+    } else {
+        (app.palette.rule, app.palette.highlight)
+    };
     let name_style = if selected {
         Style::default()
-            .fg(app.palette.white)
+            .fg(text)
             .add_modifier(ratatui::style::Modifier::BOLD)
     } else {
         Style::default().fg(app.palette.text)
     };
     let bright = if selected {
-        app.palette.white
+        text
     } else {
         app.palette.secondary
     };
@@ -152,7 +181,7 @@ fn wifi_row(app: &App, i: usize, width: u16) -> Line<'static> {
     }
     let line = Line::from(spans);
     if selected {
-        line.style(Style::default().bg(app.palette.primary))
+        line.style(Style::default().bg(capsule))
     } else {
         line
     }

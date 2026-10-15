@@ -692,6 +692,9 @@ pub struct App {
     /// (a field or the list) holds the focus.
     pub button_focus: usize,
     pub focus_buttons: bool,
+    /// On a list screen, whether the list (rather than the search box) holds
+    /// the content focus.
+    pub list_focus: bool,
     pub show_commands: bool,
     pub status: Option<String>,
     pub quit: Option<Quit>,
@@ -833,6 +836,7 @@ impl App {
             button_focus: 0,
             // Inicio has no content, so the buttons start focused.
             focus_buttons: true,
+            list_focus: false,
             show_commands: false,
             status: None,
             quit: None,
@@ -1652,6 +1656,11 @@ impl App {
             || self.key_modal.is_some()
     }
 
+    /// The 500 ms cursor blink, driven by the event-loop tick.
+    pub fn blink(&self) -> bool {
+        (self.tick / 5).is_multiple_of(2)
+    }
+
     /// Renders the current screen's buttons on a raw row (chromeless screens).
     pub fn draw_buttons(&self, f: &mut Frame, area: Rect) {
         let enabled = self.primary_enabled();
@@ -1683,8 +1692,22 @@ impl App {
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
         // The advance button takes the focus when the screen is already
-        // complete; otherwise the first editable field does.
-        self.focus_buttons = self.primary_enabled();
+        // complete; otherwise the first editable field does. On the list
+        // screens the list holds it.
+        self.list_focus = matches!(
+            self.screen,
+            Screen::Locale | Screen::Keyboard | Screen::Timezone | Screen::Network
+        );
+        self.focus_buttons = self.primary_enabled() && !self.list_focus;
+        if self.screen == Screen::User {
+            self.user.focus = 0;
+        }
+        if self.screen == Screen::Password {
+            self.password.focus = 0;
+        }
+        if self.screen == Screen::Git {
+            self.git.focus = 0;
+        }
         if self.screen == Screen::Keyboard {
             self.key_test_focus = false;
             self.keyboard_suggested = self.suggested_keyboard();
@@ -2169,7 +2192,7 @@ impl App {
 
         if let Some(picker) = &self.key_modal {
             let content = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
-            crate::screens::picker::draw(f, &self.palette, content, picker);
+            crate::screens::picker::draw(f, &self.palette, content, picker, true);
         }
         f.render_widget(
             Paragraph::new(Span::styled(

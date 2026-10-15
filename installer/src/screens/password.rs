@@ -10,6 +10,7 @@ use tui_input::backend::crossterm::EventHandler;
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let w = area.width;
+    let blink = app.blink();
     let focus = app.password.focus;
     let has_focus = !app.focus_buttons && !app.no_focus();
 
@@ -19,6 +20,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         app.password.p1.value(),
         app.password.p1.visual_cursor(),
         has_focus && focus == 0,
+        blink,
         true,
         "",
         w,
@@ -48,6 +50,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         app.password.p2.value(),
         app.password.p2.visual_cursor(),
         has_focus && focus == 1,
+        blink,
         true,
         "",
         w,

@@ -313,6 +313,7 @@ pub fn text_field(
     value: &str,
     cursor: usize,
     focused: bool,
+    cursor_on: bool,
     masked: bool,
     placeholder: &str,
     width: u16,
@@ -321,7 +322,7 @@ pub fn text_field(
 ) -> Vec<Line<'static>> {
     let w = width.max(4) as usize;
     let label_style = if focused {
-        Style::default().fg(palette.highlight)
+        Style::default().fg(palette.white)
     } else {
         Style::default().fg(palette.muted)
     };
@@ -387,7 +388,7 @@ pub fn text_field(
         Span::styled("│ ", border),
         Span::styled(before, Style::default().fg(value_color)),
     ];
-    if focused {
+    if focused && cursor_on {
         value_spans.push(Span::styled(
             at.to_string(),
             Style::default()
@@ -424,20 +425,17 @@ pub fn checkbox(palette: &Palette, checked: bool, label: &str, focused: bool) ->
 }
 
 /// A selectable list row: an accent capsule with white bold text when selected,
-/// plain `#adbac7` otherwise. The trailing text is muted.
+/// plain `#adbac7` otherwise. No focus marker. The trailing text is muted.
 pub fn list_row(palette: &Palette, selected: bool, text: String, trailing: Option<String>) -> Line<'static> {
-    let (marker, style) = if selected {
-        (
-            "› ",
-            Style::default()
-                .fg(palette.white)
-                .bg(palette.primary)
-                .add_modifier(Modifier::BOLD),
-        )
+    let style = if selected {
+        Style::default()
+            .fg(palette.white)
+            .bg(palette.primary)
+            .add_modifier(Modifier::BOLD)
     } else {
-        ("  ", Style::default().fg(palette.text))
+        Style::default().fg(palette.text)
     };
-    let mut spans = vec![Span::styled(marker, style), Span::styled(text, style)];
+    let mut spans = vec![Span::styled(text, style)];
     if let Some(trailing) = trailing {
         spans.push(Span::styled(
             trailing,

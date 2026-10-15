@@ -10,6 +10,7 @@ use tui_input::backend::crossterm::EventHandler;
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let w = area.width;
+    let blink = app.blink();
     let enabled = app.git.enabled;
     let focus = app.git.focus;
     let has_focus = !app.focus_buttons && !app.no_focus();
@@ -28,6 +29,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             app.git.name.value(),
             app.git.name.visual_cursor(),
             has_focus && focus == 1,
+            blink,
             false,
             "tu nombre",
             w,
@@ -41,6 +43,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             app.git.email.value(),
             app.git.email.visual_cursor(),
             has_focus && focus == 2,
+            blink,
             false,
             "tu@correo",
             w,

@@ -27,6 +27,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         chunks[0],
         picker,
         !app.focus_buttons && !app.key_test_focus && !app.no_focus(),
+        app.blink(),
     );
     super::picker::draw_centered(
         f,
@@ -34,6 +35,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         chunks[2],
         picker,
         app.keyboard_suggested,
+        app.list_focus && !app.focus_buttons && !app.no_focus(),
     );
     // The test field sits at the bottom of the box, below the list.
     let test = widgets::text_field(
@@ -42,6 +44,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         app.key_test.value(),
         app.key_test.visual_cursor(),
         app.key_test_focus && !app.focus_buttons && !app.no_focus(),
+        app.blink(),
         false,
         "ñ ¿ ¡ @ # á é",
         area.width,
