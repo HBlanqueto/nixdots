@@ -987,14 +987,20 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
         repo.display(),
         plan.settings.host_name
     );
+    // Impermanence declares some options (allowOther, method, …) as *removed*:
+    // forcing them throws. A plain `--json` dump of the whole attrset forces
+    // every option, so project each entry down to just the fields we use.
+    let apply = r#"p: { "/persist" = let e = p."/persist" or {}; in { directories = map (d: { directory = d.directory; user = d.user or null; group = d.group or null; mode = d.mode or null; }) (e.directories or []); files = map (f: { file = f.file; }) (e.files or []); }; }"#;
     let cmd = Cmd::new("nix")
         .arg("eval")
         .arg("--impure")
         .arg("--extra-experimental-features")
         .arg("nix-command flakes")
         .arg("--json")
+        .arg("--apply")
+        .arg(apply)
         .arg(&expr)
-        .with_display(format!("nix eval --impure --json {expr}"));
+        .with_display(format!("nix eval --impure --json --apply <filtro> {expr}"));
 
     if plan.dry_run {
         report.log(format!("$ {}", cmd.display));
