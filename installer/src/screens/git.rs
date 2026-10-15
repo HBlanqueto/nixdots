@@ -8,8 +8,12 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
-pub fn height(_app: &App) -> u16 {
-    3
+pub fn height(app: &App) -> u16 {
+    if app.git.enabled {
+        3
+    } else {
+        4
+    }
 }
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {

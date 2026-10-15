@@ -2220,18 +2220,17 @@ impl App {
         } else {
             0
         };
-        let panel_h = content_h + 4;
+        let panel_h = content_h + 2;
         // 84 columns, or 80 % of the terminal width if that is smaller.
-        // Disco uses a wider panel.
+        // Disco uses a wider box.
         let width = if self.screen == Screen::Disk {
             area.width.saturating_sub(4).min(140)
         } else {
             84.min(area.width * 80 / 100)
         };
-        // Inicio and Listo show no progress bar.
-        let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };
         let gap: u16 = 1;
-        let mut total = progress_h + gap + panel_h + gap + 1;
+        // progress + gap + heading + gap + box + gap + buttons + gap + shortcuts
+        let mut total = 1 + gap + 1 + gap + panel_h + gap + 1 + gap + 1;
         if commands_h > 0 {
             total += gap + commands_h;
         }
@@ -2239,42 +2238,22 @@ impl App {
         let x = area.x + area.width.saturating_sub(width) / 2;
 
         let mut cursor = top;
-        let progress = Rect::new(x, cursor, width, progress_h);
-        cursor += progress_h + gap;
+        let progress = Rect::new(x, cursor, width, 1);
+        cursor += 1 + gap;
+        let heading = Rect::new(x, cursor, width, 1);
+        cursor += 1 + gap;
         let panel = Rect::new(x, cursor, width, panel_h);
-        let shortcuts = Rect::new(x, panel.bottom() + gap, width, 1);
-        let commands = Rect::new(x, shortcuts.bottom() + gap, width, commands_h);
+        cursor += panel_h + gap;
+        let buttons_row = Rect::new(x, cursor, width, 1);
+        cursor += 1 + gap;
+        let shortcuts = Rect::new(x, cursor, width, 1);
+        cursor += 1 + gap;
+        let commands = Rect::new(x, cursor, width, commands_h);
 
-        if progress_h > 0 {
-            self.draw_progress(f, progress);
-        }
-        let inner = self.draw_panel(f, panel);
-        // The primary "Continuar" (Action::Next) is disabled until the
-        // screen's precondition is met.
-        let enabled = self.primary_enabled();
-        let buttons: Vec<Btn> = self
-            .buttons()
-            .into_iter()
-            .map(|(mut b, action)| {
-                if action == Action::Next {
-                    b.enabled = enabled;
-                }
-                b
-            })
-            .collect();
-        if !buttons.is_empty() {
-            let row = Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1);
-            self.button_hitboxes = widgets::render_buttons(
-                f,
-                row,
-                &self.palette,
-                &buttons,
-                self.button_focus,
-                self.focus_buttons,
-            );
-        } else {
-            self.button_hitboxes.clear();
-        }
+        self.draw_progress(f, progress);
+        self.draw_heading(f, heading);
+        self.draw_panel(f, panel);
+        self.draw_buttons_at(f, buttons_row);
         self.draw_shortcuts(f, shortcuts);
         if self.show_commands {
             self.draw_commands(f, commands, &commands_lines, commands_h);
@@ -2289,6 +2268,24 @@ impl App {
         if self.quit.is_some() {
             self.draw_quit(f, area);
         }
+    }
+
+    /// The bold, centered screen name shown above the content box.
+    fn draw_heading(&self, f: &mut Frame, area: Rect) {
+        let mut text = self.screen_title();
+        if self.dry_run {
+            text.push_str(" · simulación");
+        }
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                text,
+                Style::default()
+                    .fg(self.palette.text)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+            area,
+        );
     }
 
     /// Floating keyboard-layout selector.
@@ -2554,25 +2551,15 @@ impl App {
         f.render_widget(Paragraph::new(line), area);
     }
 
+    /// Draws the content box (rounded, muted border, no title) and renders the
+    /// current screen's content inside it.
     fn draw_panel(&mut self, f: &mut Frame, area: Rect) -> Rect {
-        let border = match self.screen {
-            Screen::Done => self.palette.success,
-            Screen::Installing if self.install.error.is_some() => self.palette.error,
-            _ => self.palette.primary,
-        };
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(border))
-            .title(Span::styled(
-                if self.dry_run {
-                    format!(" {} · simulación ", self.screen_title())
-                } else {
-                    format!(" {} ", self.screen_title())
-                },
-                Style::default().fg(border),
-            ));
+            .border_style(Style::default().fg(self.palette.muted));
         let inner = block.inner(area);
+        f.render_widget(Clear, area);
         f.render_widget(block, area);
 
         let content_h = self.content_height();
@@ -2580,7 +2567,7 @@ impl App {
             inner.x + 2,
             inner.y,
             inner.width.saturating_sub(4),
-            content_h.min(inner.height.saturating_sub(2)),
+            content_h.min(inner.height),
         );
 
         match self.screen {
