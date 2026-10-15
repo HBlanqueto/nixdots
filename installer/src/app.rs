@@ -250,6 +250,14 @@ impl Picker {
                 self.selected = None;
             }
         }
+        // Typing picks the first match automatically (nothing is selected until
+        // then), so Enter works right after a search.
+        if self.selected.is_none()
+            && !self.query.value().is_empty()
+            && !self.filtered.is_empty()
+        {
+            self.selected = Some(0);
+        }
     }
 
     pub fn up(&mut self) {
@@ -272,6 +280,16 @@ impl Picker {
             Some(s) if s + 1 >= self.filtered.len() => 0,
             Some(s) => s + 1,
         });
+    }
+
+    /// Moves the cursor by `delta` rows (clamped, no wrap) — for paging.
+    pub fn move_by(&mut self, delta: isize) {
+        if self.filtered.is_empty() {
+            return;
+        }
+        let current = self.selected.unwrap_or(0) as isize;
+        let index = (current + delta).clamp(0, self.filtered.len() as isize - 1) as usize;
+        self.selected = Some(index);
     }
 
     pub fn current(&self) -> Option<&PickItem> {
@@ -640,13 +658,9 @@ pub struct App {
     // pickers
     pub timezones: Option<Picker>,
     pub loc: Option<Picker>,
-    /// The Lenguaje list's hidden search field is active (`/` opens it).
-    pub locale_search: bool,
 
     // keyboard
     pub keyboards: Option<Picker>,
-    /// The keyboard list's `⌕`/search field is active.
-    pub keyboard_search: bool,
     /// Layout suggested from the chosen language: highlighted, never selected.
     pub keyboard_suggested: Option<usize>,
     /// The "prueba" field holds the focus (below the list).
@@ -804,9 +818,7 @@ impl App {
             license_text_area: Rect::default(),
             timezones: None,
             loc: None,
-            locale_search: false,
             keyboards: None,
-            keyboard_search: false,
             keyboard_suggested: None,
             key_test_focus: false,
             key_test: Input::default(),
@@ -1839,19 +1851,6 @@ impl App {
         self.button_focus = self.primary_index();
     }
 
-    /// Moves the language picker's cursor by `delta` within the filtered list.
-    pub fn move_locale_by(&mut self, delta: isize) {
-        let total = self.loc.as_ref().map(|p| p.filtered.len()).unwrap_or(0);
-        if total == 0 {
-            return;
-        }
-        let current = self.loc.as_ref().and_then(|p| p.selected).unwrap_or(0) as isize;
-        let index = (current + delta).clamp(0, total as isize - 1) as usize;
-        if let Some(picker) = self.loc.as_mut() {
-            picker.selected = Some(index);
-        }
-    }
-
     /// Renders the current screen's buttons on a raw row (chromeless screens).
     pub fn draw_buttons_at(&mut self, f: &mut Frame, area: Rect) {
         let enabled = self.primary_enabled();
@@ -1888,11 +1887,7 @@ impl App {
             self.screen,
             Screen::Splash | Screen::Done | Screen::License
         );
-        if self.screen == Screen::Locale {
-            self.locale_search = false;
-        }
         if self.screen == Screen::Keyboard {
-            self.keyboard_search = false;
             self.key_test_focus = false;
             self.keyboard_suggested = self.suggested_keyboard();
         }
@@ -2615,8 +2610,8 @@ impl App {
             Screen::Splash => Vec::new(),
             Screen::License => vec!["↑↓ desplazar".into(), "espacio aceptar".into()],
             Screen::Network => vec![crate::screens::network::shortcut(self)],
-            Screen::Locale => vec!["↑↓ elegir".into(), "/ buscar".into()],
-            Screen::Keyboard => vec!["↑↓ elegir".into(), "/ buscar".into()],
+            Screen::Locale => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
+            Screen::Keyboard => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
             Screen::Timezone => vec!["↑↓ elegir".into()],
             Screen::Host => vec!["enter continuar".into()],
             Screen::User => vec!["↑↓ campo".into()],
