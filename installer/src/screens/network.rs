@@ -146,6 +146,14 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
                 }
                 true
             }
+            KeyCode::Home => {
+                app.net.selected = 0;
+                true
+            }
+            KeyCode::End => {
+                app.net.selected = app.net.wifi.len().min(MAX_ROWS).saturating_sub(1);
+                true
+            }
             KeyCode::Char('r') => {
                 rescan(app);
                 true

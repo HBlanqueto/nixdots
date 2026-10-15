@@ -273,6 +273,14 @@ pub fn key(picker: &mut Picker, key: KeyEvent) -> bool {
             picker.move_by(ROWS as isize);
             true
         }
+        KeyCode::Home => {
+            picker.selected = (!picker.filtered.is_empty()).then_some(0);
+            true
+        }
+        KeyCode::End => {
+            picker.selected = picker.filtered.len().checked_sub(1);
+            true
+        }
         _ if super::is_edit_key(&key) => {
             picker.query.handle_event(&Event::Key(key));
             picker.refilter();
