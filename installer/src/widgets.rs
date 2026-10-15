@@ -250,38 +250,27 @@ pub struct ButtonRow<'a> {
 
 impl Widget for ButtonRow<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let nerd = !crate::theme::console::is_linux_console();
         let mut flat: Vec<Span<'static>> = Vec::new();
         for (i, button) in self.buttons.iter().enumerate() {
             if i > 0 {
                 flat.push(Span::raw("   "));
             }
             let is_focus = self.focused && i == self.focus && button.enabled;
-            let accent = Style::default().fg(if is_focus {
-                self.palette.white
-            } else {
-                self.palette.primary
-            });
             if !button.enabled {
-                let style = Style::default().fg(self.palette.disabled);
-                push_button(&mut flat, &button.label, style, style, style, nerd, false);
+                push_button(&mut flat, &button.label, Style::default().fg(self.palette.disabled));
             } else if is_focus {
-                let glyph = Style::default()
-                    .fg(self.palette.primary)
-                    .bg(self.palette.reset);
                 let text = Style::default()
                     .fg(self.palette.white)
                     .bg(self.palette.primary)
                     .add_modifier(Modifier::BOLD);
-                push_button(&mut flat, &button.label, glyph, text, accent, nerd, true);
+                push_button(&mut flat, &button.label, text);
             } else {
                 let color = if button.danger {
                     self.palette.error
                 } else {
                     self.palette.muted
                 };
-                let style = Style::default().fg(color);
-                push_button(&mut flat, &button.label, style, style, accent, nerd, false);
+                push_button(&mut flat, &button.label, Style::default().fg(color));
             }
         }
         Paragraph::new(Line::from(flat))
@@ -290,40 +279,10 @@ impl Widget for ButtonRow<'_> {
     }
 }
 
-/// Appends one button's spans. The capsule ends are only drawn when focused;
-/// otherwise spaces keep the width, so selecting a button nothing moves.
-fn push_button(
-    flat: &mut Vec<Span<'static>>,
-    label: &str,
-    glyph: Style,
-    text: Style,
-    accent: Style,
-    nerd: bool,
-    capsule: bool,
-) {
-    // A trailing `⏎` in the label is the Enter hint, drawn in accent.
-    let (core, enter) = match label.split_once('⏎') {
-        Some((core, _)) => (core.trim_end(), true),
-        None => (label, false),
-    };
-    if nerd {
-        let (left, right) = if capsule {
-            ("\u{e0b6}", "\u{e0b4}")
-        } else {
-            (" ", " ")
-        };
-        flat.push(Span::styled(left.to_string(), glyph));
-        flat.push(Span::styled(format!(" {core} "), text));
-        if enter {
-            flat.push(Span::styled(" ⏎", accent));
-        }
-        flat.push(Span::styled(right.to_string(), glyph));
-    } else {
-        flat.push(Span::styled(format!("‹ {core} ›"), text));
-        if enter {
-            flat.push(Span::styled(" ⏎", accent));
-        }
-    }
+/// Appends one button's spans: just the label, no arrows or capsule ends.
+/// The focused button is marked only by its accent background.
+fn push_button(flat: &mut Vec<Span<'static>>, label: &str, text: Style) {
+    flat.push(Span::styled(format!(" {label} "), text));
 }
 
 /// An editable text field drawn as a "cajita": a label row (with an optional

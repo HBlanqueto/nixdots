@@ -1818,7 +1818,6 @@ impl App {
             .map(|(mut b, action)| {
                 if action == Action::Next {
                     b.enabled = enabled;
-                    b.label = format!("{}  ⏎", b.label);
                 }
                 b
             })
