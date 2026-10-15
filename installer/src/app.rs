@@ -744,10 +744,15 @@ pub struct App {
     net_rx: Option<Receiver<(String, std::result::Result<bool, String>)>>,
     /// Ctrl+C on Installing: the "¿Cancelar?" confirmation is showing.
     pub install_cancel: bool,
-    /// `v log: on` — show the last build lines under the steps.
-    /// The full-log viewer overlay is open.
+    /// `v` on Instalando: show the running stage's last log lines.
     pub install_log_view: bool,
+    /// `c` on Instalando: show the last executed commands at the box's foot.
+    pub install_commands: bool,
+    /// The stages box follows the running stage (or the error) until scrolled.
+    pub install_follow: bool,
+    /// Box scroll offset (rows) and its maximum, recomputed on every draw.
     pub install_log_scroll: usize,
+    pub install_max_scroll: usize,
 
     /// Password hash, kept in memory only (never logged or written to temp).
     pub password_hash: Option<String>,
@@ -895,7 +900,10 @@ impl App {
             install_rx: None,
             install_cancel: false,
             install_log_view: false,
+            install_commands: false,
+            install_follow: true,
             install_log_scroll: 0,
+            install_max_scroll: 0,
             password_hash: None,
             button_focus: 0,
             // Inicio has no content, so the buttons start focused.
@@ -1373,7 +1381,7 @@ impl App {
                 // Open the log at the end and focus its buttons.
                 self.focus_buttons = true;
                 self.button_focus = 0;
-                self.install_log_scroll = usize::MAX;
+                self.install_follow = true;
             }
         } else {
             self.install_rx = Some(rx);
@@ -1408,12 +1416,6 @@ impl App {
         // Quit confirmation modal owns the keyboard.
         if self.quit.is_some() {
             self.handle_quit(key);
-            return;
-        }
-
-        // The full install log overlay owns the keyboard while open.
-        if self.install_log_view {
-            self.install_log_key(key);
             return;
         }
 
@@ -1560,26 +1562,9 @@ impl App {
     fn open_install_cancel(&mut self) {
         if self.screen == Screen::Installing {
             self.install_cancel = true;
-            self.install_log_view = false;
+            self.install_follow = true;
             self.focus_buttons = true;
             self.button_focus = 0;
-        }
-    }
-
-    /// Keys for the full install-log overlay.
-    fn install_log_key(&mut self, key: KeyEvent) {
-        let page = 10usize;
-        match key.code {
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('v') | KeyCode::Enter => {
-                self.install_log_view = false
-            }
-            KeyCode::Down => self.install_log_scroll = self.install_log_scroll.saturating_add(1),
-            KeyCode::Up => self.install_log_scroll = self.install_log_scroll.saturating_sub(1),
-            KeyCode::PageDown => self.install_log_scroll = self.install_log_scroll.saturating_add(page),
-            KeyCode::PageUp => self.install_log_scroll = self.install_log_scroll.saturating_sub(page),
-            KeyCode::Home => self.install_log_scroll = 0,
-            KeyCode::End => self.install_log_scroll = usize::MAX,
-            _ => {}
         }
     }
 
@@ -1947,7 +1932,10 @@ impl App {
         self.button_focus = 0;
         self.install_cancel = false;
         self.install_log_view = false;
+        self.install_commands = false;
+        self.install_follow = true;
         self.install_log_scroll = 0;
+        self.install_max_scroll = 0;
     }
 
     /// Retries from the step that failed, used by the error screen's
@@ -2254,10 +2242,8 @@ impl App {
 
         // Instalando and Listo are chromeless: centered, no panel or chrome.
         if self.screen == Screen::Installing {
-            crate::screens::installing::draw(f, self, area);
-            if self.install_log_view {
-                self.draw_install_log(f, area);
-            } else if self.install_cancel {
+            self.draw_installing(f, area);
+            if self.install_cancel {
                 self.draw_install_cancel(f, area);
             }
             return;
@@ -2512,23 +2498,47 @@ impl App {
         self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
     }
 
-    /// The staged install log (`v`): a header, a progress bar and a box with
-    /// one line per step, the running step's last few messages under it.
-    fn draw_install_log(&self, f: &mut Frame, area: Rect) {
+    /// The single Instalando view: header, progress bar and the stages box.
+    /// The running stage shows its last log lines with `v`; a failed stage
+    /// always shows the error; `c` adds the last executed commands at the foot.
+    /// `↑/↓` scroll the box, which otherwise follows the running stage.
+    fn draw_installing(&mut self, f: &mut Frame, area: Rect) {
         f.render_widget(Clear, area);
-        let width = (area.width * 80 / 100).clamp(40, 100);
+        let width = (area.width * 80 / 100).clamp(40, 100).min(area.width);
         let x = area.x + area.width.saturating_sub(width) / 2;
 
-        // Height: header + gap + bar + gap + box, centered vertically.
-        let current = self.install.current;
-        let sub_steps = if current.is_some() {
-            self.sub_steps()
-        } else {
+        // The cancel dialog draws its own buttons.
+        let buttons: Vec<Btn> = if self.install_cancel {
             Vec::new()
+        } else {
+            self.buttons().into_iter().map(|(b, _)| b).collect()
         };
-        let inner_h = Step::ALL.len() as u16 + sub_steps.len() as u16;
-        let box_h = inner_h + 2;
-        let content_h = 1 + 1 + 1 + 1 + box_h;
+        let has_buttons = !buttons.is_empty();
+        let has_error = self.install.error.is_some();
+
+        // Header, blank, bar, blank, box, then optional blank + gray line,
+        // optional blank + buttons, and a blank + shortcut line.
+        let mut below = 2u16;
+        if has_error {
+            below += 2;
+        }
+        if has_buttons {
+            below += 2;
+        }
+        let max_box_h = area.height.saturating_sub(4 + below).max(4);
+
+        // The box inner content: border (2) + 1-row / 3-column margin.
+        let inner_w = width.saturating_sub(8) as usize;
+        let rows = self.install_rows(inner_w);
+        let box_h = (rows.len() as u16 + 4).min(max_box_h);
+        let visible = box_h.saturating_sub(4) as usize;
+        self.install_max_scroll = rows.len().saturating_sub(visible);
+        if self.install_follow {
+            self.install_log_scroll = self.install_max_scroll;
+        }
+        let offset = self.install_log_scroll.min(self.install_max_scroll);
+
+        let content_h = 4 + box_h + below;
         let top = area.y + area.height.saturating_sub(content_h) / 2;
 
         // 1. Header: title left, percentage (bold) + ETA right.
@@ -2584,13 +2594,76 @@ impl App {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.rule));
+            .border_style(Style::default().fg(self.palette.muted));
         let inner = block.inner(box_rect);
         f.render_widget(block, box_rect);
 
+        let content = Rect::new(
+            inner.x + 3,
+            inner.y + 1,
+            inner.width.saturating_sub(6),
+            inner.height.saturating_sub(2),
+        );
+        let shown: Vec<Line> = rows.into_iter().skip(offset).take(visible).collect();
+        f.render_widget(Paragraph::new(shown), content);
+        widgets::draw_scrollbar(
+            f,
+            &self.palette,
+            content,
+            self.install_max_scroll + visible,
+            offset as u16,
+            visible as u16,
+        );
+
+        // 4. Below the box: the log path, the buttons and the shortcut line.
+        let mut y = box_y + box_h;
+        if has_error {
+            y += 1;
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    "registro completo: /tmp/nixdots-install.log",
+                    Style::default().fg(self.palette.muted),
+                ))
+                .alignment(Alignment::Center),
+                Rect::new(area.x, y, area.width, 1),
+            );
+            y += 1;
+        }
+        if has_buttons {
+            y += 1;
+            self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
+            y += 1;
+        }
+        y += 1;
+        let hint = if self.install_log_view {
+            "v ocultar registro · c comandos · ↑/↓ desplazar · ctrl+c cancelar"
+        } else {
+            "v ver registro · ctrl+c cancelar"
+        };
+        f.render_widget(
+            Paragraph::new(Span::styled(hint, Style::default().fg(self.palette.muted)))
+                .alignment(Alignment::Center),
+            Rect::new(area.x, y, area.width, 1),
+        );
+    }
+
+    /// The stages box rows: one line per stage, a blank between stages, the
+    /// running stage's log lines and a failed stage's error glued under it, and
+    /// the last commands after a separator when `c` is on.
+    fn install_rows(&self, width: usize) -> Vec<Line<'static>> {
+        let current = self.install.current;
         let spinner = ["|", "/", "-", "\\"][(self.tick as usize) % 4];
-        let mut y = inner.y;
-        for step in Step::ALL {
+        let sub_steps = if current.is_some() && self.install_log_view {
+            self.sub_steps()
+        } else {
+            Vec::new()
+        };
+        let mut rows: Vec<Line> = Vec::new();
+        for (i, step) in Step::ALL.iter().enumerate() {
+            if i > 0 {
+                rows.push(Line::from(""));
+            }
+            let step = *step;
             let (mark, color) = if self.install.failed == Some(step) {
                 ("✗", self.palette.error)
             } else if self.install.done.contains(&step) {
@@ -2609,46 +2682,131 @@ impl App {
                 .find(|(s, _)| *s == step)
                 .map(|(_, d)| human_duration(*d))
                 .unwrap_or_default();
-            let prefix = format!(" {mark}  {name:<9} ");
-            let avail = (inner.width as usize)
-                .saturating_sub(prefix.chars().count() + dur.chars().count() + 1);
+            let dur_w = dur.chars().count();
+            let avail = width.saturating_sub(3 + 12 + dur_w + 1);
             let summary = truncate_ellipsis(&summary, avail);
             let pad = avail.saturating_sub(summary.chars().count());
-            f.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled(prefix, Style::default().fg(color)),
-                    Span::styled(summary, Style::default().fg(self.palette.muted)),
-                    Span::raw(" ".repeat(pad)),
-                    Span::styled(dur, Style::default().fg(self.palette.muted)),
-                ])),
-                Rect::new(inner.x, y, inner.width, 1),
-            );
-            y += 1;
+            rows.push(Line::from(vec![
+                Span::styled(format!("{mark:<3}"), Style::default().fg(color)),
+                Span::styled(format!("{name:<12}"), Style::default().fg(self.palette.text)),
+                Span::styled(summary, Style::default().fg(self.palette.muted)),
+                Span::raw(" ".repeat(pad + 1)),
+                Span::styled(dur, Style::default().fg(self.palette.muted)),
+            ]));
 
             if current == Some(step) {
-                for (i, line) in sub_steps.iter().enumerate() {
-                    let last = i + 1 == sub_steps.len();
+                for (j, line) in sub_steps.iter().enumerate() {
+                    let last = j + 1 == sub_steps.len();
                     let color = if last {
                         self.palette.highlight
                     } else {
                         self.palette.muted
                     };
-                    let text = truncate_ellipsis(line, inner.width.saturating_sub(5) as usize);
-                    f.render_widget(
-                        Paragraph::new(Line::from(vec![
+                    let text = truncate_ellipsis(line, width.saturating_sub(4));
+                    rows.push(Line::from(vec![
+                        Span::styled("   │ ", Style::default().fg(self.palette.rule)),
+                        Span::styled(text, Style::default().fg(color)),
+                    ]));
+                }
+            }
+
+            if self.install.failed == Some(step) {
+                for line in self.error_lines() {
+                    for chunk in hard_wrap(&line, width.saturating_sub(4).max(1)) {
+                        rows.push(Line::from(vec![
                             Span::styled("   │ ", Style::default().fg(self.palette.rule)),
-                            Span::styled(text, Style::default().fg(color)),
-                        ])),
-                        Rect::new(inner.x, y, inner.width, 1),
-                    );
-                    y += 1;
+                            Span::styled(chunk, Style::default().fg(self.palette.error)),
+                        ]));
+                    }
                 }
             }
         }
+
+        if self.install_commands {
+            let cmds = self.command_lines();
+            if !cmds.is_empty() {
+                rows.push(Line::from(Span::styled(
+                    "─".repeat(width.max(1)),
+                    Style::default().fg(self.palette.rule),
+                )));
+                for cmd in cmds {
+                    let text = truncate_ellipsis(&cmd, width.saturating_sub(2));
+                    rows.push(Line::from(vec![
+                        Span::styled("│ ", Style::default().fg(self.palette.rule)),
+                        Span::styled(text, Style::default().fg(self.palette.primary)),
+                    ]));
+                }
+            }
+        }
+
+        rows
     }
 
-    /// The summary line under each stage, from what is already known.
+    /// The full error message under the failed stage: the failure and, when it
+    /// differs, the last real nix cause.
+    fn error_lines(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        if let Some(err) = &self.install.error {
+            for line in err.lines() {
+                if !line.trim().is_empty() {
+                    out.push(line.to_string());
+                }
+            }
+        }
+        if let Some(last) = &self.install.last_error {
+            for line in last.lines() {
+                if !line.trim().is_empty() && !out.iter().any(|e| e == line) {
+                    out.push(line.to_string());
+                }
+            }
+        }
+        out
+    }
+
+    /// The last four executed `$ …` commands, oldest first.
+    fn command_lines(&self) -> Vec<String> {
+        let mut cmds: Vec<String> = self
+            .install
+            .log
+            .iter()
+            .filter(|l| is_command(l))
+            .map(|l| self.shorten_command(l))
+            .collect();
+        let n = cmds.len();
+        cmds.split_off(n.saturating_sub(4))
+    }
+
+    /// Shortens the temp install root to `/mnt` and hides any secret a command
+    /// might carry.
+    fn shorten_command(&self, line: &str) -> String {
+        let root = std::env::temp_dir().join("nixdots-mnt");
+        let mut s = line.replace(&root.to_string_lossy().to_string(), "/mnt");
+        for secret in [
+            self.password.p1.value().to_string(),
+            self.enc.pass.value().to_string(),
+            self.enc.recovery.to_string(),
+        ] {
+            if !secret.is_empty() {
+                s = s.replace(&secret, "••••");
+            }
+        }
+        s
+    }
+
+    /// The summary line under each stage. The running stage describes what is
+    /// happening right now; the others show what they will do (or did).
     fn step_summary(&self, step: Step) -> String {
+        if self.install.current == Some(step) {
+            if let Some(activity) = self.last_activity() {
+                if step == Step::System && self.install.total > 0 {
+                    return format!(
+                        "{activity} · {} de {}",
+                        self.install.built, self.install.total
+                    );
+                }
+                return activity;
+            }
+        }
         match step {
             Step::Disk => {
                 let action = match self.disks.effective() {
@@ -2687,25 +2845,38 @@ impl App {
         }
     }
 
-    /// The running step's last three messages, in plain language.
+    /// The running step's latest meaningful log line, in plain language.
+    fn last_activity(&self) -> Option<String> {
+        self.install.log.iter().rev().find_map(|line| {
+            if line.starts_with('\u{1}') {
+                return None;
+            }
+            let line = line.trim();
+            if line.is_empty() || is_command(line) || line.starts_with('(') || line.starts_with('=') {
+                return None;
+            }
+            Some(line.to_string())
+        })
+    }
+
+    /// The running step's last six messages, in plain language.
     fn sub_steps(&self) -> Vec<String> {
         self.install
             .log
             .iter()
             .rev()
             .filter(|line| {
-                let line = line.strip_prefix('\u{1}').unwrap_or(line);
-                !line.starts_with('$')
+                if line.starts_with('\u{1}') {
+                    return false;
+                }
+                let line = line.trim();
+                !line.is_empty()
+                    && !is_command(line)
                     && !line.starts_with('(')
-                    && !line.trim().is_empty()
                     && !line.starts_with('=')
             })
-            .take(3)
-            .map(|line| {
-                line.strip_prefix('\u{1}')
-                    .unwrap_or(line.as_str())
-                    .to_string()
-            })
+            .take(6)
+            .map(|line| line.to_string())
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
@@ -3064,6 +3235,11 @@ fn fold(s: &str) -> String {
             other => other,
         })
         .collect()
+}
+
+/// A logged command line (`$ …`, or `[simulación] $ …` in a dry run).
+fn is_command(line: &str) -> bool {
+    line.starts_with('$') || line.starts_with("[simulación] $")
 }
 
 /// Clips `s` to `width` columns, ending with '…' when it had to cut.

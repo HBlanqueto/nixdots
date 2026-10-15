@@ -2,103 +2,6 @@ use crate::app::App;
 use crate::install::Step;
 use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
-
-/// Plain ASCII so the spinner renders on the ISO's VGA console (TERM=linux).
-const SPINNER: [&str; 4] = ["|", "/", "-", "\\"];
-/// Cells of the big progress bar.
-const BAR: usize = 60;
-
-pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    // The Ctrl+C confirmation is drawn as a dialog by the app, so while it is
-    // open the screen shows no buttons of its own.
-    let buttons: Vec<Btn> = if app.install_cancel {
-        Vec::new()
-    } else {
-        app.buttons().into_iter().map(|(b, _)| b).collect()
-    };
-    let has_buttons = !buttons.is_empty();
-    let show_shortcuts = !has_buttons;
-
-    // title + blank + bar + blank + status (+ error log line)
-    let error_h: u16 = if app.install.error.is_some() { 1 } else { 0 };
-    let total: u16 = 5
-        + error_h
-        + if has_buttons { 2 } else { 0 }
-        + if show_shortcuts { 2 } else { 0 };
-    let mut y = area.y + area.height.saturating_sub(total) / 2;
-    let line = |y: u16| Rect::new(area.x, y, area.width, 1);
-
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            format!("Instalando en {}", app.settings.host_name),
-            Style::default().fg(app.palette.white).add_modifier(Modifier::BOLD),
-        )))
-        .alignment(Alignment::Center),
-        line(y),
-    );
-    y += 2;
-
-    f.render_widget(
-        Paragraph::new(bar_line(app)).alignment(Alignment::Center),
-        line(y),
-    );
-    y += 2;
-
-    f.render_widget(
-        Paragraph::new(status_line(app, area.width)).alignment(Alignment::Center),
-        line(y),
-    );
-    y += 1;
-
-    if app.install.error.is_some() {
-        f.render_widget(
-            Paragraph::new(Span::styled(
-                "registro completo: /tmp/nixdots-install.log",
-                Style::default().fg(app.palette.muted),
-            ))
-            .alignment(Alignment::Center),
-            line(y),
-        );
-        y += 1;
-    }
-
-    if has_buttons {
-        y += 1;
-        app.draw_buttons(f, line(y));
-        y += 1;
-    }
-
-    if show_shortcuts {
-        y += 1;
-        f.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                "v ver registro · ctrl+c cancelar",
-                Style::default().fg(app.palette.muted),
-            )))
-            .alignment(Alignment::Center),
-            line(y),
-        );
-    }
-}
-
-/// Clips `s` to `width` columns, ending with '…' when it had to cut.
-fn ellipsize(s: &str, width: usize) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.len() <= width {
-        return s.to_string();
-    }
-    if width == 0 {
-        return String::new();
-    }
-    let mut out: String = chars[..width.saturating_sub(1)].iter().collect();
-    out.push('…');
-    out
-}
 
 fn step_weight(step: Step) -> u64 {
     match step {
@@ -124,65 +27,6 @@ pub fn overall_percent(app: &App) -> u64 {
     p.min(100)
 }
 
-/// The big ASCII bar (`#` done, `-` pending) plus the weighted percentage.
-fn bar_line(app: &App) -> Line<'static> {
-    let percent = overall_percent(app);
-    let filled = (percent as usize * BAR / 100).min(BAR);
-    let bar_color = if app.install.error.is_some() {
-        app.palette.error
-    } else {
-        app.palette.primary
-    };
-    Line::from(vec![
-        Span::styled("#".repeat(filled), Style::default().fg(bar_color)),
-        Span::styled(
-            "-".repeat(BAR - filled),
-            Style::default().fg(app.palette.muted),
-        ),
-        Span::styled(
-            format!("  {percent}%"),
-            Style::default().fg(app.palette.white),
-        ),
-    ])
-}
-
-/// Spinner + Spanish gerund + ETA, or the error (`✗ <last real cause>`).
-fn status_line(app: &App, width: u16) -> Line<'static> {
-    if let Some(err) = &app.install.error {
-        // Prefer the last level-0 nix message (the real cause) over the generic
-        // "nixos-install falló (código 1)".
-        let cause = app
-            .install
-            .last_error
-            .clone()
-            .unwrap_or_else(|| err.lines().next().unwrap_or("").to_string());
-        let text = ellipsize(&cause, width.saturating_sub(3) as usize);
-        return Line::from(vec![
-            Span::styled("✗ ", Style::default().fg(app.palette.error)),
-            Span::styled(text, Style::default().fg(app.palette.error)),
-        ]);
-    }
-    let spinner = SPINNER[(app.tick as usize) % SPINNER.len()];
-    let gerund = match app.install.current {
-        Some(Step::Disk) => "Preparando el disco",
-        Some(Step::Settings) => "Ajustando el sistema",
-        Some(Step::System) => "Construyendo el sistema",
-        Some(Step::Boot) => "Instalando el arranque",
-        None => "Iniciando",
-    };
-    let mut spans = vec![
-        Span::styled(format!("{spinner} "), Style::default().fg(app.palette.primary)),
-        Span::styled(gerund.to_string(), Style::default().fg(app.palette.text)),
-    ];
-    if let Some(secs) = app.install.eta_secs() {
-        spans.push(Span::styled(
-            format!(" · quedan ~{} min", secs.div_ceil(60)),
-            Style::default().fg(app.palette.muted),
-        ));
-    }
-    Line::from(spans)
-}
-
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
     if app.install_cancel {
         return match key.code {
@@ -193,17 +37,52 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             }
             KeyCode::Char('v') => {
                 app.install_log_view = !app.install_log_view;
+                app.install_follow = true;
                 true
             }
             _ => false,
         };
     }
+    let page = 5usize;
     match key.code {
         KeyCode::Char('v') => {
             app.install_log_view = !app.install_log_view;
-            if app.install_log_view {
-                app.install_log_scroll = 0;
-            }
+            app.install_follow = true;
+            true
+        }
+        KeyCode::Char('c') => {
+            app.install_commands = !app.install_commands;
+            app.install_follow = true;
+            true
+        }
+        // Scrolling the stages box leaves the follow mode until the bottom.
+        KeyCode::Up => {
+            app.install_follow = false;
+            app.install_log_scroll = app.install_log_scroll.saturating_sub(1);
+            true
+        }
+        KeyCode::PageUp => {
+            app.install_follow = false;
+            app.install_log_scroll = app.install_log_scroll.saturating_sub(page);
+            true
+        }
+        KeyCode::Down => {
+            app.install_log_scroll = (app.install_log_scroll + 1).min(app.install_max_scroll);
+            app.install_follow = app.install_log_scroll >= app.install_max_scroll;
+            true
+        }
+        KeyCode::PageDown => {
+            app.install_log_scroll = (app.install_log_scroll + page).min(app.install_max_scroll);
+            app.install_follow = app.install_log_scroll >= app.install_max_scroll;
+            true
+        }
+        KeyCode::Home => {
+            app.install_follow = false;
+            app.install_log_scroll = 0;
+            true
+        }
+        KeyCode::End => {
+            app.install_follow = true;
             true
         }
         // Esc is a second way into the cancel confirmation.

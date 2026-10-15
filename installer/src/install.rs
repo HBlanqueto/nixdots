@@ -1999,7 +1999,8 @@ impl NixLog {
     fn feed(&mut self, line: &str) -> NixLogOut {
         let line = line.trim_end();
         let Some(json) = line.strip_prefix("@nix ") else {
-            return (vec![(false, strip_ansi(line))], None);
+            let text = translate_plain(line).unwrap_or_else(|| strip_ansi(line));
+            return (vec![(false, text)], None);
         };
         let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
             return (Vec::new(), None);
@@ -2071,6 +2072,20 @@ impl NixLog {
             _ => (Vec::new(), None),
         }
     }
+}
+
+/// Translates the plain `building '…drv'` / `copying path '…'` lines nix still
+/// prints outside its JSON log format, so a hash or a `.drv` never reaches the
+/// screen. Returns `None` for anything else.
+fn translate_plain(line: &str) -> Option<String> {
+    let (verb, rest) = if let Some(rest) = line.strip_prefix("building '") {
+        ("compilando", rest)
+    } else {
+        ("copiando", line.strip_prefix("copying path '")?)
+    };
+    let path = rest.split('\'').next()?;
+    let name = store_name(path.strip_suffix(".drv").unwrap_or(path));
+    Some(format!("{verb} {name}"))
 }
 
 /// The `-name` part of a `/nix/store/<hash>-<name>` path.
@@ -2396,14 +2411,24 @@ fn dry_hardware_config(system: &str) -> String {
 }
 
 fn simulate_build(report: &mut Reporter) {
+    // Real package names, so the demo screen never shows a hash or a `.drv`.
+    const PKGS: [&str; 8] = [
+        "glibc-2.42",
+        "gcc-15.2.0",
+        "mesa-25.2.1",
+        "somewm-1.4",
+        "quickshell-0.2.1",
+        "wezterm-20240203",
+        "python3-3.13.7",
+        "linux-6.16.4",
+    ];
     let steps = 100u64;
     for i in 1..=steps {
         report.progress(i, steps);
         if i % 20 == 0 {
-            report.log(format!(
-                "building '/nix/store/{}000000000000000000000000000000000.drv'...",
-                i
-            ));
+            let pkg = PKGS[(i as usize / 20 - 1) % PKGS.len()];
+            let raw = format!("building '/nix/store/{i:0>32}-{pkg}.drv'...");
+            report.log(translate_plain(&raw).unwrap_or(raw));
         }
         thread::sleep(Duration::from_millis(180));
     }
