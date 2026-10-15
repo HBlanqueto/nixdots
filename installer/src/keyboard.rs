@@ -146,10 +146,16 @@ pub fn detect_active() -> String {
 }
 
 /// Applies a layout to the bare Linux console with `loadkeys`.
+///
+/// Its output is discarded: many xkb layouts have no console keymap, so
+/// `loadkeys` fails often, and anything it writes to the terminal would land
+/// on top of the TUI. The caller only needs the success flag.
 pub fn apply_console(layout: &Layout) -> bool {
     Command::new("loadkeys")
         .arg(console_keymap(layout))
         .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
