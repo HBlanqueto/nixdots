@@ -203,6 +203,11 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         }
     }
 
+    // The build's scratch dir lives on the target disk; drop it when done.
+    if !plan.dry_run {
+        let _ = fs::remove_dir_all(plan.root.join("tmp"));
+    }
+
     if let Some(file) = report.file.as_mut() {
         let _ = file.flush();
     }
@@ -227,6 +232,9 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
         }
     };
 
+    // Scratch space on the target disk (not the ISO's RAM store) for the build.
+    prepare_target_tmp(plan, report)?;
+
     if resume <= Step::Settings {
         report.step(Step::Settings);
         step_repo(plan, report)?;
@@ -236,6 +244,7 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
     }
 
     if resume <= Step::System {
+        ensure_target_space(plan)?;
         report.step(Step::System);
         step_system(plan, report)?;
     }
@@ -256,6 +265,55 @@ fn is_mounted(path: &str) -> bool {
                 .any(|line| line.split_whitespace().nth(1) == Some(path))
         })
         .unwrap_or(false)
+}
+
+/// Creates `<root>/tmp` (mode 1777) and points `TMPDIR` at it, so every child
+/// process (`nix`, `nixos-install`, …) keeps its scratch data on the target
+/// disk instead of the live ISO's RAM-backed `/tmp`.
+fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    let tmp = plan.root.join("tmp");
+    if !plan.dry_run {
+        fs::create_dir_all(&tmp)?;
+        set_mode_dir(&tmp, 0o1777)?;
+    }
+    std::env::set_var("TMPDIR", &tmp);
+    report.log(format!("$ TMPDIR={}", tmp.display()));
+    Ok(())
+}
+
+/// Minimum free space on the target before building the system: the closure is
+/// large (kernel, desktop, …) and is realised in the target store.
+const MIN_TARGET_GIB: u64 = 25;
+
+/// Fails early, in Spanish, when the target has less than [`MIN_TARGET_GIB`] of
+/// free space, instead of letting `nixos-install` die with `ENOSPC` halfway.
+fn ensure_target_space(plan: &Plan) -> Result<()> {
+    if plan.dry_run {
+        return Ok(());
+    }
+    let free = target_free_gib(&plan.root)?;
+    if free < MIN_TARGET_GIB {
+        return Err(eyre!(
+            "espacio insuficiente en {}: hay {} GiB libres y se necesitan al menos {} GiB para instalar el sistema",
+            plan.root.display(),
+            free,
+            MIN_TARGET_GIB
+        ));
+    }
+    Ok(())
+}
+
+/// Free space (GiB) on the filesystem holding `root`, via `df`.
+fn target_free_gib(root: &Path) -> Result<u64> {
+    let out = runner::capture(&Cmd::new("df").arg("-Pk").arg_path(root))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let avail_kb: u64 = text
+        .lines()
+        .last()
+        .and_then(|line| line.split_whitespace().nth(3))
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| eyre!("no se pudo leer el espacio libre de {}", root.display()))?;
+    Ok(avail_kb / 1024 / 1024)
 }
 
 /// Reattaches the already-prepared disk for a retry: if `/mnt` is not mounted
@@ -1152,109 +1210,60 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
 fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
-    let attr = format!(
-        "{}#nixosConfigurations.{}.config.system.build.toplevel",
-        repo.display(),
-        plan.settings.host_name
-    );
+    let flake = format!("{}#{}", repo.display(), plan.settings.host_name);
+    let tmp = plan.root.join("tmp");
 
     // Make sure the flake sees everything the installer wrote before building.
     git_snapshot(plan, report)?;
 
-    let build = Cmd::new("nix")
-        .arg("build")
-        .arg("--impure")
-        .arg("--extra-experimental-features")
-        .arg("nix-command flakes")
-        .arg(&attr)
-        .arg("--store")
+    // `nixos-install --flake` builds the system with `--store /mnt`, so the
+    // closure lands on the target disk, never in the live ISO's RAM-backed
+    // store. `--option build-dir` and `TMPDIR` keep the build's scratch there
+    // too. No separate `nix build` runs in the ISO store.
+    let cmd = Cmd::new("nixos-install")
+        .arg("--flake")
+        .arg(&flake)
+        .arg("--root")
         .arg_path(&plan.root)
+        .arg("--no-root-passwd")
+        .arg("--impure")
+        .arg("--option")
+        .arg("build-dir")
+        .arg_path(&tmp)
         .arg("--log-format")
         .arg("internal-json")
         .arg("-v")
         .with_display(format!(
-            "nix build --impure {attr} --store /mnt --log-format internal-json -v"
+            "nixos-install --flake {flake} --root {} --no-root-passwd --option build-dir {}",
+            plan.root.display(),
+            tmp.display()
         ));
 
-    let system_path = if plan.dry_run {
-        report.log(format!("$ {}", build.display));
-        simulate_build(report);
-        format!("/nix/store/{}-nixos-system-{}", "0".repeat(32), plan.settings.host_name)
-    } else {
-        build_system(plan, report, &build)?
-    };
-
-    let cmd = Cmd::new("nixos-install")
-        .arg("--root")
-        .arg_path(&plan.root)
-        .arg("--system")
-        .arg(&system_path)
-        .arg("--no-root-passwd")
-        .with_display(format!(
-            "nixos-install --root /mnt --system {system_path} --no-root-passwd"
-        ));
-    let code = exec(plan, report, &cmd, &repo)?;
+    let code = run_with_progress(plan, report, &cmd);
     ensure_ok(code, "nixos-install falló")?;
     Ok(())
 }
 
-fn build_system(plan: &Plan, report: &mut Reporter, build: &Cmd) -> Result<String> {
-    report.log(format!("$ {}", build.display));
+/// Runs `cmd`, streaming its output and updating the build progress bar from
+/// nix's `internal-json` log format. In dry-run nothing is executed.
+fn run_with_progress(plan: &Plan, report: &mut Reporter, cmd: &Cmd) -> i32 {
+    report.log(format!("$ {}", cmd.display));
+    if plan.dry_run {
+        simulate_build(report);
+        return 0;
+    }
     let mut progress = NixProgress::default();
-    let mut out_path: Option<String> = None;
-
-    let last_code = {
-        let report = &mut *report;
-        let mut sink = |out: Stream| {
-            let line = match out {
-                Stream::Stdout(l) => l,
-                Stream::Stderr(l) => l,
-            };
-            // nix build prints the resulting store path on stdout at the end.
-            let trimmed = line.trim();
-            if trimmed.starts_with("/nix/store/") && trimmed.contains("-nixos-system") {
-                out_path = Some(trimmed.to_string());
-            }
-            if let Some((built, total)) = progress.feed(trimmed) {
-                report.progress(built, total);
-            }
-            report.log(line);
+    let mut sink = |out: Stream| {
+        let line = match out {
+            Stream::Stdout(l) => l,
+            Stream::Stderr(l) => l,
         };
-        runner::run(build, &mut sink)
-    };
-
-    if last_code != 0 {
-        report.log("la evaluación o la construcción falló; revisa el log");
-        return Err(eyre!("nix build terminó con código {last_code}"));
-    }
-
-    if let Some(path) = out_path {
-        return Ok(path);
-    }
-    // Fall back to asking nix for the path via `nix path-info` semantics.
-    let query = Cmd::new("nix")
-        .arg("path-info")
-        .arg("--impure")
-        .arg("--extra-experimental-features")
-        .arg("nix-command flakes")
-        .arg("--store")
-        .arg_path(&plan.root)
-        .arg(format!(
-            "{}#nixosConfigurations.{}.config.system.build.toplevel",
-            plan.installed_repo().display(),
-            plan.settings.host_name
-        ));
-    match runner::capture(&query) {
-        Ok(output) if output.status.success() => {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if path.is_empty() {
-                Err(eyre!("no se pudo determinar la ruta del sistema"))
-            } else {
-                Ok(path)
-            }
+        if let Some((built, total)) = progress.feed(line.trim()) {
+            report.progress(built, total);
         }
-        _ => Err(eyre!("no se pudo determinar la ruta del sistema")),
-    }
+        report.log(line);
+    };
+    runner::run(cmd, &mut sink)
 }
 
 // -- command execution helpers ------------------------------------------------
