@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["installer", "core"]
+members = ["installer", "core", "setup"]
 
 # Small, self-contained release binary for the precompiled GitHub release.
 [profile.release]
