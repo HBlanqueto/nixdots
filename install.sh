@@ -8,13 +8,31 @@
 #
 #   git clone --depth 1 https://github.com/HBlanqueto/nixdots ~/nixdots
 #   sudo ~/nixdots/install.sh
+#
+# The static binary orchestrates external tools. The live ISO already has most
+# of them; the rest are provided with `nix shell` (prebuilt from
+# cache.nixos.org, current architecture only) pinned to the nixpkgs revision in
+# flake.lock:
+#
+#   Missing on the ISO, added here:
+#     disko, mkpasswd (whois), sbctl, iwd (iwctl), wpa_supplicant (wpa_cli)
+#   Already on the ISO (no need):
+#     util-linux  blkid lsblk mount umount swapon swapoff wipefs partprobe
+#                 blockdev mkswapfile mountpoint dmesg
+#     systemd     systemd-cryptenroll systemd-machine-id-setup
+#                 systemd-detect-virt udevadm localectl reboot
+#     coreutils   cp chmod chown df sync shred
+#     gptfdisk    sgdisk          cryptsetup  cryptsetup
+#     btrfs-progs btrfs mkfs.btrfs      dosfstools mkfs.vfat
+#     ntfs3g      ntfsresize      kbd         loadkeys
+#     git  nix  nixos-install  nixos-generate-config  NetworkManager  nmcli
 set -eu
 
 REPO="github:HBlanqueto/nixdots"
 RELEASES="https://github.com/HBlanqueto/nixdots/releases/latest/download"
 WORK="/tmp/nixdots-installer"
 
-# 6. Every nix invocation below may use flakes.
+# Every nix invocation below may use flakes.
 NIX_CONFIG="experimental-features = nix-command flakes"
 export NIX_CONFIG
 
@@ -23,7 +41,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exec sudo -- "$0" "$@"
 fi
 
-# Directory this script lives in, to read the generated palette file.
+# Directory this script lives in, to read the palette file and flake.lock.
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 # 2. Architecture.
@@ -37,7 +55,23 @@ case "$machine" in
         ;;
 esac
 
-# 3. Download and verify the precompiled binary.
+# 3. nixpkgs pinned to the revision the flake is built against, so the tools
+#    match (falls back to the registry if flake.lock or jq is unavailable).
+rev=""
+if command -v jq >/dev/null 2>&1 && [ -r "$here/flake.lock" ]; then
+    rev=$(jq -r '.nodes.nixpkgs.locked.rev // empty' "$here/flake.lock" 2>/dev/null || true)
+fi
+if [ -n "$rev" ]; then
+    nixpkgs="github:nixos/nixpkgs/$rev"
+else
+    nixpkgs="nixpkgs"
+fi
+
+# Tools the static binary needs that the live ISO lacks (see the header).
+# shellcheck disable=SC2086
+tool_pkgs="$nixpkgs#disko $nixpkgs#mkpasswd $nixpkgs#sbctl $nixpkgs#iwd $nixpkgs#wpa_supplicant"
+
+# 4. Download and verify the precompiled binary.
 mkdir -p "$WORK"
 binary="$WORK/nixdots-installer-$arch"
 
@@ -64,7 +98,9 @@ fi
 
 if [ "$verified" -ne 1 ]; then
     echo "No se pudo descargar o verificar el instalador precompilado." >&2
-    printf '¿Compilarlo con Nix y ejecutarlo? [s/N] ' >&2
+    echo "Se puede compilar desde el código con Nix: bajará el toolchain de Rust" >&2
+    echo "y ~280 crates, puede tardar bastante y ocupar varios GiB en RAM." >&2
+    printf '¿Compilarlo ahora con Nix y ejecutarlo? [s/N] ' >&2
     read -r reply || reply=n
     case "$reply" in
         s | S | y | Y) exec nix run "$REPO#installer" -- --install "$@" ;;
@@ -86,7 +122,7 @@ if [ "${TERM:-}" = linux ] && [ -z "${NIXDOTS_NO_KMSCON:-}" ]; then
 
                 # Point fontconfig at the Nerd Font so kmscon resolves it.
                 fontdir=$(nix build --no-link --print-out-paths \
-                    nixpkgs#nerd-fonts.jetbrains-mono 2>/dev/null || true)
+                    "$nixpkgs#nerd-fonts.jetbrains-mono" 2>/dev/null || true)
                 if [ -n "$fontdir" ]; then
                     FONTCONFIG_FILE="$WORK/fonts.conf"
                     export FONTCONFIG_FILE
@@ -105,7 +141,7 @@ EOF
 
                 # shellcheck disable=SC2086
                 if nix --extra-experimental-features 'nix-command flakes' \
-                    shell nixpkgs#kmscon nixpkgs#nerd-fonts.jetbrains-mono -c \
+                    shell "$nixpkgs#kmscon" "$nixpkgs#nerd-fonts.jetbrains-mono" $tool_pkgs -c \
                     kmscon --vt auto --switchvt $hwaccel \
                     --font-name "JetBrainsMono Nerd Font Mono" --font-size 14 \
                     $palette --login -- "$binary" --install "$@"; then
@@ -117,5 +153,7 @@ EOF
     esac
 fi
 
-# 6. Anything else: run the binary directly.
-exec "$binary" --install "$@"
+# 6. Anything else: run the binary with the tools on its PATH.
+# shellcheck disable=SC2086
+exec nix --extra-experimental-features 'nix-command flakes' \
+    shell $tool_pkgs -c "$binary" --install "$@"
