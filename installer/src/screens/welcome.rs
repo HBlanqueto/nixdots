@@ -48,7 +48,7 @@ pub fn key(_app: &mut App, _key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("Salir"), Action::Quit),
+        (Btn::secondary("‹ Atrás"), Action::Back),
         (Btn::primary("Continuar ›"), Action::Next),
     ]
 }

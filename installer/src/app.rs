@@ -28,7 +28,7 @@ use std::time::{Duration, Instant};
 use tui_input::Input;
 use zeroize::Zeroizing;
 
-const STEPS: usize = 13;
+const STEPS: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -51,9 +51,9 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ORDER: [Screen; 14] = [
-        Screen::Welcome,
+    pub const ORDER: [Screen; 12] = [
         Screen::License,
+        Screen::Welcome,
         Screen::Network,
         Screen::Locale,
         Screen::Timezone,
@@ -64,8 +64,6 @@ impl Screen {
         Screen::Disk,
         Screen::Encryption,
         Screen::Summary,
-        Screen::Installing,
-        Screen::Done,
     ];
 
     pub fn index(self) -> usize {
@@ -94,9 +92,9 @@ impl Screen {
 
     fn next(self) -> Option<Screen> {
         match self {
-            Screen::Splash => Some(Screen::Welcome),
-            Screen::Welcome => Some(Screen::License),
-            Screen::License => Some(Screen::Network),
+            Screen::Splash => Some(Screen::License),
+            Screen::License => Some(Screen::Welcome),
+            Screen::Welcome => Some(Screen::Network),
             Screen::Network => Some(Screen::Locale),
             Screen::Locale => Some(Screen::Timezone),
             Screen::Timezone => Some(Screen::Host),
@@ -113,9 +111,10 @@ impl Screen {
 
     fn previous(self) -> Option<Screen> {
         match self {
-            Screen::Splash | Screen::Welcome | Screen::Installing | Screen::Done => None,
-            Screen::License => Some(Screen::Welcome),
-            Screen::Network => Some(Screen::License),
+            Screen::Splash | Screen::Installing | Screen::Done => None,
+            Screen::License => Some(Screen::Splash),
+            Screen::Welcome => Some(Screen::License),
+            Screen::Network => Some(Screen::Welcome),
             Screen::Locale => Some(Screen::Network),
             Screen::Timezone => Some(Screen::Locale),
             Screen::Host => Some(Screen::Timezone),
@@ -1979,22 +1978,20 @@ impl App {
         // Inicio and Listo show no progress bar.
         let progress_h: u16 = if self.screen == Screen::Done { 0 } else { 1 };
         let gap: u16 = 1;
-        let mut total = 1 + progress_h + gap + panel_h + gap + 1;
+        let mut total = progress_h + gap + panel_h + gap + 1;
         if commands_h > 0 {
             total += gap + commands_h;
         }
         let top = area.y + area.height.saturating_sub(total) / 2;
         let x = area.x + area.width.saturating_sub(width) / 2;
 
-        let header = Rect::new(x, top, width, 1);
-        let mut cursor = top + 1;
+        let mut cursor = top;
         let progress = Rect::new(x, cursor, width, progress_h);
         cursor += progress_h + gap;
         let panel = Rect::new(x, cursor, width, panel_h);
         let shortcuts = Rect::new(x, panel.bottom() + gap, width, 1);
         let commands = Rect::new(x, shortcuts.bottom() + gap, width, commands_h);
 
-        self.draw_header(f, header);
         if progress_h > 0 {
             self.draw_progress(f, progress);
         }
@@ -2167,7 +2164,7 @@ impl App {
         }
     }
 
-    /// The `* nixdots instalador` header line, shared by every screen.
+    /// The `* nixdots instalador` header line, kept only on the final screen.
     pub fn header_line(&self) -> Line<'static> {
         let mut spans = vec![
             Span::styled(
@@ -2183,13 +2180,6 @@ impl App {
             ));
         }
         Line::from(spans)
-    }
-
-    fn draw_header(&self, f: &mut Frame, area: Rect) {
-        f.render_widget(
-            Paragraph::new(self.header_line()).alignment(Alignment::Center),
-            area,
-        );
     }
 
     /// Overlay with the full install log, scrollable.
@@ -2266,7 +2256,11 @@ impl App {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(border))
             .title(Span::styled(
-                format!(" {} ", self.screen_title()),
+                if self.dry_run {
+                    format!(" {} · simulación ", self.screen_title())
+                } else {
+                    format!(" {} ", self.screen_title())
+                },
                 Style::default().fg(border),
             ));
         let inner = block.inner(area);

@@ -34,21 +34,15 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         0
     };
 
-    // header + blank + title + blank + bar + blank + status + blank + steps,
+    // title + blank + bar + blank + status + blank + steps,
     // then optional log / buttons / shortcuts blocks, each preceded by a blank.
-    let total: u16 = 9
+    let total: u16 = 7
         + if show_log { 1 + log_h } else { 0 }
         + if has_buttons { 2 } else { 0 }
         + if show_shortcuts { 2 } else { 0 };
 
     let mut y = area.y + area.height.saturating_sub(total) / 2;
     let line = |y: u16| Rect::new(area.x, y, area.width, 1);
-
-    f.render_widget(
-        Paragraph::new(app.header_line()).alignment(Alignment::Center),
-        line(y),
-    );
-    y += 2;
 
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
