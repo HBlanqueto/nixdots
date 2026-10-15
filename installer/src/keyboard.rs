@@ -36,6 +36,16 @@ pub fn by_id(id: &str) -> Option<Layout> {
     all().iter().find(|l| l.code == id).cloned()
 }
 
+/// The readable name for an xkb layout/variant pair, e.g. `es` → `Español`.
+/// Falls back to the layout code when there is no matching entry.
+pub fn display(layout: &str, variant: &str) -> String {
+    all()
+        .iter()
+        .find(|l| l.xkb == layout && l.variant == variant)
+        .map(|l| l.name.clone())
+        .unwrap_or_else(|| layout.to_string())
+}
+
 fn parse_base_lst() -> Vec<Layout> {
     let mut layouts: Vec<Layout> = Vec::new();
     let mut variants: Vec<Layout> = Vec::new();

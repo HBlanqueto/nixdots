@@ -18,7 +18,7 @@ fn gb(bytes: u64) -> String {
 
 fn row(app: &App, label: &str, value: String) -> Line<'static> {
     Line::from(vec![
-        Span::styled(format!("{label:<12}"), Style::default().fg(app.palette.muted)),
+        Span::styled(format!("{label:<15}"), Style::default().fg(app.palette.muted)),
         Span::styled(value, Style::default().fg(app.palette.text)),
     ])
 }
@@ -29,9 +29,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         .map(|d| {
             let action = match app.disks.effective() {
                 crate::disk::DiskDecision::WholeDisk => "todo el disco".to_string(),
-                crate::disk::DiskDecision::FreeSpace { .. } => {
-                    format!("en el espacio libre ({})", gb(d.free))
-                }
+                crate::disk::DiskDecision::FreeSpace { .. } => "en el espacio libre".to_string(),
                 crate::disk::DiskDecision::Shrink { .. } => {
                     format!("junto a Windows ({})", gb(app.disks.shrink_bytes))
                 }
@@ -45,16 +43,21 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         _ => "no configurado".into(),
     };
     let cifrado = if !app.disks.encrypt {
-        "sin cifrar".to_string()
+        "No".to_string()
     } else if app.enc.tpm && app.enc.tpm_present {
-        "LUKS2 · TPM".to_string()
+        "Sí · TPM".to_string()
+    } else if app.enc.use_account {
+        "Sí · contraseña de la cuenta".to_string()
     } else {
-        "LUKS2".to_string()
+        "Sí · frase propia".to_string()
     };
 
     let mut lines = vec![
         Line::from(vec![
-            Span::styled(format!("{:<12}", "equipo"), Style::default().fg(app.palette.muted)),
+            Span::styled(
+                format!("{:<15}", "Equipo"),
+                Style::default().fg(app.palette.muted),
+            ),
             Span::styled(app.pretty_host_name(), Style::default().fg(app.palette.text)),
             Span::styled(" · ", Style::default().fg(app.palette.muted)),
             Span::styled(
@@ -62,13 +65,17 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(app.palette.muted),
             ),
         ]),
-        row(app, "lenguaje", app.settings.default_locale.clone()),
-        row(app, "teclado", app.keyboard_layout.clone()),
-        row(app, "zona", app.settings.time_zone.clone()),
-        row(app, "usuario", app.settings.username.clone()),
-        row(app, "git", git),
-        row(app, "disco", disk),
-        row(app, "cifrado", cifrado),
+        row(app, "Lenguaje", crate::screens::locale::display(&app.settings.default_locale)),
+        row(
+            app,
+            "Teclado",
+            crate::keyboard::display(&app.settings.keyboard_layout, &app.settings.keyboard_variant),
+        ),
+        row(app, "Zona horaria", app.settings.time_zone.clone()),
+        row(app, "Usuario", app.settings.username.clone()),
+        row(app, "Git", git),
+        row(app, "Disco", disk),
+        row(app, "Cifrado", cifrado),
         Line::from(Span::styled(
             "─".repeat(area.width as usize),
             Style::default().fg(app.palette.rule),

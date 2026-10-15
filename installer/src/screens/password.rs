@@ -58,6 +58,15 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let mut lines = first;
     lines.push(Line::from(""));
     lines.extend(second);
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "─".repeat(w as usize),
+        Style::default().fg(app.palette.rule),
+    )));
+    lines.push(Line::from(Span::styled(
+        "Se usa para iniciar sesión y para sudo.",
+        Style::default().fg(app.palette.muted),
+    )));
 
     let focus_y = if focus == 0 { 0 } else { 5 };
     let scroll = widgets::scroll_to_show(focus_y, 4, area.height);

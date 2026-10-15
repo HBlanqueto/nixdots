@@ -84,9 +84,12 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(""));
 
         // It is typed at boot, with the selected keyboard layout.
-        let id = app.keyboard_active.as_str();
+        let id = crate::keyboard::display(
+            &app.settings.keyboard_layout,
+            &app.settings.keyboard_variant,
+        );
         lines.push(Line::from(Span::styled(
-            format!("! se escribe al encender, con teclado: {id}"),
+            format!("Se escribe al encender, con teclado {id}."),
             Style::default().fg(app.palette.warning),
         )));
         if pass_has_non_ascii(app) {

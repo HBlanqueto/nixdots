@@ -108,6 +108,11 @@ fn parse_supported(text: &str) -> Vec<String> {
 
 /// The locale's name in its own language, e.g. `es_MX` → `Español (México)`.
 /// Falls back to the language name plus region code, then to the raw code.
+/// The readable name of a locale code, e.g. `es_MX.UTF-8` → `Español (México)`.
+pub fn display(code: &str) -> String {
+    display_name(code)
+}
+
 fn display_name(code: &str) -> String {
     let base = code.split('.').next().unwrap_or(code);
     let base = base.split('@').next().unwrap_or(base);
