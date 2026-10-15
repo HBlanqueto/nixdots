@@ -1,4 +1,4 @@
-//! Environment detection used by the welcome screen and the disk chooser.
+//! Environment detection used for the default hostname and the disk chooser.
 
 use serde::Deserialize;
 use std::net::{TcpStream, ToSocketAddrs};

@@ -613,7 +613,7 @@ pub struct App {
     /// Machine class (thinkpad | utm), detected from arch + virt.
     pub profile: detect::Profile,
 
-    // welcome
+    // machine detection (only used for the default hostname)
     pub arch: Option<String>,
     pub virt: Option<String>,
 
