@@ -6,20 +6,19 @@ use crate::app::Picker;
 use crate::theme::Palette;
 use crate::widgets;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
 pub const ROWS: usize = 8;
 
-/// A centered, searchable list with centered names, an accent capsule on the
-/// chosen row and a `█`/`│` scrollbar. `suggested` highlights a row without
-/// selecting it. The box border is drawn by the screen's `StepLayout`.
+/// A centered, searchable list with centered names, an accent capsule across
+/// the whole row on the chosen entry and a `█`/`│` scrollbar. `suggested`
+/// highlights a row without selecting it. The box border is drawn by the
+/// screen's `StepLayout`; the list fills all of `area`.
 pub fn draw_centered(
     f: &mut Frame,
     palette: &Palette,
@@ -27,7 +26,7 @@ pub fn draw_centered(
     picker: &Picker,
     suggested: Option<usize>,
 ) {
-    let rows = (area.height as usize).min(ROWS);
+    let rows = area.height as usize;
     let total = picker.filtered.len();
     // With nothing chosen, scroll to the suggested row so it is visible (it
     // stays unselected).
@@ -51,7 +50,6 @@ pub fn draw_centered(
         let style = if selected {
             Style::default()
                 .fg(palette.white)
-                .bg(palette.primary)
                 .add_modifier(Modifier::BOLD)
         } else if is_suggested {
             Style::default().fg(palette.focus).add_modifier(Modifier::BOLD)
@@ -59,55 +57,33 @@ pub fn draw_centered(
             Style::default().fg(palette.text)
         };
         let name: String = item.name.chars().take(text_w).collect();
-        let pad = text_w.saturating_sub(name.chars().count()) / 2;
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::raw(" ".repeat(pad)),
-                Span::styled(name, style),
-            ])),
-            row_rect,
-        );
+        let pad = text_w.saturating_sub(name.chars().count());
+        let left = pad / 2;
+        let mut line = Line::from(vec![
+            Span::styled(" ".repeat(left), style),
+            Span::styled(name, style),
+            Span::styled(" ".repeat(pad - left), style),
+        ]);
+        if selected {
+            line = line.style(Style::default().bg(palette.primary));
+        }
+        f.render_widget(Paragraph::new(line), row_rect);
     }
 
-    // Scrollbar.
-    if total > rows && area.width > 0 {
-        let x = area.right().saturating_sub(1);
-        let thumb_h = (rows * rows / total).max(1);
-        let travel = rows.saturating_sub(thumb_h);
-        let max_start = total.saturating_sub(rows);
-        let thumb_top = start
-            .saturating_mul(travel)
-            .checked_div(max_start)
-            .unwrap_or(0);
-        for row in 0..rows {
-            let filled = row >= thumb_top && row < thumb_top + thumb_h;
-            let (ch, style) = if filled {
-                ("█", Style::default().fg(palette.primary))
-            } else {
-                ("│", Style::default().fg(palette.row_bg))
-            };
-            f.render_widget(
-                Paragraph::new(Span::styled(ch, style)),
-                Rect::new(x, area.y + row as u16, 1, 1),
-            );
-        }
-    }
+    scrollbar(f, palette, area, start, rows, total);
 }
 
-pub fn draw(
-    f: &mut Frame,
-    palette: &Palette,
-    area: Rect,
-    picker: &Picker,
-) {
-    let mut lines: Vec<Line> = Vec::new();
+/// The timezone list: the zone on the left, its local time on the right.
+pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker) {
+    let rows = area.height as usize;
     let total = picker.filtered.len();
-    let rows = (area.height as usize).clamp(1, ROWS);
     let start = picker
         .selected
         .unwrap_or(0)
         .saturating_sub(rows / 2)
         .min(total.saturating_sub(rows));
+    let text_w = area.width.saturating_sub(1) as usize;
+    let mut lines: Vec<Line> = Vec::new();
     for row in 0..rows {
         let Some(&item_idx) = picker.filtered.get(start + row) else {
             lines.push(Line::from(""));
@@ -115,42 +91,70 @@ pub fn draw(
         };
         let item = &picker.items[item_idx];
         let selected = picker.selected == Some(start + row);
-        let text = format!("{:<26}", item.code);
+        let style = if selected {
+            Style::default()
+                .fg(palette.white)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.text)
+        };
         let trailing = match (item.extra.is_empty(), item.name.is_empty()) {
             (false, false) => format!("{}  {}", item.extra, item.name),
             (false, true) => item.extra.clone(),
             (true, _) => item.name.clone(),
         };
-        lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
+        let trailing_style = if selected {
+            style
+        } else {
+            Style::default().fg(palette.muted)
+        };
+        let code = item.code.chars().take(text_w).collect::<String>();
+        let used = code.chars().count() + trailing.chars().count();
+        let gap = text_w.saturating_sub(used);
+        let mut line = Line::from(vec![
+            Span::styled(code, style),
+            Span::styled(" ".repeat(gap), style),
+            Span::styled(trailing, trailing_style),
+        ]);
+        if selected {
+            line = line.style(Style::default().bg(palette.primary));
+        }
+        lines.push(line);
     }
-
-    // Leave the last column for a scrollbar, like the license text.
     let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     f.render_widget(Paragraph::new(lines), content);
+    scrollbar(f, palette, area, start, rows, total);
+}
 
-    if total > rows {
-        let bar_area = Rect::new(area.x, area.y + 1, area.width, rows as u16);
-        let mut state = ScrollbarState::new(total)
-            .position(start)
-            .viewport_content_length(rows);
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .thumb_symbol("█")
-            .track_symbol(Some("│"))
-            .style(Style::default().fg(palette.row_bg))
-            .thumb_style(Style::default().fg(palette.primary));
-        f.render_stateful_widget(scrollbar, bar_area, &mut state);
+/// A `█`/`│` scrollbar on the last column of `area`, full height.
+fn scrollbar(f: &mut Frame, palette: &Palette, area: Rect, start: usize, rows: usize, total: usize) {
+    if total <= rows || area.width == 0 {
+        return;
+    }
+    let x = area.right().saturating_sub(1);
+    let thumb_h = (rows * rows / total).max(1);
+    let travel = rows.saturating_sub(thumb_h);
+    let max_start = total.saturating_sub(rows);
+    let thumb_top = start
+        .saturating_mul(travel)
+        .checked_div(max_start)
+        .unwrap_or(0);
+    for row in 0..rows {
+        let filled = row >= thumb_top && row < thumb_top + thumb_h;
+        let (ch, style) = if filled {
+            ("█", Style::default().fg(palette.primary))
+        } else {
+            ("│", Style::default().fg(palette.row_bg))
+        };
+        f.render_widget(
+            Paragraph::new(Span::styled(ch, style)),
+            Rect::new(x, area.y + row as u16, 1, 1),
+        );
     }
 }
 
-/// Renders the search box (a TextField) at the top of `area` and returns the
-/// rectangle left for the list below it.
-pub fn draw_search(
-    f: &mut Frame,
-    palette: &Palette,
-    area: Rect,
-    picker: &Picker,
-    focused: bool,
-) -> Rect {
+/// Renders the `Buscar` box into `area` (four rows).
+pub fn search_box(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focused: bool) {
     let search = widgets::text_field(
         palette,
         "Buscar",
@@ -163,16 +167,26 @@ pub fn draw_search(
         None,
         false,
     );
-    f.render_widget(
-        Paragraph::new(search),
-        Rect::new(area.x, area.y, area.width, 4),
-    );
-    Rect::new(
-        area.x,
-        area.y + 5,
-        area.width,
-        area.height.saturating_sub(5),
-    )
+    f.render_widget(Paragraph::new(search), area);
+}
+
+/// Renders the search box (a TextField) at the top of `area` and returns the
+/// rectangle left for the list below it.
+pub fn draw_search(
+    f: &mut Frame,
+    palette: &Palette,
+    area: Rect,
+    picker: &Picker,
+    focused: bool,
+) -> Rect {
+    let chunks = Layout::vertical([
+        Constraint::Length(4),
+        Constraint::Length(1),
+        Constraint::Min(0),
+    ])
+    .split(area);
+    search_box(f, palette, chunks[0], picker, focused);
+    chunks[2]
 }
 
 /// Handles typing, filtering and list navigation. Returns true if consumed.

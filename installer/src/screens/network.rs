@@ -1,7 +1,7 @@
 use crate::app::{Action, App, RedFase};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -9,22 +9,31 @@ use ratatui::Frame;
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
-const MAX_ROWS: usize = 6;
 const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"];
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     match &app.net.phase {
         RedFase::Lista => {
-            f.render_widget(Paragraph::new(list_lines(app, area.width)), area);
+            let lines = list_lines(app, area.width, area.height as usize);
+            f.render_widget(Paragraph::new(lines), area);
         }
         RedFase::Contrasena { ssid, input, visible } => {
-            let mut lines = list_lines(app, area.width);
-            lines.push(Line::from(Span::styled(
-                "─".repeat(area.width as usize),
-                Style::default().fg(app.palette.rule),
-            )));
-            let field_y = lines.len() as u16;
-            lines.extend(widgets::text_field(
+            let chunks = Layout::vertical([
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Length(4),
+            ])
+            .split(area);
+            let rows = chunks[0].height as usize;
+            f.render_widget(Paragraph::new(list_lines(app, area.width, rows)), chunks[0]);
+            f.render_widget(
+                Paragraph::new(Span::styled(
+                    "─".repeat(area.width as usize),
+                    Style::default().fg(app.palette.rule),
+                )),
+                chunks[1],
+            );
+            let field = widgets::text_field(
                 &app.palette,
                 &format!("Contraseña de {ssid}"),
                 input.value(),
@@ -35,10 +44,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 area.width,
                 None,
                 false,
-            ));
-            let scroll = widgets::scroll_to_show(field_y, 4, area.height);
-            f.render_widget(Paragraph::new(lines.clone()).scroll((scroll, 0)), area);
-            widgets::draw_scrollbar(f, &app.palette, area, lines.len(), scroll, area.height);
+            );
+            f.render_widget(Paragraph::new(field), chunks[2]);
         }
         RedFase::Conectando { ssid } => {
             let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
@@ -81,10 +88,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-/// The Wi-Fi list rows (or the empty message). Fixed columns: the SSID, a
-/// 10-column security label and four signal bars (missing ones dimmed). The
-/// selected row is filled border to border, with no `›`.
-fn list_lines(app: &App, width: u16) -> Vec<Line<'static>> {
+/// The Wi-Fi list rows filling `rows` lines (or the empty message). Fixed
+/// columns: the SSID, a 10-column security label and four signal bars (missing
+/// ones dimmed). The selected row is filled border to border, with no `›`.
+fn list_lines(app: &App, width: u16, rows: usize) -> Vec<Line<'static>> {
     if app.net.wifi.is_empty() {
         let msg = if app.net.backend.name() == "ninguno" {
             "no hay backend de red (nmcli/iwctl/wpa_cli)"
@@ -96,53 +103,59 @@ fn list_lines(app: &App, width: u16) -> Vec<Line<'static>> {
             Style::default().fg(app.palette.warning),
         ))];
     }
+    let total = app.net.wifi.len();
+    let rows = rows.max(1);
+    let start = app
+        .net
+        .selected
+        .saturating_sub(rows / 2)
+        .min(total.saturating_sub(rows));
+    (start..(start + rows).min(total))
+        .map(|i| wifi_row(app, i, width))
+        .collect()
+}
+
+fn wifi_row(app: &App, i: usize, width: u16) -> Line<'static> {
+    let wifi = &app.net.wifi[i];
+    let selected = i == app.net.selected;
     let width = width as usize;
     let name_w = width.saturating_sub(14);
-    app.net
-        .wifi
-        .iter()
-        .take(MAX_ROWS)
-        .enumerate()
-        .map(|(i, wifi)| {
-            let selected = i == app.net.selected;
-            let name: String = wifi.ssid.chars().take(name_w).collect();
-            let level = match wifi.signal {
-                76..=100 => 4,
-                51..=75 => 3,
-                26..=50 => 2,
-                _ => 1,
-            };
-            let name_style = if selected {
-                Style::default()
-                    .fg(app.palette.white)
-                    .add_modifier(ratatui::style::Modifier::BOLD)
-            } else {
-                Style::default().fg(app.palette.text)
-            };
-            let bright = if selected {
-                app.palette.white
-            } else {
-                app.palette.secondary
-            };
-            let mut spans = vec![
-                Span::styled(format!("{name:<name_w$}"), name_style),
-                Span::styled(
-                    format!("{:<10}", wifi.security()),
-                    Style::default().fg(app.palette.muted),
-                ),
-            ];
-            for (k, ch) in ["▂", "▄", "▆", "█"].iter().enumerate() {
-                let color = if k < level { bright } else { app.palette.disabled };
-                spans.push(Span::styled((*ch).to_string(), Style::default().fg(color)));
-            }
-            let line = Line::from(spans);
-            if selected {
-                line.style(Style::default().bg(app.palette.primary))
-            } else {
-                line
-            }
-        })
-        .collect()
+    let name: String = wifi.ssid.chars().take(name_w).collect();
+    let level = match wifi.signal {
+        76..=100 => 4,
+        51..=75 => 3,
+        26..=50 => 2,
+        _ => 1,
+    };
+    let name_style = if selected {
+        Style::default()
+            .fg(app.palette.white)
+            .add_modifier(ratatui::style::Modifier::BOLD)
+    } else {
+        Style::default().fg(app.palette.text)
+    };
+    let bright = if selected {
+        app.palette.white
+    } else {
+        app.palette.secondary
+    };
+    let mut spans = vec![
+        Span::styled(format!("{name:<name_w$}"), name_style),
+        Span::styled(
+            format!("{:<10}", wifi.security()),
+            Style::default().fg(app.palette.muted),
+        ),
+    ];
+    for (k, ch) in ["▂", "▄", "▆", "█"].iter().enumerate() {
+        let color = if k < level { bright } else { app.palette.disabled };
+        spans.push(Span::styled((*ch).to_string(), Style::default().fg(color)));
+    }
+    let line = Line::from(spans);
+    if selected {
+        line.style(Style::default().bg(app.palette.primary))
+    } else {
+        line
+    }
 }
 
 /// Returns `true` when the key was handled by the screen (and must not fall
@@ -158,7 +171,7 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
                 true
             }
             KeyCode::Down => {
-                if app.net.selected + 1 < app.net.wifi.len().min(MAX_ROWS) {
+                if app.net.selected + 1 < app.net.wifi.len() {
                     app.net.selected += 1;
                 }
                 true
@@ -168,7 +181,7 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
                 true
             }
             KeyCode::End => {
-                app.net.selected = app.net.wifi.len().min(MAX_ROWS).saturating_sub(1);
+                app.net.selected = app.net.wifi.len().saturating_sub(1);
                 true
             }
             KeyCode::Char('r') => {

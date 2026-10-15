@@ -4,7 +4,7 @@
 use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
@@ -13,15 +13,29 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let Some(picker) = &app.keyboards else {
         return;
     };
-    let list = super::picker::draw_search(
+    let chunks = Layout::vertical([
+        Constraint::Length(4),
+        Constraint::Length(1),
+        Constraint::Min(0),
+        Constraint::Length(1),
+        Constraint::Length(4),
+    ])
+    .split(area);
+    super::picker::search_box(
         f,
         &app.palette,
-        area,
+        chunks[0],
         picker,
         !app.focus_buttons && !app.key_test_focus && !app.no_focus(),
     );
+    super::picker::draw_centered(
+        f,
+        &app.palette,
+        chunks[2],
+        picker,
+        app.keyboard_suggested,
+    );
     // The test field sits at the bottom of the box, below the list.
-    let test_y = area.bottom().saturating_sub(4);
     let test = widgets::text_field(
         &app.palette,
         "Prueba el teclado",
@@ -34,18 +48,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         None,
         false,
     );
-    f.render_widget(
-        Paragraph::new(test),
-        Rect::new(area.x, test_y, area.width, 4),
-    );
-    let list_h = test_y.saturating_sub(list.y + 1);
-    super::picker::draw_centered(
-        f,
-        &app.palette,
-        Rect::new(list.x, list.y, list.width, list_h),
-        picker,
-        app.keyboard_suggested,
-    );
+    f.render_widget(Paragraph::new(test), chunks[4]);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
