@@ -623,12 +623,13 @@ fn step_recovery_key(
     ));
     report.log(format!("$ {}", cmd.display));
 
+    let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| {
         let l = match out {
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nix_display(&l) {
+        if let Some(clean) = nixlog.feed(&l).0 {
             report.log(clean);
         }
     };
@@ -676,12 +677,13 @@ fn step_tpm_enroll(
         ));
     report.log(format!("$ {}", cmd.display));
 
+    let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| {
         let l = match out {
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nix_display(&l) {
+        if let Some(clean) = nixlog.feed(&l).0 {
             report.log(clean);
         }
     };
@@ -1288,16 +1290,17 @@ fn run_with_progress(plan: &Plan, report: &mut Reporter, cmd: &Cmd) -> i32 {
         simulate_build(report);
         return 0;
     }
-    let mut progress = NixProgress::default();
+    let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| {
         let line = match out {
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some((built, total)) = progress.feed(line.trim()) {
+        let (display, progress) = nixlog.feed(&line);
+        if let Some((built, total)) = progress {
             report.progress(built, total);
         }
-        if let Some(clean) = nix_display(&line) {
+        if let Some(clean) = display {
             report.log(clean);
         }
     };
@@ -1329,12 +1332,13 @@ fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<
             shell_command(cmd)
         ))
         .with_display(cmd.display.clone());
+    let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| {
         let l = match out {
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nix_display(&l) {
+        if let Some(clean) = nixlog.feed(&l).0 {
             report.log(clean);
         }
     };
@@ -1357,18 +1361,19 @@ fn exec_capture(
     let wrapped = Cmd::new("sh")
         .arg("-c")
         .arg(format!("cd {} && exec {}", shell_quote(cwd), shell_command(cmd)));
+    let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| match out {
         Stream::Stdout(l) => {
             captured.push_str(&l);
             captured.push('\n');
-            if let Some(clean) = nix_display(&l) {
+            if let Some(clean) = nixlog.feed(&l).0 {
                 report.log(clean);
             }
         }
         Stream::Stderr(l) => {
             err.push_str(&l);
             err.push('\n');
-            if let Some(clean) = nix_display(&l) {
+            if let Some(clean) = nixlog.feed(&l).0 {
                 report.log(clean);
             }
         }
@@ -1422,38 +1427,76 @@ fn ensure_ok(code: i32, what: &str) -> Result<()> {
     }
 }
 
-/// Turns a raw nix line into a clean, human line, or `None` when it carries no
-/// text (machine progress). Expands `@nix {…}` internal-json and strips ANSI.
-fn nix_display(line: &str) -> Option<String> {
-    let line = line.trim_end();
-    if let Some(json) = line.strip_prefix("@nix ") {
-        let v: serde_json::Value = serde_json::from_str(json).ok()?;
-        let fields = v.get("fields").and_then(|f| f.as_array());
-        let first = fields
-            .and_then(|f| f.first())
-            .and_then(|s| s.as_str())
-            .unwrap_or("");
-        return match v.get("action").and_then(|a| a.as_str()) {
-            Some("msg") => v
-                .get("msg")
-                .or_else(|| v.get("text"))
-                .and_then(|t| t.as_str())
-                .map(strip_ansi),
-            Some("start") => match v.get("type").and_then(|t| t.as_u64()).unwrap_or(0) {
-                105 => Some(format!("compilando {}", store_name(first))),
-                100 => {
-                    let cache = fields
-                        .and_then(|f| f.get(1))
-                        .and_then(|s| s.as_str())
-                        .unwrap_or("");
-                    Some(format!("descargando {} · {}", store_name(first), cache))
-                }
-                _ => None,
-            },
-            _ => None,
+/// Translates nix's `internal-json` log into clean lines plus a global build
+/// progress. Activity types: 103 CopyPaths, 104 Builds, 105 Build, 108
+/// Substitute. Only a `result` 105 of a Builds/CopyPaths activity is real
+/// progress (fields = [done, expected]); a download's `result` 105 is bytes.
+#[derive(Default)]
+struct NixLog {
+    activities: std::collections::HashMap<u64, u64>,
+}
+
+impl NixLog {
+    /// Returns the display line (if any) and the progress (if any).
+    fn feed(&mut self, line: &str) -> (Option<String>, Option<(u64, u64)>) {
+        let line = line.trim_end();
+        let Some(json) = line.strip_prefix("@nix ") else {
+            return (Some(strip_ansi(line)), None);
         };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
+            return (None, None);
+        };
+        let id = v.get("id").and_then(|i| i.as_u64());
+        let ty = v.get("type").and_then(|t| t.as_u64()).unwrap_or(0);
+        let fields = v.get("fields").and_then(|f| f.as_array());
+        let field = |i: usize| -> Option<String> {
+            fields
+                .and_then(|f| f.get(i))
+                .and_then(|s| s.as_str())
+                .map(str::to_string)
+        };
+        match v.get("action").and_then(|a| a.as_str()) {
+            Some("start") => {
+                if let Some(id) = id {
+                    self.activities.insert(id, ty);
+                }
+                match ty {
+                    105 => (field(0).map(|p| format!("compilando {}", store_name(&p))), None),
+                    108 => (
+                        field(0).map(|p| {
+                            format!(
+                                "descargando {} · {}",
+                                store_name(&p),
+                                field(1).unwrap_or_default()
+                            )
+                        }),
+                        None,
+                    ),
+                    _ => (None, None),
+                }
+            }
+            Some("result") if ty == 105 => {
+                if let Some(id) = id {
+                    if matches!(self.activities.get(&id), Some(104) | Some(103)) {
+                        let done = field(0).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+                        let expected = field(1).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
+                        if expected > 0 {
+                            return (None, Some((done, expected)));
+                        }
+                    }
+                }
+                (None, None)
+            }
+            Some("msg") => (
+                v.get("msg")
+                    .or_else(|| v.get("text"))
+                    .and_then(|t| t.as_str())
+                    .map(strip_ansi),
+                None,
+            ),
+            _ => (None, None),
+        }
     }
-    Some(strip_ansi(line))
 }
 
 /// The `-name` part of a `/nix/store/<hash>-<name>` path.
@@ -1678,82 +1721,6 @@ fn simulate_build(report: &mut Reporter) {
     report.log("(simulación) sistema construido");
 }
 
-/// Very small parser for `nix --log-format internal-json` build progress.
-#[derive(Default)]
-struct NixProgress {
-    built: u64,
-    total: u64,
-    saw_text: bool,
-}
-
-impl NixProgress {
-    /// Returns `(built, total)` when it changed.
-    fn feed(&mut self, line: &str) -> Option<(u64, u64)> {
-        let before = (self.built, self.total);
-        let json = line.strip_prefix("@nix ");
-        if let Some(json) = json {
-            if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
-                if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
-                    self.parse_text(text);
-                }
-                if let Some(fields) = value.get("fields").and_then(|f| f.as_array()) {
-                    for field in fields {
-                        if let Some(s) = field.as_str() {
-                            self.parse_text(s);
-                        }
-                    }
-                }
-                if value.get("action").and_then(|a| a.as_str()) == Some("stop") && !self.saw_text {
-                    self.built += 1;
-                    if self.built > self.total {
-                        self.total = self.built;
-                    }
-                }
-            }
-        } else {
-            self.parse_text(line);
-        }
-        if (self.built, self.total) != before {
-            Some((self.built, self.total))
-        } else {
-            None
-        }
-    }
-
-    fn parse_text(&mut self, text: &str) {
-        let bytes = text.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            if !bytes[i].is_ascii_digit() {
-                i += 1;
-                continue;
-            }
-            let a_start = i;
-            while i < bytes.len() && bytes[i].is_ascii_digit() {
-                i += 1;
-            }
-            if i >= bytes.len() || bytes[i] != b'/' {
-                continue;
-            }
-            let a: u64 = text[a_start..i].parse().unwrap_or(0);
-            i += 1;
-            let b_start = i;
-            while i < bytes.len() && bytes[i].is_ascii_digit() {
-                i += 1;
-            }
-            if i == b_start {
-                continue;
-            }
-            let b: u64 = text[b_start..i].parse().unwrap_or(0);
-            let tail = text[i..].trim_start();
-            if tail.starts_with("built") || tail.starts_with("copied") {
-                self.saw_text = true;
-                self.built = self.built.max(a);
-                self.total = self.total.max(b);
-            }
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -1774,18 +1741,6 @@ mod tests {
         assert_eq!(replace_by_uuid_with_label(input), input);
     }
 
-    #[test]
-    fn progress_parses_built_ratio() {
-        let mut p = NixProgress::default();
-        assert_eq!(p.feed("[3/10 built, 1/2 copied]"), Some((3, 10)));
-    }
-
-    #[test]
-    fn progress_parses_internal_json() {
-        let mut p = NixProgress::default();
-        let line = r#"@nix {"action":"msg","text":"[7/42 built]"}"#;
-        assert_eq!(p.feed(line), Some((7, 42)));
-    }
 
     #[test]
     fn steps_have_labels() {
