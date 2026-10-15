@@ -15,7 +15,6 @@
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
         brave-previews.url = "github:drishal/brave-browser-flake";
-        mac-style.url = "github:SergioRibera/s4rchiso-plymouth-theme";
 
         sf-mono-liga-src.url = "github:shaunsingh/SFMono-Nerd-Font-Ligaturized";
         sf-mono-liga-src.flake = false;
@@ -111,13 +110,21 @@
                 };
 
             installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
+
+            # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
+            # neptunia palette) on a real VT, then runs the installer inside it.
+            launchers = nixpkgs.lib.genAttrs supportedSystems (system:
+                nixpkgs.legacyPackages.${system}.callPackage ./packages/installer-launcher.nix {
+                    installer = installers.${system};
+                });
         in
         {
             nixosConfigurations = hosts;
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
-                default = installers.${system};
+                launcher = launchers.${system};
+                default = launchers.${system};
 
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
@@ -127,11 +134,11 @@
             apps = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = {
                     type = "app";
-                    program = "${installers.${system}}/bin/nixdots-installer";
+                    program = "${launchers.${system}}/bin/nixdots-installer";
                 };
                 default = {
                     type = "app";
-                    program = "${installers.${system}}/bin/nixdots-installer";
+                    program = "${launchers.${system}}/bin/nixdots-installer";
                 };
             });
 
