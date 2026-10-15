@@ -226,9 +226,10 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         }
     }
 
-    // The build's scratch dir lives on the target disk; drop it when done.
+    // The build's scratch dirs live on the target disk; drop them when done.
     if !plan.dry_run {
         let _ = fs::remove_dir_all(plan.root.join("tmp"));
+        let _ = fs::remove_dir_all(target_build_dir(&plan));
     }
 
     if let Some(file) = report.file.as_mut() {
@@ -293,14 +294,22 @@ fn is_mounted(path: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Creates `<root>/tmp` (mode 1777) and points `TMPDIR` at it, so every child
-/// process (`nix`, `nixos-install`, …) keeps its scratch data on the target
-/// disk instead of the live ISO's RAM-backed `/tmp`.
+/// Creates the build's scratch dirs on the target and points `TMPDIR` at one of
+/// them, so every child process (`nix`, `nixos-install`, …) keeps its scratch
+/// data on the target disk instead of the live ISO's RAM-backed `/tmp`.
+///
+/// Nix refuses a `build-dir` that is world-writable or a symlink, so the two
+/// uses are split: a private 0700 [`target_build_dir`] for nix, and a plain
+/// root-owned 0755 `<root>/tmp` for `TMPDIR`. Permissions are reset on every
+/// run, so a Retry after a previous attempt just works.
 fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let tmp = plan.root.join("tmp");
+    let build = target_build_dir(plan);
     if !plan.dry_run {
         fs::create_dir_all(&tmp)?;
-        set_mode_dir(&tmp, 0o1777)?;
+        set_mode_dir(&tmp, 0o755)?;
+        fs::create_dir_all(&build)?;
+        set_mode_dir(&build, 0o700)?;
     }
     std::env::set_var("TMPDIR", &tmp);
     // The root-aware password assertion (modules/common/user.nix) checks
@@ -308,6 +317,12 @@ fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
     std::env::set_var("NIXDOTS_ROOT", &plan.root);
     report.log(format!("$ TMPDIR={}", tmp.display()));
     Ok(())
+}
+
+/// Nix's build directory on the target. Private (0700) and created by us, so it
+/// is neither world-writable nor a symlink (nix refuses both).
+fn target_build_dir(plan: &Plan) -> PathBuf {
+    plan.root.join("nix/var/nix/builds")
 }
 
 /// Minimum free space on the target before building the system: the closure is
@@ -1380,7 +1395,7 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     let flake = format!("{}#{}", repo.display(), plan.settings.host_name);
-    let tmp = plan.root.join("tmp");
+    let build = target_build_dir(plan);
 
     // Make sure the flake sees everything the installer wrote before building.
     git_snapshot(plan, report)?;
@@ -1398,14 +1413,14 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("--impure")
         .arg("--option")
         .arg("build-dir")
-        .arg_path(&tmp)
+        .arg_path(&build)
         .arg("--log-format")
         .arg("internal-json");
 
     let mut display = format!(
         "nixos-install --flake {flake} --root {} --no-root-passwd --option build-dir {}",
         plan.root.display(),
-        tmp.display()
+        build.display()
     );
 
     // On little RAM, build fewer things at once so the OOM killer stays away.
