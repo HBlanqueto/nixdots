@@ -55,6 +55,12 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     theme::console::install_panic_hook();
 
+    // Keep kernel messages off the console so they never corrupt the TUI.
+    let _ = std::process::Command::new("dmesg")
+        .arg("-n")
+        .arg("1")
+        .status();
+
     let args = parse_args()?;
     if args.help {
         println!("{}", help_text());
