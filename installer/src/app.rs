@@ -132,6 +132,68 @@ impl Screen {
     }
 }
 
+/// The kind of element that currently holds the focus, used for the shortcut
+/// line and for Enter/Esc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusKind {
+    /// A text field; `last` when it is the last one on the screen.
+    Field { last: bool },
+    List,
+    Checkbox,
+    Buttons,
+    Dialog,
+}
+
+/// The kind of element that currently holds the focus, used for the shortcut
+/// line and for Enter/Esc.
+impl App {
+    pub fn focus_kind(&self) -> FocusKind {
+        if self.license_modal
+            || self.quit.is_some()
+            || self.install_cancel
+            || self.disks.erase_modal
+        {
+            return FocusKind::Dialog;
+        }
+        if self.focus_buttons {
+            return FocusKind::Buttons;
+        }
+        match self.screen {
+            Screen::User => FocusKind::Field {
+                last: self.user.focus >= 1,
+            },
+            Screen::Password => FocusKind::Field {
+                last: self.password.focus >= 1,
+            },
+            Screen::Git => {
+                if self.git.focus == 0 {
+                    FocusKind::Checkbox
+                } else {
+                    FocusKind::Field {
+                        last: self.git.focus >= 2,
+                    }
+                }
+            }
+            Screen::Encryption => match self.enc.focus {
+                ENC_ACCOUNT | ENC_TPM | ENC_NOTED => FocusKind::Checkbox,
+                _ => FocusKind::Field {
+                    last: self.enc.focus == ENC_CONFIRM,
+                },
+            },
+            Screen::Keyboard if self.key_test_focus => FocusKind::Field { last: true },
+            Screen::Locale | Screen::Timezone | Screen::Keyboard | Screen::Network => {
+                if self.list_focus {
+                    FocusKind::List
+                } else {
+                    FocusKind::Field { last: true }
+                }
+            }
+            Screen::Summary => FocusKind::Buttons,
+            _ => FocusKind::Buttons,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     None,
@@ -1399,13 +1461,75 @@ impl App {
                 if self.focus_buttons {
                     self.activate_focused();
                 } else {
-                    // No content consumed it: move the focus to Continuar.
-                    self.focus_buttons_on_primary();
+                    self.enter_content();
                 }
             }
-            KeyCode::Esc => self.go_back(),
+            KeyCode::Esc if !self.clear_search() => self.go_back(),
             _ => {}
         }
+    }
+
+    /// Enter on the content: advance, or jump to the first thing missing.
+    fn enter_content(&mut self) {
+        match self.focus_kind() {
+            FocusKind::Field { last: true } => {
+                if self.primary_enabled() {
+                    self.advance();
+                } else {
+                    self.focus_first_incomplete();
+                }
+            }
+            FocusKind::List => {
+                if self.primary_enabled() {
+                    self.advance();
+                }
+            }
+            _ => self.focus_buttons_on_primary(),
+        }
+    }
+
+    /// Moves the focus to the first field that is not yet valid.
+    fn focus_first_incomplete(&mut self) {
+        match self.screen {
+            Screen::User => {
+                self.user.focus = if self.username_valid() { 0 } else { 1 };
+            }
+            Screen::Password => {
+                self.password.focus = if self.password.p1.value().is_empty() { 0 } else { 1 };
+            }
+            Screen::Git if self.git.enabled => {
+                self.git.focus = if self.git.email.value().is_empty() { 2 } else { 1 };
+            }
+            Screen::Encryption => {
+                self.enc.focus = if !self.enc.noted {
+                    ENC_NOTED
+                } else if !self.enc.use_account {
+                    ENC_PASS
+                } else {
+                    ENC_ACCOUNT
+                };
+            }
+            _ => self.focus_buttons_on_primary(),
+        }
+    }
+
+    /// Clears a list screen's search text, if any. Esc uses this first.
+    fn clear_search(&mut self) -> bool {
+        let picker = match self.screen {
+            Screen::Locale => self.loc.as_mut(),
+            Screen::Keyboard => self.keyboards.as_mut(),
+            Screen::Timezone => self.timezones.as_mut(),
+            _ => None,
+        };
+        if let Some(picker) = picker {
+            if !picker.query.value().is_empty() {
+                picker.query = Input::default();
+                picker.refilter();
+                self.list_focus = false;
+                return true;
+            }
+        }
+        false
     }
 
     /// Ctrl+C on Instalando opens the cancel confirmation (focus on Seguir).
@@ -2516,29 +2640,70 @@ impl App {
         f.render_widget(block, area);
     }
 
-    /// Screen-specific shortcut hints (without F2 or the v toggle).
-    fn screen_shortcuts(&self) -> Vec<String> {
-        match self.screen {
-            Screen::Splash => Vec::new(),
-            Screen::License => vec!["↑↓ desplazar".into(), "espacio aceptar".into()],
-            Screen::Network => vec![crate::screens::network::shortcut(self)],
-            Screen::Locale => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
-            Screen::Keyboard => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
-            Screen::Timezone => vec!["↑↓ elegir".into()],
-            Screen::User => vec!["↑↓ campo".into()],
-            Screen::Password => vec!["↑↓ campo".into()],
-            Screen::Git => vec!["espacio marcar".into()],
-            Screen::Disk => vec!["←/→ elegir".into(), "d detalles".into(), "esc atrás".into()],
-            Screen::Encryption => crate::screens::encryption::shortcuts(self),
-            Screen::Summary => vec!["no se puede deshacer".into()],
-            Screen::Installing => vec!["ctrl+c cancelar".into()],
-            Screen::Done => vec!["retira la ISO antes de reiniciar".into()],
+    /// The context hints for the focused element, with `⏎` in accent.
+    fn context_hints(&self) -> Vec<Span<'static>> {
+        let muted = Style::default().fg(self.palette.muted);
+        let accent = Style::default()
+            .fg(self.palette.primary)
+            .add_modifier(Modifier::BOLD);
+        let enter = || Span::styled("⏎", accent);
+        let sep = || Span::styled(" · ", muted);
+        let text = |s: &str| Span::styled(s.to_string(), muted);
+        let mut spans: Vec<Span> = Vec::new();
+        match self.focus_kind() {
+            FocusKind::Field { last: false } => {
+                spans.push(enter());
+                spans.push(text(" siguiente campo"));
+                spans.push(sep());
+                spans.push(text("esc atrás"));
+            }
+            FocusKind::Field { last: true } => {
+                spans.push(enter());
+                spans.push(text(" continuar"));
+                spans.push(sep());
+                spans.push(text("shift+tab campo anterior"));
+                spans.push(sep());
+                spans.push(text("esc atrás"));
+            }
+            FocusKind::List => {
+                spans.push(text("↑↓ elegir"));
+                spans.push(sep());
+                spans.push(enter());
+                spans.push(text(" continuar"));
+                spans.push(sep());
+                spans.push(text("escribe para buscar"));
+                spans.push(sep());
+                spans.push(text("esc atrás"));
+            }
+            FocusKind::Checkbox => {
+                spans.push(text("espacio marcar"));
+                spans.push(sep());
+                spans.push(enter());
+                spans.push(text(" siguiente"));
+                spans.push(sep());
+                spans.push(text("esc atrás"));
+            }
+            FocusKind::Buttons => {
+                spans.push(text("←→ cambiar"));
+                spans.push(sep());
+                spans.push(enter());
+                spans.push(text(" aceptar"));
+                spans.push(sep());
+                spans.push(text("esc atrás"));
+            }
+            FocusKind::Dialog => {
+                spans.push(text("←→ cambiar"));
+                spans.push(sep());
+                spans.push(enter());
+                spans.push(text(" aceptar"));
+                spans.push(sep());
+                spans.push(text("esc cerrar"));
+            }
         }
+        spans
     }
 
     fn draw_shortcuts(&self, f: &mut Frame, area: Rect) {
-        // A single line: F2 · screen hints · v toggle. Screen hints are dropped
-        // from the end when it does not fit; F2 and v are never removed.
         if let Some(status) = &self.status {
             f.render_widget(
                 Paragraph::new(Span::styled(
@@ -2550,24 +2715,28 @@ impl App {
             );
             return;
         }
-        let first = format!("F2 teclado: {}", self.keyboard_active);
-        let last = format!("v comandos: {}", if self.show_commands { "on" } else { "off" });
-        let middle = self.screen_shortcuts();
-
-        let mut line = format!("{first} · {last}");
-        for k in (1..=middle.len()).rev() {
-            let mut all = vec![first.clone()];
-            all.extend(middle[..k].iter().cloned());
-            all.push(last.clone());
-            let candidate = all.join(" · ");
-            if candidate.chars().count() <= area.width as usize {
-                line = candidate;
-                break;
-            }
+        let muted = Style::default().fg(self.palette.muted);
+        let mut spans = self.context_hints();
+        spans.push(Span::styled(" · ", muted));
+        spans.push(Span::styled(
+            format!("F2 teclado: {}", self.keyboard_active),
+            muted,
+        ));
+        if !matches!(
+            self.screen,
+            Screen::Splash | Screen::License | Screen::Installing | Screen::Done
+        ) {
+            spans.push(Span::styled(" · ", muted));
+            spans.push(Span::styled(
+                format!(
+                    "v comandos: {}",
+                    if self.show_commands { "on" } else { "off" }
+                ),
+                muted,
+            ));
         }
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(line, Style::default().fg(self.palette.muted))))
-                .alignment(Alignment::Center),
+            Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
             area,
         );
     }

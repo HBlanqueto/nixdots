@@ -273,6 +273,7 @@ fn choose(app: &mut App) {
             input: Input::default(),
             visible: false,
         };
+        app.list_focus = false;
         app.focus_primary();
     } else {
         app.start_net_connect(wifi.ssid.clone(), String::new());
@@ -297,6 +298,7 @@ pub fn rescan(app: &mut App) {
 
 pub fn to_menu(app: &mut App) {
     app.net.phase = RedFase::Lista;
+    app.list_focus = true;
     app.focus_primary();
     if app.net.selected >= app.net.wifi.len() {
         app.net.selected = 0;

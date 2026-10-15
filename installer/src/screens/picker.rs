@@ -229,6 +229,23 @@ pub fn draw_search(
     chunks[2]
 }
 
+/// Updates `list_focus`: typing focuses the search, arrows the list.
+pub fn update_list_focus(app: &mut crate::app::App, key: &KeyEvent) {
+    if super::is_edit_key(key) {
+        app.list_focus = false;
+    } else if matches!(
+        key.code,
+        KeyCode::Up
+            | KeyCode::Down
+            | KeyCode::PageUp
+            | KeyCode::PageDown
+            | KeyCode::Home
+            | KeyCode::End
+    ) {
+        app.list_focus = true;
+    }
+}
+
 /// Handles typing, filtering and list navigation. Returns true if consumed.
 pub fn key(picker: &mut Picker, key: KeyEvent) -> bool {
     match key.code {

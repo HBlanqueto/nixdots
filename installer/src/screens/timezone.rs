@@ -31,6 +31,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
+    super::picker::update_list_focus(app, &key);
     let Some(picker) = app.timezones.as_mut() else {
         return false;
     };

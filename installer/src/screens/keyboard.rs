@@ -73,6 +73,7 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             _ => false,
         };
     }
+    super::picker::update_list_focus(app, &key);
     match key.code {
         KeyCode::Tab => {
             app.key_test_focus = true;
