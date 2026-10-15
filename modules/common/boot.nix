@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ ... }:
 
 {
     # Boot settings shared by both hosts. The kernel, bootloader and the
@@ -14,8 +14,7 @@
 
         plymouth = {
             enable = true;
-            theme = "mac-style";
-            themePackages = [ pkgs.mac-style-plymouth ];
+            theme = "spinner";
         };
 
         # Generic kernel parameters shared by both hosts; the ThinkPad adds
