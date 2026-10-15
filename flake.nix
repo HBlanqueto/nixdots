@@ -92,6 +92,9 @@
                     # so the installer never shells out to `locale -a`,
                     # `localectl` or `timedatectl` for its choices.
                     NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                    # Source locale files (country_name / lang_name) for the
+                    # generated readable names; only the full glibc ships them.
+                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
                     NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                     NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
 
@@ -163,6 +166,7 @@
                         # `include_str!(env!(...))`, so a bare `cargo build` in
                         # the dev shell needs the same variables as the package.
                         NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                        NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
                         NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                         NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
                     };

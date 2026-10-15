@@ -205,16 +205,16 @@ impl Picker {
     }
 
     pub fn refilter(&mut self) {
-        let needle = self.query.value().to_lowercase();
+        let needle = fold(self.query.value());
         self.filtered = self
             .items
             .iter()
             .enumerate()
             .filter(|(_, item)| {
                 needle.is_empty()
-                    || item.code.to_lowercase().contains(&needle)
-                    || item.name.to_lowercase().contains(&needle)
-                    || item.extra.to_lowercase().contains(&needle)
+                    || fold(&item.code).contains(&needle)
+                    || fold(&item.name).contains(&needle)
+                    || fold(&item.extra).contains(&needle)
             })
             .map(|(i, _)| i)
             .collect();
@@ -2523,6 +2523,24 @@ fn language_code(locale: &str) -> &str {
         .split(['_', '.'])
         .next()
         .unwrap_or("")
+}
+
+/// Lowercases and strips the common Latin accents, so a search for «espanol»
+/// finds «Español».
+fn fold(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| c.to_lowercase())
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'ö' | 'õ' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ñ' => 'n',
+            'ç' => 'c',
+            other => other,
+        })
+        .collect()
 }
 
 /// Clips `s` to `width` columns, ending with '…' when it had to cut.

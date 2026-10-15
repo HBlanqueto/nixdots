@@ -106,9 +106,11 @@ fn parse_supported(text: &str) -> Vec<String> {
     codes
 }
 
-/// The locale's name in its own language, e.g. `es_MX` → `Español (México)`.
-/// Falls back to the language name plus region code, then to the raw code.
-/// The readable name of a locale code, e.g. `es_MX.UTF-8` → `Español (México)`.
+include!(concat!(env!("OUT_DIR"), "/locale_names.rs"));
+
+/// The locale's name in its own language, e.g. `es_MX.UTF-8` →
+/// `Español (México)`, from the table generated out of glibc. Falls back to
+/// the bare code when the locale has no data.
 pub fn display(code: &str) -> String {
     display_name(code)
 }
@@ -116,87 +118,28 @@ pub fn display(code: &str) -> String {
 fn display_name(code: &str) -> String {
     let base = code.split('.').next().unwrap_or(code);
     let base = base.split('@').next().unwrap_or(base);
-    if let Some(name) = exact_name(base) {
-        return name.to_string();
+    if let Some((_, lang, country)) = LOCALE_NAMES.iter().find(|(c, _, _)| *c == base) {
+        if let Some(name) = compose(lang, country) {
+            return name;
+        }
     }
-    let mut parts = base.split('_');
-    let lang = parts.next().unwrap_or("");
-    let region = parts.next().unwrap_or("");
-    let Some(language) = language_name(lang) else {
-        return code.to_string();
-    };
-    if region.is_empty() {
-        language.to_string()
-    } else {
-        format!("{language} ({region})")
+    code.to_string()
+}
+
+/// «Español (Bolivia)» from the locale's language and country names.
+fn compose(lang: &str, country: &str) -> Option<String> {
+    match (lang.is_empty(), country.is_empty()) {
+        (true, true) => None,
+        (false, true) => Some(capitalize(lang)),
+        (true, false) => Some(country.to_string()),
+        (false, false) => Some(format!("{} ({country})", capitalize(lang))),
     }
 }
 
-fn exact_name(base: &str) -> Option<&'static str> {
-    Some(match base {
-        "en_US" => "English (US)",
-        "en_GB" => "English (UK)",
-        "en_CA" => "English (Canada)",
-        "en_AU" => "English (Australia)",
-        "es_MX" => "Español (México)",
-        "es_ES" => "Español (España)",
-        "es_AR" => "Español (Argentina)",
-        "es_CO" => "Español (Colombia)",
-        "es_CL" => "Español (Chile)",
-        "es_PE" => "Español (Perú)",
-        "pt_BR" => "Português (Brasil)",
-        "pt_PT" => "Português (Portugal)",
-        "fr_FR" => "Français",
-        "fr_CA" => "Français (Canada)",
-        "de_DE" => "Deutsch",
-        "it_IT" => "Italiano",
-        "nl_NL" => "Nederlands",
-        "ru_RU" => "Русский",
-        "ja_JP" => "日本語",
-        "zh_CN" => "中文 (中国)",
-        "zh_TW" => "中文 (台灣)",
-        "ko_KR" => "한국어",
-        "pl_PL" => "Polski",
-        "sv_SE" => "Svenska",
-        "tr_TR" => "Türkçe",
-        "cs_CZ" => "Čeština",
-        "da_DK" => "Dansk",
-        "fi_FI" => "Suomi",
-        "el_GR" => "Ελληνικά",
-        "he_IL" => "עברית",
-        "uk_UA" => "Українська",
-        "ca_ES" => "Català",
-        "hi_IN" => "हिन्दी",
-        "ar_EG" => "العربية",
-        _ => return None,
-    })
-}
-
-fn language_name(code: &str) -> Option<&'static str> {
-    Some(match code {
-        "en" => "English",
-        "es" => "Español",
-        "fr" => "Français",
-        "de" => "Deutsch",
-        "pt" => "Português",
-        "it" => "Italiano",
-        "ca" => "Català",
-        "nl" => "Nederlands",
-        "ru" => "Русский",
-        "ja" => "日本語",
-        "zh" => "中文",
-        "ko" => "한국어",
-        "ar" => "العربية",
-        "hi" => "हिन्दी",
-        "pl" => "Polski",
-        "sv" => "Svenska",
-        "tr" => "Türkçe",
-        "cs" => "Čeština",
-        "da" => "Dansk",
-        "fi" => "Suomi",
-        "el" => "Ελληνικά",
-        "he" => "עברית",
-        "uk" => "Українська",
-        _ => return None,
-    })
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }
