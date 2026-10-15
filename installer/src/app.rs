@@ -37,7 +37,6 @@ pub enum Screen {
     Locale,
     Keyboard,
     Timezone,
-    Host,
     User,
     Password,
     Git,
@@ -57,7 +56,6 @@ impl Screen {
             Screen::Locale,
             Screen::Keyboard,
             Screen::Timezone,
-            Screen::Host,
             Screen::User,
             Screen::Password,
             Screen::Git,
@@ -79,7 +77,6 @@ impl Screen {
             Screen::Locale => "Lenguaje",
             Screen::Keyboard => "Teclado",
             Screen::Timezone => "Zona horaria",
-            Screen::Host => "Equipo",
             Screen::User => "Usuario",
             Screen::Password => "Contraseña",
             Screen::Git => "Git",
@@ -102,8 +99,7 @@ impl Screen {
             Screen::Network => Some(Screen::Locale),
             Screen::Locale => Some(Screen::Keyboard),
             Screen::Keyboard => Some(Screen::Timezone),
-            Screen::Timezone => Some(Screen::Host),
-            Screen::Host => Some(Screen::User),
+            Screen::Timezone => Some(Screen::User),
             Screen::User => Some(Screen::Password),
             Screen::Password => Some(Screen::Git),
             Screen::Git => Some(Screen::Disk),
@@ -126,8 +122,7 @@ impl Screen {
             }),
             Screen::Keyboard => Some(Screen::Locale),
             Screen::Timezone => Some(Screen::Keyboard),
-            Screen::Host => Some(Screen::Timezone),
-            Screen::User => Some(Screen::Host),
+            Screen::User => Some(Screen::Timezone),
             Screen::Password => Some(Screen::User),
             Screen::Git => Some(Screen::Password),
             Screen::Disk => Some(Screen::Git),
@@ -324,10 +319,6 @@ pub struct NetState {
     pub selected: usize,
     /// When the current connection attempt started (for the 30 s timeout).
     pub connecting_since: Option<Instant>,
-}
-
-pub struct HostState {
-    pub input: Input,
 }
 
 pub struct UserState {
@@ -651,9 +642,6 @@ pub struct App {
     /// The license text area, set during `draw` (for the scrollbar).
     pub license_text_area: Rect,
 
-    // host
-    pub host: HostState,
-
     // pickers
     pub timezones: Option<Picker>,
     pub loc: Option<Picker>,
@@ -756,9 +744,6 @@ impl App {
             source_check_rx: None,
             settings_ok,
             profile,
-            host: HostState {
-                input: Input::new(settings.host_name.clone()),
-            },
             user: UserState {
                 username: Input::default(),
                 name: Input::default(),
@@ -1030,13 +1015,6 @@ impl App {
         }
     }
 
-    pub fn hostname_valid(&self) -> bool {
-        let name = self.host.input.value();
-        !name.is_empty()
-            && name.len() <= 63
-            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-    }
-
     /// Regenerates the username from the name (while it is still automatic).
     pub fn regenerate_username(&mut self) {
         if self.user.edited {
@@ -1077,7 +1055,6 @@ impl App {
 
     fn apply_current(&mut self) {
         match self.screen {
-            Screen::Host => self.settings.host_name = self.host.input.value().to_string(),
             Screen::User => {
                 if self.user.username.value().is_empty() {
                     self.user.edited = false;
@@ -1424,7 +1401,6 @@ impl App {
             Screen::Splash => false,
             Screen::Network => crate::screens::network::key(self, key),
             Screen::License => crate::screens::license::key(self, key),
-            Screen::Host => crate::screens::host::key(self, key),
             Screen::Timezone => crate::screens::timezone::key(self, key),
             Screen::Locale => crate::screens::locale::key(self, key),
             Screen::Keyboard => crate::screens::keyboard::key(self, key),
@@ -1501,7 +1477,6 @@ impl App {
             Screen::Splash => vec![(Btn::new("Continuar"), Action::Next)],
             Screen::Network => crate::screens::network::buttons(self),
             Screen::License => crate::screens::license::buttons(self),
-            Screen::Host => crate::screens::host::buttons(self),
             Screen::Timezone => crate::screens::timezone::buttons(self),
             Screen::Locale => crate::screens::locale::buttons(self),
             Screen::Keyboard => crate::screens::keyboard::buttons(self),
@@ -1835,7 +1810,6 @@ impl App {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
             Screen::License => true,
-            Screen::Host => self.hostname_valid(),
             Screen::User => self.username_valid(),
             Screen::Password => self.passwords_match(),
             Screen::Timezone => self
@@ -1975,7 +1949,6 @@ impl App {
         match self.screen {
             Screen::Splash | Screen::License | Screen::Installing | Screen::Done => {}
             Screen::Network => crate::screens::network::draw(f, self, layout.inner),
-            Screen::Host => crate::screens::host::draw(f, self, layout.inner),
             Screen::Timezone => crate::screens::timezone::draw(f, self, layout.inner),
             Screen::Locale => crate::screens::locale::draw(f, self, layout.inner),
             Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.inner),
@@ -2169,7 +2142,6 @@ impl App {
             Screen::Splash => 0,
             Screen::Network => crate::screens::network::height(self),
             Screen::License => crate::screens::license::height(self),
-            Screen::Host => crate::screens::host::height(self),
             Screen::Timezone => crate::screens::timezone::height(self),
             Screen::Locale => crate::screens::locale::height(self),
             Screen::Keyboard => crate::screens::keyboard::height(self),
@@ -2340,7 +2312,6 @@ impl App {
             Screen::Locale => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
             Screen::Keyboard => vec!["↑↓ elegir".into(), "escribe filtrar".into()],
             Screen::Timezone => vec!["↑↓ elegir".into()],
-            Screen::Host => vec!["enter continuar".into()],
             Screen::User => vec!["↑↓ campo".into()],
             Screen::Password => vec!["↑↓ campo".into()],
             Screen::Git => vec!["espacio marcar".into()],
@@ -2506,7 +2477,6 @@ impl App {
             Screen::Splash => Vec::new(),
             Screen::Network => crate::screens::network::commands(self),
             Screen::License => crate::screens::license::commands(self),
-            Screen::Host => crate::screens::host::commands(self),
             Screen::Timezone => crate::screens::timezone::commands(self),
             Screen::Locale => crate::screens::locale::commands(self),
             Screen::Keyboard => crate::screens::keyboard::commands(self),
