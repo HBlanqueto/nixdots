@@ -143,6 +143,8 @@ pub enum Action {
     CancelInstall,
     /// Installing failure: run the install again from the start.
     RetryInstall,
+    /// License screen "Acepto": open the confirmation dialog.
+    LicenseAccept,
     Connect,
     Rescan,
     NetMenu,
@@ -173,7 +175,8 @@ pub enum ScrollKind {
 #[derive(Debug, Clone, Copy)]
 pub enum Click {
     LicenseText,
-    LicenseCheckbox,
+    LicenseModalNo,
+    LicenseModalAcepto,
     GitCheckbox,
     SummaryUutils,
     DiskConfirm,
@@ -586,12 +589,16 @@ pub struct App {
     pub net: NetState,
 
     // license
-    pub license_accepted: bool,
     /// Scroll offset (wrapped lines) of the license text.
     pub license_scroll: usize,
     pub license_max_scroll: usize,
-    /// 0 = text, 1 = the Acepto checkbox.
-    pub license_focus: usize,
+    /// The confirmation dialog is open (and owns input while it is).
+    pub license_modal: bool,
+    /// 0 = No acepto, 1 = Acepto (selected by default).
+    pub license_modal_focus: usize,
+    /// 1-based source line at the top of the box, and the total.
+    pub license_line: usize,
+    pub license_total: usize,
     /// The license text area, set during `draw` (for the scrollbar).
     pub license_text_area: Rect,
 
@@ -743,10 +750,12 @@ impl App {
                 connecting_since: None,
             },
             net_rx: None,
-            license_accepted: false,
             license_scroll: 0,
             license_max_scroll: 0,
-            license_focus: 0,
+            license_modal: false,
+            license_modal_focus: 1,
+            license_line: 1,
+            license_total: 1,
             license_text_area: Rect::default(),
             timezones: None,
             loc: None,
@@ -1226,6 +1235,12 @@ impl App {
             return;
         }
 
+        // The license confirmation dialog owns the keyboard while open.
+        if self.license_modal {
+            crate::screens::license::modal_key(self, key);
+            return;
+        }
+
         // F2 opens it on any screen except Inicio / Instalando / Listo.
         if key.code == KeyCode::F(2)
             && !matches!(self.screen, Screen::Splash | Screen::Installing | Screen::Done)
@@ -1435,6 +1450,22 @@ impl App {
                 && mouse.row < r.bottom()
         };
 
+        // While the license dialog is open, only its buttons react.
+        if self.license_modal {
+            if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                let click = self
+                    .targets
+                    .borrow()
+                    .iter()
+                    .find(|(r, _)| point(r))
+                    .map(|(_, c)| *c);
+                if let Some(click) = click {
+                    self.handle_click(click);
+                }
+            }
+            return;
+        }
+
         // Wheel: license text, or the picker row under the cursor.
         if matches!(
             mouse.kind,
@@ -1596,8 +1627,12 @@ impl App {
     fn handle_click(&mut self, click: Click) {
         self.focus_buttons = false;
         match click {
-            Click::LicenseText => self.license_focus = 0,
-            Click::LicenseCheckbox => self.license_accepted = !self.license_accepted,
+            Click::LicenseText => {}
+            Click::LicenseModalNo => self.license_modal = false,
+            Click::LicenseModalAcepto => {
+                self.license_modal = false;
+                self.advance();
+            }
             Click::GitCheckbox => {
                 self.git.enabled = !self.git.enabled;
                 if !self.git.enabled {
@@ -1671,6 +1706,10 @@ impl App {
                 self.should_quit = true;
             }
             Action::RetryInstall => self.restart_install(),
+            Action::LicenseAccept => {
+                self.license_modal = true;
+                self.license_modal_focus = 1;
+            }
             Action::Connect => crate::screens::network::connect(self),
             Action::Rescan => crate::screens::network::rescan(self),
             Action::NetMenu => crate::screens::network::to_menu(self),
@@ -1720,9 +1759,13 @@ impl App {
     /// the buttons start focused.
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
-        self.focus_buttons = matches!(self.screen, Screen::Splash | Screen::Welcome | Screen::Done);
+        self.focus_buttons = matches!(
+            self.screen,
+            Screen::Splash | Screen::Welcome | Screen::Done | Screen::License
+        );
         if self.screen == Screen::License {
-            self.license_focus = 0;
+            self.license_modal = false;
+            self.license_modal_focus = 1;
         }
         if self.screen == Screen::Disk {
             self.disk_focus = 0;
@@ -1897,7 +1940,7 @@ impl App {
     pub fn primary_enabled(&self) -> bool {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
-            Screen::License => self.license_accepted,
+            Screen::License => true,
             Screen::Host => self.hostname_valid(),
             Screen::User => self.username_valid(),
             Screen::Password => self.passwords_match(),
@@ -1957,6 +2000,19 @@ impl App {
         }
         if self.screen == Screen::Done {
             crate::screens::done::draw(f, self, area);
+            return;
+        }
+
+        // Licencia is chromeless: a centered logo, the text box and the pills,
+        // under the shared progress bar.
+        if self.screen == Screen::License {
+            let width = 84.min(area.width * 80 / 100);
+            let x = area.x + area.width.saturating_sub(width) / 2;
+            self.draw_progress(f, Rect::new(x, area.y + 1, width, 1));
+            crate::screens::license::draw(f, self, area);
+            if self.quit.is_some() {
+                self.draw_quit(f, area);
+            }
             return;
         }
 

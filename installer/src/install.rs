@@ -827,6 +827,15 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.write(&repo)?;
 
+    // Keep a copy of the license in the installed system.
+    let lic_dst = plan.root.join("etc/nixdots");
+    let lic_src = repo.join("LICENSE");
+    report.log(format!("$ cp {} {}/LICENSE", lic_src.display(), lic_dst.display()));
+    if !plan.dry_run && lic_src.exists() {
+        fs::create_dir_all(&lic_dst)?;
+        fs::copy(&lic_src, lic_dst.join("LICENSE"))?;
+    }
+
     // Password hash -> /persist/secrets/<user>.hash (0711 dir / 0600 file).
     // The directory is traversable (but not listable) so the unprivileged
     // `nix` evaluation can stat the hash; the file stays 0600 root-owned.
