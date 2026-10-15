@@ -49,10 +49,38 @@
             );
 
             # Settings de prueba para el arranque inicial: sin usuario, para que
-            # firstBoot = !(settings ? username) sea true. No es un host real.
+            # firstBoot = (settings.username or null) == null sea true. NO es un
+            # host real.
             firstBootSettings = builtins.removeAttrs settings [
                 "username" "userdescription" "hashedPasswordFile" "gitName" "gitEmail"
             ];
+
+            # VM de prueba del primer arranque, en ambas arquitecturas:
+            #   nixos-rebuild build-vm --flake .#firstboot-vm
+            #   nixos-rebuild build-vm --flake .#firstboot-vm-aarch64
+            # Vive en el flake, no en hosts/, porque toda carpeta bajo hosts/
+            # se convierte en un host real. Solo desktop + first-boot + user.
+            mkFirstBootVm = system: nixpkgs.lib.nixosSystem {
+                inherit system;
+
+                specialArgs = {
+                    inherit inputs;
+                    hostName = "firstboot-vm";
+                } // import ./lib/specialArgs.nix { settings = firstBootSettings; };
+
+                modules = [
+                    ./modules/desktop
+                    ./modules/common/first-boot.nix
+                    ./modules/common/user.nix
+                    { system.stateVersion = settings.stateVersion; }
+                    {
+                        virtualisation.vmVariant.virtualisation = {
+                            memorySize = 4096;
+                            cores = 4;
+                        };
+                    }
+                ];
+            };
 
             # The installer is built for both architectures the ISO is offered
             # on; it only orchestrates other tools.
@@ -128,31 +156,8 @@
         in
         {
             nixosConfigurations = hosts // {
-                # VM mínima para probar el primer arranque:
-                #   nixos-rebuild build-vm --flake .#firstboot-vm
-                # Vive en el flake, no en hosts/, porque toda carpeta bajo hosts/
-                # se convierte en un host real. Solo desktop + first-boot + user.
-                firstboot-vm = nixpkgs.lib.nixosSystem {
-                    system = "x86_64-linux";
-
-                    specialArgs = {
-                        inherit inputs;
-                        hostName = "firstboot-vm";
-                    } // import ./lib/specialArgs.nix { settings = firstBootSettings; };
-
-                    modules = [
-                        ./modules/desktop
-                        ./modules/common/first-boot.nix
-                        ./modules/common/user.nix
-                        { system.stateVersion = settings.stateVersion; }
-                        {
-                            virtualisation.vmVariant.virtualisation = {
-                                memorySize = 4096;
-                                cores = 4;
-                            };
-                        }
-                    ];
-                };
+                firstboot-vm = mkFirstBootVm "x86_64-linux";
+                firstboot-vm-aarch64 = mkFirstBootVm "aarch64-linux";
             };
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
