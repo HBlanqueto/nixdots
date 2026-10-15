@@ -1,0 +1,74 @@
+name: installer release
+
+# Builds the static installer for both architectures and attaches the binaries
+# plus SHA256SUMS to the GitHub release of the pushed tag.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            arch: x86_64
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install musl and the embedded data tables
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools locales xkb-data tzdata
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        working-directory: installer
+        env:
+          # Data tables the installer embeds at compile time (same as flake.nix).
+          NIXDOTS_LOCALES: /usr/share/i18n/SUPPORTED
+          NIXDOTS_LOCALE_DIR: /usr/share/i18n/locales
+          NIXDOTS_XKB_BASE_LST: /usr/share/X11/xkb/rules/base.lst
+          NIXDOTS_ZONE1970_TAB: /usr/share/zoneinfo/zone1970.tab
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Rename the binary
+        run: |
+          cp installer/target/${{ matrix.target }}/release/nixdots-installer \
+            nixdots-installer-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nixdots-installer-${{ matrix.arch }}
+          path: nixdots-installer-${{ matrix.arch }}
+
+  release:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum nixdots-installer-* > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
