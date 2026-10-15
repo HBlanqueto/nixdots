@@ -95,8 +95,8 @@ fn apply(args: &[String]) -> Result<()> {
     //    prettyHostName, stateVersion, etc.) y solo se reemplazan los campos
     //    que trae el JSON.
     let mut settings = Settings::read(&repo)?;
-    settings.username = data.username;
-    settings.userdescription = data.full_name;
+    settings.username = Some(data.username);
+    settings.userdescription = Some(data.full_name);
     settings.default_locale = data.locale;
     settings.keyboard_layout = data.keyboard_layout;
     settings.keyboard_variant = data.keyboard_variant;
@@ -212,9 +212,13 @@ fn copy_to_temp(repo: &Path) -> Result<PathBuf> {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let tmp = std::env::temp_dir().join(format!("nixdots-setup-{}-{nanos}", std::process::id()));
+    // create_dir falls over if the path already exists, so a previous run's
+    // directory is never reused.
+    std::fs::create_dir(&tmp).wrap_err_with(|| format!("no se pudo crear {}", tmp.display()))?;
+    set_mode(&tmp, 0o700)?;
     let status = std::process::Command::new("cp")
         .arg("-a")
-        .arg(repo)
+        .arg(repo.join("."))
         .arg(&tmp)
         .status()?;
     if !status.success() {
