@@ -1,4 +1,4 @@
-{ config, pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
+{ config, lib, pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
 
 let
     theme = import ../../share/themes;
@@ -47,6 +47,7 @@ in
     users = {
         defaultUserShell = pkgs.fish;
         mutableUsers = false;
+    } // lib.optionalAttrs (username != null) {
         users.${username} = {
             isNormalUser = true;
             description = userdescription;

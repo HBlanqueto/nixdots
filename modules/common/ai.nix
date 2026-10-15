@@ -21,7 +21,7 @@
         DynamicUser = lib.mkForce false;
         PrivateUsers = lib.mkForce false;
     };
-
+} // lib.optionalAttrs (username != null) {
     home-manager.users.${username} = {
         # `uv` provides `uv tool install graphifyy`; installed tools land in
         # ~/.local/bin, which is prepended to PATH below.
