@@ -483,6 +483,8 @@ pub struct InstallView {
     pub finished_at: Option<Instant>,
     pub error: Option<String>,
     pub log_path: Option<PathBuf>,
+    /// The last level-0 nix message (the real cause, for the status line).
+    pub last_error: Option<String>,
     /// (time, derivations done) samples, for the ETA (last 30 s).
     samples: VecDeque<(Instant, u64)>,
 }
@@ -501,6 +503,7 @@ impl InstallView {
             finished_at: None,
             error: None,
             log_path: None,
+            last_error: None,
             samples: VecDeque::new(),
         }
     }
@@ -528,6 +531,13 @@ impl InstallView {
         while self.log.len() > 400 {
             self.log.pop_front();
         }
+    }
+
+    /// Pushes a level-0 line (marked so it renders in red) and remembers it as
+    /// the last real error for the clean status line.
+    pub fn push_error(&mut self, line: String) {
+        self.last_error = Some(line.clone());
+        self.push_log(format!("\u{1}{line}"));
     }
 
     pub fn visible_log(&self, lines: usize) -> Vec<&String> {
@@ -1154,6 +1164,7 @@ impl App {
                     }
                 }
                 InstallMsg::Log(line) => self.install.push_log(line),
+                InstallMsg::Error(line) => self.install.push_error(line),
                 InstallMsg::Repaint => self.force_clear = true,
                 InstallMsg::Progress { built, total } => {
                     self.install.built = built;
@@ -1182,9 +1193,10 @@ impl App {
             if ok {
                 self.install.finished_at = Some(Instant::now());
             } else {
-                // Open the log automatically and focus its buttons.
+                // Open the log at the end and focus its buttons.
                 self.focus_buttons = true;
                 self.button_focus = 0;
+                self.install_log_scroll = usize::MAX;
             }
         } else {
             self.install_rx = Some(rx);
@@ -2259,8 +2271,12 @@ impl App {
             .eta_secs()
             .map(|s| format!(" · ~{} min", s.div_ceil(60)))
             .unwrap_or_default();
-        let title = format!("Instalando nixdots en {}", self.settings.host_name);
+        let title_full = format!("Instalando nixdots en {}", self.settings.host_name);
         let right = format!("{pct}%{eta}");
+        // Reserve the right side's width before trimming the title, so the
+        // percentage is never cut at the edge.
+        let avail = (area.width as usize).saturating_sub(right.chars().count() + 2);
+        let title = truncate_ellipsis(&title_full, avail);
         let pad = (area.width as usize)
             .saturating_sub(title.chars().count() + right.chars().count() + 2);
         f.render_widget(
@@ -2493,6 +2509,12 @@ impl App {
     }
 
     fn log_line(&self, line: &str) -> Line<'static> {
+        if let Some(text) = line.strip_prefix('\u{1}') {
+            return Line::from(Span::styled(
+                text.to_string(),
+                Style::default().fg(self.palette.error),
+            ));
+        }
         let color = if line.starts_with('$') {
             self.palette.primary
         } else if line.starts_with("error") || line.contains("error:") {

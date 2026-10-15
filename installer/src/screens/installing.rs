@@ -23,8 +23,10 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let has_buttons = !buttons.is_empty();
     let show_shortcuts = !has_buttons;
 
-    // title + blank + bar + blank + status
+    // title + blank + bar + blank + status (+ error log line)
+    let error_h: u16 = if app.install.error.is_some() { 1 } else { 0 };
     let total: u16 = 5
+        + error_h
         + if has_buttons { 2 } else { 0 }
         + if show_shortcuts { 2 } else { 0 };
     let mut y = area.y + area.height.saturating_sub(total) / 2;
@@ -57,11 +59,23 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         );
     } else {
         f.render_widget(
-            Paragraph::new(status_line(app)).alignment(Alignment::Center),
+            Paragraph::new(status_line(app, area.width)).alignment(Alignment::Center),
             line(y),
         );
     }
     y += 1;
+
+    if app.install.error.is_some() && !cancel {
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "registro completo: /tmp/nixdots-install.log",
+                Style::default().fg(app.palette.muted),
+            ))
+            .alignment(Alignment::Center),
+            line(y),
+        );
+        y += 1;
+    }
 
     if has_buttons {
         y += 1;
@@ -89,6 +103,20 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             line(y),
         );
     }
+}
+
+/// Clips `s` to `width` columns, ending with '…' when it had to cut.
+fn ellipsize(s: &str, width: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= width {
+        return s.to_string();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    let mut out: String = chars[..width.saturating_sub(1)].iter().collect();
+    out.push('…');
+    out
 }
 
 fn step_weight(step: Step) -> u64 {
@@ -137,17 +165,19 @@ fn bar_line(app: &App) -> Line<'static> {
     ])
 }
 
-/// Spinner + Spanish gerund + ETA, or the error (`✗ etapa: primera línea`).
-fn status_line(app: &App) -> Line<'static> {
+/// Spinner + Spanish gerund + ETA, or the error (`✗ etapa: causa`).
+fn status_line(app: &App, width: u16) -> Line<'static> {
     if let Some(err) = &app.install.error {
         let stage = app.install.failed.map(|s| s.label()).unwrap_or("error");
-        let first = err.lines().next().unwrap_or("").to_string();
+        let cause = app
+            .install
+            .last_error
+            .clone()
+            .unwrap_or_else(|| err.lines().next().unwrap_or("").to_string());
+        let text = ellipsize(&format!("{stage}: {cause}"), width.saturating_sub(3) as usize);
         return Line::from(vec![
             Span::styled("✗ ", Style::default().fg(app.palette.error)),
-            Span::styled(
-                format!("{stage}: {first}"),
-                Style::default().fg(app.palette.error),
-            ),
+            Span::styled(text, Style::default().fg(app.palette.error)),
         ]);
     }
     let spinner = SPINNER[(app.tick as usize) % SPINNER.len()];

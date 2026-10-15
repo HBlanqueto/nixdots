@@ -57,6 +57,8 @@ pub struct WifiSave {
 pub enum Msg {
     Step(Step),
     Log(String),
+    /// A level-0 nix message line; shown in red.
+    Error(String),
     Progress { built: u64, total: u64 },
     /// A child process finished; the UI should wipe and fully redraw.
     Repaint,
@@ -149,6 +151,21 @@ impl Reporter {
     fn log(&mut self, line: impl Into<String>) {
         let line = line.into();
         let _ = self.tx.send(Msg::Log(line.clone()));
+        self.write(&line);
+    }
+
+    /// Writes a line to the on-disk log only (raw nix output, unfiltered).
+    fn raw(&mut self, line: &str) {
+        self.write(line);
+    }
+
+    /// Sends a filtered display line to the UI, without touching the file.
+    fn emit(&mut self, line: String, is_error: bool) {
+        let msg = if is_error { Msg::Error(line) } else { Msg::Log(line) };
+        let _ = self.tx.send(msg);
+    }
+
+    fn write(&mut self, line: &str) {
         if let Some(file) = self.file.as_mut() {
             let _ = writeln!(file, "{line}");
         }
@@ -636,8 +653,9 @@ fn step_recovery_key(
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nixlog.feed(&l).0 {
-            report.log(clean);
+        report.raw(&l);
+        for (is_err, d) in nixlog.feed(&l).0 {
+            report.emit(d, is_err);
         }
     };
     let code = runner::run(&cmd, &mut sink);
@@ -691,8 +709,9 @@ fn step_tpm_enroll(
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nixlog.feed(&l).0 {
-            report.log(clean);
+        report.raw(&l);
+        for (is_err, d) in nixlog.feed(&l).0 {
+            report.emit(d, is_err);
         }
     };
     let code = runner::run(&cmd, &mut sink);
@@ -1279,7 +1298,6 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg_path(&tmp)
         .arg("--log-format")
         .arg("internal-json")
-        .arg("-v")
         .with_display(format!(
             "nixos-install --flake {flake} --root {} --no-root-passwd --option build-dir {}",
             plan.root.display(),
@@ -1305,12 +1323,13 @@ fn run_with_progress(plan: &Plan, report: &mut Reporter, cmd: &Cmd) -> i32 {
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
+        report.raw(&line);
         let (display, progress) = nixlog.feed(&line);
         if let Some((built, total)) = progress {
             report.progress(built, total);
         }
-        if let Some(clean) = display {
-            report.log(clean);
+        for (is_err, d) in display {
+            report.emit(d, is_err);
         }
     };
     let code = runner::run(cmd, &mut sink);
@@ -1349,8 +1368,9 @@ fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<
             Stream::Stdout(l) => l,
             Stream::Stderr(l) => l,
         };
-        if let Some(clean) = nixlog.feed(&l).0 {
-            report.log(clean);
+        report.raw(&l);
+        for (is_err, d) in nixlog.feed(&l).0 {
+            report.emit(d, is_err);
         }
     };
     let code = runner::run(&wrapped, &mut sink);
@@ -1379,15 +1399,17 @@ fn exec_capture(
         Stream::Stdout(l) => {
             captured.push_str(&l);
             captured.push('\n');
-            if let Some(clean) = nixlog.feed(&l).0 {
-                report.log(clean);
+            report.raw(&l);
+            for (is_err, d) in nixlog.feed(&l).0 {
+                report.emit(d, is_err);
             }
         }
         Stream::Stderr(l) => {
             err.push_str(&l);
             err.push('\n');
-            if let Some(clean) = nixlog.feed(&l).0 {
-                report.log(clean);
+            report.raw(&l);
+            for (is_err, d) in nixlog.feed(&l).0 {
+                report.emit(d, is_err);
             }
         }
     };
@@ -1452,14 +1474,14 @@ struct NixLog {
 }
 
 impl NixLog {
-    /// Returns the display line (if any) and the progress (if any).
-    fn feed(&mut self, line: &str) -> (Option<String>, Option<(u64, u64)>) {
+    /// Returns the display lines (each with an error flag) and the progress.
+    fn feed(&mut self, line: &str) -> (Vec<(bool, String)>, Option<(u64, u64)>) {
         let line = line.trim_end();
         let Some(json) = line.strip_prefix("@nix ") else {
-            return (Some(strip_ansi(line)), None);
+            return (vec![(false, strip_ansi(line))], None);
         };
         let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
-            return (None, None);
+            return (Vec::new(), None);
         };
         let id = v.get("id").and_then(|i| i.as_u64());
         let ty = v.get("type").and_then(|t| t.as_u64()).unwrap_or(0);
@@ -1475,20 +1497,18 @@ impl NixLog {
                 if let Some(id) = id {
                     self.activities.insert(id, ty);
                 }
-                match ty {
-                    105 => (field(0).map(|p| format!("compilando {}", store_name(&p))), None),
-                    108 => (
-                        field(0).map(|p| {
-                            format!(
-                                "descargando {} · {}",
-                                store_name(&p),
-                                field(1).unwrap_or_default()
-                            )
-                        }),
-                        None,
-                    ),
-                    _ => (None, None),
-                }
+                let disp = match ty {
+                    105 => field(0).map(|p| format!("compilando {}", store_name(&p))),
+                    108 => field(0).map(|p| {
+                        format!(
+                            "descargando {} · {}",
+                            store_name(&p),
+                            field(1).unwrap_or_default()
+                        )
+                    }),
+                    _ => None,
+                };
+                (disp.map(|d| vec![(false, d)]).unwrap_or_default(), None)
             }
             Some("result") if ty == 105 => {
                 if let Some(id) = id {
@@ -1496,20 +1516,33 @@ impl NixLog {
                         let done = field(0).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
                         let expected = field(1).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
                         if expected > 0 {
-                            return (None, Some((done, expected)));
+                            return (Vec::new(), Some((done, expected)));
                         }
                     }
                 }
-                (None, None)
+                (Vec::new(), None)
             }
-            Some("msg") => (
-                v.get("msg")
+            Some("msg") => {
+                // Levels: 0 error, 1 warn, 2 notice, 3 info; 4+ is noise.
+                let level = v.get("level").and_then(|l| l.as_u64()).unwrap_or(3);
+                if level > 3 {
+                    return (Vec::new(), None);
+                }
+                let Some(text) = v
+                    .get("msg")
                     .or_else(|| v.get("text"))
                     .and_then(|t| t.as_str())
-                    .map(strip_ansi),
-                None,
-            ),
-            _ => (None, None),
+                else {
+                    return (Vec::new(), None);
+                };
+                let is_error = level == 0;
+                let lines = text
+                    .lines()
+                    .map(|l| (is_error, strip_ansi(l)))
+                    .collect();
+                (lines, None)
+            }
+            _ => (Vec::new(), None),
         }
     }
 }
@@ -1608,7 +1641,7 @@ fn set_mode_file(path: &Path, mode: u32) -> Result<()> {
 }
 
 fn copy_log_to_persist(plan: &Plan, report: &mut Reporter) {
-    let dest_dir = plan.root.join("persist");
+    let dest_dir = plan.root.join("var/log");
     if !dest_dir.is_dir() {
         return;
     }
