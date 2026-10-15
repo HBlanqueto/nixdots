@@ -2190,8 +2190,8 @@ impl App {
 
         // Blank lines between the logo and the prompt (leave some air).
         let gap_after_logo: u16 = if show_logo { 3 } else { 1 };
-        // logo + gap + prompt + blank + button
-        let total_h = logo_h + gap_after_logo + 3;
+        // logo + gap + welcome + subtitle + blank + prompt + blank + button
+        let total_h = logo_h + gap_after_logo + 2 + 1 + 1 + 1 + 1;
         let mut y = area.y + area.height.saturating_sub(total_h) / 2;
 
         if show_logo && logo_h > 0 {
@@ -2200,6 +2200,28 @@ impl App {
             y += logo_h;
         }
         y += gap_after_logo;
+
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("Welcome ", Style::default().fg(self.palette.highlight)),
+                Span::styled("~/*", Style::default().fg(self.palette.logo_light)),
+                Span::styled(".", Style::default().fg(self.palette.highlight)),
+            ]))
+            .alignment(Alignment::Center),
+            Rect::new(area.x, y, area.width, 1),
+        );
+        y += 1;
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "Watch your step, it vanishes on boot.",
+                Style::default()
+                    .fg(self.palette.muted)
+                    .add_modifier(Modifier::ITALIC),
+            ))
+            .alignment(Alignment::Center),
+            Rect::new(area.x, y, area.width, 1),
+        );
+        y += 2; // subtitle + blank
 
         f.render_widget(
             Paragraph::new(Line::from(vec![

@@ -52,6 +52,8 @@ pub mod hex {
     pub const RULE: &str = "2a3442";
     /// UI-only tone (not in neptunia.nix): a non-base background while dimmed.
     pub const DIM: &str = "1c2430";
+    /// The NixOS logo's light blue, used for the `~/*` accent on Inicio.
+    pub const LOGO_LIGHT: &str = "7fb7ff";
 }
 
 const fn nibble(c: u8) -> u8 {
@@ -132,6 +134,8 @@ pub struct Palette {
     pub rule: Color,
     /// UI-only: a non-base background while the screen is dimmed.
     pub dim_bg: Color,
+    /// The NixOS logo's light blue.
+    pub logo_light: Color,
     /// The terminal's own colors.
     pub reset: Color,
 }
@@ -155,6 +159,7 @@ impl Palette {
             disabled: rgb(hex::DISABLED),
             rule: rgb(hex::RULE),
             dim_bg: rgb(hex::DIM),
+            logo_light: rgb(hex::LOGO_LIGHT),
             on_primary: rgb(hex::BG),
             row_bg: rgb(hex::LBG),
             reset: Color::Reset,
@@ -181,6 +186,7 @@ impl Palette {
             disabled: Color::Indexed(0),
             rule: Color::Indexed(0),
             dim_bg: Color::Indexed(0),
+            logo_light: Color::Indexed(12),
             on_primary: Color::Indexed(0),
             row_bg: Color::Indexed(0),
             reset: Color::Reset,
