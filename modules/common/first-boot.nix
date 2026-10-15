@@ -5,35 +5,23 @@
 
 let
     cfg = config.nixdots.firstBoot;
-    firstBoot = !(settings ? username);
+    firstBoot = (settings.username or null) == null;
 
-    mark = "/persist/nixdots/.firstboot-done";
-
-    # El asistente se lanza a pantalla completa (cage) como root; si termina
-    # bien deja una marca en /persist, que sobrevive al rollback. Con la marca
-    # puesta y una cuenta ya creada no se relanza (greetd cae a su
-    # default_session); sin cuenta se relanza para recuperarse.
+    # Contrato del asistente: salir con código 0 significa que ya escribió
+    # settings.nix con un usuario y ejecutó `nixos-rebuild switch`, lo que
+    # desactiva este módulo y activa GDM. Mientras salga != 0 se relanza; el
+    # propio asistente debe ofrecer «Apagar» y «Reiniciar» (`systemctl poweroff`
+    # / `reboot`), porque con esta sesión no hay un login de rescate. Entre
+    # intentos se espera un segundo para no girar en vacío si cage no arranca.
     firstBootSession = pkgs.writeShellScript "nixdots-first-boot" ''
-        mark=${mark}
-
-        # ¿Hay al menos una cuenta normal? (uid >= 1000, sin cuentas de sistema)
-        has_normal_user() {
-            ${pkgs.gawk}/bin/awk -F: '$3 >= 1000 && $3 < 60000 && $1 !~ /^nixbld/ && $1 != "nobody" { found = 1 } END { exit !found }' /etc/passwd
-        }
-
-        if [ -e "$mark" ] && has_normal_user; then
-            exit 0
-        fi
-
-        ${pkgs.cage}/bin/cage -s -- ${cfg.command}
-        status=$?
-
-        if [ "$status" -eq 0 ]; then
-            ${pkgs.coreutils}/bin/mkdir -p /persist/nixdots
-            ${pkgs.coreutils}/bin/touch "$mark"
-        fi
-
-        exit "$status"
+        while true; do
+            ${pkgs.cage}/bin/cage -s -- ${cfg.command}
+            status=$?
+            if [ "$status" -eq 0 ]; then
+                exit 0
+            fi
+            ${pkgs.coreutils}/bin/sleep 1
+        done
     '';
 in
 
@@ -63,9 +51,11 @@ in
                     user = "root";
                 };
 
-                # Respaldo cuando el asistente termina o falla: login de texto.
+                # Si greetd se reinicia, vuelve al asistente (y no a un login
+                # inútil sin cuentas). El propio asistente da apagar/reiniciar.
                 default_session = {
-                    command = "${pkgs.greetd}/bin/agreety --cmd ${pkgs.bash}/bin/bash";
+                    command = "${firstBootSession}";
+                    user = "root";
                 };
             };
         };
