@@ -165,16 +165,17 @@ fn bar_line(app: &App) -> Line<'static> {
     ])
 }
 
-/// Spinner + Spanish gerund + ETA, or the error (`✗ etapa: causa`).
+/// Spinner + Spanish gerund + ETA, or the error (`✗ <last real cause>`).
 fn status_line(app: &App, width: u16) -> Line<'static> {
     if let Some(err) = &app.install.error {
-        let stage = app.install.failed.map(|s| s.label()).unwrap_or("error");
+        // Prefer the last level-0 nix message (the real cause) over the generic
+        // "nixos-install falló (código 1)".
         let cause = app
             .install
             .last_error
             .clone()
             .unwrap_or_else(|| err.lines().next().unwrap_or("").to_string());
-        let text = ellipsize(&format!("{stage}: {cause}"), width.saturating_sub(3) as usize);
+        let text = ellipsize(&cause, width.saturating_sub(3) as usize);
         return Line::from(vec![
             Span::styled("✗ ", Style::default().fg(app.palette.error)),
             Span::styled(text, Style::default().fg(app.palette.error)),
