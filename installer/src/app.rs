@@ -1046,11 +1046,6 @@ impl App {
         self.user.username = Input::new(generated);
     }
 
-    /// The username is only "automatic" until the user edits it by hand.
-    pub fn username_is_auto(&self) -> bool {
-        !self.user.edited
-    }
-
     /// uutils is x86_64-only (see modules/common/uutils.nix), so the option is
     /// only offered on the ThinkPad profile.
     pub fn uutils_available(&self) -> bool {
@@ -2033,7 +2028,8 @@ impl App {
     fn note_height(&self) -> u16 {
         match self.screen {
             Screen::Keyboard => 2,
-            Screen::Locale | Screen::Summary => 1,
+            Screen::Locale => 1,
+            Screen::Summary => 2,
             _ => 0,
         }
     }
@@ -2064,7 +2060,8 @@ impl App {
                         "Al instalar se aplican los cambios al disco. No se puede deshacer.",
                         Style::default().fg(self.palette.warning),
                     ))
-                    .alignment(Alignment::Center),
+                    .alignment(Alignment::Center)
+                    .wrap(ratatui::widgets::Wrap { trim: true }),
                     area,
                 );
             }

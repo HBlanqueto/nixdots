@@ -82,14 +82,6 @@ impl Profile {
         }
     }
 
-    /// Parenthesised description shown on the Equipo screen.
-    pub fn description(self) -> &'static str {
-        match self {
-            Profile::Thinkpad => "x86_64",
-            Profile::Utm => "máquina virtual aarch64",
-        }
-    }
-
     pub fn system(self) -> &'static str {
         match self {
             Profile::Thinkpad => "x86_64-linux",

@@ -236,6 +236,8 @@ pub fn draw(
             .position(start)
             .viewport_content_length(rows);
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .thumb_symbol("█")
+            .track_symbol(Some("│"))
             .style(Style::default().fg(palette.row_bg))
             .thumb_style(Style::default().fg(palette.primary));
         f.render_stateful_widget(scrollbar, bar_area, &mut state);
