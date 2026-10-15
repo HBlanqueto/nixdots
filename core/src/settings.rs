@@ -21,7 +21,11 @@ pub struct Settings {
     pub host_name: String,
     pub time_zone: String,
     pub default_locale: String,
+    /// Optional: the first-boot assistant runs before the account exists, so a
+    /// settings.nix without these parses (empty string) instead of failing.
+    #[serde(default)]
     pub username: String,
+    #[serde(default)]
     pub userdescription: String,
     /// macOS-style visible name («ThinkPad L14 de Humberto»). Empty on old
     /// settings.nix files, in which case the line is not written.
