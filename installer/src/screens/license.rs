@@ -32,11 +32,11 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         .unwrap_or(0) as u16;
 
     let box_w = 84.min(area.width.saturating_sub(4)).max(24);
-    // logo + gap + nixdots + desc + gap + box + gray + gap + buttons
-    let overhead = logo_h + 1 + 1 + 1 + 1 + 1 + 1 + 2;
+    // logo + 3-line gap (like Inicio) + nixdots + desc + gap + box + gray + buttons
+    let overhead = logo_h + 3 + 1 + 1 + 1 + 1 + 1 + 2;
     // The logo always keeps its height; the text box shrinks instead.
     let box_h = area.height.saturating_sub(overhead).clamp(3, 20);
-    let total = logo_h + 1 + 1 + 1 + 1 + box_h + 1 + 1 + 1;
+    let total = logo_h + 3 + 1 + 1 + 1 + 1 + box_h + 1 + 1 + 1;
     let mut y = area.y + area.height.saturating_sub(total) / 2;
 
     if logo_h > 0 {
@@ -44,7 +44,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         f.render_widget(Paragraph::new(logo), Rect::new(x, y, logo_w, logo_h));
         y += logo_h;
     }
-    y += 1;
+    y += 3;
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "nixdots",
