@@ -159,8 +159,10 @@ impl App {
             return FocusKind::Buttons;
         }
         match self.screen {
-            Screen::User => FocusKind::Field {
-                last: self.user.focus >= 1,
+            Screen::User => match self.user.focus {
+                0 => FocusKind::Field { last: false },
+                1 => FocusKind::Checkbox,
+                _ => FocusKind::Field { last: true },
             },
             Screen::Password => FocusKind::Field {
                 last: self.password.focus >= 1,
@@ -384,13 +386,13 @@ pub struct NetState {
 }
 
 pub struct UserState {
-    pub username: Input,
     pub name: Input,
-    /// 0 = nombre, 1 = usuario. Focus starts on the name.
+    /// "Usar un nombre de usuario diferente" (unchecked by default).
+    pub custom: bool,
+    /// The hand-written username, used only while `custom` is set.
+    pub username: Input,
+    /// 0 = nombre, 1 = casilla, 2 = usuario manual.
     pub focus: usize,
-    /// Once the user edits the username by hand it stops being regenerated
-    /// from the name (unless it is emptied).
-    pub edited: bool,
 }
 
 pub struct PasswordState {
@@ -830,10 +832,10 @@ impl App {
             settings_ok,
             profile,
             user: UserState {
-                username: Input::default(),
                 name: Input::default(),
+                custom: false,
+                username: Input::default(),
                 focus: 0,
-                edited: false,
             },
             password: PasswordState {
                 p1: Input::default(),
@@ -1107,13 +1109,14 @@ impl App {
         }
     }
 
-    /// Regenerates the username from the name (while it is still automatic).
-    pub fn regenerate_username(&mut self) {
-        if self.user.edited {
-            return;
+    /// The username that will be used: the generated one, or the hand-written
+    /// one when the checkbox is set and the field is not empty.
+    pub fn final_username(&self) -> String {
+        if self.user.custom && !self.user.username.value().is_empty() {
+            self.user.username.value().to_string()
+        } else {
+            detect::generate_username(self.user.name.value())
         }
-        let generated = detect::generate_username(self.user.name.value());
-        self.user.username = Input::new(generated);
     }
 
     /// uutils is x86_64-only (see modules/common/uutils.nix), so the option is
@@ -1130,14 +1133,33 @@ impl App {
         }
     }
 
-    pub fn username_valid(&self) -> bool {
+    /// Why the hand-written username is rejected, if it is. An empty field is
+    /// valid (the generated username is used).
+    pub fn username_error(&self) -> Option<&'static str> {
+        if !self.user.custom || self.user.username.value().is_empty() {
+            return None;
+        }
         let name = self.user.username.value();
         let mut chars = name.chars();
         match chars.next() {
             Some(c) if c.is_ascii_lowercase() || c == '_' => {}
-            _ => return false,
+            Some(c) if c.is_ascii_digit() => return Some("no puede empezar por número"),
+            _ => return Some("solo a-z, 0-9, - y _"),
         }
-        chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+        if name.chars().count() > 32 {
+            return Some("máximo 32 caracteres");
+        }
+        if !chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
+            return Some("solo a-z, 0-9, - y _");
+        }
+        if RESERVED_USERS.contains(&name) {
+            return Some("nombre reservado");
+        }
+        None
+    }
+
+    pub fn username_valid(&self) -> bool {
+        self.username_error().is_none()
     }
 
     pub fn passwords_match(&self) -> bool {
@@ -1148,11 +1170,7 @@ impl App {
     fn apply_current(&mut self) {
         match self.screen {
             Screen::User => {
-                if self.user.username.value().is_empty() {
-                    self.user.edited = false;
-                    self.regenerate_username();
-                }
-                self.settings.username = self.user.username.value().to_string();
+                self.settings.username = self.final_username();
                 self.settings.userdescription = self.user.name.value().to_string();
                 self.settings.pretty_host_name = self.pretty_host_name();
             }
@@ -1492,7 +1510,13 @@ impl App {
     fn focus_first_incomplete(&mut self) {
         match self.screen {
             Screen::User => {
-                self.user.focus = if self.username_valid() { 0 } else { 1 };
+                self.user.focus = if self.user.name.value().is_empty() {
+                    0
+                } else if !self.username_valid() {
+                    2
+                } else {
+                    1
+                };
             }
             Screen::Password => {
                 self.password.focus = if self.password.p1.value().is_empty() { 0 } else { 1 };
@@ -2038,10 +2062,10 @@ impl App {
                 .filter(|p| p.selected.is_none())
                 .map(|_| "falta: elegir una zona horaria".to_string()),
             Screen::User => {
-                if self.user.username.value().is_empty() {
-                    Some("falta: escribir un nombre".into())
+                if self.user.name.value().is_empty() {
+                    Some("falta: nombre completo".into())
                 } else if !self.username_valid() {
-                    Some("falta: un usuario válido".into())
+                    Some("usuario no válido".into())
                 } else {
                     None
                 }
@@ -2097,7 +2121,7 @@ impl App {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
             Screen::License => true,
-            Screen::User => self.username_valid(),
+            Screen::User => !self.user.name.value().is_empty() && self.username_valid(),
             Screen::Password => self.passwords_match(),
             Screen::Timezone => self
                 .timezones
@@ -2964,6 +2988,34 @@ impl App {
         }
     }
 }
+
+/// Usernames that already exist on the system.
+const RESERVED_USERS: &[&str] = &[
+    "root",
+    "nixos",
+    "bin",
+    "daemon",
+    "nobody",
+    "adm",
+    "lp",
+    "sync",
+    "shutdown",
+    "halt",
+    "mail",
+    "operator",
+    "games",
+    "ftp",
+    "http",
+    "systemd-network",
+    "systemd-resolve",
+    "systemd-timesync",
+    "messagebus",
+    "polkitd",
+    "sshd",
+    "dbus",
+    "nscd",
+    "tss",
+];
 
 /// The first whitespace-separated token of a full name.
 fn first_name(full: &str) -> &str {
