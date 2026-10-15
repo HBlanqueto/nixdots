@@ -12,6 +12,10 @@ fn uutils_option(app: &App) -> bool {
     app.uutils_available()
 }
 
+fn gb(bytes: u64) -> String {
+    format!("{:.0} GB", bytes as f64 / 1_000_000_000.0)
+}
+
 pub fn height(app: &App) -> u16 {
     // 6 rows + check + blank (+ checkbox on ThinkPad) (+ mv note).
     let mut h = 8;
@@ -34,7 +38,19 @@ fn row(app: &App, label: &str, value: String) -> Line<'static> {
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let disk = app
         .selected_disk()
-        .map(|d| format!("{} ({})", d.path(), d.size_human()))
+        .map(|d| {
+            let action = match app.disks.effective() {
+                crate::disk::DiskDecision::WholeDisk => "todo el disco".to_string(),
+                crate::disk::DiskDecision::FreeSpace { .. } => {
+                    format!("en el espacio libre ({})", gb(d.free))
+                }
+                crate::disk::DiskDecision::Shrink { .. } => {
+                    format!("junto a Windows ({})", gb(app.disks.shrink_bytes))
+                }
+                _ => String::new(),
+            };
+            format!("{} · {}", d.short_name(), action)
+        })
         .unwrap_or_default();
     let region = format!("{} · {}", app.settings.time_zone, app.settings.default_locale);
     let git = match &app.settings.git_name {

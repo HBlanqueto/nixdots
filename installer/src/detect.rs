@@ -189,16 +189,55 @@ pub fn is_root() -> bool {
     euid() == 0
 }
 
+/// One partition of a disk, as reported by `lsblk`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Partition {
+    pub name: String,
+    pub size: u64,
+    pub fstype: String,
+    pub label: String,
+    /// GPT partition type GUID (or MBR type), from `PARTTYPE`.
+    pub parttype: String,
+    pub mountpoints: Vec<String>,
+}
+
+impl Partition {
+    pub fn path(&self) -> String {
+        format!("/dev/{}", self.name)
+    }
+
+    /// The EFI System Partition (GPT type GUID).
+    pub fn is_efi(&self) -> bool {
+        self.parttype.eq_ignore_ascii_case("c12a7328-f81f-11d2-ba4b-00a0c93ec93b")
+    }
+
+    pub fn is_ntfs(&self) -> bool {
+        self.fstype.eq_ignore_ascii_case("ntfs")
+    }
+
+    pub fn is_linux(&self) -> bool {
+        matches!(
+            self.fstype.as_str(),
+            "ext4" | "btrfs" | "xfs" | "ext3" | "f2fs" | "crypto_LUKS"
+        )
+    }
+}
+
 /// One physical disk, as reported by `lsblk`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Disk {
     pub name: String,
     pub size: u64,
     pub model: String,
-    /// What is on the disk: "Windows 11", "vacío", "datos"…
+    /// What is on the disk: "Windows 11", "vacío", "Linux", "datos"…
     pub note: String,
     /// `false` for the install medium (or anything else not selectable).
     pub available: bool,
+    /// A Windows install was detected (NTFS, or an EFI with `EFI/Microsoft`).
+    pub windows: bool,
+    /// Unallocated space (approximate: disk size minus its partitions).
+    pub free: u64,
+    pub partitions: Vec<Partition>,
 }
 
 impl Disk {
@@ -211,16 +250,51 @@ impl Disk {
     }
 
     pub fn is_windows(&self) -> bool {
-        self.note.starts_with("Windows")
+        self.windows
+    }
+
+    /// "SAMSUNG 256 GB": the first model word plus the nominal capacity.
+    pub fn short_name(&self) -> String {
+        let model = self
+            .model
+            .split_whitespace()
+            .next()
+            .unwrap_or("Disco")
+            .chars()
+            .take(11)
+            .collect::<String>();
+        format!("{model} {} GB", nominal_gb(self.size))
+    }
+
+    /// Nominal capacity in GB (marketing size), e.g. 238.5 GiB → 256.
+    pub fn nominal_gb(&self) -> u64 {
+        nominal_gb(self.size)
+    }
+
+    /// The EFI System Partition of the disk, if any.
+    pub fn efi(&self) -> Option<&Partition> {
+        self.partitions.iter().find(|p| p.is_efi())
+    }
+
+    /// The NTFS partitions, largest first.
+    pub fn ntfs(&self) -> Vec<&Partition> {
+        let mut ntfs: Vec<&Partition> = self.partitions.iter().filter(|p| p.is_ntfs()).collect();
+        ntfs.sort_by_key(|p| std::cmp::Reverse(p.size));
+        ntfs
     }
 }
 
-/// `lsblk -J -b -d -o NAME,SIZE,MODEL,TYPE`, minus the disk the live ISO boots
-/// from (and the virtual/no-install devices).
+/// `lsblk -J -b -o NAME,SIZE,MODEL,TYPE,FSTYPE,PARTTYPE,LABEL,MOUNTPOINTS`,
+/// minus the disk the live ISO boots from (and the virtual/no-install devices).
 pub fn disks() -> Vec<Disk> {
     let Some(json) = run_trim(
         "lsblk",
-        &["-J", "-b", "-o", "NAME,SIZE,MODEL,TYPE,MOUNTPOINT,PKNAME,FSTYPE"],
+        &[
+            "-J",
+            "-b",
+            "-o",
+            "NAME,SIZE,MODEL,TYPE,FSTYPE,PARTTYPE,LABEL,MOUNTPOINTS",
+        ],
     ) else {
         return Vec::new();
     };
@@ -229,11 +303,7 @@ pub fn disks() -> Vec<Disk> {
 
 /// Whether an NTFS filesystem (a likely Windows install) is present.
 pub fn windows_present() -> bool {
-    let Some(json) = run_trim("lsblk", &["-J", "-o", "FSTYPE"]) else {
-        return false;
-    };
-    let lower = json.to_lowercase();
-    lower.contains("\"ntfs\"")
+    disks().iter().any(|d| d.windows)
 }
 
 #[derive(Deserialize)]
@@ -254,7 +324,13 @@ struct Node {
     #[serde(default)]
     mountpoint: Option<String>,
     #[serde(default)]
+    mountpoints: Option<Vec<String>>,
+    #[serde(default)]
     fstype: Option<String>,
+    #[serde(default)]
+    parttype: Option<String>,
+    #[serde(default)]
+    label: Option<String>,
     #[serde(default)]
     uuid: Option<String>,
     #[serde(default)]
@@ -269,14 +345,47 @@ fn parse_disks(json: &str) -> Vec<Disk> {
         .into_iter()
         .filter(|d| d.kind.as_deref() == Some("disk"))
         .filter(|d| !is_virtual(&d.name))
-        .map(|d| Disk {
-            note: disk_note(&d),
-            available: !holds_live_medium(&d),
-            model: d.model.clone().unwrap_or_default().trim().to_string(),
-            size: d.size.unwrap_or(0),
-            name: d.name.clone(),
+        .map(|d| {
+            let partitions: Vec<Partition> = d
+                .children
+                .iter()
+                .filter(|c| c.kind.as_deref() == Some("part"))
+                .map(node_partition)
+                .collect();
+            let used: u64 = partitions.iter().map(|p| p.size).sum();
+            let size = d.size.unwrap_or(0);
+            let windows = partitions.iter().any(Partition::is_ntfs);
+            let note = disk_note(&partitions);
+            Disk {
+                note,
+                available: !holds_live_medium(&d),
+                windows,
+                // GPT reserves ~1 MiB; ignore it in the estimate.
+                free: size.saturating_sub(used).saturating_sub(1024 * 1024),
+                model: d.model.clone().unwrap_or_default().trim().to_string(),
+                size,
+                name: d.name.clone(),
+                partitions,
+            }
         })
         .collect()
+}
+
+fn node_partition(node: &Node) -> Partition {
+    let mut mountpoints = node.mountpoints.clone().unwrap_or_default();
+    if let Some(mp) = &node.mountpoint {
+        if !mp.is_empty() && !mountpoints.contains(mp) {
+            mountpoints.push(mp.clone());
+        }
+    }
+    Partition {
+        name: node.name.clone(),
+        size: node.size.unwrap_or(0),
+        fstype: node.fstype.clone().unwrap_or_default(),
+        label: node.label.clone().unwrap_or_default(),
+        parttype: node.parttype.clone().unwrap_or_default(),
+        mountpoints,
+    }
 }
 
 /// zram/loop/sr/ram and friends are never install targets.
@@ -286,21 +395,26 @@ fn is_virtual(name: &str) -> bool {
         .any(|p| name.starts_with(p))
 }
 
-fn disk_note(node: &Node) -> String {
-    fn has_ntfs(node: &Node) -> bool {
-        node.fstype.as_deref() == Some("ntfs")
-            || node.children.iter().any(|c| c.fstype.as_deref() == Some("ntfs"))
-    }
-    if has_ntfs(node) {
+fn disk_note(partitions: &[Partition]) -> String {
+    if partitions.iter().any(Partition::is_ntfs) {
         "Windows 11".to_string()
-    } else if node.children.is_empty() {
+    } else if partitions.is_empty() {
         "vacío".to_string()
+    } else if partitions.iter().any(Partition::is_linux) {
+        "Linux".to_string()
     } else {
         "datos".to_string()
     }
 }
 
 fn holds_live_medium(node: &Node) -> bool {
+    if node
+        .mountpoints
+        .as_ref()
+        .is_some_and(|m| m.iter().any(|p| is_live_mount(p)))
+    {
+        return true;
+    }
     if matches!(
         node.mountpoint.as_deref(),
         Some("/") | Some("/iso") | Some("/run/iso") | Some("/nix")
@@ -308,6 +422,105 @@ fn holds_live_medium(node: &Node) -> bool {
         return true;
     }
     node.children.iter().any(holds_live_medium)
+}
+
+fn is_live_mount(path: &str) -> bool {
+    matches!(path, "/" | "/iso" | "/run/iso" | "/nix")
+}
+
+/// Result of probing an NTFS partition before resizing it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NtfsInfo {
+    /// Minimal volume size `ntfsresize` allows, in bytes (0 when unknown).
+    pub min_bytes: u64,
+    /// The volume is BitLocker-encrypted (cannot be resized).
+    pub bitlocker: bool,
+    /// The volume is dirty (hibernated or Fast Startup).
+    pub dirty: bool,
+}
+
+/// Probes an NTFS partition with `blkid` and `ntfsresize --info --force`.
+pub fn ntfs_info(path: &str) -> NtfsInfo {
+    let bitlocker = run_trim("blkid", &["-o", "value", "-s", "TYPE", path]).as_deref()
+        == Some("BitLocker");
+    let output = Command::new("ntfsresize")
+        .args(["--info", "--force", path])
+        .stdin(Stdio::null())
+        .output();
+    match output {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let dirty = text.to_lowercase().contains("scheduled for check")
+                || text.to_lowercase().contains("hibernat");
+            NtfsInfo {
+                min_bytes: parse_ntfs_min(&text).unwrap_or(0),
+                bitlocker,
+                dirty,
+            }
+        }
+        // A failing `--info` means a dirty/hibernated volume.
+        _ => NtfsInfo {
+            min_bytes: 0,
+            bitlocker,
+            dirty: true,
+        },
+    }
+}
+
+/// The `You might resize at N bytes` value from `ntfsresize --info`.
+fn parse_ntfs_min(text: &str) -> Option<u64> {
+    for line in text.lines() {
+        let lower = line.to_lowercase();
+        if let Some(pos) = lower.find("resize at") {
+            let rest = &line[pos + "resize at".len()..];
+            let digits: String = rest
+                .trim_start()
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if let Ok(value) = digits.parse() {
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
+/// Free bytes on the disk's EFI System Partition, by mounting it read-only.
+/// `None` when it cannot be determined.
+pub fn efi_free(efi: &Partition) -> Option<u64> {
+    if let Some(mp) = efi.mountpoints.iter().find(|m| !m.is_empty()) {
+        return df_free(mp);
+    }
+    let dir = std::env::temp_dir().join("nixdots-efi");
+    let _ = std::fs::create_dir_all(&dir);
+    let mounted = Command::new("mount")
+        .args(["-o", "ro"])
+        .arg(efi.path())
+        .arg(&dir)
+        .stdin(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !mounted {
+        return None;
+    }
+    let free = df_free(&dir.to_string_lossy());
+    let _ = Command::new("umount").arg(&dir).stdin(Stdio::null()).status();
+    free
+}
+
+fn df_free(path: &str) -> Option<u64> {
+    let output = Command::new("df")
+        .args(["-B1", "--output=avail"])
+        .arg(path)
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    text.lines()
+        .nth(1)
+        .and_then(|line| line.trim().parse::<u64>().ok())
 }
 
 /// The LUKS2 partition disko created inside the target disk, with its UUID.
@@ -438,9 +651,13 @@ pub fn removable_media(target: &str) -> Vec<RemovableMedium> {
     out
 }
 
+/// Nominal capacity in GB (marketing size), e.g. 238.5 GiB → 256.
+pub fn nominal_gb(bytes: u64) -> u64 {
+    (bytes as f64 / 1_000_000_000.0).round() as u64
+}
+
 /// Human-readable size, matching `lsblk`'s style closely enough.
-pub fn human_size(bytes: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "K", "M", "G", "T", "P"];
+pub fn human_size(bytes: u64) -> String {    const UNITS: [&str; 6] = ["B", "K", "M", "G", "T", "P"];
     let mut value = bytes as f64;
     let mut unit = 0;
     while value >= 1024.0 && unit < UNITS.len() - 1 {

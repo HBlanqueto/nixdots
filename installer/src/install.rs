@@ -52,6 +52,29 @@ pub struct WifiSave {
     pub networkmanager: bool,
 }
 
+/// How the chosen disk is prepared.
+#[derive(Debug, Clone)]
+pub enum DiskMode {
+    /// No other system: disko destroys and formats the whole disk.
+    Whole,
+    /// Keep what is already on the disk: use unallocated space, optionally
+    /// after shrinking an NTFS partition.
+    Alongside {
+        /// Existing EFI System Partition to reuse (device path), or `None` to
+        /// create a new one.
+        reuse_efi: Option<String>,
+        shrink: Option<ShrinkSpec>,
+    },
+}
+
+/// An NTFS shrink to run before creating the new partitions.
+#[derive(Debug, Clone)]
+pub struct ShrinkSpec {
+    pub ntfs: String,
+    /// Space to free for nixdots, in bytes.
+    pub free_bytes: u64,
+}
+
 /// Messages sent from the install thread to the UI.
 #[derive(Debug, Clone)]
 pub enum Msg {
@@ -86,6 +109,8 @@ pub struct Plan {
     pub device: String,
     pub keep_uutils: bool,
     pub dry_run: bool,
+    /// How the chosen disk is prepared (whole disk vs. alongside Windows).
+    pub disk_mode: DiskMode,
     /// Machine class: decides the secure-boot step and the uutils option.
     pub profile: crate::detect::Profile,
     /// Wi-Fi connection to persist into /persist, if any.
@@ -469,6 +494,9 @@ fn ensure_build_memory(plan: &Plan, report: &mut Reporter) -> Result<Option<Temp
 /// with `disko --mode mount`, which never formats. The passphrase comes from the
 /// in-memory plan, so the disk is left exactly as the disk step left it.
 fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    if let DiskMode::Alongside { reuse_efi, .. } = &plan.disk_mode {
+        return ensure_alongside_ready(plan, report, reuse_efi.as_deref());
+    }
     let encrypted_open = !plan.encrypt || Path::new("/dev/mapper/cryptroot").exists();
     if is_mounted("/mnt") && encrypted_open {
         report.log("disco ya montado; se continúa sin reformatear");
@@ -515,6 +543,48 @@ fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
     )
 }
 
+/// Reattaches the existing alongside layout for a retry, without reformatting.
+fn ensure_alongside_ready(
+    plan: &Plan,
+    report: &mut Reporter,
+    reuse_efi: Option<&str>,
+) -> Result<()> {
+    let encrypted_open = !plan.encrypt || Path::new("/dev/mapper/cryptroot").exists();
+    if is_mounted("/mnt") && encrypted_open {
+        report.log("disco ya montado; se continúa sin reformatear");
+        return Ok(());
+    }
+    if plan.dry_run {
+        report.log("(simulación) disco re-montado sin formatear");
+        return Ok(());
+    }
+    let system = find_partition(&plan.device, "System HD")
+        .ok_or_else(|| eyre!("no se encontró la partición System HD en {}", plan.device))?;
+    let esp = match reuse_efi {
+        Some(path) => path.to_string(),
+        None => find_partition(&plan.device, "BOOT")
+            .ok_or_else(|| eyre!("no se encontró la EFI en {}", plan.device))?,
+    };
+    let data = if plan.encrypt {
+        let pass = SecretFile::write("luks.pass", &plan.luks_passphrase)?;
+        run_ok(
+            plan,
+            report,
+            &Cmd::new("cryptsetup")
+                .arg("open")
+                .arg("--key-file")
+                .arg_path(pass.path())
+                .arg(&system)
+                .arg("cryptroot"),
+            "no se pudo abrir el contenedor cifrado",
+        )?;
+        "/dev/mapper/cryptroot".to_string()
+    } else {
+        system
+    };
+    mount_alongside(plan, report, &data, &esp)
+}
+
 /// The final `arranque` phase: lanzaboote's sbctl keys on the ThinkPad; plain
 /// systemd-boot (already installed with the system) on the UTM VM.
 fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
@@ -527,6 +597,16 @@ fn step_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPartition>> {
+    match &plan.disk_mode {
+        DiskMode::Whole => step_disk_whole(plan, report),
+        DiskMode::Alongside { reuse_efi, shrink } => {
+            step_disk_alongside(plan, report, reuse_efi.as_deref(), shrink.as_ref())
+        }
+    }
+}
+
+/// Whole-disk install: disko destroys and formats the disk.
+fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPartition>> {
     // A retry can find /mnt still mounted and `cryptroot` open from the run that
     // failed; clear everything so disko starts from a clean slate instead of
     // choking on a half-prepared disk.
@@ -615,6 +695,282 @@ fn step_disk(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::LuksPa
         step_tpm_enroll(plan, report, &luks.path, pass_path)?;
     }
     Ok(Some(luks))
+}
+
+/// Alongside install: keep the existing system, use unallocated space (after
+/// shrinking an NTFS partition when needed) and mount the new btrfs there.
+fn step_disk_alongside(
+    plan: &Plan,
+    report: &mut Reporter,
+    reuse_efi: Option<&str>,
+    shrink: Option<&ShrinkSpec>,
+) -> Result<Option<detect::LuksPartition>> {
+    if plan.dry_run {
+        report.log("(simulación) particiones nuevas creadas en el espacio libre");
+        return Ok(if plan.encrypt {
+            Some(detect::LuksPartition {
+                path: format!("{}4", plan.device),
+                uuid: "00000000-0000-0000-0000-000000000000".to_string(),
+            })
+        } else {
+            None
+        });
+    }
+
+    clean_target(plan, report);
+
+    // 1. Free the space by shrinking Windows' NTFS.
+    if let Some(spec) = shrink {
+        shrink_ntfs(plan, report, spec)?;
+    }
+
+    let pass = if plan.encrypt {
+        Some(SecretFile::write("luks.pass", &plan.luks_passphrase)?)
+    } else {
+        None
+    };
+
+    // 2. Create the ESP (unless reusing Windows') and the System HD partition.
+    let esp = match reuse_efi {
+        Some(path) => {
+            report.log(format!("EFI de Windows reutilizada: {path}"));
+            path.to_string()
+        }
+        None => create_partition(plan, report, "1G", "EF00", "BOOT")?,
+    };
+    let system = create_partition(plan, report, "0", "8300", "System HD")?;
+
+    // 3. Format.
+    if reuse_efi.is_none() {
+        run_ok(plan, report, &Cmd::new("mkfs.vfat").arg("-n").arg("BOOT").arg(&esp), "no se pudo formatear la EFI")?;
+    }
+    let (data, luks) = if plan.encrypt {
+        let pass_path = pass.as_ref().map(SecretFile::path).unwrap_or(Path::new(""));
+        run_ok(
+            plan,
+            report,
+            &Cmd::new("cryptsetup")
+                .arg("luksFormat")
+                .arg("--type")
+                .arg("luks2")
+                .arg("--key-file")
+                .arg_path(pass_path)
+                .arg(&system),
+            "no se pudo cifrar la partición del sistema",
+        )?;
+        run_ok(
+            plan,
+            report,
+            &Cmd::new("cryptsetup")
+                .arg("open")
+                .arg("--key-file")
+                .arg_path(pass_path)
+                .arg(&system)
+                .arg("cryptroot"),
+            "no se pudo abrir el contenedor cifrado",
+        )?;
+        let uuid = runner::capture(&Cmd::new("blkid").arg("-s").arg("UUID").arg("-o").arg("value").arg(&system))
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .unwrap_or_default();
+        (
+            "/dev/mapper/cryptroot".to_string(),
+            Some(detect::LuksPartition {
+                path: system.clone(),
+                uuid,
+            }),
+        )
+    } else {
+        (system.clone(), None)
+    };
+
+    run_ok(plan, report, &Cmd::new("mkfs.btrfs").arg("-L").arg("nixos").arg(&data), "no se pudo crear el btrfs")?;
+    setup_subvolumes(plan, report, &data)?;
+    mount_alongside(plan, report, &data, &esp)?;
+
+    Ok(luks)
+}
+
+/// Runs `ntfsresize` (dry-run then real) and shrinks the partition with sgdisk.
+fn shrink_ntfs(plan: &Plan, report: &mut Reporter, spec: &ShrinkSpec) -> Result<()> {
+    let current = current_ntfs_size(&spec.ntfs);
+    let target = current.saturating_sub(spec.free_bytes);
+    report.log(format!(
+        "Windows: se liberarán {} reduciendo {}",
+        human_gib(spec.free_bytes),
+        spec.ntfs
+    ));
+    if current == 0 || target == 0 {
+        return Err(eyre!("no se pudo calcular el tamaño final de Windows"));
+    }
+
+    // Check first (no action), then resize for real.
+    let check = Cmd::new("ntfsresize")
+        .arg("--no-action")
+        .arg("--force")
+        .arg("--size")
+        .arg(target.to_string())
+        .arg(&spec.ntfs);
+    run_ok(plan, report, &check, "ntfsresize rechazó el tamaño propuesto")?;
+    let real = Cmd::new("ntfsresize")
+        .arg("--force")
+        .arg("--size")
+        .arg(target.to_string())
+        .arg(&spec.ntfs);
+    run_ok(plan, report, &real, "no se pudo reducir Windows")?;
+
+    // Resize the GPT entry: keep the start sector, set the new end.
+    let index = partition_index(&spec.ntfs).ok_or_else(|| eyre!("no se pudo leer el número de partición de {}", spec.ntfs))?;
+    let start = partition_start(plan, report, &plan.device, index)?;
+    let end = format!("+{}", target / 512);
+    let cmd = Cmd::new("sgdisk")
+        .arg(format!("--delete={index}"))
+        .arg(&plan.device);
+    run_ok(plan, report, &cmd, "no se pudo reescribir la partición de Windows")?;
+    let cmd = Cmd::new("sgdisk")
+        .arg(format!("--new={index}:{start}:{end}"))
+        .arg(format!("--typecode={index}:0700"))
+        .arg(format!("--change-name={index}:Basic data partition"))
+        .arg(&plan.device);
+    run_ok(plan, report, &cmd, "no se pudo reescribir la partición de Windows")?;
+    rescan(plan, report);
+    Ok(())
+}
+
+/// The current size of an NTFS volume, in bytes (`blockdev --getsize64`).
+fn current_ntfs_size(ntfs: &str) -> u64 {
+    runner::capture(&Cmd::new("blockdev").arg("--getsize64").arg(ntfs))
+        .ok()
+        .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse::<u64>().ok())
+        .unwrap_or(0)
+}
+
+/// Creates a partition with `sgdisk --new=0:0:<size>` and returns its device.
+fn create_partition(
+    plan: &Plan,
+    report: &mut Reporter,
+    size: &str,
+    type_code: &str,
+    label: &str,
+) -> Result<String> {
+    let end = if size == "0" { "0".to_string() } else { format!("+{size}") };
+    let cmd = Cmd::new("sgdisk")
+        .arg(format!("--new=0:0:{end}"))
+        .arg(format!("--typecode=0:{type_code}"))
+        .arg(format!("--change-name=0:{label}"))
+        .arg(&plan.device);
+    run_ok(plan, report, &cmd, "no se pudo crear la partición")?;
+    rescan(plan, report);
+    find_partition(&plan.device, label)
+        .ok_or_else(|| eyre!("no se encontró la partición nueva {label}"))
+}
+
+/// Finds a partition device by its GPT partition label.
+fn find_partition(device: &str, label: &str) -> Option<String> {
+    let out = runner::capture(
+        &Cmd::new("lsblk")
+            .arg("-J")
+            .arg("-o")
+            .arg("NAME,PARTLABEL")
+            .arg(device),
+    )
+    .ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let children = json.get("blockdevices")?.get(0)?.get("children")?.as_array()?;
+    for part in children {
+        if part.get("partlabel").and_then(|v| v.as_str()) == Some(label) {
+            return Some(format!("/dev/{}", part.get("name")?.as_str()?));
+        }
+    }
+    None
+}
+
+/// The partition number of a device node (`/dev/nvme0n1p3` → `3`).
+fn partition_index(device: &str) -> Option<u32> {
+    let digits: String = device
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    let digits: String = digits.chars().rev().collect();
+    digits.parse().ok()
+}
+
+/// The first sector of partition `index` (`sgdisk -i`).
+fn partition_start(plan: &Plan, report: &mut Reporter, device: &str, index: u32) -> Result<String> {
+    let out = runner::capture(
+        &Cmd::new("sgdisk").arg(format!("-i={index}")).arg(device),
+    )?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("First sector:") {
+            let value = rest.split_whitespace().next().unwrap_or("");
+            if !value.is_empty() {
+                return Ok(value.to_string());
+            }
+        }
+    }
+    let _ = (plan, report);
+    Err(eyre!("no se pudo leer el primer sector de la partición {index}"))
+}
+
+fn rescan(plan: &Plan, report: &mut Reporter) {
+    let mut sink = |_: Stream| {};
+    let _ = runner::run(&Cmd::new("partprobe").arg(&plan.device), &mut sink);
+    let _ = runner::run(
+        &Cmd::new("udevadm").arg("settle").arg("--timeout").arg("120"),
+        &mut sink,
+    );
+    report.repaint();
+}
+
+/// Creates the btrfs subvolumes and the read-only `@rootfs-blank` template.
+fn setup_subvolumes(plan: &Plan, report: &mut Reporter, data: &str) -> Result<()> {
+    run_ok(plan, report, &Cmd::new("mount").arg(data).arg_path(&plan.root), "no se pudo montar el btrfs")?;
+    for sub in ["@rootfs", "@nix", "@home", "@persist", "@log"] {
+        let path = plan.root.join(sub);
+        run_ok(plan, report, &Cmd::new("btrfs").arg("subvolume").arg("create").arg_path(&path), "no se pudo crear el subvolumen")?;
+    }
+    let src = plan.root.join("@rootfs");
+    let dst = plan.root.join("@rootfs-blank");
+    run_ok(plan, report, &Cmd::new("btrfs").arg("subvolume").arg("snapshot").arg("-r").arg_path(&src).arg_path(&dst), "no se pudo crear la plantilla")?;
+    run_ok(plan, report, &Cmd::new("umount").arg_path(&plan.root), "no se pudo desmontar el btrfs")?;
+    Ok(())
+}
+
+/// Mounts the new subvolumes and the ESP at `plan.root`.
+fn mount_alongside(plan: &Plan, report: &mut Reporter, data: &str, esp: &str) -> Result<()> {
+    let opts = "noatime,compress=zstd";
+    let mounts = [
+        ("@rootfs", ""),
+        ("@nix", "nix"),
+        ("@home", "home"),
+        ("@persist", "persist"),
+        ("@log", "var/log"),
+    ];
+    for (sub, rel) in mounts {
+        let target = if rel.is_empty() { plan.root.clone() } else { plan.root.join(rel) };
+        if !rel.is_empty() {
+            fs::create_dir_all(&target)?;
+        }
+        let cmd = Cmd::new("mount")
+            .arg("-o")
+            .arg(format!("subvol={sub},{opts}"))
+            .arg(data)
+            .arg_path(&target);
+        run_ok(plan, report, &cmd, "no se pudo montar un subvolumen")?;
+    }
+    let boot = plan.root.join("boot");
+    fs::create_dir_all(&boot)?;
+    run_ok(plan, report, &Cmd::new("mount").arg(esp).arg_path(&boot), "no se pudo montar la EFI")?;
+    Ok(())
+}
+
+fn run_ok(plan: &Plan, report: &mut Reporter, cmd: &Cmd, what: &str) -> Result<()> {
+    ensure_ok(exec(plan, report, cmd, &plan.source)?, what)
+}
+
+fn human_gib(bytes: u64) -> String {
+    format!("{:.0} GB", bytes as f64 / 1_000_000_000.0)
 }
 
 /// Unmounts the target, closes the LUKS mapper and wipes any LUKS header left

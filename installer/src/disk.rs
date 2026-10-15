@@ -1,173 +1,107 @@
-//! Disk helpers: enumerating candidate disks and evaluating the disko layout.
+//! Disk helpers: deciding how to install on a disk, alone or alongside an
+//! existing system.
 
-use color_eyre::eyre::{eyre, Context, Result};
-use serde::Deserialize;
-use std::collections::BTreeMap;
-use std::path::Path;
+use crate::detect::{self, Disk};
 
+pub const GIB: u64 = 1024 * 1024 * 1024;
+/// Minimum space nixdots needs.
+pub const MIN_GIB: u64 = 40;
+/// Safety margin kept for Windows when shrinking its NTFS.
+pub const SHRINK_MARGIN: u64 = 10 * GIB;
+/// Minimum free space for a reusable EFI System Partition.
+pub const EFI_MIN_FREE: u64 = 260 * 1024 * 1024;
 
-/// One partition of the disko layout (from evaluating `disko.nix`).
-#[derive(Debug, Clone, Deserialize)]
-pub struct Partition {
-    #[serde(rename = "type", default)]
-    pub kind: Option<String>,
-    #[serde(default)]
-    pub size: Option<String>,
-    #[serde(default)]
-    pub format: Option<String>,
-    #[serde(default)]
-    pub mountpoint: Option<String>,
-    #[serde(default)]
-    pub subvolumes: BTreeMap<String, Subvolume>,
+/// How the installer will use the chosen disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiskDecision {
+    /// No other system: take the whole disk.
+    WholeDisk,
+    /// Windows present with enough unallocated space.
+    FreeSpace { reuse_efi: bool },
+    /// Windows present without enough free space: shrink the largest NTFS.
+    /// `min_free`/`max_free` bound the freed space (bytes).
+    Shrink {
+        ntfs: String,
+        volume: u64,
+        min_free: u64,
+        max_free: u64,
+        reuse_efi: bool,
+    },
+    /// Not enough room.
+    TooSmall { missing: u64 },
+    /// Windows blocks an automatic decision (BitLocker, dirty volume).
+    Blocked(String),
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct Subvolume {
-    #[serde(default)]
-    pub mountpoint: Option<String>,
-}
-
-impl Subvolume {
-    /// Only `@rootfs` is restored on every boot.
-    pub fn is_ephemeral(&self, name: &str) -> bool {
-        name == "@rootfs"
+impl DiskDecision {
+    /// The freed space, in bytes, the shrink bar currently selects.
+    pub fn clamp_shrink(&self, bytes: u64) -> u64 {
+        match self {
+            DiskDecision::Shrink { min_free, max_free, .. } => bytes.clamp(*min_free, *max_free),
+            _ => bytes,
+        }
     }
 
-    pub fn is_persistent(&self, name: &str) -> bool {
-        name == "@persist"
+    pub fn is_shrink(&self) -> bool {
+        matches!(self, DiskDecision::Shrink { .. })
     }
 }
 
-/// A named partition (`ESP`, `btrfs`, ...).
-#[derive(Debug, Clone)]
-pub struct NamedPartition {
-    pub name: String,
-    pub partition: Partition,
-}
-
-/// Evaluates `disko.nix` for `device` and returns its partitions, ESP first.
-pub fn layout(repo: &Path, device: &str) -> Result<Vec<NamedPartition>> {
-    if !is_safe_device(device) {
-        return Err(eyre!("dispositivo inesperado: {device}"));
+/// Decides how to install on `disk` from what is already there.
+pub fn decide(disk: &Disk) -> DiskDecision {
+    let need = MIN_GIB * GIB;
+    if !disk.available {
+        return DiskDecision::Blocked("no disponible".into());
     }
-
-    let expr = r#"
-{ deviceArg }:
-let
-  cfg = import ./disko.nix { device = deviceArg; };
-  parts = cfg.disko.devices.disk.main.content.partitions;
-in
-builtins.mapAttrs (name: part:
-  let
-    c = part.content or {};
-    # The data partition is wrapped in a LUKS container: look one level down
-    # so the btrfs subvolumes (and their mountpoints) still show up.
-    inner = if (c.type or "") == "luks" then (c.content or {}) else c;
-  in
-  {
-    # Report the inner filesystem type (btrfs/filesystem), so the disk screen
-    # keeps drawing the btrfs subvolumes instead of a bare LUKS leaf.
-    type = inner.type or (c.type or null);
-    size = part.size or null;
-    format = inner.format or null;
-    mountpoint = inner.mountpoint or null;
-    subvolumes =
-      if (inner.type or "") == "btrfs"
-      then builtins.mapAttrs (sv: s: { mountpoint = s.mountpoint or null; }) inner.subvolumes
-      else {};
-  }
-) parts
-"#;
-
-    let output = std::process::Command::new("nix-instantiate")
-        .arg("--extra-experimental-features")
-        .arg("nix-command flakes")
-        .arg("--eval")
-        .arg("--json")
-        .arg("--expr")
-        .arg(expr)
-        .arg("--argstr")
-        .arg("deviceArg")
-        .arg(device)
-        .env("NIX_CONFIG", crate::runner::nix_config())
-        .current_dir(repo)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .wrap_err("no se pudo ejecutar nix-instantiate")?;
-
-    if !output.status.success() {
-        return Err(eyre!(
-            "no se pudo evaluar disko.nix: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+    if disk.size < need {
+        return DiskDecision::TooSmall {
+            missing: need - disk.size,
+        };
     }
-
-    let map: BTreeMap<String, Partition> = serde_json::from_slice(&output.stdout)
-        .wrap_err("disko.nix no produjo el layout esperado")?;
-
-    let mut parts: Vec<NamedPartition> = map
-        .into_iter()
-        .map(|(name, partition)| NamedPartition { name, partition })
-        .collect();
-
-    // ESP first, then by declared size, then by name.
-    parts.sort_by(|a, b| {
-        let a_boot = a.partition.mountpoint.as_deref() == Some("/boot");
-        let b_boot = b.partition.mountpoint.as_deref() == Some("/boot");
-        b_boot
-            .cmp(&a_boot)
-            .then_with(|| a.name.cmp(&b.name))
-    });
-
-    Ok(parts)
-}
-
-/// Static mirror of `disko.nix`, used when it cannot be evaluated.
-pub fn fallback_layout() -> Vec<NamedPartition> {
-    let mut subvolumes = BTreeMap::new();
-    for (name, mountpoint) in [
-        ("@rootfs", "/"),
-        ("@nix", "/nix"),
-        ("@home", "/home"),
-        ("@persist", "/persist"),
-        ("@log", "/var/log"),
-    ] {
-        subvolumes.insert(
-            name.to_string(),
-            Subvolume {
-                mountpoint: Some(mountpoint.to_string()),
-            },
+    if !disk.windows {
+        return DiskDecision::WholeDisk;
+    }
+    if disk.free >= need {
+        let reuse_efi = disk
+            .efi()
+            .map(|efi| detect::efi_free(efi).is_some_and(|free| free >= EFI_MIN_FREE))
+            .unwrap_or(false);
+        return DiskDecision::FreeSpace { reuse_efi };
+    }
+    let Some(ntfs) = disk.ntfs().into_iter().next().cloned() else {
+        return DiskDecision::TooSmall {
+            missing: need - disk.free,
+        };
+    };
+    let info = detect::ntfs_info(&ntfs.path());
+    if info.bitlocker {
+        return DiskDecision::Blocked(
+            "Windows usa BitLocker. Desactívalo en Windows o borra el disco.".into(),
         );
     }
-    vec![
-        NamedPartition {
-            name: "ESP".into(),
-            partition: Partition {
-                kind: Some("filesystem".into()),
-                size: Some("1G".into()),
-                format: Some("vfat".into()),
-                mountpoint: Some("/boot".into()),
-                subvolumes: BTreeMap::new(),
-            },
-        },
-        NamedPartition {
-            name: "btrfs".into(),
-            partition: Partition {
-                kind: Some("btrfs".into()),
-                size: Some("100%".into()),
-                format: Some("btrfs".into()),
-                mountpoint: None,
-                subvolumes,
-            },
-        },
-    ]
-}
-
-fn is_safe_device(device: &str) -> bool {
-    device.starts_with("/dev/")
-        && device
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+    if info.dirty {
+        return DiskDecision::Blocked(
+            "Windows no se apagó por completo. Desactiva Inicio rápido y apaga Windows (no reinicies)."
+                .into(),
+        );
+    }
+    let max_free = ntfs.size.saturating_sub(info.min_bytes + SHRINK_MARGIN);
+    if max_free < need {
+        return DiskDecision::TooSmall {
+            missing: need - max_free,
+        };
+    }
+    let reuse_efi = disk
+        .efi()
+        .map(|efi| detect::efi_free(efi).is_some_and(|free| free >= EFI_MIN_FREE))
+        .unwrap_or(false);
+    DiskDecision::Shrink {
+        ntfs: ntfs.path(),
+        volume: ntfs.size,
+        min_free: need,
+        max_free,
+        reuse_efi,
+    }
 }
 
 /// Byte size of a disko size string (`1G`, `500M`, `100%`).
@@ -231,13 +165,5 @@ mod tests {
         let widths = block_widths(&[1024, 3072], 40);
         assert_eq!(widths.iter().sum::<usize>(), 40);
         assert!(widths[1] > widths[0]);
-    }
-
-    #[test]
-    fn device_validation() {
-        assert!(is_safe_device("/dev/nvme0n1"));
-        assert!(is_safe_device("/dev/disk/by-id/foo_bar"));
-        assert!(!is_safe_device("/dev/sda; rm -rf /"));
-        assert!(!is_safe_device("sda"));
     }
 }

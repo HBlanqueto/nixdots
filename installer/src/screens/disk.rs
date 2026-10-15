@@ -1,396 +1,398 @@
-use crate::app::{Action, App, Click};
-use crate::detect::human_size;
-use crate::disk;
-use crate::widgets::{self, Btn};
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use ratatui::Frame;
-use tui_input::backend::crossterm::EventHandler;
+//! "Disco": a minimalist, macOS-style disk picker. One card per disk, an
+//! automatic decision sentence, and — only when Windows must be shrunk — a
+//! distribution bar.
 
-pub fn height(app: &App) -> u16 {
-    let n = app.disks.disks.len() as u16;
-    let tree: u16 = app
-        .disks
-        .layout
-        .iter()
-        .map(|p| {
-            if p.partition.kind.as_deref() == Some("btrfs") {
-                p.partition.subvolumes.len() as u16
-            } else {
-                1
-            }
-        })
-        .sum();
-    // list + blank + "cómo instalar" + cards(4) + blank + "así quedará"(1) + bar+legend(2)
-    // + blank + two columns
-    let single = if app.disks.options().len() == 1 { 1 } else { 0 };
-    n.max(1) + 1 + 1 + 5 + single + 1 + 1 + 2 + 1 + tree.max(6)
+use crate::app::{Action, App, Click};
+use crate::detect::{human_size, Disk};
+use crate::disk::{self as diskplan, DiskDecision};
+use crate::widgets::{self, Btn};
+use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::Frame;
+
+/// 3-line ASCII disk icon.
+const DISK_ICON: [&str; 3] = [" .------.", "|  ____  |", "|__|  |__|"];
+
+const CARD_W: u16 = 26;
+const CARD_GAP: u16 = 2;
+
+pub fn height(_app: &App) -> u16 {
+    0
 }
 
-pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let width = area.width;
-    let mut y = area.y;
+pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
+    let shrink_case = !app.disks.erase_all && app.disks.decision.is_shrink();
+    let link_case = app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all;
+    let details_h = if app.disks.details {
+        1 + details(app).len() as u16
+    } else {
+        0
+    };
+    // heading + sub+gap + cards+gap + sentence+gap (+ shrink + link + details)
+    let total = 1 + 2 + 9 + 1 + shrink_case as u16 * 2 + link_case as u16 * 2 + details_h;
+    let top = area.y + 3;
+    let bottom = area.bottom().saturating_sub(4);
+    let mut y = top + bottom.saturating_sub(top).saturating_sub(total) / 2;
 
-    // 1. Target disk list.
     f.render_widget(
         Paragraph::new(Span::styled(
-            "Disco de destino:",
-            Style::default().fg(app.palette.muted),
-        )),
-        Rect::new(area.x, y, width, 1),
+            "¿Dónde quieres instalar nixdots?",
+            Style::default()
+                .fg(app.palette.text)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(area.x, y, area.width, 1),
     );
     y += 1;
-    f.render_widget(Paragraph::new(disk_lines(app)), Rect::new(area.x, y, width, app.disks.disks.len().max(1) as u16));
-    for i in 0..app.disks.disks.len() {
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "Elige un disco",
+            Style::default().fg(app.palette.muted),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(area.x, y, area.width, 1),
+    );
+    y += 2;
+
+    // Disk cards, centered as a row.
+    let count = app.disks.disks.len() as u16;
+    let row_w = count * CARD_W + count.saturating_sub(1) * CARD_GAP;
+    let mut x = area.x + area.width.saturating_sub(row_w) / 2;
+    for i in 0..count {
+        let rect = Rect::new(x, y, CARD_W, 8);
+        draw_card(f, app, rect, i as usize);
         app.targets
             .borrow_mut()
-            .push((Rect::new(area.x, y + i as u16, width, 1), Click::DiskRow(i)));
+            .push((rect, Click::DiskCard(i as usize)));
+        x += CARD_W + CARD_GAP;
     }
-    y += app.disks.disks.len().max(1) as u16;
+    y += 8 + 1;
 
-    y += 1;
-    // 2. How to install: two cards.
+    // Decision sentence.
+    let (text, color) = sentence(app);
     f.render_widget(
-        Paragraph::new(Span::styled("Cómo instalar:", Style::default().fg(app.palette.muted))),
-        Rect::new(area.x, y, width, 1),
+        Paragraph::new(Span::styled(text, Style::default().fg(color)))
+            .alignment(Alignment::Center),
+        Rect::new(area.x, y, area.width, 1),
     );
     y += 1;
-    draw_cards(f, app, Rect::new(area.x, y, width, 5));
-    y += 5;
-    if app.disks.options().len() == 1 {
+
+    // Shrink distribution bar.
+    if !app.disks.erase_all {
+        if let DiskDecision::Shrink { volume, max_free, .. } = app.disks.decision {
+            y += 1;
+            draw_shrink(f, app, Rect::new(area.x, y, area.width, 1), volume, max_free);
+            y += 1;
+        }
+    }
+
+    // "o borrar todo el disco" (only with Windows, and not already chosen).
+    if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all {
+        y += 1;
+        let link = "o borrar todo el disco";
+        let pad = (area.width as usize).saturating_sub(link.chars().count()) / 2;
         f.render_widget(
-            Paragraph::new(Span::styled(
-                "No se encontró otro sistema",
-                Style::default().fg(app.palette.muted),
-            )),
-            Rect::new(area.x, y, width, 1),
+            Paragraph::new(Line::from(vec![
+                Span::raw(" ".repeat(pad)),
+                Span::styled(link, Style::default().fg(app.palette.muted)),
+            ])),
+            Rect::new(area.x, y, area.width, 1),
         );
+        app.targets
+            .borrow_mut()
+            .push((Rect::new(area.x, y, area.width, 1), Click::DiskEraseAll));
         y += 1;
     }
 
-    y += 1;
-    // 3. Result bar.
-    let dev = app
-        .selected_disk()
-        .map(|d| d.path())
-        .unwrap_or_else(|| "/dev/…".into());
+    // Details (`d`).
+    if app.disks.details {
+        y += 1;
+        for line in details(app) {
+            f.render_widget(
+                Paragraph::new(Span::styled(line, Style::default().fg(app.palette.muted)))
+                    .alignment(Alignment::Center),
+                Rect::new(area.x, y, area.width, 1),
+            );
+            y += 1;
+        }
+    }
+
+    app.draw_buttons_at(
+        f,
+        Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1),
+    );
+
+    if app.disks.erase_modal {
+        draw_erase_modal(f, app, area);
+    }
+}
+
+/// One disk card: icon, short name, real size and state.
+fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
+    let Some(disk) = app.disks.disks.get(i) else {
+        return;
+    };
+    let chosen = i == app.disks.index && disk.available;
+    let border = if chosen {
+        app.palette.primary
+    } else if disk.available {
+        app.palette.muted
+    } else {
+        app.palette.disabled
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border))
+        .style(Style::default().bg(if chosen {
+            app.palette.well
+        } else {
+            app.palette.reset
+        }));
+    let inner = block.inner(rect);
+    f.render_widget(Clear, rect);
+    f.render_widget(block, rect);
+
+    let dim = !disk.available;
+    let name_color = if dim {
+        app.palette.disabled
+    } else if chosen {
+        app.palette.white
+    } else {
+        app.palette.text
+    };
+    let mut lines: Vec<Line> = Vec::new();
+    for icon in DISK_ICON {
+        lines.push(
+            Line::from(Span::styled(icon.to_string(), Style::default().fg(name_color)))
+                .alignment(Alignment::Center),
+        );
+    }
+    lines.push(
+        Line::from(Span::styled(
+            disk.short_name(),
+            Style::default().fg(name_color).add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
+    );
+    lines.push(
+        Line::from(Span::styled(
+            disk.size_human(),
+            Style::default().fg(if dim { app.palette.disabled } else { app.palette.text }),
+        ))
+        .alignment(Alignment::Center),
+    );
+    lines.push(
+        Line::from(Span::styled(
+            state(disk),
+            Style::default().fg(app.palette.muted),
+        ))
+        .alignment(Alignment::Center),
+    );
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+fn state(disk: &Disk) -> String {
+    if !disk.available {
+        return "no disponible".to_string();
+    }
+    if disk.windows {
+        if disk.free >= diskplan::MIN_GIB * diskplan::GIB {
+            format!("Windows 11 · {} libres", gb(disk.free))
+        } else {
+            "Windows 11".to_string()
+        }
+    } else {
+        disk.note.clone()
+    }
+}
+
+fn gb(bytes: u64) -> String {
+    format!("{:.0} GB", bytes as f64 / 1_000_000_000.0)
+}
+
+/// The automatic decision sentence and its color.
+fn sentence(app: &App) -> (String, ratatui::style::Color) {
+    if app.disks.erase_all {
+        return (
+            "Se borrará todo el disco y Windows.".to_string(),
+            app.palette.warning,
+        );
+    }
+    match &app.disks.decision {
+        DiskDecision::WholeDisk => ("Se usará todo el disco.".to_string(), app.palette.warning),
+        DiskDecision::FreeSpace { .. } => (
+            "Se instalará en el espacio libre. Windows no se toca.".to_string(),
+            app.palette.text,
+        ),
+        DiskDecision::Shrink { .. } => (
+            "Se hará espacio reduciendo Windows. Tus archivos de Windows se conservan.".to_string(),
+            app.palette.warning,
+        ),
+        DiskDecision::TooSmall { missing } => (
+            format!(
+                "No hay espacio suficiente. Se necesitan al menos 40 GB (faltan {}).",
+                gb(*missing)
+            ),
+            app.palette.error,
+        ),
+        DiskDecision::Blocked(msg) => (msg.clone(), app.palette.error),
+    }
+}
+
+/// `Windows ████ nixdots ████` with ‹ › steppers.
+fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64) {
+    let freed = app.disks.shrink_bytes;
+    let windows = volume.saturating_sub(freed);
+    let bar_w = area.width.saturating_sub(20).clamp(10, 60) as usize;
+    let total = windows + freed;
+    let widths = diskplan::block_widths(&[windows, freed], bar_w);
+    let _ = total;
+    let mut spans = vec![
+        Span::styled("Windows ", Style::default().fg(app.palette.secondary)),
+        Span::styled(
+            "█".repeat(widths[0]),
+            Style::default().fg(app.palette.secondary),
+        ),
+        Span::raw(" "),
+        Span::styled(
+            "█".repeat(widths[1]),
+            Style::default().fg(app.palette.primary),
+        ),
+        Span::styled(" nixdots ", Style::default().fg(app.palette.primary)),
+    ];
+    let _ = max_free;
+    f.render_widget(
+        Paragraph::new(Line::from(std::mem::take(&mut spans))).alignment(Alignment::Center),
+        area,
+    );
+
+    // ‹ › steppers at both ends.
+    let left = Rect::new(area.x + 2, area.y, 1, 1);
+    let right = Rect::new(area.right().saturating_sub(3), area.y, 1, 1);
     f.render_widget(
         Paragraph::new(Span::styled(
-            format!("Así quedará {dev}:"),
-            Style::default().fg(app.palette.muted),
+            "‹",
+            Style::default().fg(app.palette.primary).add_modifier(Modifier::BOLD),
         )),
-        Rect::new(area.x, y, width, 1),
+        left,
     );
-    y += 1;
-    draw_result_bar(f, app, Rect::new(area.x, y, width, 2));
-    y += 3;
-
-    // 4. Two columns: tree | volume name + option-specific controls.
-    let half = width / 2;
-    let left = Rect::new(area.x, y, half.saturating_sub(1), area.bottom().saturating_sub(y));
-    let right = Rect::new(area.x + half + 1, y, width.saturating_sub(half + 1), area.bottom().saturating_sub(y));
-    draw_tree(f, app, left);
-    draw_right(f, app, right);
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "›",
+            Style::default().fg(app.palette.primary).add_modifier(Modifier::BOLD),
+        )),
+        right,
+    );
+    app.targets.borrow_mut().push((left, Click::DiskShrinkLess));
+    app.targets.borrow_mut().push((right, Click::DiskShrinkMore));
 }
 
-fn disk_lines(app: &App) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    for (i, disk) in app.disks.disks.iter().enumerate() {
-        let selected = i == app.disks.index && disk.available && app.disk_focus == 0;
-        let marker = if selected { "› " } else { "  " };
-        let base = if disk.available {
-            Style::default().fg(if selected { app.palette.white } else { app.palette.text })
-        } else {
-            Style::default().fg(app.palette.disabled)
-        };
-        let style = if selected {
-            base.bg(app.palette.row_bg)
-        } else {
-            base
-        };
-        let note = if disk.available { disk.note.clone() } else { "no disponible".to_string() };
-        let note_color = if !disk.available {
-            app.palette.disabled
-        } else if disk.is_windows() {
-            app.palette.warning
-        } else {
-            app.palette.muted
-        };
-        let model = if disk.model.is_empty() {
-            String::new()
-        } else {
-            format!("  {}", disk.model)
-        };
-        lines.push(Line::from(vec![
-            Span::styled(marker, style),
-            Span::styled(
-                format!("{}  {}  ", disk.path(), disk.size_human()),
-                style,
-            ),
-            Span::styled(model, style),
-            Span::styled(format!("  {note}"), Style::default().fg(note_color).bg(if selected { app.palette.row_bg } else { app.palette.reset })),
-        ]));
-    }
-    lines
-}
-
-fn draw_cards(f: &mut Frame, app: &App, area: Rect) {
-    let options = app.disks.options();
-    let dev = app.selected_disk();
-    let disk_size = dev.map(|d| d.size).unwrap_or(0);
-    let half = area.width / 2;
-    for (i, title) in options.iter().enumerate() {
-        let x = area.x + i as u16 * half;
-        let w = if i + 1 == options.len() { area.width.saturating_sub(x - area.x) } else { half };
-        let rect = Rect::new(x, area.y, w, area.height);
-        let chosen = i == app.disks.option;
-        let border = if chosen { app.palette.primary } else { app.palette.border };
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(border));
-        let inner = block.inner(rect);
-        f.render_widget(block, rect);
-        app.targets.borrow_mut().push((rect, Click::DiskOption(i)));
-
-        let radio = if chosen { "(•) " } else { "( ) " };
-        let title_style = if chosen {
-            Style::default().fg(app.palette.white).add_modifier(ratatui::style::Modifier::BOLD)
-        } else {
-            Style::default().fg(app.palette.muted)
-        };
-        let mut lines = vec![Line::from(vec![
-            Span::styled(radio, Style::default().fg(app.palette.primary)),
-            Span::styled(title.to_string(), title_style),
-        ])];
-        lines.push(card_bar(app, i, disk_size, inner.width));
-        lines.push(Line::from(Span::styled(card_legend(app, i, disk_size), Style::default().fg(app.palette.muted))));
-        f.render_widget(Paragraph::new(lines), inner);
-    }
-}
-
-/// (size bytes, colour, label) segments for the current option.
-fn segments(app: &App, option: usize, disk_size: u64) -> Vec<(u64, Color, String)> {
-    let esp = 1_073_741_824u64; // 1 GiB ESP
-    let gib = 1_073_741_824u64;
-    if option == 1 {
-        // Install alongside Windows 11.
-        let windows = 155 * gib;
-        let system = (app.disks.partition_gb * gib).min(disk_size.saturating_sub(esp + windows));
-        vec![
-            (windows, app.palette.secondary, "Windows 11".into()),
-            (esp, app.palette.warning, "EFI".into()),
-            (system, app.palette.primary, app.disks.volume_name.value().to_string()),
-        ]
-    } else {
-        let system = disk_size.saturating_sub(esp);
-        vec![
-            (esp, app.palette.warning, "EFI".into()),
-            (system, app.palette.primary, app.disks.volume_name.value().to_string()),
-        ]
-    }
-}
-
-fn card_bar(app: &App, option: usize, disk_size: u64, width: u16) -> Line<'static> {
-    let segs = segments(app, option, disk_size);
-    let sizes: Vec<u64> = segs.iter().map(|s| s.0).collect();
-    let widths = disk::block_widths(&sizes, width.saturating_sub(0) as usize);
-    let mut spans = Vec::new();
-    for (i, w) in widths.iter().enumerate() {
-        spans.push(Span::styled("█".repeat(*w), Style::default().fg(segs[i].1)));
-    }
-    Line::from(spans)
-}
-
-fn card_legend(app: &App, option: usize, disk_size: u64) -> String {
-    segments(app, option, disk_size)
-        .iter()
-        .map(|s| format!("{} {}", s.2, human_size(s.0)))
-        .collect::<Vec<_>>()
-        .join(" · ")
-}
-
-fn draw_result_bar(f: &mut Frame, app: &App, area: Rect) {
-    let disk_size = app.selected_disk().map(|d| d.size).unwrap_or(0);
-    let segs = segments(app, app.disks.option, disk_size);
-    let sizes: Vec<u64> = segs.iter().map(|s| s.0).collect();
-    let widths = disk::block_widths(&sizes, area.width as usize);
-    let bar: Vec<Span> = widths
-        .iter()
-        .zip(segs.iter())
-        .map(|(w, s)| Span::styled("█".repeat(*w), Style::default().fg(s.1)))
-        .collect();
-    let legend: Vec<Span> = segs
-        .iter()
-        .flat_map(|s| {
-            vec![
-                Span::styled("● ", Style::default().fg(s.1)),
-                Span::styled(format!("{} {}   ", s.2, human_size(s.0)), Style::default().fg(app.palette.muted)),
-            ]
-        })
-        .collect();
-    f.render_widget(Paragraph::new(Line::from(bar)), Rect::new(area.x, area.y, area.width, 1));
-    f.render_widget(Paragraph::new(Line::from(legend)), Rect::new(area.x, area.y + 1, area.width, 1));
-}
-
-fn draw_tree(f: &mut Frame, app: &App, area: Rect) {
-    let mut lines: Vec<Line> = Vec::new();
-    for part in &app.disks.layout {
-        if part.partition.kind.as_deref() != Some("btrfs") {
-            let mount = part.partition.mountpoint.clone().unwrap_or_default();
-            let fs = part.partition.format.clone().unwrap_or_default();
-            lines.push(Line::from(vec![
-                Span::styled("└─ ", Style::default().fg(app.palette.border)),
-                Span::styled(format!("{:<10}", part.name), Style::default().fg(app.palette.text)),
-                Span::styled(format!("{mount:<10}"), Style::default().fg(app.palette.muted)),
-                Span::styled(fs, Style::default().fg(app.palette.secondary)),
-            ]));
-            continue;
-        }
-        let names: Vec<&String> = part.partition.subvolumes.keys().collect();
-        for (i, name) in names.iter().enumerate() {
-            let sub = &part.partition.subvolumes[*name];
-            let glyph = if i + 1 == names.len() { "└─" } else { "├─" };
-            let mount = sub.mountpoint.clone().unwrap_or_default();
-            let tag = if sub.is_ephemeral(name) {
-                "efímero"
-            } else if sub.is_persistent(name) {
-                "persiste"
-            } else {
-                ""
-            };
-            let tag_color = if tag.is_empty() { app.palette.muted } else { app.palette.secondary };
-            lines.push(Line::from(vec![
-                Span::styled(format!("{glyph} "), Style::default().fg(app.palette.border)),
-                Span::styled(format!("{name:<10}"), Style::default().fg(app.palette.text)),
-                Span::styled(format!("{mount:<9}"), Style::default().fg(app.palette.muted)),
-                Span::styled(tag, Style::default().fg(tag_color)),
-            ]));
-        }
-    }
-    f.render_widget(Paragraph::new(lines), area);
-}
-
-fn draw_right(f: &mut Frame, app: &App, area: Rect) {
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, area.y, area.width, 1), Click::DiskName));
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, area.y + 2, area.width, 1), Click::DiskEncrypt));
-    if app.disks.option == 0 {
-        app.targets
-            .borrow_mut()
-            .push((Rect::new(area.x, area.y + 4, area.width, 1), Click::DiskConfirm));
-    }
-    let mut lines: Vec<Line> = vec![
-        // Volume name (editable).
-        widgets::input_line(
-            &app.palette,
-            "nombre",
-            app.disks.volume_name.value(),
-            app.disks.volume_name.visual_cursor(),
-            app.disk_focus == 1 && !app.focus_buttons,
-            false,
-            area.width,
-            true,
-            "System HD",
-        ),
-        Line::from(""),
-        // Encrypt the System HD partition (the whole Cifrado screen follows).
-        widgets::checkbox(
-            &app.palette,
-            app.disks.encrypt,
-            "Cifrar System HD",
-            false,
-        ),
-        Line::from(""),
-    ];
-
-    if app.disks.option == 1 {
-        // Alongside Windows: size stepper + warning.
-        lines.push(Line::from(vec![
-            Span::styled("tamaño  ", Style::default().fg(app.palette.muted)),
-            Span::styled(
-                format!("◀ {} GB ▶", app.disks.partition_gb),
-                Style::default().fg(app.palette.highlight).add_modifier(ratatui::style::Modifier::BOLD),
-            ),
-        ]));
-        lines.push(Line::from(Span::styled(
-            "desactiva BitLocker y el inicio rápido antes de continuar",
-            Style::default().fg(app.palette.warning),
-        )));
-    } else {
-        // Erase everything: red confirmation checkbox.
-        let dev = app
+/// The `d` details: two gray lines.
+fn details(app: &App) -> Vec<String> {
+    let size = match app.disks.effective() {
+        DiskDecision::Shrink { .. } => app.disks.shrink_bytes,
+        DiskDecision::FreeSpace { .. } => app
             .selected_disk()
-            .map(|d| d.path())
-            .unwrap_or_else(|| "/dev/…".into());
-        let mark = widgets::tick(app.disks.confirmed);
-        let color = app.palette.error;
-        lines.push(Line::from(vec![
-            Span::styled(format!("{mark} "), Style::default().fg(color)),
-            Span::styled(
-                format!("Borrar todo {dev} (incluye Windows)"),
-                Style::default().fg(color),
-            ),
-        ]));
-        lines.push(Line::from(Span::styled(
-            "no se puede deshacer",
-            Style::default().fg(app.palette.muted),
-        )));
+            .map(|d| d.free)
+            .unwrap_or(0),
+        _ => app
+            .selected_disk()
+            .map(|d| d.size.saturating_sub(diskplan::GIB))
+            .unwrap_or(0),
+    };
+    let cifrado = if app.disks.encrypt {
+        "cifrado"
+    } else {
+        "sin cifrar"
+    };
+    vec![
+        format!("EFI 1 GB · System HD {} btrfs · {cifrado}", human_size(size)),
+        "@ @home @nix @log @persist · zram".to_string(),
+    ]
+}
+
+/// The "borrar todo" confirmation, in the license dialog's style.
+fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
+    widgets::dim(f, area, &app.palette);
+    let w = 58.min(area.width);
+    let h = 7;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(app.palette.warning));
+    let inner = block.inner(rect);
+    f.render_widget(block, rect);
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "Se borrará Windows y todos sus archivos.",
+            Style::default().fg(app.palette.text),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(inner.x, inner.y + 1, inner.width, 1),
+    );
+    let buttons = vec![Btn::secondary("No"), Btn::destructive("Borrar todo")];
+    let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
+    let hit = widgets::render_buttons(f, row, &app.palette, &buttons, app.disks.erase_focus, true);
+    for (x0, x1, index) in hit {
+        let r = Rect::new(x0, row.y, x1.saturating_sub(x0) + 1, 1);
+        let click = if index == 1 {
+            Click::DiskEraseModalErase
+        } else {
+            Click::DiskEraseModalNo
+        };
+        app.targets.borrow_mut().push((r, click));
     }
-    f.render_widget(Paragraph::new(lines), area);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
-    match key.code {
-        KeyCode::Up => {
-            app.cycle_disk(-1);
-            true
-        }
-        KeyCode::Down if app.disk_focus == 0 => {
-            app.cycle_disk(1);
-            true
-        }
-        KeyCode::Left | KeyCode::Right => {
-            let n = app.disks.options().len();
-            if n > 1 {
-                let delta = if key.code == KeyCode::Right { 1 } else { n - 1 };
-                app.disks.option = (app.disks.option + delta) % n;
-                app.disks.confirmed = false;
-            } else if app.disks.option == 1 {
-                // Adjust the partition size when installing alongside.
-                if key.code == KeyCode::Right {
-                    app.disks.partition_gb = (app.disks.partition_gb + 10).min(2000);
-                } else {
-                    app.disks.partition_gb = app.disks.partition_gb.saturating_sub(10).max(10);
+    if app.disks.erase_modal {
+        match key.code {
+            KeyCode::Esc => app.disks.erase_modal = false,
+            KeyCode::Left | KeyCode::Right | KeyCode::Tab | KeyCode::BackTab => {
+                app.disks.erase_focus = 1 - app.disks.erase_focus;
+            }
+            KeyCode::Enter => {
+                if app.disks.erase_focus == 1 {
+                    app.disks.erase_all = true;
                 }
+                app.disks.erase_modal = false;
+            }
+            _ => {}
+        }
+        return true;
+    }
+    match key.code {
+        KeyCode::Left | KeyCode::Right => {
+            if app.disks.bar_focus && app.disks.decision.is_shrink() {
+                app.adjust_shrink(if key.code == KeyCode::Left { -10 } else { 10 });
+            } else {
+                app.cycle_disk(if key.code == KeyCode::Left { -1 } else { 1 });
             }
             true
         }
-        KeyCode::Tab if app.disk_focus == 0 => {
-            app.disk_focus = 1;
+        KeyCode::Tab if app.disks.decision.is_shrink() => {
+            app.disks.bar_focus = !app.disks.bar_focus;
             true
         }
-        KeyCode::BackTab if app.disk_focus > 0 => {
-            app.disk_focus -= 1;
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            app.disks.details = !app.disks.details;
             true
         }
-        KeyCode::Char(' ') if app.disks.option == 0 && app.disk_focus == 0 => {
-            app.disks.confirmed = !app.disks.confirmed;
-            true
-        }
-        // Cifrar System HD: toggleable with 'c' or a click.
-        KeyCode::Char('c') | KeyCode::Char('C') if app.disk_focus == 0 => {
-            app.disks.encrypt = !app.disks.encrypt;
-            true
-        }
-        _ if app.disk_focus == 1 && super::is_edit_key(&key) => {
-            app.disks.volume_name.handle_event(&Event::Key(key));
+        KeyCode::Char('b') | KeyCode::Char('B')
+            if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all =>
+        {
+            app.disks.erase_modal = true;
+            app.disks.erase_focus = 0;
             true
         }
         _ => false,
@@ -404,26 +406,6 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     ]
 }
 
-pub fn commands(app: &App) -> Vec<String> {
-    let device = app
-        .selected_disk()
-        .map(|d| d.path())
-        .unwrap_or_else(|| "/dev/xxx".into());
-    let mut commands = vec![format!(
-        "disko --mode destroy,format,mount disko.nix --argstr device {device}{}",
-        if app.disks.encrypt {
-            " --arg encrypt true"
-        } else {
-            ""
-        }
-    )];
-    if app.disks.encrypt {
-        commands.push(format!(
-            "cryptsetup luksAddKey <partición crypto_LUKS de {device}> <clave recuperación>"
-        ));
-    }
-    if app.disks.windows {
-        commands.push("os-prober   (para la entrada de Windows)".into());
-    }
-    commands
+pub fn commands(_app: &App) -> Vec<String> {
+    Vec::new()
 }

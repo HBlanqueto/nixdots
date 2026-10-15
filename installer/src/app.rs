@@ -5,7 +5,7 @@
 //! border, a button row, and an optional `v` commands column.
 
 use crate::detect::{self, Disk};
-use crate::disk::{self, NamedPartition};
+use crate::disk::{self, DiskDecision};
 use crate::install::{self, Msg as InstallMsg, Plan, Step};
 use crate::keyboard;
 use crate::net;
@@ -188,11 +188,12 @@ pub enum Click {
     LicenseModalAcepto,
     GitCheckbox,
     SummaryUutils,
-    DiskConfirm,
-    DiskName,
-    DiskRow(usize),
-    DiskOption(usize),
-    DiskEncrypt,
+    DiskCard(usize),
+    DiskEraseAll,
+    DiskShrinkLess,
+    DiskShrinkMore,
+    DiskEraseModalNo,
+    DiskEraseModalErase,
     EncAccount,
     EncTpm,
     EncNoted,
@@ -377,28 +378,48 @@ pub struct GitState {
 pub struct DiskState {
     pub disks: Vec<Disk>,
     pub index: usize,
-    pub layout: Vec<NamedPartition>,
-    /// A Windows install was detected on some disk.
-    pub windows: bool,
-    /// 0 = erase the whole disk, 1 = install alongside Windows.
-    pub option: usize,
-    /// Confirmation for the destructive full erase.
-    pub confirmed: bool,
-    /// GPT partition/volume name (editable).
-    pub volume_name: Input,
-    /// Size (GB) the Core HD partition gets when installing alongside.
-    pub partition_gb: u64,
+    /// The automatic decision for the selected disk.
+    pub decision: DiskDecision,
+    /// The user chose "borrar todo" despite a Windows install.
+    pub erase_all: bool,
+    /// Freed space (bytes) selected on the shrink bar.
+    pub shrink_bytes: u64,
+    /// `d`: show the partition details line.
+    pub details: bool,
+    /// Confirmation dialog for "borrar todo".
+    pub erase_modal: bool,
+    /// 0 = No, 1 = Borrar todo.
+    pub erase_focus: usize,
+    /// The shrink bar holds the focus (Tab).
+    pub bar_focus: bool,
     /// Wrap the System HD partition in LUKS2 (the whole Cifrado screen).
     pub encrypt: bool,
 }
 
 impl DiskState {
-    /// The options offered for the current machine.
-    pub fn options(&self) -> &'static [&'static str] {
-        if self.windows {
-            &["Borrar todo el disco", "Instalar junto a Windows"]
+    /// Recomputes the decision for the selected disk and resets the shrink bar.
+    pub fn refresh_decision(&mut self) {
+        let decision = self
+            .disks
+            .get(self.index)
+            .map(disk::decide)
+            .unwrap_or(DiskDecision::TooSmall { missing: disk::MIN_GIB * disk::GIB });
+        if let DiskDecision::Shrink { min_free, .. } = &decision {
+            self.shrink_bytes = *min_free;
         } else {
-            &["Borrar todo el disco"]
+            self.shrink_bytes = 0;
+        }
+        self.decision = decision;
+        self.erase_all = false;
+        self.bar_focus = false;
+    }
+
+    /// The effective action for the selected disk (erase_all overrides Windows).
+    pub fn effective(&self) -> DiskDecision {
+        if self.erase_all {
+            DiskDecision::WholeDisk
+        } else {
+            self.decision.clone()
         }
     }
 }
@@ -680,8 +701,6 @@ pub struct App {
     // disk / summary
     pub disks: DiskState,
     pub enc: EncState,
-    /// 0 = disk list, 1 = volume name field.
-    pub disk_focus: usize,
     pub keep_uutils: bool,
 
     // installing / done
@@ -788,12 +807,13 @@ impl App {
             disks: DiskState {
                 disks,
                 index: disk_index,
-                layout: Vec::new(),
-                windows: detect::windows_present(),
-                option: 0,
-                confirmed: false,
-                volume_name: Input::new("System HD".to_string()),
-                partition_gb: 100,
+                decision: DiskDecision::WholeDisk,
+                erase_all: false,
+                shrink_bytes: 0,
+                details: false,
+                erase_modal: false,
+                erase_focus: 0,
+                bar_focus: false,
                 encrypt: true,
             },
             // TPM auto-unlock is ThinkPad-only: never offer it on the VM, even
@@ -826,7 +846,6 @@ impl App {
             keyboard_active: kb_active,
             keyboard_layout: kb_layout,
             keyboard_variant: kb_variant,
-            disk_focus: 0,
             keep_uutils: false,
             install: InstallView::new(),
             install_rx: None,
@@ -850,7 +869,7 @@ impl App {
             virt: detect::environment(),
             settings,
         };
-        app.load_layout();
+        app.disks.refresh_decision();
         app
     }
 
@@ -892,16 +911,6 @@ impl App {
         self.profile.system().to_string()
     }
 
-    fn load_layout(&mut self) {
-        if let Some(disk) = self.disks.disks.get(self.disks.index) {
-            let device = disk.path();
-            self.disks.layout = disk::layout(&self.repo_dir, &device)
-                .unwrap_or_else(|_| disk::fallback_layout());
-        } else {
-            self.disks.layout = disk::fallback_layout();
-        }
-    }
-
     pub fn cycle_disk(&mut self, delta: isize) {
         if self.disks.disks.is_empty() {
             return;
@@ -918,8 +927,7 @@ impl App {
                 break;
             }
         }
-        self.load_layout();
-        self.disks.confirmed = false;
+        self.disks.refresh_decision();
     }
 
     /// Whether the Disk screen's choice is complete.
@@ -927,11 +935,27 @@ impl App {
         if self.selected_disk().is_none() {
             return false;
         }
-        if self.disks.option == 1 {
-            // "Instalar junto a Windows" needs no extra confirmation.
-            true
+        matches!(
+            self.disks.effective(),
+            DiskDecision::WholeDisk | DiskDecision::FreeSpace { .. } | DiskDecision::Shrink { .. }
+        )
+    }
+
+    /// Moves the shrink bar by `delta_gb` (10 GB steps), clamped to the bounds.
+    pub fn adjust_shrink(&mut self, delta_gb: i64) {
+        let DiskDecision::Shrink { min_free, max_free, .. } = self.disks.decision else {
+            return;
+        };
+        let step = 10 * disk::GIB;
+        if delta_gb < 0 {
+            self.disks.shrink_bytes = self
+                .disks
+                .shrink_bytes
+                .saturating_sub(delta_gb.unsigned_abs() * step)
+                .max(min_free);
         } else {
-            self.disks.confirmed
+            self.disks.shrink_bytes =
+                (self.disks.shrink_bytes + delta_gb as u64 * step).min(max_free);
         }
     }
 
@@ -1196,6 +1220,31 @@ impl App {
             String::new()
         });
 
+        // How the disk is prepared, from the Disco screen's decision.
+        let disk_mode = match self.disks.effective() {
+            DiskDecision::WholeDisk => install::DiskMode::Whole,
+            DiskDecision::FreeSpace { reuse_efi } => install::DiskMode::Alongside {
+                reuse_efi: if reuse_efi {
+                    disk.efi().map(|e| e.path())
+                } else {
+                    None
+                },
+                shrink: None,
+            },
+            DiskDecision::Shrink { ntfs, reuse_efi, .. } => install::DiskMode::Alongside {
+                reuse_efi: if reuse_efi {
+                    disk.efi().map(|e| e.path())
+                } else {
+                    None
+                },
+                shrink: Some(install::ShrinkSpec {
+                    ntfs,
+                    free_bytes: self.disks.shrink_bytes,
+                }),
+            },
+            _ => install::DiskMode::Whole,
+        };
+
         let plan = Plan {
             source: self.repo_dir.clone(),
             root,
@@ -1206,6 +1255,7 @@ impl App {
             recovery_key,
             luks_tpm: encrypt && self.enc.tpm && self.enc.tpm_present,
             device: disk.path(),
+            disk_mode,
             // uutils is only offered (and only applied) on the ThinkPad.
             keep_uutils: self.keep_uutils && self.uutils_available(),
             dry_run: self.dry_run,
@@ -1741,25 +1791,23 @@ impl App {
                     self.keep_uutils = !self.keep_uutils;
                 }
             }
-            Click::DiskConfirm => {
-                if self.disks.option == 0 {
-                    self.disks.confirmed = !self.disks.confirmed;
-                }
-            }
-            Click::DiskName => self.disk_focus = 1,
-            Click::DiskRow(i) => {
+            Click::DiskCard(i) => {
                 if self.disks.disks.get(i).map(|d| d.available).unwrap_or(false) {
                     self.disks.index = i;
-                    self.disk_focus = 0;
-                    self.load_layout();
-                    self.disks.confirmed = false;
+                    self.disks.refresh_decision();
                 }
             }
-            Click::DiskOption(i) => {
-                self.disks.option = i;
-                self.disks.confirmed = false;
+            Click::DiskEraseAll => {
+                self.disks.erase_modal = true;
+                self.disks.erase_focus = 0;
             }
-            Click::DiskEncrypt => self.disks.encrypt = !self.disks.encrypt,
+            Click::DiskShrinkLess => self.adjust_shrink(-10),
+            Click::DiskShrinkMore => self.adjust_shrink(10),
+            Click::DiskEraseModalNo => self.disks.erase_modal = false,
+            Click::DiskEraseModalErase => {
+                self.disks.erase_modal = false;
+                self.disks.erase_all = true;
+            }
             Click::EncAccount => {
                 let reuse = !self.enc.use_account;
                 self.enc.set_use_account(reuse);
@@ -1896,8 +1944,9 @@ impl App {
             self.license_modal_focus = 1;
         }
         if self.screen == Screen::Disk {
-            self.disk_focus = 0;
-            self.disks.confirmed = false;
+            self.disks.bar_focus = false;
+            self.disks.erase_modal = false;
+            self.disks.refresh_decision();
         }
         if self.screen == Screen::Encryption {
             self.enc.focus = if self.enc.use_account {
@@ -2193,15 +2242,16 @@ impl App {
             return;
         }
 
-        // Lenguaje and Teclado are chromeless: a centered globe/heading or a
-        // titled list box, with the shared progress bar and shortcut line.
-        if matches!(self.screen, Screen::Locale | Screen::Keyboard) {
+        // Lenguaje, Teclado and Disco are chromeless: their own centered
+        // layout, with the shared progress bar and shortcut line.
+        if matches!(self.screen, Screen::Locale | Screen::Keyboard | Screen::Disk) {
             let width = 84.min(area.width * 80 / 100);
             let x = area.x + area.width.saturating_sub(width) / 2;
             self.draw_progress(f, Rect::new(x, area.y + 1, width, 1));
             match self.screen {
                 Screen::Locale => crate::screens::locale::draw(f, self, area),
-                _ => crate::screens::keyboard::draw(f, self, area),
+                Screen::Keyboard => crate::screens::keyboard::draw(f, self, area),
+                _ => crate::screens::disk::draw(f, self, area),
             }
             self.draw_shortcuts(
                 f,
@@ -2604,7 +2654,7 @@ impl App {
             Screen::User => vec!["↑↓ campo".into()],
             Screen::Password => vec!["↑↓ campo".into()],
             Screen::Git => vec!["espacio marcar".into()],
-            Screen::Disk => vec!["←→ opción".into(), "↑↓ disco".into()],
+            Screen::Disk => vec!["←/→ elegir".into(), "d detalles".into(), "esc atrás".into()],
             Screen::Encryption => crate::screens::encryption::shortcuts(self),
             Screen::Summary => vec!["no se puede deshacer".into()],
             Screen::Installing => vec!["ctrl+c cancelar".into()],
