@@ -42,7 +42,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         } else {
             ("✗", app.palette.error)
         };
-        username[1]
+        username[0]
             .spans
             .push(Span::styled(format!("  {mark}"), Style::default().fg(color)));
     }

@@ -84,7 +84,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "",
         );
         if app.enc.passphrase_matches() {
-            second[1].spans.push(Span::styled(
+            second[0].spans.push(Span::styled(
                 "  ✓ coinciden",
                 Style::default().fg(app.palette.success),
             ));

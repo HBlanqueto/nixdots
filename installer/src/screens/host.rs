@@ -30,7 +30,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         } else {
             ("✗", app.palette.error)
         };
-        lines[1]
+        lines[0]
             .spans
             .push(Span::styled(format!("  {mark}"), Style::default().fg(color)));
     }
