@@ -3,14 +3,19 @@
 # así que los datos de usuario caen a null y user.nix/home.nix/ai.nix omiten la
 # cuenta; el resto (stateVersion, locale, teclado) sigue siendo obligatorio.
 { settings }:
+let
+    username = settings.username or null;
+in
 {
     inherit settings;
 
     inherit (settings) stateVersion timeZone defaultLocale keyboardLayout keyboardVariant;
 
-    username = settings.username or null;
+    inherit username;
     userdescription = settings.userdescription or null;
-    hashedPasswordFile = settings.hashedPasswordFile or null;
+    # Derivado del usuario: no se guarda en ningún archivo.
+    hashedPasswordFile =
+        if username == null then null else "/persist/secrets/${username}.hash";
     gitName = settings.gitName or null;
     gitEmail = settings.gitEmail or null;
 }

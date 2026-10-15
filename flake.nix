@@ -24,7 +24,22 @@
 
     outputs = inputs@{ nixpkgs, ... }:
         let
-            settings = import ./settings.nix;
+            # Los datos personales no se versionan: viven en
+            # ${NIXDOTS_ROOT}/persist/nixdots/user.json (los escribe el asistente
+            # o el instalador). `settings` = settings.nix del repo + esos datos;
+            # sin el archivo no hay campos de usuario y first-boot.nix abre el
+            # asistente. `getEnv`/`pathExists` van guardados para no romper la
+            # evaluación pura (`nix flake check`).
+            userData =
+                let
+                    root = builtins.getEnv "NIXDOTS_ROOT";
+                    file = root + "/persist/nixdots/user.json";
+                in
+                if (builtins ? currentSystem) && builtins.pathExists file
+                then builtins.fromJSON (builtins.readFile file)
+                else { };
+
+            settings = import ./settings.nix // userData;
             mkHost = import ./lib/mkHost.nix { inherit inputs settings; };
 
             # Every directory under hosts/ with a host.nix is a configuration.
@@ -52,10 +67,10 @@
             # el flake, no en hosts/, porque toda carpeta bajo hosts/ se
             # convierte en un host real. Solo desktop + first-boot + user.
             #
-            # Se construye desde una copia del repo SIN usuario en settings.nix
-            # (ver run-firstboot-vm.sh), así firstBoot = (settings.username or
-            # null) == null es true y arranca el asistente. El asistente escribe
-            # el usuario y reconstruye; el reinicio ya crea la cuenta.
+            # Se construye con NIXDOTS_ROOT vacío (ver run-firstboot-vm.sh), así
+            # el flake no ve ningún user.json, firstBoot = !(settings ? username)
+            # es true y arranca el asistente. El asistente escribe user.json,
+            # reconstruye y el reinicio ya crea la cuenta.
             mkFirstBootVm = { system, hostName }: nixpkgs.lib.nixosSystem {
                 inherit system;
 
@@ -98,13 +113,13 @@
                             serviceConfig.Type = "oneshot";
                             path = with pkgs; [ git coreutils ];
                             script = ''
-                                if [ -e /persist/nixdots ]; then exit 0; fi
-                                mkdir -p /persist
-                                cp -a ${inputs.self} /persist/nixdots
-                                chmod -R u+w /persist/nixdots
-                                git -C /persist/nixdots init -q
-                                git -C /persist/nixdots add -A
-                                git -C /persist/nixdots \
+                                if [ -e /persist/nixdots/repo ]; then exit 0; fi
+                                mkdir -p /persist/nixdots
+                                cp -a ${inputs.self} /persist/nixdots/repo
+                                chmod -R u+w /persist/nixdots/repo
+                                git -C /persist/nixdots/repo init -q
+                                git -C /persist/nixdots/repo add -A
+                                git -C /persist/nixdots/repo \
                                     -c user.name=seed -c user.email=seed@localhost \
                                     commit -qm seed
                             '';
@@ -126,7 +141,7 @@
                         nixdots.firstBoot.command =
                             "${pkgs.writeShellScript "firstboot-vm-setup" ''
                                 printf 'test1234\n' | ${setups.${system}}/bin/nixdots-setup \
-                                    apply /etc/nixdots-setup.json --repo /persist/nixdots
+                                    apply /etc/nixdots-setup.json --repo /persist/nixdots/repo
                             ''}";
                     })
                 ];
