@@ -505,7 +505,7 @@ fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
     if plan.dry_run {
         report.log(format!(
-            "$ disko --mode mount disko.nix --argstr device {}{}",
+            "[simulación] $ disko --mode mount disko.nix --argstr device {}{}",
             plan.device,
             if plan.encrypt {
                 " --argstr encrypt true"
@@ -1842,8 +1842,17 @@ fn exec(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<i32
     exec_in(plan, report, cmd, cwd)
 }
 
+/// A logged command line, marked `[simulación]` when it is only shown.
+fn command_line(plan: &Plan, cmd: &Cmd) -> String {
+    if plan.dry_run {
+        format!("[simulación] $ {}", cmd.display)
+    } else {
+        format!("$ {}", cmd.display)
+    }
+}
+
 fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<i32> {
-    report.log(format!("$ {}", cmd.display));
+    report.log(command_line(plan, cmd));
     if plan.dry_run {
         // Simulated, deterministic output; nothing is touched. The pause keeps
         // the simulation in the ~20–30 s range so the whole screen is legible.
@@ -1885,7 +1894,7 @@ fn exec_capture(
     captured: &mut String,
     err: &mut String,
 ) -> Result<i32> {
-    report.log(format!("$ {}", cmd.display));
+    report.log(command_line(plan, cmd));
     if plan.dry_run {
         report.log("(simulación) comando no ejecutado");
         return Ok(0);

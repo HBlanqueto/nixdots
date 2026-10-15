@@ -194,7 +194,7 @@ fn state(disk: &Disk) -> String {
     if let Some(reason) = disk.unusable_reason() {
         return reason.to_string();
     }
-    if disk.windows {
+    let base = if disk.windows {
         if disk.free >= diskplan::MIN_GIB * diskplan::GIB {
             format!("Windows 11 · {} libres", gb(disk.free))
         } else {
@@ -202,6 +202,11 @@ fn state(disk: &Disk) -> String {
         }
     } else {
         disk.note.clone()
+    };
+    if disk.test {
+        format!("{base} · prueba")
+    } else {
+        base
     }
 }
 

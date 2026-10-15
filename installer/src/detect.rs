@@ -331,6 +331,8 @@ pub struct Disk {
     /// Unallocated space (approximate: disk size minus its partitions).
     pub free: u64,
     pub partitions: Vec<Partition>,
+    /// A virtual disk added in simulation mode (never a real target).
+    pub test: bool,
 }
 
 impl Disk {
@@ -427,6 +429,28 @@ pub fn windows_present() -> bool {
     disks().iter().any(|d| d.windows)
 }
 
+/// Virtual disks appended in simulation mode: whole disk, shrink Windows, and
+/// free space. They never exist in a real install.
+pub fn test_disks() -> Vec<Disk> {
+    let gib = crate::disk::GIB;
+    let make = |name: &str, size_gib: u64, note: &str, windows: bool, free_gib: u64| Disk {
+        name: name.to_string(),
+        size: size_gib * gib,
+        model: "Disco de prueba".to_string(),
+        note: note.to_string(),
+        available: true,
+        windows,
+        free: free_gib * gib,
+        partitions: Vec::new(),
+        test: true,
+    };
+    vec![
+        make("prueba-vacio", 64, "vacío", false, 64),
+        make("prueba-windows", 256, "Windows 11", true, 0),
+        make("prueba-libre", 256, "Windows 11", true, 96),
+    ]
+}
+
 #[derive(Deserialize)]
 struct Lsblk {
     #[serde(default)]
@@ -488,6 +512,7 @@ fn parse_disks(json: &str) -> Vec<Disk> {
                 size,
                 name: d.name.clone(),
                 partitions,
+                test: false,
             }
         })
         .collect()

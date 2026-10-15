@@ -68,6 +68,24 @@ pub fn decide(disk: &Disk) -> DiskDecision {
             .unwrap_or(false);
         return DiskDecision::FreeSpace { reuse_efi };
     }
+    // A simulated Windows disk has no real NTFS to probe: assume a clean
+    // volume that can be shrunk down to the minimum.
+    if disk.test {
+        let volume = disk.size;
+        let max_free = volume.saturating_sub(need + SHRINK_MARGIN);
+        if max_free < need {
+            return DiskDecision::TooSmall {
+                missing: need - max_free,
+            };
+        }
+        return DiskDecision::Shrink {
+            ntfs: format!("{}1", disk.path()),
+            volume,
+            min_free: need,
+            max_free,
+            reuse_efi: false,
+        };
+    }
     let Some(ntfs) = disk.ntfs().into_iter().next().cloned() else {
         return DiskDecision::TooSmall {
             missing: need - disk.free,

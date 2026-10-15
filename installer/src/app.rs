@@ -725,8 +725,18 @@ impl App {
         settings.keyboard_layout = kb_layout.clone();
         settings.keyboard_variant = kb_variant.clone();
 
-        let disks = detect::disks();
-        let disk_index = disks.iter().position(|d| d.available).unwrap_or(0);
+        let mut disks = detect::disks();
+        // Simulation always appends the virtual disks so the flow is
+        // reproducible; they never exist in a real install.
+        if dry_run {
+            disks.extend(detect::test_disks());
+        }
+        // Select the first usable disk (a test one when the real disks are all
+        // in use), so the flow can advance without touching anything.
+        let disk_index = disks
+            .iter()
+            .position(|d| d.unusable_reason().is_none())
+            .unwrap_or(0);
         // Detect the machine model in the background so startup is never blocked.
         let (model_tx, model_rx) = mpsc::channel();
         std::thread::spawn(move || {
