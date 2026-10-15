@@ -49,8 +49,6 @@
             allowUnfree = true;
         };
         overlays = [
-            # The CachyOS kernel overlay is x86_64-only and is added by the
-            # ThinkPad host, not here.
             (import ../../overlays { inherit inputs; })
         ];
     };

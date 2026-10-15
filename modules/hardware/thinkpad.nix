@@ -11,14 +11,7 @@
         ./luks-tpm.nix
     ];
 
-    # CachyOS x86_64-v3 kernel; the overlay is x86_64-only.
-    nixpkgs.overlays = [
-        inputs.nix-cachyos-kernel.overlays.pinned
-    ];
-
     boot = {
-        kernelPackages = pkgs.cachyosKernels.linuxPackages-cachyos-latest-lto-x86_64-v3;
-
         # Lanzaboote replaces systemd-boot for Secure Boot.
         loader.systemd-boot.enable = lib.mkForce false;
 
