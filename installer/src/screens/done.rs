@@ -21,7 +21,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     );
 
     let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
-    app.button_hitboxes = widgets::render_buttons(
+    let _ = widgets::render_buttons(
         f,
         Rect::new(area.x, y + 2, area.width, 1),
         &app.palette,

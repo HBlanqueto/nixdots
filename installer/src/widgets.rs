@@ -98,7 +98,6 @@ fn fill_color(kind: Kind, palette: &Palette) -> Color {
 /// capsule: Nerd Font rounded ends on a real terminal, or `‹ text ›` with a
 /// flat fill on the Linux console. A disabled button is dim and takes no
 /// focus.
-/// Returns the on-screen x-ranges of the enabled buttons, for mouse hover.
 pub fn render_buttons(
     f: &mut Frame,
     area: Rect,
@@ -153,7 +152,7 @@ pub fn render_buttons(
         } else {
             spans.push(Span::styled(format!("‹ {core} ›"), text_style));
         }
-        // Disabled buttons get no hitbox (mouse ignores them).
+        // Disabled buttons are never focused.
         groups.push((spans, if button.enabled { Some(i) } else { None }));
     }
 

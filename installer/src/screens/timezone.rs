@@ -1,4 +1,4 @@
-use crate::app::{Action, App, PickItem, PickerKind};
+use crate::app::{Action, App, PickItem};
 use crate::widgets::Btn;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -23,9 +23,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             "buscar zona horaria",
             "zonas",
             !app.focus_buttons,
-            Some(PickerKind::Timezone),
-            Some(&app.targets),
-            Some(&app.scrollbars),
         );
     }
 }

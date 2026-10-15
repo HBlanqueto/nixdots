@@ -1,4 +1,4 @@
-use crate::app::{Action, App, Click};
+use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -49,10 +49,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         )));
     }
     f.render_widget(Paragraph::new(lines), area);
-    // Clicking the first row toggles the checkbox.
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, area.y, area.width, 1), Click::GitCheckbox));
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

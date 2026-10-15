@@ -79,7 +79,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     if has_buttons {
         y += 1;
-        app.button_hitboxes = widgets::render_buttons(
+        let _ = widgets::render_buttons(
             f,
             line(y),
             &app.palette,
@@ -88,8 +88,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             app.focus_buttons,
         );
         y += 1;
-    } else {
-        app.button_hitboxes.clear();
     }
 
     if show_shortcuts {

@@ -1,7 +1,7 @@
 //! "Lenguaje": a braille globe, a heading, and a searchable list of locales in
 //! their own language. The search field is always visible; typing filters.
 
-use crate::app::{Action, App, PickItem, PickerKind};
+use crate::app::{Action, App, PickItem};
 use crate::widgets::Btn;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Rect};
@@ -107,10 +107,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             &app.palette,
             Rect::new(box_x, y, box_w, box_h),
             picker,
-            PickerKind::Language,
             None,
-            Some(&app.targets),
-            Some(&app.scrollbars),
         );
     }
     y += box_h + 1;

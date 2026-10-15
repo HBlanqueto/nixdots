@@ -2,7 +2,7 @@
 //! works offline) in a scrollable box, and the No acepto / Acepto pills.
 //! Acepto opens a small confirmation dialog; No acepto returns to Inicio.
 
-use crate::app::{Action, App, Click, ScrollKind};
+use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
@@ -81,7 +81,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     y += 2;
 
     let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
-    app.button_hitboxes = widgets::render_buttons(
+    let _ = widgets::render_buttons(
         f,
         Rect::new(area.x, y, area.width, 1),
         &app.palette,
@@ -139,12 +139,6 @@ fn draw_box(f: &mut Frame, app: &mut App, rect: Rect) {
         .style(Style::default().fg(app.palette.row_bg))
         .thumb_style(Style::default().fg(app.palette.primary));
     f.render_stateful_widget(scrollbar, text_area, &mut state);
-
-    app.targets.borrow_mut().push((text_area, Click::LicenseText));
-    app.scrollbars.borrow_mut().push((
-        Rect::new(text_area.right().saturating_sub(1), text_area.y, 1, text_area.height),
-        ScrollKind::License,
-    ));
 }
 
 /// The small confirmation dialog, centered over the (dimmed) screen.
@@ -195,16 +189,7 @@ fn draw_modal(f: &mut Frame, app: &mut App, area: Rect) {
 
     let buttons = vec![Btn::secondary("No acepto"), Btn::primary("Acepto")];
     let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let hit = widgets::render_buttons(f, row, &app.palette, &buttons, app.license_modal_focus, true);
-    for (x0, x1, index) in hit {
-        let r = Rect::new(x0, row.y, x1.saturating_sub(x0) + 1, 1);
-        let click = if index == 1 {
-            Click::LicenseModalAcepto
-        } else {
-            Click::LicenseModalNo
-        };
-        app.targets.borrow_mut().push((r, click));
-    }
+    let _ = widgets::render_buttons(f, row, &app.palette, &buttons, app.license_modal_focus, true);
 }
 
 /// Keys while the confirmation dialog is open: Esc / No acepto close it,

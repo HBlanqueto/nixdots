@@ -2,7 +2,7 @@
 //! automatic decision sentence, and — only when Windows must be shrunk — a
 //! distribution bar.
 
-use crate::app::{Action, App, Click};
+use crate::app::{Action, App};
 use crate::detect::{human_size, Disk};
 use crate::disk::{self as diskplan, DiskDecision};
 use crate::widgets::{self, Btn};
@@ -65,9 +65,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     for i in 0..count {
         let rect = Rect::new(x, y, CARD_W, 8);
         draw_card(f, app, rect, i as usize);
-        app.targets
-            .borrow_mut()
-            .push((rect, Click::DiskCard(i as usize)));
         x += CARD_W + CARD_GAP;
     }
     y += 8 + 1;
@@ -102,9 +99,6 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             ])),
             Rect::new(area.x, y, area.width, 1),
         );
-        app.targets
-            .borrow_mut()
-            .push((Rect::new(area.x, y, area.width, 1), Click::DiskEraseAll));
         y += 1;
     }
 
@@ -282,14 +276,12 @@ fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64)
         left,
     );
     f.render_widget(
-        Paragraph::new(Span::styled(
+        Paragraph::new(        Span::styled(
             "›",
             Style::default().fg(app.palette.primary).add_modifier(Modifier::BOLD),
         )),
         right,
     );
-    app.targets.borrow_mut().push((left, Click::DiskShrinkLess));
-    app.targets.borrow_mut().push((right, Click::DiskShrinkMore));
 }
 
 /// The `d` details: two gray lines.
@@ -342,16 +334,7 @@ fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
     );
     let buttons = vec![Btn::secondary("No"), Btn::destructive("Borrar todo")];
     let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let hit = widgets::render_buttons(f, row, &app.palette, &buttons, app.disks.erase_focus, true);
-    for (x0, x1, index) in hit {
-        let r = Rect::new(x0, row.y, x1.saturating_sub(x0) + 1, 1);
-        let click = if index == 1 {
-            Click::DiskEraseModalErase
-        } else {
-            Click::DiskEraseModalNo
-        };
-        app.targets.borrow_mut().push((r, click));
-    }
+    let _ = widgets::render_buttons(f, row, &app.palette, &buttons, app.disks.erase_focus, true);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

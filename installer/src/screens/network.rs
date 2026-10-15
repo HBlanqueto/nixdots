@@ -1,4 +1,4 @@
-use crate::app::{Action, App, Click, RedFase};
+use crate::app::{Action, App, RedFase};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::Rect;
@@ -50,9 +50,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 true,
                 "",
             );
-            app.targets
-                .borrow_mut()
-                .push((Rect::new(area.x, area.y + 1, area.width, 1), Click::WifiPassword));
             f.render_widget(Paragraph::new(vec![header, field]), area);
         }
         RedFase::Conectando { ssid } => {
@@ -128,11 +125,6 @@ fn draw_list(f: &mut Frame, app: &App, area: Rect) {
             widgets::list_row(&app.palette, i == app.net.selected, text, Some(trailing))
         })
         .collect();
-    for i in 0..lines.len() {
-        app.targets
-            .borrow_mut()
-            .push((Rect::new(area.x, area.y + i as u16, area.width, 1), Click::WifiRow(i)));
-    }
     f.render_widget(Paragraph::new(lines), area);
 }
 

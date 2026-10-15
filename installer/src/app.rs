@@ -14,7 +14,7 @@ use crate::theme::{self, Palette};
 use crate::widgets::{self, Btn, Kind};
 use color_eyre::eyre::Result;
 use ratatui::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
 };
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
@@ -163,45 +163,6 @@ pub enum Action {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quit {
     Normal,
-}
-
-/// Which picker a clicked row belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PickerKind {
-    Timezone,
-    Language,
-    Keyboard,
-}
-
-/// A scrollable region whose thumb can be clicked/dragged.
-#[derive(Debug, Clone, Copy)]
-pub enum ScrollKind {
-    License,
-    Picker(PickerKind),
-}
-
-/// A clickable region, filled during `draw` and hit-tested on mouse click.
-#[derive(Debug, Clone, Copy)]
-pub enum Click {
-    LicenseText,
-    LicenseModalNo,
-    LicenseModalAcepto,
-    GitCheckbox,
-    SummaryUutils,
-    DiskCard(usize),
-    DiskEraseAll,
-    DiskShrinkLess,
-    DiskShrinkMore,
-    DiskEraseModalNo,
-    DiskEraseModalErase,
-    EncAccount,
-    EncTpm,
-    EncNoted,
-    EncUsb,
-    EncUsbRow(usize),
-    PickerRow(PickerKind, usize),
-    WifiRow(usize),
-    WifiPassword,
 }
 
 // -- list picker (timezone / locale) -----------------------------------------
@@ -721,12 +682,6 @@ pub struct App {
     /// (a field or the list) holds the focus.
     pub button_focus: usize,
     pub focus_buttons: bool,
-    /// On-screen x-ranges of the enabled buttons, for mouse hover/click.
-    pub button_hitboxes: Vec<(u16, u16, usize)>,
-    /// Clickable regions of the current frame (checkboxes, rows, columns…).
-    pub targets: std::cell::RefCell<Vec<(Rect, Click)>>,
-    /// Scrollbar columns of the current frame (click/drag to scroll).
-    pub scrollbars: std::cell::RefCell<Vec<(Rect, ScrollKind)>>,
     pub show_commands: bool,
     pub status: Option<String>,
     pub quit: Option<Quit>,
@@ -856,9 +811,6 @@ impl App {
             button_focus: 0,
             // Inicio has no content, so the buttons start focused.
             focus_buttons: true,
-            button_hitboxes: Vec::new(),
-            targets: std::cell::RefCell::new(Vec::new()),
-            scrollbars: std::cell::RefCell::new(Vec::new()),
             show_commands: false,
             status: None,
             quit: None,
@@ -1340,10 +1292,6 @@ impl App {
     // -- events ---------------------------------------------------------------
 
     pub fn handle_event(&mut self, event: Event) {
-        if let Event::Mouse(mouse) = event {
-            self.handle_mouse(mouse);
-            return;
-        }
         let Event::Key(key) = event else { return };
         if key.kind != KeyEventKind::Press && key.kind != KeyEventKind::Repeat {
             return;
@@ -1580,161 +1528,7 @@ impl App {
         }
     }
 
-    /// Mouse hover selects a button; a left click runs it. Disabled buttons are
-    /// not in the hitboxes and are therefore ignored.
-    fn handle_mouse(&mut self, mouse: MouseEvent) {
-        let point = |r: &Rect| {
-            mouse.column >= r.x
-                && mouse.column < r.right()
-                && mouse.row >= r.y
-                && mouse.row < r.bottom()
-        };
-
-        // While the license dialog is open, only its buttons react.
-        if self.license_modal {
-            if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
-                let click = self
-                    .targets
-                    .borrow()
-                    .iter()
-                    .find(|(r, _)| point(r))
-                    .map(|(_, c)| *c);
-                if let Some(click) = click {
-                    self.handle_click(click);
-                }
-            }
-            return;
-        }
-
-        // Wheel: license text, or the picker row under the cursor.
-        if matches!(
-            mouse.kind,
-            MouseEventKind::ScrollDown | MouseEventKind::ScrollUp
-        ) {
-            let down = matches!(mouse.kind, MouseEventKind::ScrollDown);
-            if self.screen == Screen::License && self.license_text_area.height > 0 {
-                if down {
-                    self.license_scroll = (self.license_scroll + 3).min(self.license_max_scroll);
-                } else {
-                    self.license_scroll = self.license_scroll.saturating_sub(3);
-                }
-                return;
-            }
-            let kind = self
-                .targets
-                .borrow()
-                .iter()
-                .find(|(r, _)| point(r))
-                .and_then(|(_, c)| match c {
-                    Click::PickerRow(k, _) => Some(*k),
-                    _ => None,
-                });
-            if let Some(kind) = kind {
-                self.move_picker(kind, if down { 1 } else { -1 });
-            }
-            return;
-        }
-
-        // Click or drag on any scrollbar column.
-        if matches!(
-            mouse.kind,
-            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left)
-        ) {
-            let hit = self
-                .scrollbars
-                .borrow()
-                .iter()
-                .find(|(r, _)| point(r))
-                .map(|(r, k)| (*r, *k));
-            if let Some((rect, kind)) = hit {
-                self.scrollbar_to(kind, mouse.row, rect);
-                return;
-            }
-        }
-
-        // Click on a checkbox / row / column.
-        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
-            let click = self
-                .targets
-                .borrow()
-                .iter()
-                .find(|(r, _)| point(r))
-                .map(|(_, c)| *c);
-            if let Some(click) = click {
-                self.handle_click(click);
-                return;
-            }
-        }
-
-        let hit = self
-            .button_hitboxes
-            .iter()
-            .find(|(x0, x1, _)| mouse.column >= *x0 && mouse.column <= *x1)
-            .map(|&(_, _, index)| index);
-        match (mouse.kind, hit) {
-            (MouseEventKind::Moved, Some(index)) => {
-                self.focus_buttons = true;
-                self.button_focus = index;
-            }
-            (MouseEventKind::Down(MouseButton::Left), Some(index)) => {
-                self.focus_buttons = true;
-                self.button_focus = index;
-                self.activate_focused();
-            }
-            _ => {}
-        }
-    }
-
-    fn picker_total(&self, kind: PickerKind) -> usize {
-        match kind {
-            PickerKind::Timezone => self.timezones.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
-            PickerKind::Language => self.loc.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
-            PickerKind::Keyboard => self.keyboards.as_ref().map(|p| p.filtered.len()).unwrap_or(0),
-        }
-    }
-
-    fn move_picker(&mut self, kind: PickerKind, delta: isize) {
-        let total = self.picker_total(kind);
-        if total == 0 {
-            return;
-        }
-        let current = match kind {
-            PickerKind::Timezone => self.timezones.as_ref().and_then(|p| p.selected),
-            PickerKind::Language => self.loc.as_ref().and_then(|p| p.selected),
-            PickerKind::Keyboard => self.keyboards.as_ref().and_then(|p| p.selected),
-        }
-        .unwrap_or(0) as isize;
-        let index = (current + delta).clamp(0, total as isize - 1) as usize;
-        self.select_picker(kind, index);
-    }
-
-    fn select_picker(&mut self, kind: PickerKind, index: usize) {
-        match kind {
-            PickerKind::Timezone => {
-                if let Some(p) = self.timezones.as_mut() {
-                    p.selected = Some(index);
-                }
-                if let Some(item) = self.timezones.as_ref().and_then(|p| p.current()) {
-                    self.settings.time_zone = item.code.clone();
-                }
-            }
-            PickerKind::Language => {
-                if let Some(p) = self.loc.as_mut() {
-                    p.selected = Some(index);
-                }
-                if let Some(item) = self.loc.as_ref().and_then(|p| p.current()) {
-                    self.settings.default_locale = item.code.clone();
-                }
-            }
-            PickerKind::Keyboard => {
-                if let Some(p) = self.keyboards.as_mut() {
-                    p.selected = Some(index);
-                }
-            }
-        }
-    }
-
-    /// Selects a keyboard row and applies it (click / Enter).
+    /// Selects a keyboard row and applies it.
     pub fn choose_keyboard(&mut self, index: usize) {
         if let Some(picker) = self.keyboards.as_mut() {
             picker.selected = Some(index);
@@ -1746,92 +1540,6 @@ impl App {
             .map(|item| item.code.clone());
         if let Some(code) = code {
             self.apply_keyboard_q(&code, false);
-        }
-    }
-
-    /// Scrolls the region to a click/drag at `row`.
-    fn scrollbar_to(&mut self, kind: ScrollKind, row: u16, rect: Rect) {
-        let frac = if rect.height <= 1 {
-            0.0
-        } else {
-            (row.saturating_sub(rect.y)) as f32 / (rect.height - 1) as f32
-        };
-        match kind {
-            ScrollKind::License => {
-                self.license_scroll = (frac * self.license_max_scroll as f32).round() as usize;
-            }
-            ScrollKind::Picker(kind) => {
-                let total = self.picker_total(kind);
-                if total == 0 {
-                    return;
-                }
-                let index = (frac * (total - 1) as f32).round() as usize;
-                self.select_picker(kind, index);
-            }
-        }
-    }
-
-    fn handle_click(&mut self, click: Click) {
-        self.focus_buttons = false;
-        match click {
-            Click::LicenseText => {}
-            Click::LicenseModalNo => self.license_modal = false,
-            Click::LicenseModalAcepto => {
-                self.license_modal = false;
-                self.advance();
-            }
-            Click::GitCheckbox => {
-                self.git.enabled = !self.git.enabled;
-                if !self.git.enabled {
-                    self.git.focus = 0;
-                }
-            }
-            Click::SummaryUutils => {
-                if self.uutils_available() {
-                    self.keep_uutils = !self.keep_uutils;
-                }
-            }
-            Click::DiskCard(i) => {
-                if self.disks.disks.get(i).map(|d| d.available).unwrap_or(false) {
-                    self.disks.index = i;
-                    self.disks.refresh_decision();
-                }
-            }
-            Click::DiskEraseAll => {
-                self.disks.erase_modal = true;
-                self.disks.erase_focus = 0;
-            }
-            Click::DiskShrinkLess => self.adjust_shrink(-10),
-            Click::DiskShrinkMore => self.adjust_shrink(10),
-            Click::DiskEraseModalNo => self.disks.erase_modal = false,
-            Click::DiskEraseModalErase => {
-                self.disks.erase_modal = false;
-                self.disks.erase_all = true;
-            }
-            Click::EncAccount => {
-                let reuse = !self.enc.use_account;
-                self.enc.set_use_account(reuse);
-            }
-            Click::EncTpm => {
-                if self.enc.tpm_present {
-                    self.enc.tpm = !self.enc.tpm;
-                }
-            }
-            Click::EncNoted => self.enc.noted = !self.enc.noted,
-            Click::EncUsb => self.open_usb_modal(),
-            Click::EncUsbRow(i) => {
-                self.enc.usb_index = i;
-            }
-            Click::PickerRow(PickerKind::Keyboard, index) => self.choose_keyboard(index),
-            Click::PickerRow(kind, index) => self.select_picker(kind, index),
-            Click::WifiRow(i) => {
-                if i < self.net.wifi.len() {
-                    self.net.selected = i;
-                }
-            }
-            // The password phase already owns the field; the click only moves
-            // the focus off the buttons (done above).
-            Click::WifiPassword => {}
         }
     }
 
@@ -1913,10 +1621,9 @@ impl App {
             })
             .collect();
         if buttons.is_empty() {
-            self.button_hitboxes.clear();
             return;
         }
-        self.button_hitboxes = widgets::render_buttons(
+        let _ = widgets::render_buttons(
             f,
             area,
             &self.palette,
@@ -2190,8 +1897,6 @@ impl App {
 
     pub fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
-        self.targets.borrow_mut().clear();
-        self.scrollbars.borrow_mut().clear();
         f.render_widget(
             Block::default().style(Style::default().bg(self.palette.reset)),
             area,
@@ -2365,9 +2070,6 @@ impl App {
                 "buscar distribución",
                 "distribuciones",
                 true,
-                None,
-                None,
-                None,
             );
         }
         f.render_widget(
@@ -2434,7 +2136,7 @@ impl App {
         y += 2; // prompt + blank
 
         let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
-        self.button_hitboxes = widgets::render_buttons(
+        let _ = widgets::render_buttons(
             f,
             Rect::new(area.x, y, area.width, 1),
             &self.palette,
@@ -2566,7 +2268,7 @@ impl App {
             String::new()
         };
         let stage = self.install.current.map(|s| s.label()).unwrap_or("");
-        let footer = format!("{stage}{pos} · v ocultar registro · rueda desplaza");
+        let footer = format!("{stage}{pos} · v ocultar registro · ↑↓ desplazar");
         f.render_widget(
             Paragraph::new(Span::styled(footer, Style::default().fg(self.palette.muted)))
                 .alignment(Alignment::Center),

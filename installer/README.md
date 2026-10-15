@@ -50,8 +50,8 @@ Pantallas: Inicio · Bienvenido · Licencia · Red · Idioma y teclado · Zona h
 - `ctrl+c` — cancelar (en **Instalando** abre la confirmación) o salir.
 - `q` — salir.
 
-El ratón también funciona: los botones, casillas, filas y barras de
-desplazamiento responden a clic y arrastre.
+El teclado lo controla todo, así que la terminal vuelve a permitir seleccionar
+y copiar texto con el ratón.
 
 ## Red
 
@@ -62,7 +62,7 @@ conectividad comprobada contra `cache.nixos.org`.
 ## Licencia
 
 El texto GPL va incrustado (funciona sin red ni repositorio) y se desplaza
-dentro del panel con `↑↓`, `PageUp/PageDown`, `Home/End` o la rueda del ratón.
+dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
 `espacio` (o `x`) marca **Acepto**; no se avanza sin aceptarla.
 
 ## Notas

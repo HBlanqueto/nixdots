@@ -1,4 +1,4 @@
-use crate::app::{Action, App, CheckState, Click};
+use crate::app::{Action, App, CheckState};
 use crate::detect::Profile;
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -103,13 +103,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 
     f.render_widget(Paragraph::new(lines), area);
-    // The uutils checkbox follows the 6 rows, the check line and a blank.
-    if uutils_option(app) {
-        app.targets.borrow_mut().push((
-            Rect::new(area.x, area.y + 8, area.width, 1),
-            Click::SummaryUutils,
-        ));
-    }
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

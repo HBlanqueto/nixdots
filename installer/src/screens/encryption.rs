@@ -6,7 +6,7 @@
 //! command panel.
 
 use crate::app::{
-    Action, App, Click, ENC_ACCOUNT, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM,
+    Action, App, ENC_ACCOUNT, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM,
 };
 use crate::runner::{self, Cmd};
 use crate::widgets::{self, Btn};
@@ -42,9 +42,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let mut y = area.y;
 
     // 1. Reuse the account password as the LUKS passphrase.
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, y, area.width, 1), Click::EncAccount));
     f.render_widget(
         Paragraph::new(widgets::checkbox(
             &app.palette,
@@ -150,9 +147,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
 
     // 3. TPM auto-unlock (only when a TPM 2.0 is present).
     if app.enc.tpm_present {
-        app.targets
-            .borrow_mut()
-            .push((Rect::new(area.x, y, area.width, 1), Click::EncTpm));
         f.render_widget(
             Paragraph::new(widgets::checkbox(
                 &app.palette,
@@ -187,9 +181,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     draw_key_box(f, app, area, y);
     y += 3;
 
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, y, area.width, 1), Click::EncUsb));
     let usb = if let Some(dev) = &app.enc.usb_saved {
         format!("u  guardar en USB  ·  guardada en {dev}")
     } else {
@@ -201,9 +192,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     );
     y += 1;
 
-    app.targets
-        .borrow_mut()
-        .push((Rect::new(area.x, y, area.width, 1), Click::EncNoted));
     f.render_widget(
         Paragraph::new(widgets::checkbox(
             &app.palette,
@@ -406,10 +394,6 @@ pub fn draw_usb(f: &mut Frame, app: &App, area: Rect) {
             if row >= inner.height.saturating_sub(1) {
                 break;
             }
-            app.targets.borrow_mut().push((
-                Rect::new(inner.x, inner.y + row, inner.width, 1),
-                Click::EncUsbRow(i),
-            ));
             lines.push(widgets::list_row(
                 &app.palette,
                 i == app.enc.usb_index,

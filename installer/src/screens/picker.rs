@@ -2,7 +2,7 @@
 //! the timezone and locale screens. The search field is always visible with a
 //! placeholder; the list starts at the top with nothing preselected.
 
-use crate::app::{Click, Picker, PickerKind, ScrollKind};
+use crate::app::Picker;
 use crate::theme::Palette;
 use crate::widgets;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -78,16 +78,12 @@ pub fn search_line(
 /// A centered, searchable list in a rounded box (no border title), with
 /// centered names, an accent capsule on the chosen row and a `█`/`│`
 /// scrollbar. `suggested` highlights a row without selecting it.
-#[allow(clippy::too_many_arguments)]
 pub fn draw_centered(
     f: &mut Frame,
     palette: &Palette,
     area: Rect,
     picker: &Picker,
-    kind: PickerKind,
     suggested: Option<usize>,
-    targets: Option<&std::cell::RefCell<Vec<(Rect, Click)>>>,
-    scrollbars: Option<&std::cell::RefCell<Vec<(Rect, ScrollKind)>>>,
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
@@ -114,12 +110,6 @@ pub fn draw_centered(
             break;
         }
         let row_rect = Rect::new(inner.x, inner.y + row, inner.width, 1);
-        if let Some(targets) = targets {
-            targets.borrow_mut().push((
-                row_rect,
-                Click::PickerRow(kind, start + row as usize),
-            ));
-        }
         let Some(&item_idx) = picker.filtered.get(start + row as usize) else {
             continue;
         };
@@ -170,12 +160,6 @@ pub fn draw_centered(
                 Rect::new(x, inner.y + row as u16, 1, 1),
             );
         }
-        if let Some(scrollbars) = scrollbars {
-            scrollbars.borrow_mut().push((
-                Rect::new(x, inner.y, 1, rows as u16),
-                ScrollKind::Picker(kind),
-            ));
-        }
     }
 }
 
@@ -188,9 +172,6 @@ pub fn draw(
     placeholder: &str,
     unit: &str,
     focused: bool,
-    kind: Option<PickerKind>,
-    targets: Option<&std::cell::RefCell<Vec<(Rect, Click)>>>,
-    scrollbars: Option<&std::cell::RefCell<Vec<(Rect, ScrollKind)>>>,
 ) {
     let mut lines: Vec<Line> = Vec::new();
 
@@ -254,12 +235,6 @@ pub fn draw(
         } else {
             format!("{:<10} {}", item.extra, item.name)
         };
-        if let (Some(kind), Some(targets)) = (kind, targets) {
-            targets.borrow_mut().push((
-                Rect::new(area.x, area.y + 1 + row as u16, area.width, 1),
-                Click::PickerRow(kind, start + row),
-            ));
-        }
         lines.push(widgets::list_row(palette, selected, text, Some(trailing)));
     }
 
@@ -268,12 +243,6 @@ pub fn draw(
     f.render_widget(Paragraph::new(lines), content);
 
     if total > ROWS {
-        if let (Some(kind), Some(scrollbars)) = (kind, scrollbars) {
-            scrollbars.borrow_mut().push((
-                Rect::new(area.right().saturating_sub(1), area.y + 1, 1, ROWS as u16),
-                ScrollKind::Picker(kind),
-            ));
-        }
         let bar_area = Rect::new(area.x, area.y + 1, area.width, ROWS as u16);
         let mut state = ScrollbarState::new(total)
             .position(start)

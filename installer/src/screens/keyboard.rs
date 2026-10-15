@@ -2,7 +2,7 @@
 //! Lenguaje, the language's suggestion highlighted, and a test field under a
 //! separator.
 
-use crate::app::{Action, App, PickerKind};
+use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
@@ -60,10 +60,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             &app.palette,
             Rect::new(box_x, y, box_w, box_h),
             picker,
-            PickerKind::Keyboard,
             app.keyboard_suggested,
-            Some(&app.targets),
-            Some(&app.scrollbars),
         );
     }
     y += box_h + 1;
