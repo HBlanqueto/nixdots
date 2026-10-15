@@ -639,7 +639,6 @@ pub struct App {
     /// Ctrl+C on Installing: the "¿Cancelar?" confirmation is showing.
     pub install_cancel: bool,
     /// `v log: on` — show the last build lines under the steps.
-    pub install_show_log: bool,
     /// The full-log viewer overlay is open.
     pub install_log_view: bool,
     pub install_log_scroll: usize,
@@ -773,7 +772,6 @@ impl App {
             install: InstallView::new(),
             install_rx: None,
             install_cancel: false,
-            install_show_log: false,
             install_log_view: false,
             install_log_scroll: 0,
             password_hash: None,
@@ -1185,7 +1183,6 @@ impl App {
                 self.install.finished_at = Some(Instant::now());
             } else {
                 // Open the log automatically and focus its buttons.
-                self.install_show_log = true;
                 self.focus_buttons = true;
                 self.button_focus = 0;
             }
@@ -1320,7 +1317,9 @@ impl App {
     fn install_log_key(&mut self, key: KeyEvent) {
         let page = 10usize;
         match key.code {
-            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => self.install_log_view = false,
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('v') | KeyCode::Enter => {
+                self.install_log_view = false
+            }
             KeyCode::Down => self.install_log_scroll = self.install_log_scroll.saturating_add(1),
             KeyCode::Up => self.install_log_scroll = self.install_log_scroll.saturating_sub(1),
             KeyCode::PageDown => self.install_log_scroll = self.install_log_scroll.saturating_add(page),
@@ -1859,7 +1858,6 @@ impl App {
         self.focus_buttons = false;
         self.button_focus = 0;
         self.install_cancel = false;
-        self.install_show_log = false;
         self.install_log_view = false;
         self.install_log_scroll = 0;
     }
@@ -2250,28 +2248,66 @@ impl App {
         Line::from(spans)
     }
 
-    /// Overlay with the full install log, scrollable.
+    /// Full-screen C-style log: title + percentage, a stages line, the
+    /// translated output and a footer.
     fn draw_install_log(&self, f: &mut Frame, area: Rect) {
-        widgets::dim(f, area, &self.palette);
-        let rect = Rect::new(
-            area.x + 4,
-            area.y + 3,
-            area.width.saturating_sub(8),
-            area.height.saturating_sub(6),
+        f.render_widget(Clear, area);
+        let mut y = area.y + 1;
+        let pct = crate::screens::installing::overall_percent(self);
+        let eta = self
+            .install
+            .eta_secs()
+            .map(|s| format!(" · ~{} min", s.div_ceil(60)))
+            .unwrap_or_default();
+        let title = format!("Instalando nixdots en {}", self.settings.host_name);
+        let right = format!("{pct}%{eta}");
+        let pad = (area.width as usize)
+            .saturating_sub(title.chars().count() + right.chars().count() + 2);
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(
+                    format!(" {title}"),
+                    Style::default()
+                        .fg(self.palette.white)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" ".repeat(pad)),
+                Span::styled(right, Style::default().fg(self.palette.muted)),
+            ])),
+            Rect::new(area.x, y, area.width, 1),
         );
-        f.render_widget(Clear, rect);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.primary))
-            .title(Span::styled(" Registro ", Style::default().fg(self.palette.primary)));
-        let inner = block.inner(rect);
-        f.render_widget(block, rect);
+        y += 2;
 
-        let body_h = inner.height.saturating_sub(1) as usize;
+        // Stages with ✓ / spinner / ○.
+        let spinner = ["|", "/", "-", "\\"][(self.tick as usize) % 4];
+        let mut spans: Vec<Span> = Vec::new();
+        for step in Step::ALL {
+            let (mark, color) = if self.install.failed == Some(step) {
+                ("✗", self.palette.error)
+            } else if self.install.done.contains(&step) {
+                ("✓", self.palette.success)
+            } else if self.install.current == Some(step) {
+                (spinner, self.palette.primary)
+            } else {
+                ("○", self.palette.muted)
+            };
+            spans.push(Span::styled(
+                format!("{mark} {}", step.label()),
+                Style::default().fg(color),
+            ));
+            spans.push(Span::raw("     "));
+        }
+        f.render_widget(
+            Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+            Rect::new(area.x, y, area.width, 1),
+        );
+        y += 2;
+
+        // Body: the translated lines.
+        let body_h = area.bottom().saturating_sub(y).saturating_sub(2) as usize;
         let max_scroll = self.install.log.len().saturating_sub(body_h.max(1));
         let start = self.install_log_scroll.min(max_scroll);
-        let width = inner.width.max(1) as usize;
+        let width = area.width as usize;
         let mut rows: Vec<Line> = Vec::new();
         for line in self.install.log.iter().skip(start) {
             for chunk in hard_wrap(line, width) {
@@ -2280,15 +2316,21 @@ impl App {
         }
         f.render_widget(
             Paragraph::new(rows),
-            Rect::new(inner.x, inner.y, inner.width, body_h as u16),
+            Rect::new(area.x, y, area.width, body_h as u16),
         );
+
+        // Footer.
+        let pos = if self.install.total > 0 {
+            format!(" · {} de {}", self.install.built, self.install.total)
+        } else {
+            String::new()
+        };
+        let stage = self.install.current.map(|s| s.label()).unwrap_or("");
+        let footer = format!("{stage}{pos} · v ocultar registro · rueda desplaza");
         f.render_widget(
-            Paragraph::new(Span::styled(
-                "↑↓ desplazar · esc cerrar",
-                Style::default().fg(self.palette.muted),
-            ))
-            .alignment(Alignment::Center),
-            Rect::new(inner.x, inner.bottom().saturating_sub(1), inner.width, 1),
+            Paragraph::new(Span::styled(footer, Style::default().fg(self.palette.muted)))
+                .alignment(Alignment::Center),
+            Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1),
         );
     }
 

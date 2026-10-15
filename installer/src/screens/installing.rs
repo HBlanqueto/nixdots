@@ -5,7 +5,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 /// Plain ASCII so the spinner renders on the ISO's VGA console (TERM=linux).
@@ -14,33 +14,19 @@ const SPINNER: [&str; 4] = ["|", "/", "-", "\\"];
 const BAR: usize = 60;
 
 pub fn height(_app: &App) -> u16 {
-    9
+    5
 }
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let cancel = app.install_cancel;
-    let show_log = app.install_show_log && !cancel;
     let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
     let has_buttons = !buttons.is_empty();
     let show_shortcuts = !has_buttons;
-    // 6 lines normally; the support opens with 12 on failure.
-    let log_h: u16 = if show_log {
-        if app.install.error.is_some() {
-            12
-        } else {
-            6
-        }
-    } else {
-        0
-    };
 
-    // title + blank + bar + blank + status + blank + steps,
-    // then optional log / buttons / shortcuts blocks, each preceded by a blank.
-    let total: u16 = 7
-        + if show_log { 1 + log_h } else { 0 }
+    // title + blank + bar + blank + status
+    let total: u16 = 5
         + if has_buttons { 2 } else { 0 }
         + if show_shortcuts { 2 } else { 0 };
-
     let mut y = area.y + area.height.saturating_sub(total) / 2;
     let line = |y: u16| Rect::new(area.x, y, area.width, 1);
 
@@ -75,41 +61,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
             line(y),
         );
     }
-    y += 2;
-
-    f.render_widget(
-        Paragraph::new(steps_line(app)).alignment(Alignment::Center),
-        line(y),
-    );
     y += 1;
-
-    if show_log {
-        y += 1;
-        let w = 84.min(area.width);
-        let x = area.x + area.width.saturating_sub(w) / 2;
-        let rect = Rect::new(x, y, w, log_h);
-        f.render_widget(ratatui::widgets::Clear, rect);
-        let block = Block::default()
-            .borders(Borders::LEFT)
-            .border_style(Style::default().fg(app.palette.muted));
-        let inner = block.inner(rect);
-        f.render_widget(block, rect);
-        let width = inner.width.max(1) as usize;
-        // Wrap each logical line to the panel width, then keep only the last
-        // `inner.height` physical rows so the most recent output stays visible.
-        let mut rows: Vec<Line> = Vec::new();
-        for l in app.install.visible_log(200) {
-            for chunk in wrap_line(l, width) {
-                rows.push(Line::from(Span::styled(
-                    chunk,
-                    Style::default().fg(app.palette.muted),
-                )));
-            }
-        }
-        let rows = rows.split_off(rows.len().saturating_sub(inner.height as usize));
-        f.render_widget(Paragraph::new(rows), inner);
-        y += log_h;
-    }
 
     if has_buttons {
         y += 1;
@@ -130,7 +82,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         y += 1;
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
-                "ctrl+c cancelar · v log: on/off · l pantalla completa",
+                "v ver registro · ctrl+c cancelar",
                 Style::default().fg(app.palette.muted),
             )))
             .alignment(Alignment::Center),
@@ -139,17 +91,34 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// The big ASCII bar (`#` done, `-` pending) plus the percentage, from the real
-/// build progress. Drawn from a console-safe font, so it shows even at 0 %.
+fn step_weight(step: Step) -> u64 {
+    match step {
+        Step::Disk => 5,
+        Step::Settings => 5,
+        Step::System => 80,
+        Step::Boot => 10,
+    }
+}
+
+/// Overall percentage: weights of the finished steps, plus the system step's
+/// real nix progress (80 %). 100 % only once everything is done.
+pub fn overall_percent(app: &App) -> u64 {
+    let iv = &app.install;
+    let mut p = 0u64;
+    for s in Step::ALL {
+        if iv.done.contains(&s) {
+            p += step_weight(s);
+        } else if iv.current == Some(s) && s == Step::System && iv.total > 0 {
+            p += step_weight(s) * iv.built.min(iv.total) / iv.total;
+        }
+    }
+    p.min(100)
+}
+
+/// The big ASCII bar (`#` done, `-` pending) plus the weighted percentage.
 fn bar_line(app: &App) -> Line<'static> {
-    let total = app.install.total;
-    let built = app.install.built.min(if total == 0 { 0 } else { total });
-    let frac = if total == 0 {
-        0.0
-    } else {
-        built as f64 / total as f64
-    };
-    let filled = (frac * BAR as f64).round() as usize;
+    let percent = overall_percent(app);
+    let filled = (percent as usize * BAR / 100).min(BAR);
     let bar_color = if app.install.error.is_some() {
         app.palette.error
     } else {
@@ -162,53 +131,42 @@ fn bar_line(app: &App) -> Line<'static> {
             Style::default().fg(app.palette.muted),
         ),
         Span::styled(
-            format!("  {}%", (frac * 100.0).round() as u64),
+            format!("  {percent}%"),
             Style::default().fg(app.palette.white),
         ),
     ])
 }
 
-/// Spinner + current step + `hechos de total` + `quedan ~n min`.
+/// Spinner + Spanish gerund + ETA, or the error (`✗ etapa: primera línea`).
 fn status_line(app: &App) -> Line<'static> {
+    if let Some(err) = &app.install.error {
+        let stage = app.install.failed.map(|s| s.label()).unwrap_or("error");
+        let first = err.lines().next().unwrap_or("").to_string();
+        return Line::from(vec![
+            Span::styled("✗ ", Style::default().fg(app.palette.error)),
+            Span::styled(
+                format!("{stage}: {first}"),
+                Style::default().fg(app.palette.error),
+            ),
+        ]);
+    }
     let spinner = SPINNER[(app.tick as usize) % SPINNER.len()];
-    let step = app.install.current.map(|s| s.label()).unwrap_or("iniciando");
+    let gerund = match app.install.current {
+        Some(Step::Disk) => "Preparando el disco",
+        Some(Step::Settings) => "Ajustando el sistema",
+        Some(Step::System) => "Construyendo el sistema",
+        Some(Step::Boot) => "Instalando el arranque",
+        None => "Iniciando",
+    };
     let mut spans = vec![
         Span::styled(format!("{spinner} "), Style::default().fg(app.palette.primary)),
-        Span::styled(step.to_string(), Style::default().fg(app.palette.muted)),
+        Span::styled(gerund.to_string(), Style::default().fg(app.palette.text)),
     ];
-    if app.install.total > 0 {
-        spans.push(Span::styled(
-            format!(" · {} de {}", app.install.built, app.install.total),
-            Style::default().fg(app.palette.muted),
-        ));
-    }
     if let Some(secs) = app.install.eta_secs() {
         spans.push(Span::styled(
             format!(" · quedan ~{} min", secs.div_ceil(60)),
             Style::default().fg(app.palette.muted),
         ));
-    }
-    Line::from(spans)
-}
-
-/// `[x] disco     [>] sistema     [ ] arranque` (ASCII, console-safe).
-fn steps_line(app: &App) -> Line<'static> {
-    let mut spans: Vec<Span> = Vec::new();
-    for (i, step) in Step::ALL.iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::raw("     "));
-        }
-        let (mark, mark_color, name_color) = if app.install.failed == Some(*step) {
-            ("[!]", app.palette.error, app.palette.error)
-        } else if app.install.done.contains(step) {
-            ("[x]", app.palette.success, app.palette.text)
-        } else if app.install.current == Some(*step) {
-            ("[>]", app.palette.primary, app.palette.highlight)
-        } else {
-            ("[ ]", app.palette.muted, app.palette.muted)
-        };
-        spans.push(Span::styled(format!("{mark} "), Style::default().fg(mark_color)));
-        spans.push(Span::styled(step.label(), Style::default().fg(name_color)));
     }
     Line::from(spans)
 }
@@ -222,22 +180,18 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
                 true
             }
             KeyCode::Char('v') => {
-                app.install_show_log = !app.install_show_log;
+                app.install_log_view = !app.install_log_view;
                 true
             }
-            // Tab / arrows / Enter drive the two dialog buttons.
             _ => false,
         };
     }
     match key.code {
         KeyCode::Char('v') => {
-            app.install_show_log = !app.install_show_log;
-            true
-        }
-        // Full, scrollable log overlay.
-        KeyCode::Char('l') => {
-            app.install_log_view = true;
-            app.install_log_scroll = 0;
+            app.install_log_view = !app.install_log_view;
+            if app.install_log_view {
+                app.install_log_scroll = 0;
+            }
             true
         }
         // Esc is a second way into the cancel confirmation.
@@ -257,38 +211,6 @@ pub fn buttons(_app: &App) -> Vec<(Btn, crate::app::Action)> {
     Vec::new()
 }
 
-/// Splits `s` into rows of at most `width` chars. An empty input yields a single
-/// empty row so blank log lines still advance the view.
-fn wrap_line(s: &str, width: usize) -> Vec<String> {
-    if width == 0 {
-        return vec![s.to_string()];
-    }
-    if s.is_empty() {
-        return vec![String::new()];
-    }
-    s.chars()
-        .collect::<Vec<char>>()
-        .chunks(width)
-        .map(|c| c.iter().collect())
-        .collect()
-}
-
 pub fn commands(_app: &App) -> Vec<String> {
     Vec::new()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::wrap_line;
-
-    #[test]
-    fn wraps_at_width() {
-        assert_eq!(wrap_line("abcdef", 3), vec!["abc", "def"]);
-    }
-
-    #[test]
-    fn keeps_short_lines_and_empty() {
-        assert_eq!(wrap_line("hi", 80), vec!["hi"]);
-        assert_eq!(wrap_line("", 80), vec![""]);
-    }
 }
