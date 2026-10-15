@@ -623,9 +623,14 @@ fn step_recovery_key(
     ));
     report.log(format!("$ {}", cmd.display));
 
-    let mut sink = |out: Stream| match out {
-        Stream::Stdout(l) => report.log(l),
-        Stream::Stderr(l) => report.log(l),
+    let mut sink = |out: Stream| {
+        let l = match out {
+            Stream::Stdout(l) => l,
+            Stream::Stderr(l) => l,
+        };
+        if let Some(clean) = nix_display(&l) {
+            report.log(clean);
+        }
     };
     let code = runner::run(&cmd, &mut sink);
     ensure_ok(
@@ -671,9 +676,14 @@ fn step_tpm_enroll(
         ));
     report.log(format!("$ {}", cmd.display));
 
-    let mut sink = |out: Stream| match out {
-        Stream::Stdout(l) => report.log(l),
-        Stream::Stderr(l) => report.log(l),
+    let mut sink = |out: Stream| {
+        let l = match out {
+            Stream::Stdout(l) => l,
+            Stream::Stderr(l) => l,
+        };
+        if let Some(clean) = nix_display(&l) {
+            report.log(clean);
+        }
     };
     let code = runner::run(&cmd, &mut sink);
     ensure_ok(
@@ -1287,7 +1297,9 @@ fn run_with_progress(plan: &Plan, report: &mut Reporter, cmd: &Cmd) -> i32 {
         if let Some((built, total)) = progress.feed(line.trim()) {
             report.progress(built, total);
         }
-        report.log(line);
+        if let Some(clean) = nix_display(&line) {
+            report.log(clean);
+        }
     };
     runner::run(cmd, &mut sink)
 }
@@ -1317,9 +1329,14 @@ fn exec_in(plan: &Plan, report: &mut Reporter, cmd: &Cmd, cwd: &Path) -> Result<
             shell_command(cmd)
         ))
         .with_display(cmd.display.clone());
-    let mut sink = |out: Stream| match out {
-        Stream::Stdout(l) => report.log(l),
-        Stream::Stderr(l) => report.log(l),
+    let mut sink = |out: Stream| {
+        let l = match out {
+            Stream::Stdout(l) => l,
+            Stream::Stderr(l) => l,
+        };
+        if let Some(clean) = nix_display(&l) {
+            report.log(clean);
+        }
     };
     Ok(runner::run(&wrapped, &mut sink))
 }
@@ -1344,12 +1361,16 @@ fn exec_capture(
         Stream::Stdout(l) => {
             captured.push_str(&l);
             captured.push('\n');
-            report.log(l);
+            if let Some(clean) = nix_display(&l) {
+                report.log(clean);
+            }
         }
         Stream::Stderr(l) => {
             err.push_str(&l);
             err.push('\n');
-            report.log(l);
+            if let Some(clean) = nix_display(&l) {
+                report.log(clean);
+            }
         }
     };
     Ok(runner::run(&wrapped, &mut sink))
@@ -1399,6 +1420,71 @@ fn ensure_ok(code: i32, what: &str) -> Result<()> {
     } else {
         Err(eyre!("{what} (código {code})"))
     }
+}
+
+/// Turns a raw nix line into a clean, human line, or `None` when it carries no
+/// text (machine progress). Expands `@nix {…}` internal-json and strips ANSI.
+fn nix_display(line: &str) -> Option<String> {
+    let line = line.trim_end();
+    if let Some(json) = line.strip_prefix("@nix ") {
+        let v: serde_json::Value = serde_json::from_str(json).ok()?;
+        let fields = v.get("fields").and_then(|f| f.as_array());
+        let first = fields
+            .and_then(|f| f.first())
+            .and_then(|s| s.as_str())
+            .unwrap_or("");
+        return match v.get("action").and_then(|a| a.as_str()) {
+            Some("msg") => v
+                .get("msg")
+                .or_else(|| v.get("text"))
+                .and_then(|t| t.as_str())
+                .map(strip_ansi),
+            Some("start") => match v.get("type").and_then(|t| t.as_u64()).unwrap_or(0) {
+                105 => Some(format!("compilando {}", store_name(first))),
+                100 => {
+                    let cache = fields
+                        .and_then(|f| f.get(1))
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("");
+                    Some(format!("descargando {} · {}", store_name(first), cache))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+    }
+    Some(strip_ansi(line))
+}
+
+/// The `-name` part of a `/nix/store/<hash>-<name>` path.
+fn store_name(p: &str) -> String {
+    let base = p.rsplit('/').next().unwrap_or(p);
+    match base.split_once('-') {
+        Some((hash, name)) if hash.len() == 32 => name.to_string(),
+        _ => base.to_string(),
+    }
+}
+
+/// Removes ANSI CSI escape sequences (`\x1b[…m` and friends).
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&n) = chars.peek() {
+                    chars.next();
+                    if n.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
 }
 
 fn shell_quote(path: &Path) -> String {
