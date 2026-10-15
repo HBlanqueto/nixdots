@@ -1,7 +1,5 @@
 #!/bin/sh
 
-    sleep 2
-    
     mkdir -p /btrfs_tmp
 
     # The btrfs lives inside the LUKS container (when encrypted); by the time

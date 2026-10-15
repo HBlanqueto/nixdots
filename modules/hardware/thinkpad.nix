@@ -37,9 +37,14 @@
             services.rollback = {
                 wantedBy = [ "initrd.target" ];
                 before = [ "sysroot.mount" ];
-                # The btrfs we roll back lives inside the LUKS container, so it
-                # must already be open before snapshot.sh can mount it.
-                after = [ "systemd-cryptsetup@cryptroot.service" ];
+                # El label nixos solo aparece tras abrir LUKS (si está cifrado), así que
+                # esperar al dispositivo cubre ambos casos. NO pongas requires sobre
+                # cryptsetup: el cifrado es opcional y sin LUKS esa unidad no existe.
+                requires = [ "dev-disk-by\\x2dlabel-nixos.device" ];
+                after = [
+                    "dev-disk-by\\x2dlabel-nixos.device"
+                    "systemd-cryptsetup@cryptroot.service"
+                ];
                 unitConfig.DefaultDependencies = "no";
                 serviceConfig.Type = "oneshot";
                 script = builtins.readFile ./snapshot.sh;
