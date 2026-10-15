@@ -261,19 +261,19 @@ pub fn shortcut(app: &App) -> String {
 
 pub fn buttons(app: &App) -> Vec<(Btn, Action)> {
     match &app.net.phase {
-        RedFase::Lista => vec![(Btn::secondary("‹ Atrás"), Action::Back)],
+        RedFase::Lista => vec![(Btn::new("Atrás"), Action::Back)],
         RedFase::Contrasena { .. } => vec![
-            (Btn::secondary("‹ Redes"), Action::NetMenu),
-            (Btn::primary("Conectar ›"), Action::Connect),
+            (Btn::new("Redes"), Action::NetMenu),
+            (Btn::new("Conectar"), Action::Connect),
         ],
         RedFase::Conectando { .. } => Vec::new(),
         RedFase::Error { .. } => vec![
-            (Btn::secondary("‹ Redes"), Action::NetMenu),
-            (Btn::primary("Reintentar ›"), Action::NetRetry),
+            (Btn::new("Redes"), Action::NetMenu),
+            (Btn::new("Reintentar"), Action::NetRetry),
         ],
         RedFase::Conectado { .. } => vec![
-            (Btn::secondary("‹ Cambiar red"), Action::NetMenu),
-            (Btn::primary("Continuar ›"), Action::Next),
+            (Btn::new("Cambiar red"), Action::NetMenu),
+            (Btn::new("Continuar"), Action::Next),
         ],
     }
 }

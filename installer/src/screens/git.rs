@@ -92,11 +92,11 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(app: &App) -> Vec<(Btn, Action)> {
     let primary = if app.git.enabled {
-        Btn::primary("Continuar ›")
+        Btn::new("Continuar")
     } else {
-        Btn::primary("Omitir ›")
+        Btn::new("Omitir")
     };
-    vec![(Btn::secondary("‹ Atrás"), Action::Back), (primary, Action::Next)]
+    vec![(Btn::new("Atrás"), Action::Back), (primary, Action::Next)]
 }
 
 pub fn commands(app: &App) -> Vec<String> {

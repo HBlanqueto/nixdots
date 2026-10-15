@@ -11,7 +11,7 @@ use crate::keyboard;
 use crate::net;
 use crate::settings::Settings;
 use crate::theme::{self, Palette};
-use crate::widgets::{self, Btn, Kind};
+use crate::widgets::{self, Btn, ButtonRow};
 use color_eyre::eyre::Result;
 use ratatui::crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
@@ -158,6 +158,23 @@ pub enum Action {
     Rescan,
     NetMenu,
     NetRetry,
+}
+
+impl Action {
+    /// The button that advances or is the safe default, so it takes the focus
+    /// first. `None` falls back to the first enabled button.
+    fn is_primary(self) -> bool {
+        matches!(
+            self,
+            Action::Next
+                | Action::LicenseAccept
+                | Action::Reboot
+                | Action::RetryInstall
+                | Action::KeepInstalling
+                | Action::Connect
+                | Action::NetRetry
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1432,7 +1449,7 @@ impl App {
         let buttons = self.buttons();
         buttons
             .iter()
-            .position(|(b, _)| b.kind == Kind::Primary && b.enabled)
+            .position(|(b, action)| action.is_primary() && b.enabled)
             .or_else(|| buttons.iter().position(|(b, _)| b.enabled))
             .unwrap_or(0)
     }
@@ -1486,7 +1503,7 @@ impl App {
 
     pub fn buttons(&self) -> Vec<(Btn, Action)> {
         match self.screen {
-            Screen::Splash => vec![(Btn::primary("Continuar ›"), Action::Next)],
+            Screen::Splash => vec![(Btn::new("Continuar"), Action::Next)],
             Screen::Network => crate::screens::network::buttons(self),
             Screen::License => crate::screens::license::buttons(self),
             Screen::Host => crate::screens::host::buttons(self),
@@ -1502,13 +1519,13 @@ impl App {
             Screen::Installing => {
                 if self.install_cancel {
                     vec![
-                        (Btn::secondary("‹ Seguir"), Action::KeepInstalling),
-                        (Btn::destructive("Cancelar"), Action::CancelInstall),
+                        (Btn::new("Seguir"), Action::KeepInstalling),
+                        (Btn::new("Cancelar"), Action::CancelInstall),
                     ]
                 } else if self.install.error.is_some() {
                     vec![
-                        (Btn::primary("Reintentar"), Action::RetryInstall),
-                        (Btn::secondary("Salir"), Action::Finish),
+                        (Btn::new("Reintentar"), Action::RetryInstall),
+                        (Btn::new("Salir"), Action::Finish),
                     ]
                 } else {
                     Vec::new()
@@ -1608,7 +1625,7 @@ impl App {
     }
 
     /// Renders the current screen's buttons on a raw row (chromeless screens).
-    pub fn draw_buttons_at(&mut self, f: &mut Frame, area: Rect) {
+    pub fn draw_buttons(&self, f: &mut Frame, area: Rect) {
         let enabled = self.primary_enabled();
         let buttons: Vec<Btn> = self
             .buttons()
@@ -1623,14 +1640,13 @@ impl App {
         if buttons.is_empty() {
             return;
         }
-        let _ = widgets::render_buttons(
-            f,
-            area,
-            &self.palette,
-            &buttons,
-            self.button_focus,
-            self.focus_buttons,
-        );
+        let row = ButtonRow {
+            buttons: &buttons,
+            focus: self.button_focus,
+            focused: self.focus_buttons,
+            palette: &self.palette,
+        };
+        f.render_widget(row, area);
     }
 
     /// Resets the focus when entering a screen: the content (a field or the
@@ -1638,10 +1654,9 @@ impl App {
     /// the buttons start focused.
     pub fn reset_focus(&mut self) {
         self.button_focus = self.primary_index();
-        self.focus_buttons = matches!(
-            self.screen,
-            Screen::Splash | Screen::Done | Screen::License
-        );
+        // The advance button takes the focus when the screen is already
+        // complete; otherwise the first editable field does.
+        self.focus_buttons = self.primary_enabled();
         if self.screen == Screen::Keyboard {
             self.key_test_focus = false;
             self.keyboard_suggested = self.suggested_keyboard();
@@ -2008,7 +2023,7 @@ impl App {
         self.draw_progress(f, progress);
         self.draw_heading(f, heading);
         self.draw_panel(f, panel);
-        self.draw_buttons_at(f, buttons_row);
+        self.draw_buttons(f, buttons_row);
         self.draw_shortcuts(f, shortcuts);
         if self.show_commands {
             self.draw_commands(f, commands, &commands_lines, commands_h);
@@ -2135,15 +2150,7 @@ impl App {
         );
         y += 2; // prompt + blank
 
-        let buttons: Vec<Btn> = self.buttons().into_iter().map(|(b, _)| b).collect();
-        let _ = widgets::render_buttons(
-            f,
-            Rect::new(area.x, y, area.width, 1),
-            &self.palette,
-            &buttons,
-            self.button_focus,
-            self.focus_buttons,
-        );
+        self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
     }
 
     fn content_height(&self) -> u16 {

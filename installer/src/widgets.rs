@@ -3,47 +3,23 @@
 //! with a cell background color.
 
 use crate::theme::Palette;
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Widget};
 use ratatui::Frame;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Primary,
-    Secondary,
-    Destructive,
-}
 
 #[derive(Debug, Clone)]
 pub struct Btn {
     pub label: String,
-    pub kind: Kind,
     pub enabled: bool,
 }
 
 impl Btn {
-    pub fn primary(label: impl Into<String>) -> Self {
+    pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
-            kind: Kind::Primary,
-            enabled: true,
-        }
-    }
-
-    pub fn secondary(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            kind: Kind::Secondary,
-            enabled: true,
-        }
-    }
-
-    pub fn destructive(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            kind: Kind::Destructive,
             enabled: true,
         }
     }
@@ -68,128 +44,73 @@ pub fn dim(f: &mut Frame, area: Rect, palette: &Palette) {
     }
 }
 
-/// The middle text of a button, without its surrounding arrows.
-fn btn_core(label: &str) -> String {
-    let mut s = label.trim();
-    if let Some(rest) = s.strip_prefix("‹ ") {
-        s = rest;
-    } else if let Some(rest) = s.strip_prefix('‹') {
-        s = rest.trim_start();
-    }
-    if let Some(rest) = s.strip_suffix(" ›") {
-        s = rest;
-    } else if let Some(rest) = s.strip_suffix('›') {
-        s = rest.trim_end();
-    }
-    s.trim().to_string()
-}
-
-fn fill_color(kind: Kind, palette: &Palette) -> Color {
-    match kind {
-        Kind::Primary => palette.primary,
-        Kind::Secondary => palette.row_bg,
-        Kind::Destructive => palette.error,
-    }
-}
-
-/// Renders a centered button row.
+/// A centered row of buttons, shared by every screen and dialog.
 ///
-/// Unfocused buttons are plain muted text. The focused button becomes a
-/// capsule: Nerd Font rounded ends on a real terminal, or `‹ text ›` with a
-/// flat fill on the Linux console. A disabled button is dim and takes no
-/// focus.
-pub fn render_buttons(
-    f: &mut Frame,
-    area: Rect,
-    palette: &Palette,
-    buttons: &[Btn],
-    focus: usize,
-    focused: bool,
-) -> Vec<(u16, u16, usize)> {
-    let nerd = !crate::theme::console::is_linux_console();
-    // Each button becomes a group of spans; we remember the columns.
-    let mut groups: Vec<(Vec<Span<'static>>, Option<usize>)> = Vec::new();
-    for (i, button) in buttons.iter().enumerate() {
-        let mut spans: Vec<Span<'static>> = Vec::new();
-        if i > 0 {
-            spans.push(Span::raw("   "));
-        }
-        let is_focus = focused && i == focus && button.enabled;
-        // Every button always has the capsule shape (same width), so selecting
-        // it only changes the colors — nothing moves or jumps.
-        let core = btn_core(&button.label);
-        let (glyph_style, text_style) = if !button.enabled {
-            // Disabled: dim, no focus, no response.
-            (
-                Style::default().fg(palette.disabled),
-                Style::default().fg(palette.disabled),
-            )
-        } else if is_focus {
-            let fill = fill_color(button.kind, palette);
-            (
-                Style::default().fg(fill).bg(palette.reset),
-                Style::default()
-                    .fg(palette.white)
-                    .bg(fill)
-                    .add_modifier(Modifier::BOLD),
-            )
-        } else {
-            // Unfocused: camouflaged. The rounded ends are not drawn at all
-            // (a space keeps the width), so nothing shows but the muted text.
-            (Style::default(), Style::default().fg(palette.muted))
-        };
-        if nerd {
-            // The round ends are only drawn when focused; otherwise spaces, so
-            // the unfocused button blends with the background.
-            let (left, right) = if is_focus {
-                ("\u{e0b6}", "\u{e0b4}")
-            } else {
-                (" ", " ")
-            };
-            spans.push(Span::styled(left.to_string(), glyph_style));
-            spans.push(Span::styled(format!(" {core} "), text_style));
-            spans.push(Span::styled(right.to_string(), glyph_style));
-        } else {
-            spans.push(Span::styled(format!("‹ {core} ›"), text_style));
-        }
-        // Disabled buttons are never focused.
-        groups.push((spans, if button.enabled { Some(i) } else { None }));
-    }
-
-    // Flatten for rendering, and record the hitbox of each enabled button.
-    let mut flat: Vec<Span<'static>> = Vec::new();
-    let mut hitboxes: Vec<(u16, u16, usize)> = Vec::new();
-    for (group, index) in groups {
-        // A group's first span may be the separator; the button spans follow.
-        let group_width: u16 = group.iter().map(span_width).sum();
-        let sep: u16 = group
-            .first()
-            .filter(|s| s.content == "   ")
-            .map(|s| span_width(s))
-            .unwrap_or(0);
-        let start_col: u16 = flat.iter().map(span_width).sum();
-        if let Some(i) = index {
-            hitboxes.push((start_col + sep, start_col + group_width - 1, i));
-        }
-        flat.extend(group);
-    }
-
-    let total: u16 = flat.iter().map(span_width).sum();
-    let offset = area.x + area.width.saturating_sub(total) / 2;
-    let hitboxes = hitboxes
-        .into_iter()
-        .map(|(x0, x1, i)| (offset + x0, offset + x1, i))
-        .collect();
-
-    f.render_widget(
-        Paragraph::new(Line::from(flat)).alignment(Alignment::Center),
-        area,
-    );
-    hitboxes
+/// Every button is plain muted text by default; only the focused one becomes a
+/// capsule with the accent fill, white bold text (Nerd Font rounded ends on a
+/// real terminal, `‹ text ›` on the Linux console). A disabled button is dim
+/// and never takes the focus.
+pub struct ButtonRow<'a> {
+    pub buttons: &'a [Btn],
+    pub focus: usize,
+    pub focused: bool,
+    pub palette: &'a Palette,
 }
 
-fn span_width(span: &Span) -> u16 {
-    span.content.chars().count() as u16
+impl Widget for ButtonRow<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let nerd = !crate::theme::console::is_linux_console();
+        let mut flat: Vec<Span<'static>> = Vec::new();
+        for (i, button) in self.buttons.iter().enumerate() {
+            if i > 0 {
+                flat.push(Span::raw("   "));
+            }
+            let is_focus = self.focused && i == self.focus && button.enabled;
+            if !button.enabled {
+                let style = Style::default().fg(self.palette.disabled);
+                push_button(&mut flat, &button.label, style, style, nerd, false);
+            } else if is_focus {
+                let glyph = Style::default()
+                    .fg(self.palette.primary)
+                    .bg(self.palette.reset);
+                let text = Style::default()
+                    .fg(self.palette.white)
+                    .bg(self.palette.primary)
+                    .add_modifier(Modifier::BOLD);
+                push_button(&mut flat, &button.label, glyph, text, nerd, true);
+            } else {
+                let style = Style::default().fg(self.palette.muted);
+                push_button(&mut flat, &button.label, style, style, nerd, false);
+            }
+        }
+        Paragraph::new(Line::from(flat))
+            .alignment(Alignment::Center)
+            .render(area, buf);
+    }
+}
+
+/// Appends one button's spans. The capsule ends are only drawn when focused;
+/// otherwise spaces keep the width, so selecting a button nothing moves.
+fn push_button(
+    flat: &mut Vec<Span<'static>>,
+    label: &str,
+    glyph: Style,
+    text: Style,
+    nerd: bool,
+    capsule: bool,
+) {
+    if nerd {
+        let (left, right) = if capsule {
+            ("\u{e0b6}", "\u{e0b4}")
+        } else {
+            (" ", " ")
+        };
+        flat.push(Span::styled(left.to_string(), glyph));
+        flat.push(Span::styled(format!(" {label} "), text));
+        flat.push(Span::styled(right.to_string(), glyph));
+    } else {
+        flat.push(Span::styled(format!("‹ {label} ›"), text));
+    }
 }
 
 /// An editable field with a block cursor. `masked` shows bullets; an empty

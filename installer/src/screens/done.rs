@@ -1,5 +1,5 @@
 use crate::app::{Action, App};
-use crate::widgets::{self, Btn};
+use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::widgets::Paragraph;
@@ -20,15 +20,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         Rect::new(area.x, y, area.width, 1),
     );
 
-    let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
-    let _ = widgets::render_buttons(
-        f,
-        Rect::new(area.x, y + 2, area.width, 1),
-        &app.palette,
-        &buttons,
-        app.button_focus,
-        app.focus_buttons,
-    );
+    app.draw_buttons(f, Rect::new(area.x, y + 2, area.width, 1));
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
@@ -41,8 +33,8 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("Salir"), Action::Finish),
-        (Btn::primary("Reiniciar ›"), Action::Reboot),
+        (Btn::new("Salir"), Action::Finish),
+        (Btn::new("Reiniciar"), Action::Reboot),
     ]
 }
 

@@ -5,7 +5,7 @@
 use crate::app::{Action, App};
 use crate::detect::{human_size, Disk};
 use crate::disk::{self as diskplan, DiskDecision};
-use crate::widgets::{self, Btn};
+use crate::widgets::{self, Btn, ButtonRow};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
@@ -115,10 +115,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
-    app.draw_buttons_at(
-        f,
-        Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1),
-    );
+    app.draw_buttons(f, Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1));
 
     if app.disks.erase_modal {
         draw_erase_modal(f, app, area);
@@ -332,9 +329,15 @@ fn draw_erase_modal(f: &mut Frame, app: &mut App, area: Rect) {
         .alignment(Alignment::Center),
         Rect::new(inner.x, inner.y + 1, inner.width, 1),
     );
-    let buttons = vec![Btn::secondary("No"), Btn::destructive("Borrar todo")];
+    let buttons = vec![Btn::new("No"), Btn::new("Borrar todo")];
     let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let _ = widgets::render_buttons(f, row, &app.palette, &buttons, app.disks.erase_focus, true);
+    let widget = ButtonRow {
+        buttons: &buttons,
+        focus: app.disks.erase_focus,
+        focused: true,
+        palette: &app.palette,
+    };
+    f.render_widget(widget, row);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
@@ -384,8 +387,8 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("‹ Atrás"), Action::Back),
-        (Btn::primary("Continuar ›"), Action::Next),
+        (Btn::new("Atrás"), Action::Back),
+        (Btn::new("Continuar"), Action::Next),
     ]
 }
 

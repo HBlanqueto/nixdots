@@ -125,8 +125,8 @@ fn edit_username(app: &mut App, key: KeyEvent) {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("‹ Atrás"), Action::Back),
-        (Btn::primary("Continuar ›"), Action::Next),
+        (Btn::new("Atrás"), Action::Back),
+        (Btn::new("Continuar"), Action::Next),
     ]
 }
 

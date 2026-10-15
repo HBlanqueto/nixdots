@@ -104,7 +104,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         Rect::new(area.x, y, area.width, 1),
     );
 
-    app.draw_buttons_at(
+    app.draw_buttons(
         f,
         Rect::new(area.x, area.bottom().saturating_sub(3), area.width, 1),
     );
@@ -156,8 +156,8 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("‹ Atrás"), Action::Back),
-        (Btn::primary("Continuar ›"), Action::Next),
+        (Btn::new("Atrás"), Action::Back),
+        (Btn::new("Continuar"), Action::Next),
     ]
 }
 

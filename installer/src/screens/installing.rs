@@ -1,6 +1,6 @@
 use crate::app::App;
 use crate::install::Step;
-use crate::widgets::{self, Btn};
+use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
@@ -79,14 +79,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     if has_buttons {
         y += 1;
-        let _ = widgets::render_buttons(
-            f,
-            line(y),
-            &app.palette,
-            &buttons,
-            app.button_focus,
-            app.focus_buttons,
-        );
+        app.draw_buttons(f, line(y));
         y += 1;
     }
 

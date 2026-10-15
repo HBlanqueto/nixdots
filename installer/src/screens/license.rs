@@ -3,7 +3,7 @@
 //! Acepto opens a small confirmation dialog; No acepto returns to Inicio.
 
 use crate::app::{Action, App};
-use crate::widgets::{self, Btn};
+use crate::widgets::{Btn, ButtonRow};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -80,15 +80,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     );
     y += 2;
 
-    let buttons: Vec<Btn> = app.buttons().into_iter().map(|(b, _)| b).collect();
-    let _ = widgets::render_buttons(
-        f,
-        Rect::new(area.x, y, area.width, 1),
-        &app.palette,
-        &buttons,
-        app.button_focus,
-        app.focus_buttons,
-    );
+    app.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
 
     if app.license_modal {
         draw_modal(f, app, area);
@@ -187,9 +179,15 @@ fn draw_modal(f: &mut Frame, app: &mut App, area: Rect) {
         Rect::new(inner.x, inner.y + 1, inner.width, 1),
     );
 
-    let buttons = vec![Btn::secondary("No acepto"), Btn::primary("Acepto")];
+    let buttons = vec![Btn::new("No acepto"), Btn::new("Acepto")];
     let row = Rect::new(inner.x, inner.bottom().saturating_sub(2), inner.width, 1);
-    let _ = widgets::render_buttons(f, row, &app.palette, &buttons, app.license_modal_focus, true);
+    let widget = ButtonRow {
+        buttons: &buttons,
+        focus: app.license_modal_focus,
+        focused: true,
+        palette: &app.palette,
+    };
+    f.render_widget(widget, row);
 }
 
 /// Keys while the confirmation dialog is open: Esc / No acepto close it,
@@ -300,8 +298,8 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
     vec![
-        (Btn::secondary("No acepto"), Action::Back),
-        (Btn::primary("Acepto ›"), Action::LicenseAccept),
+        (Btn::new("No acepto"), Action::Back),
+        (Btn::new("Acepto"), Action::LicenseAccept),
     ]
 }
 
