@@ -16,6 +16,10 @@ in
     };
 
     config = lib.mkIf firstBoot {
+        # Sin cuenta todavía no hay contraseña; el autologin de greetd entra
+        # como root. Al declarar el usuario se vuelve a reconstruir sin esto.
+        users.allowNoPasswordLogin = true;
+
         # GDM cede el sitio al asistente; vuelve al reconstruir con usuario.
         services.displayManager.gdm.enable = lib.mkForce false;
 
