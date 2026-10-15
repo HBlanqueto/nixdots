@@ -8,9 +8,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
 /// Embedded so the installer works without network or the repo.
@@ -28,11 +26,11 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         .unwrap_or(0) as u16;
 
     let box_w = 84.min(area.width.saturating_sub(4)).max(24);
-    // logo + 3-line gap (like Inicio) + nixdots + desc + gap + box + gray + buttons
-    let overhead = logo_h + 3 + 1 + 1 + 1 + 1 + 1 + 2;
+    // logo + gap + prompt + description(2) + gap + box + gray + gap + buttons
+    let overhead = logo_h + 3 + 1 + 2 + 1 + 1 + 1 + 1;
     // The logo always keeps its height; the text box shrinks instead.
     let box_h = area.height.saturating_sub(overhead).clamp(3, 20);
-    let total = logo_h + 3 + 1 + 1 + 1 + 1 + box_h + 1 + 1 + 1;
+    let total = overhead + box_h;
     let mut y = area.y + area.height.saturating_sub(total) / 2;
 
     if logo_h > 0 {
@@ -41,15 +39,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         y += logo_h;
     }
     y += 3;
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            "nixdots",
-            Style::default().fg(app.palette.text).add_modifier(Modifier::BOLD),
-        )))
-        .alignment(Alignment::Center),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
+
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "Para continuar con la instalación, debes aceptar los términos de la licencia.",
@@ -58,9 +48,28 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         .alignment(Alignment::Center),
         Rect::new(area.x, y, area.width, 1),
     );
-    y += 2;
+    y += 1;
 
+    // The description, wrapped to the box width.
     let box_x = area.x + area.width.saturating_sub(box_w) / 2;
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "nixdots es la configuración personal de NixOS de ",
+                Style::default().fg(app.palette.muted),
+            ),
+            Span::styled("HBlanqueto", Style::default().fg(app.palette.highlight)),
+            Span::styled(
+                ". No soy un experto en Nix, así que úsala bajo tu propio riesgo.",
+                Style::default().fg(app.palette.muted),
+            ),
+        ]))
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true }),
+        Rect::new(box_x, y, box_w, 2),
+    );
+    y += 3; // description (2) + gap
+
     let box_rect = Rect::new(box_x, y, box_w, box_h);
     draw_box(f, app, box_rect);
     y += box_h;
@@ -92,42 +101,53 @@ fn draw_box(f: &mut Frame, app: &mut App, rect: Rect) {
     let inner = block.inner(rect);
     f.render_widget(block, rect);
 
-    let width = inner.width.saturating_sub(1).max(8) as usize;
-    let (lines, sources, source_total) = wrap_license(width);
-    let total = lines.len();
-    let visible = inner.height as usize;
+    // 1-row and 3-column inner margin; the scrollbar lives in the right one.
+    let text_area = Rect::new(
+        inner.x + 3,
+        inner.y + 1,
+        inner.width.saturating_sub(6),
+        inner.height.saturating_sub(2),
+    );
+    app.license_text_area = text_area;
+
+    let lines = reflow(&app.palette, text_area.width.max(8) as usize);
+    let total = lines.len().max(1);
+    let visible = text_area.height as usize;
     let max = total.saturating_sub(visible);
     app.license_max_scroll = max;
     if app.license_scroll > max {
         app.license_scroll = max;
     }
     let start = app.license_scroll;
-    app.license_total = source_total;
-    app.license_line = sources.get(start).copied().unwrap_or(source_total);
+    app.license_total = total;
+    app.license_line = (start + 1).min(total);
 
-    let text_area = Rect::new(inner.x, inner.y, inner.width, inner.height);
-    app.license_text_area = text_area;
-    let mut rendered: Vec<Line> = Vec::new();
-    for i in 0..visible {
-        let idx = start + i;
-        if idx >= total {
-            rendered.push(Line::from(""));
-        } else {
-            rendered.push(Line::from(Span::styled(
-                lines[idx].clone(),
-                Style::default().fg(app.palette.text),
-            )));
-        }
-    }
+    let rendered: Vec<Line> = lines.into_iter().skip(start).take(visible).collect();
     f.render_widget(Paragraph::new(rendered), text_area);
 
-    let mut state = ScrollbarState::new(total)
-        .position(start)
-        .viewport_content_length(visible);
-    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .style(Style::default().fg(app.palette.row_bg))
-        .thumb_style(Style::default().fg(app.palette.primary));
-    f.render_stateful_widget(scrollbar, text_area, &mut state);
+    // `█`/`│` scrollbar, inside the right margin.
+    if total > visible && visible > 0 {
+        let bar_x = inner.right().saturating_sub(2);
+        let thumb_h = (visible * visible / total).max(1);
+        let travel = visible.saturating_sub(thumb_h);
+        let max_start = total.saturating_sub(visible);
+        let thumb_top = start
+            .saturating_mul(travel)
+            .checked_div(max_start)
+            .unwrap_or(0);
+        for row in 0..visible as u16 {
+            let filled = (row as usize) >= thumb_top && (row as usize) < thumb_top + thumb_h;
+            let (ch, style) = if filled {
+                ("█", Style::default().fg(app.palette.primary))
+            } else {
+                ("│", Style::default().fg(app.palette.row_bg))
+            };
+            f.render_widget(
+                Paragraph::new(Span::styled(ch, style)),
+                Rect::new(bar_x, text_area.y + row, 1, 1),
+            );
+        }
+    }
 }
 
 /// The small confirmation dialog, centered over the license text box.
@@ -173,55 +193,137 @@ pub fn modal_key(app: &mut App, key: KeyEvent) {
     }
 }
 
-/// Returns the wrapped lines, the 1-based source line of each, and the total.
-fn wrap_license(width: usize) -> (Vec<String>, Vec<usize>, usize) {
-    let source: Vec<&str> = LICENSE.lines().collect();
-    let source_total = source.len();
-    let mut lines = Vec::new();
-    let mut sources = Vec::new();
-    for (i, raw) in source.iter().enumerate() {
-        for chunk in wrap(raw, width) {
-            lines.push(chunk);
-            sources.push(i + 1);
+/// Reflows the embedded license: paragraphs are joined and rewrapped to
+/// `width`, headings stay on their own centered line and the numbered sections
+/// get a hanging indent. The line count is over the reflowed lines.
+fn reflow(palette: &crate::theme::Palette, width: usize) -> Vec<Line<'static>> {
+    let src: Vec<&str> = LICENSE.lines().collect();
+    let mut out: Vec<Line<'static>> = Vec::new();
+    let mut i = 0;
+    let mut block = 0;
+    while i < src.len() {
+        while i < src.len() && src[i].trim().is_empty() {
+            i += 1;
         }
+        if i >= src.len() {
+            break;
+        }
+        let start = i;
+        while i < src.len() && !src[i].trim().is_empty() {
+            i += 1;
+        }
+        emit_block(palette, &src[start..i], width, &mut out, block == 0);
+        block += 1;
     }
-    (lines, sources, source_total)
+    out
 }
 
-fn wrap(line: &str, width: usize) -> Vec<String> {
-    if line.is_empty() {
-        return vec![String::new()];
+fn emit_block(
+    palette: &crate::theme::Palette,
+    block: &[&str],
+    width: usize,
+    out: &mut Vec<Line<'static>>,
+    header: bool,
+) {
+    let lines: Vec<&str> = block
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if lines.is_empty() {
+        return;
     }
-    let mut out = Vec::new();
-    let mut current = String::new();
-    let mut count = 0;
-    for word in line.split_inclusive(' ') {
-        let wlen = word.chars().count();
-        if count + wlen > width && count > 0 {
-            out.push(std::mem::take(&mut current));
-            count = 0;
+    // The document header (title, version, copyright, address): one line each.
+    if header || lines.iter().any(|l| l.contains("Copyright (C)")) {
+        for line in &lines {
+            let style = if is_uppercase(line) {
+                Style::default()
+                    .fg(palette.white)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(palette.text)
+            };
+            out.push(centered(line, style));
         }
-        if wlen > width {
-            for ch in word.chars() {
-                if count == width {
-                    out.push(std::mem::take(&mut current));
-                    count = 0;
-                }
-                current.push(ch);
-                count += 1;
-            }
-        } else {
+        return;
+    }
+    // A heading: every line centered in the original, centered and bold.
+    if block
+        .iter()
+        .filter(|l| !l.trim().is_empty())
+        .all(|l| leading_spaces(l) >= 15)
+    {
+        for line in &lines {
+            out.push(centered(
+                line,
+                Style::default()
+                    .fg(palette.white)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+        return;
+    }
+    // A paragraph: join and rewrap, with a hanging indent when numbered.
+    let joined = lines.join(" ");
+    let indent = if is_numbered(&joined) { 3 } else { 0 };
+    let wrapped = wrap_words(&joined, width.saturating_sub(indent).max(1));
+    for (i, line) in wrapped.iter().enumerate() {
+        let pad = if i > 0 { indent } else { 0 };
+        out.push(Line::from(Span::styled(
+            format!("{}{line}", " ".repeat(pad)),
+            Style::default().fg(palette.text),
+        )));
+    }
+}
+
+fn centered(text: &str, style: Style) -> Line<'static> {
+    Line::from(Span::styled(text.to_string(), style)).alignment(Alignment::Center)
+}
+
+fn leading_spaces(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+fn is_uppercase(text: &str) -> bool {
+    text.chars().any(|c| c.is_alphabetic())
+        && text
+            .chars()
+            .filter(|c| c.is_alphabetic())
+            .all(|c| c.is_uppercase())
+}
+
+/// A paragraph that starts a numbered section (`0.`, `12.`, `a)`).
+fn is_numbered(text: &str) -> bool {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_digit() => text.chars().take(3).any(|c| c == '.'),
+        Some(c) if c.is_ascii_alphabetic() => chars.next() == Some(')'),
+        _ => false,
+    }
+}
+
+/// Greedy word wrap, never breaking a word.
+fn wrap_words(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current = word.to_string();
+        } else if current.chars().count() + 1 + word.chars().count() <= width {
+            current.push(' ');
             current.push_str(word);
-            count += wlen;
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = word.to_string();
         }
     }
     if !current.is_empty() {
-        out.push(current);
+        lines.push(current);
     }
-    if out.is_empty() {
-        out.push(String::new());
+    if lines.is_empty() {
+        lines.push(String::new());
     }
-    out
+    lines
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
