@@ -277,6 +277,9 @@ fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
         set_mode_dir(&tmp, 0o1777)?;
     }
     std::env::set_var("TMPDIR", &tmp);
+    // The root-aware password assertion (modules/common/user.nix) checks
+    // `${NIXDOTS_ROOT}${hashedPasswordFile}`; point it at the target.
+    std::env::set_var("NIXDOTS_ROOT", &plan.root);
     report.log(format!("$ TMPDIR={}", tmp.display()));
     Ok(())
 }
@@ -836,20 +839,28 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
         fs::copy(&lic_src, lic_dst.join("LICENSE"))?;
     }
 
-    // Password hash -> /persist/secrets/<user>.hash (0711 dir / 0600 file).
-    // The directory is traversable (but not listable) so the unprivileged
-    // `nix` evaluation can stat the hash; the file stays 0600 root-owned.
+    // Password hash -> /persist/secrets/<user>.hash (0700 dir / 0600 file),
+    // root-owned and without a trailing newline. modules/common/user.nix checks
+    // `${NIXDOTS_ROOT}${hashedPasswordFile}`, so this is the file the install
+    // evaluates.
     let secrets = plan.root.join("persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", plan.settings.username));
     report.log(format!("$ escribir {}", hash_path.display()));
     if !plan.dry_run {
         fs::create_dir_all(&secrets)?;
-        set_mode_dir(&secrets, 0o711)?;
-        fs::write(&hash_path, format!("{}\n", plan.password_hash))?;
+        set_mode_dir(&secrets, 0o700)?;
+        fs::write(&hash_path, plan.password_hash.as_bytes())?;
         set_mode_file(&hash_path, 0o600)?;
+        let written = fs::read_to_string(&hash_path).unwrap_or_default();
+        if written.is_empty() || !written.starts_with("$y$") {
+            return Err(eyre!(
+                "el hash de contraseña no es válido en {}; vuelve a la pantalla Contraseña",
+                hash_path.display()
+            ));
+        }
     } else {
         fs::create_dir_all(&secrets)?;
-        fs::write(&hash_path, "(simulación)\n")?;
+        fs::write(&hash_path, "$y$(simulación)")?;
     }
 
     // Optionally drop the uutils replacement (imported by modules/common).

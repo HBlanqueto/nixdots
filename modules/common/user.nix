@@ -3,13 +3,18 @@
 let
     theme = import ../../share/themes;
 
+    # The installed system checks the final path; the installer evaluates from
+    # the ISO, so it points NIXDOTS_ROOT at the target (e.g. "/mnt"), where the
+    # file lives. On a normal system the variable is unset ("").
+    root = builtins.getEnv "NIXDOTS_ROOT";
+
     # Every declared normal user must point at an existing password hash file.
     # With mutableUsers = false a missing file leaves the account without a
-    # password on activation. Evaluated with --impure so the real /persist path
-    # can be inspected.
+    # password on activation. Evaluated with --impure so the real path can be
+    # inspected.
     normalUsers = builtins.filter (u: u.isNormalUser) (builtins.attrValues config.users.users);
     missingHashes = builtins.filter
-        (u: (u.hashedPasswordFile or null) != null && !(builtins.pathExists u.hashedPasswordFile))
+        (u: (u.hashedPasswordFile or null) != null && !(builtins.pathExists "${root}${u.hashedPasswordFile}"))
         normalUsers;
 in
 
@@ -20,7 +25,7 @@ in
             message =
                 "Falta el archivo de contraseña de: "
                 + builtins.concatStringsSep ", "
-                    (map (u: "${u.name} -> ${toString u.hashedPasswordFile}") missingHashes)
+                    (map (u: "${u.name} -> ${root}${toString u.hashedPasswordFile}") missingHashes)
                 + ". Créalo con `mkpasswd -m yescrypt` antes de reconstruir.";
         }
     ];
