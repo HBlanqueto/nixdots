@@ -37,12 +37,14 @@ pkgs.writeShellApplication {
             --palette-background "$(rgb ${theme.bg})"
         )
 
-        # On a real VT, outside kmscon, and unless opted out, open kmscon with
-        # Nerd Fonts and the neptunia palette, then run the installer inside it.
+        # On a real VT, outside kmscon, with a render node (what --hwaccel
+        # needs), and unless opted out, open kmscon with Nerd Fonts and the
+        # neptunia palette, then run the installer inside it.
         if [ "''${TERM:-}" = linux ] \
             && [ -z "''${NIXDOTS_IN_KMSCON:-}" ] \
             && [ -z "''${NIXDOTS_NO_KMSCON:-}" ] \
-            && [ -c "$(tty 2>/dev/null || true)" ]; then
+            && [ -c "$(tty 2>/dev/null || true)" ] \
+            && [ -e /dev/dri/renderD128 ]; then
             if FONTCONFIG_FILE="$fonts_conf" NIXDOTS_IN_KMSCON=1 \
                 kmscon --vt auto --switchvt --hwaccel \
                     --font-name "JetBrainsMono Nerd Font Mono" --font-size 14 \
