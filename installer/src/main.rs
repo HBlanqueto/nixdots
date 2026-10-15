@@ -50,6 +50,10 @@ fn help_text() -> String {
     "nixdots-installer [--install] [--repo <ruta|url>]\n\n  (sin argumentos)  simulación\n  --install         instalación real (requiere root, desde la ISO)\n  --repo            repositorio a instalar (defecto github:HBlanqueto/nixdots)".to_string()
 }
 
+/// Where the installer records that it started and how it exited, so
+/// `install.sh` can tell a kmscon failure from a real run and reuse the code.
+const STATE_DIR: &str = "/tmp/nixdots-installer";
+
 fn main() -> Result<()> {
     color_eyre::install()?;
     theme::console::install_panic_hook();
@@ -66,6 +70,19 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    if args.dry_run {
+        return run(args);
+    }
+
+    // Real install: tell `install.sh` we started (so it does not relaunch the
+    // ASCII fallback) and record the exit code once we are done.
+    mark_started();
+    let result = run(args);
+    write_exit_code(result.is_ok());
+    result
+}
+
+fn run(args: Args) -> Result<()> {
     if !args.dry_run {
         if !detect::is_root() {
             bail!("--install requiere root");
@@ -85,7 +102,7 @@ fn main() -> Result<()> {
         prepare_repo(&args.repo, &repo_dir)?;
     }
 
-    let mut app = App::new(args.dry_run, args.repo.clone(), repo_dir);
+    let mut app = App::new(args.dry_run, args.repo, repo_dir);
     app.source_ok = cloned;
     app.network = detect::network_online();
     app.refresh_network();
@@ -94,6 +111,22 @@ fn main() -> Result<()> {
     let result = app.run(&mut terminal);
     restore_terminal(&mut terminal)?;
     result
+}
+
+/// Marks that the installer really started, so `install.sh` knows kmscon handed
+/// control over instead of failing to start.
+fn mark_started() {
+    let _ = std::fs::create_dir_all(STATE_DIR);
+    let _ = std::fs::write(format!("{}/started", STATE_DIR), b"");
+}
+
+/// Records the exit code (0 ok, 1 otherwise) for `install.sh` to reuse.
+fn write_exit_code(ok: bool) {
+    let _ = std::fs::create_dir_all(STATE_DIR);
+    let _ = std::fs::write(
+        format!("{}/exit-code", STATE_DIR),
+        if ok { "0" } else { "1" },
+    );
 }
 
 fn prepare_repo(spec: &str, dest: &Path) -> Result<()> {
