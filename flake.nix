@@ -48,25 +48,20 @@
                 map (name: { inherit name; value = mkHostFromDir name; }) hostNames
             );
 
-            # Settings de prueba para el arranque inicial: sin usuario, para que
-            # firstBoot = (settings.username or null) == null sea true. NO es un
-            # host real.
-            firstBootSettings = builtins.removeAttrs settings [
-                "username" "userdescription" "hashedPasswordFile" "gitName" "gitEmail"
-            ];
-
-            # VM de prueba del primer arranque, en ambas arquitecturas:
-            #   nixos-rebuild build-vm --flake .#firstboot-vm
-            #   nixos-rebuild build-vm --flake .#firstboot-vm-aarch64
-            # Vive en el flake, no en hosts/, porque toda carpeta bajo hosts/
-            # se convierte en un host real. Solo desktop + first-boot + user.
-            mkFirstBootVm = system: nixpkgs.lib.nixosSystem {
+            # VM de prueba del primer arranque, en ambas arquitecturas. Vive en
+            # el flake, no en hosts/, porque toda carpeta bajo hosts/ se
+            # convierte en un host real. Solo desktop + first-boot + user.
+            #
+            # Se construye desde una copia del repo SIN usuario en settings.nix
+            # (ver run-firstboot-vm.sh), así firstBoot = (settings.username or
+            # null) == null es true y arranca el asistente. El asistente escribe
+            # el usuario y reconstruye; el reinicio ya crea la cuenta.
+            mkFirstBootVm = { system, hostName }: nixpkgs.lib.nixosSystem {
                 inherit system;
 
                 specialArgs = {
-                    inherit inputs;
-                    hostName = "firstboot-vm";
-                } // import ./lib/specialArgs.nix { settings = firstBootSettings; };
+                    inherit inputs hostName;
+                } // import ./lib/specialArgs.nix { inherit settings; };
 
                 modules = [
                     ./modules/desktop
@@ -76,12 +71,64 @@
                     # Solo en la VM de prueba: root con contraseña para poder
                     # depurar desde tty2. Nunca en los hosts reales.
                     { users.users.root.password = "test"; }
-                    {
-                        virtualisation.vmVariant.virtualisation = {
-                            memorySize = 4096;
-                            cores = 4;
+                    ({ pkgs, ... }: {
+                        virtualisation.vmVariant = {
+                            virtualisation = {
+                                memorySize = 4096;
+                                cores = 4;
+
+                                # Sin bootloader, QEMU arranca el toplevel
+                                # original (kernel/initrd directos) y un reinicio
+                                # tras `nixos-rebuild boot` no vería la nueva
+                                # generación. Con bootloader, la generación queda
+                                # en el qcow2 y el reinicio la arranca.
+                                useBootLoader = true;
+                                useEFIBoot = true;
+                            };
+
+                            # El bootloader que instala en la imagen de la VM.
+                            boot.loader.systemd-boot.enable = true;
                         };
-                    }
+
+                        # El asistente reconstruye desde esta copia del repo.
+                        # Solo se siembra si no existe (persiste en el qcow2).
+                        systemd.services.nixdots-seed = {
+                            wantedBy = [ "multi-user.target" ];
+                            before = [ "greetd.service" ];
+                            serviceConfig.Type = "oneshot";
+                            path = with pkgs; [ git coreutils ];
+                            script = ''
+                                if [ -e /persist/nixdots ]; then exit 0; fi
+                                mkdir -p /persist
+                                cp -a ${inputs.self} /persist/nixdots
+                                chmod -R u+w /persist/nixdots
+                                git -C /persist/nixdots init -q
+                                git -C /persist/nixdots add -A
+                                git -C /persist/nixdots \
+                                    -c user.name=seed -c user.email=seed@localhost \
+                                    commit -qm seed
+                            '';
+                        };
+
+                        # Datos de prueba que el asistente aplica al arrancar.
+                        environment.etc."nixdots-setup.json".text = builtins.toJSON {
+                            fullName = "Prueba";
+                            username = "prueba";
+                            locale = "es_MX.UTF-8";
+                            keyboardLayout = "es";
+                            keyboardVariant = "";
+                            timeZone = "America/Merida";
+                        };
+
+                        # El asistente corre solo (cage) con estos datos; la
+                        # contraseña de prueba llega por stdin. Los hosts reales
+                        # conservan el placeholder de first-boot.nix.
+                        nixdots.firstBoot.command =
+                            "${pkgs.writeShellScript "firstboot-vm-setup" ''
+                                printf 'test1234\n' | ${setups.${system}}/bin/nixdots-setup \
+                                    apply /etc/nixdots-setup.json --repo /persist/nixdots
+                            ''}";
+                    })
                 ];
             };
 
@@ -197,8 +244,14 @@
         in
         {
             nixosConfigurations = hosts // {
-                firstboot-vm = mkFirstBootVm "x86_64-linux";
-                firstboot-vm-aarch64 = mkFirstBootVm "aarch64-linux";
+                firstboot-vm = mkFirstBootVm {
+                    system = "x86_64-linux";
+                    hostName = "firstboot-vm";
+                };
+                firstboot-vm-aarch64 = mkFirstBootVm {
+                    system = "aarch64-linux";
+                    hostName = "firstboot-vm-aarch64";
+                };
             };
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
