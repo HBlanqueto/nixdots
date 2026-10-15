@@ -59,7 +59,20 @@
         "/var/lib/sbctl"
         "/var/lib/auto-cryptenroll"
         "/var/lib/cups"
+        "/var/lib/libvirt"
     ];
+
+    virtualisation.libvirtd = {
+        enable = true;
+    };
+
+    # virt-manager drives libvirtd from the GNOME session.
+    programs.virt-manager.enable = true;
+
+    users.users.${username}.extraGroups = [ "libvirtd" ];
+
+    # The default libvirt NAT network lives on virbr0.
+    networking.firewall.trustedInterfaces = [ "virbr0" ];
 
     services = {
         ucodenix = {
