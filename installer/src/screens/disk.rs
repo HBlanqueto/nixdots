@@ -1,6 +1,6 @@
-//! "Disco": a minimalist, macOS-style disk picker inside the shared box. One
-//! card per disk (the selected one), an automatic decision sentence, and — only
-//! when Windows must be shrunk — a distribution bar.
+//! "Disco": the disk picker. Not inside the shared box: the progress bar, a
+//! title, a row of 26-column disk cards, the automatic-decision sentence and
+//! the buttons.
 
 use crate::app::{Action, App};
 use crate::detect::{human_size, Disk};
@@ -13,18 +13,59 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
-/// 3-line ASCII disk icon.
-const DISK_ICON: [&str; 3] = [" .------.", "|  ____  |", "|__|  |__|"];
+/// The disk icon: a small rounded box with bars and a light.
+const ICON: [&str; 3] = ["╭────────────╮", "│ ▂▂▂▂▂▂▂  ● │", "╰────────────╯"];
+/// Fallback for the Linux console, which has no block/braille glyphs.
+const ICON_ASCII: [&str; 3] = ["+------------+", "| =======  o |", "+------------+"];
 
 const CARD_W: u16 = 26;
+const CARD_GAP: u16 = 2;
+const CARD_H: u16 = 8;
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
-    let mut y = area.y;
+    let shrink_case = !app.disks.erase_all && app.disks.decision.is_shrink();
+    let link_case = app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all;
+    let details_h = if app.disks.details {
+        1 + details(app).len() as u16
+    } else {
+        0
+    };
+    // title + sub + gap + cards + gap + sentence (+ shrink + link + details)
+    let total = 1 + 1 + 1 + CARD_H + 1 + 1 + shrink_case as u16 + link_case as u16 + details_h;
+    let mut y = area.y + area.height.saturating_sub(total) / 2;
 
-    // The selected disk card, centered.
-    let cx = area.x + area.width.saturating_sub(CARD_W) / 2;
-    draw_card(f, app, Rect::new(cx, y, CARD_W, 8), app.disks.index);
-    y += 8 + 1;
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "¿Dónde quieres instalar nixdots?",
+            Style::default()
+                .fg(app.palette.white)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(area.x, y, area.width, 1),
+    );
+    y += 1;
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "Elige un disco",
+            Style::default().fg(app.palette.muted),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(area.x, y, area.width, 1),
+    );
+    y += 2;
+
+    // Cards, centered as a row.
+    let count = app.disks.disks.len() as u16;
+    if count > 0 {
+        let row_w = count * CARD_W + count.saturating_sub(1) * CARD_GAP;
+        let mut x = area.x + area.width.saturating_sub(row_w) / 2;
+        for i in 0..count {
+            draw_card(f, app, Rect::new(x, y, CARD_W, CARD_H), i as usize);
+            x += CARD_W + CARD_GAP;
+        }
+    }
+    y += CARD_H + 1;
 
     // Decision sentence.
     let (text, color) = sentence(app);
@@ -36,7 +77,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     y += 1;
 
     // Shrink distribution bar.
-    if !app.disks.erase_all {
+    if shrink_case {
         if let DiskDecision::Shrink { volume, max_free, .. } = app.disks.decision {
             draw_shrink(f, app, Rect::new(area.x, y, area.width, 1), volume, max_free);
             y += 1;
@@ -44,7 +85,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // "o borrar todo el disco" (only with Windows, and not already chosen).
-    if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all {
+    if link_case {
         let link = "o borrar todo el disco";
         let pad = (area.width as usize).saturating_sub(link.chars().count()) / 2;
         f.render_widget(
@@ -74,15 +115,17 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// One disk card: icon, short name, real size and state.
+/// One disk card: the icon, the short name, the size and the state. Unusable
+/// disks are dimmed and their state names the reason.
 fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     let Some(disk) = app.disks.disks.get(i) else {
         return;
     };
-    let chosen = i == app.disks.index && disk.available;
+    let usable = disk.unusable_reason().is_none();
+    let chosen = i == app.disks.index && usable;
     let border = if chosen {
         app.palette.primary
-    } else if disk.available {
+    } else if usable {
         app.palette.muted
     } else {
         app.palette.disabled
@@ -100,21 +143,25 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     f.render_widget(Clear, rect);
     f.render_widget(block, rect);
 
-    let dim = !disk.available;
-    let name_color = if dim {
+    let name_color = if !usable {
         app.palette.disabled
     } else if chosen {
         app.palette.white
     } else {
         app.palette.text
     };
-    let mut lines: Vec<Line> = Vec::new();
-    for icon in DISK_ICON {
-        lines.push(
-            Line::from(Span::styled(icon.to_string(), Style::default().fg(name_color)))
-                .alignment(Alignment::Center),
-        );
-    }
+    let icon = if crate::theme::console::is_linux_console() {
+        ICON_ASCII
+    } else {
+        ICON
+    };
+    let mut lines: Vec<Line> = icon
+        .iter()
+        .map(|line| {
+            Line::from(Span::styled(line.to_string(), Style::default().fg(name_color)))
+                .alignment(Alignment::Center)
+        })
+        .collect();
     lines.push(
         Line::from(Span::styled(
             disk.short_name(),
@@ -125,7 +172,11 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     lines.push(
         Line::from(Span::styled(
             disk.size_human(),
-            Style::default().fg(if dim { app.palette.disabled } else { app.palette.text }),
+            Style::default().fg(if usable {
+                app.palette.text
+            } else {
+                app.palette.disabled
+            }),
         ))
         .alignment(Alignment::Center),
     );
@@ -140,8 +191,8 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
 }
 
 fn state(disk: &Disk) -> String {
-    if !disk.available {
-        return "no disponible".to_string();
+    if let Some(reason) = disk.unusable_reason() {
+        return reason.to_string();
     }
     if disk.windows {
         if disk.free >= diskplan::MIN_GIB * diskplan::GIB {
@@ -160,6 +211,12 @@ fn gb(bytes: u64) -> String {
 
 /// The automatic decision sentence and its color.
 fn sentence(app: &App) -> (String, ratatui::style::Color) {
+    if !has_usable_disk(app) {
+        return (
+            "No hay ningún disco donde instalar.".to_string(),
+            app.palette.error,
+        );
+    }
     if app.disks.erase_all {
         return (
             "Se borrará todo el disco y Windows.".to_string(),
@@ -176,15 +233,17 @@ fn sentence(app: &App) -> (String, ratatui::style::Color) {
             "Se hará espacio reduciendo Windows. Tus archivos de Windows se conservan.".to_string(),
             app.palette.warning,
         ),
-        DiskDecision::TooSmall { missing } => (
-            format!(
-                "No hay espacio suficiente. Se necesitan al menos 40 GB (faltan {}).",
-                gb(*missing)
-            ),
+        DiskDecision::TooSmall { .. } => (
+            "Demasiado pequeño (mín. 40 GB).".to_string(),
             app.palette.error,
         ),
         DiskDecision::Blocked(msg) => (msg.clone(), app.palette.error),
     }
+}
+
+/// Whether at least one disk can be installed to.
+fn has_usable_disk(app: &App) -> bool {
+    app.disks.disks.iter().any(|d| d.unusable_reason().is_none())
 }
 
 /// `Windows ████ nixdots ████` with ‹ › steppers.

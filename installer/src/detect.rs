@@ -375,6 +375,34 @@ impl Disk {
         ntfs.sort_by_key(|p| std::cmp::Reverse(p.size));
         ntfs
     }
+
+    /// Why this disk cannot be used, if it cannot: the install medium, a disk
+    /// in use by the running system, or one too small for nixdots.
+    pub fn unusable_reason(&self) -> Option<&'static str> {
+        if self
+            .partitions
+            .iter()
+            .any(|p| p.mountpoints.iter().any(|m| is_live_mount(m)))
+        {
+            return Some("Es el medio de instalación");
+        }
+        if !self.available {
+            return Some("En uso por el sistema actual");
+        }
+        if self.size < crate::disk::MIN_GIB * crate::disk::GIB {
+            return Some("Demasiado pequeño (mín. 40 GB)");
+        }
+        None
+    }
+}
+
+/// A partition that is mounted by the running system (`/boot` or swap).
+fn partition_in_use(partition: &Partition) -> bool {
+    partition.fstype == "swap"
+        || partition
+            .mountpoints
+            .iter()
+            .any(|m| m == "/boot" || m.starts_with("/boot/"))
 }
 
 /// `lsblk -J -b -o NAME,SIZE,MODEL,TYPE,FSTYPE,PARTTYPE,LABEL,MOUNTPOINTS`,
@@ -451,7 +479,8 @@ fn parse_disks(json: &str) -> Vec<Disk> {
             let note = disk_note(&partitions);
             Disk {
                 note,
-                available: !holds_live_medium(&d),
+                available: !holds_live_medium(&d)
+                    && !partitions.iter().any(partition_in_use),
                 windows,
                 // GPT reserves ~1 MiB; ignore it in the estimate.
                 free: size.saturating_sub(used).saturating_sub(1024 * 1024),

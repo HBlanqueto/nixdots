@@ -368,11 +368,15 @@ pub struct DiskState {
 impl DiskState {
     /// Recomputes the decision for the selected disk and resets the shrink bar.
     pub fn refresh_decision(&mut self) {
-        let decision = self
-            .disks
-            .get(self.index)
-            .map(disk::decide)
-            .unwrap_or(DiskDecision::TooSmall { missing: disk::MIN_GIB * disk::GIB });
+        let decision = match self.disks.get(self.index) {
+            Some(disk) => match disk.unusable_reason() {
+                Some(reason) => DiskDecision::Blocked(reason.to_string()),
+                None => disk::decide(disk),
+            },
+            None => DiskDecision::TooSmall {
+                missing: disk::MIN_GIB * disk::GIB,
+            },
+        };
         if let DiskDecision::Shrink { min_free, .. } = &decision {
             self.shrink_bytes = *min_free;
         } else {
@@ -889,13 +893,16 @@ impl App {
 
     /// Whether the Disk screen's choice is complete.
     fn disk_ready(&self) -> bool {
-        if self.selected_disk().is_none() {
+        let Some(disk) = self.selected_disk() else {
             return false;
-        }
-        matches!(
-            self.disks.effective(),
-            DiskDecision::WholeDisk | DiskDecision::FreeSpace { .. } | DiskDecision::Shrink { .. }
-        )
+        };
+        disk.unusable_reason().is_none()
+            && matches!(
+                self.disks.effective(),
+                DiskDecision::WholeDisk
+                    | DiskDecision::FreeSpace { .. }
+                    | DiskDecision::Shrink { .. }
+            )
     }
 
     /// Moves the shrink bar by `delta_gb` (10 GB steps), clamped to the bounds.
@@ -1992,6 +1999,27 @@ impl App {
             }
             return;
         }
+
+        // Disco is chromeless too: no box, its own centered card row.
+        if self.screen == Screen::Disk {
+            let layout = widgets::StepLayout::compute(area, 0, 0);
+            self.draw_progress(f, layout.progress);
+            let content = Rect::new(
+                layout.title.x,
+                layout.title.y,
+                layout.title.width,
+                layout.buttons.y.saturating_sub(layout.title.y),
+            );
+            crate::screens::disk::draw(f, self, content);
+            self.draw_buttons(f, layout.buttons);
+            if layout.shortcuts.height > 0 {
+                self.draw_shortcuts(f, layout.shortcuts);
+            }
+            if self.quit.is_some() {
+                self.draw_quit(f, layout.body);
+            }
+            return;
+        }
         // Every wizard screen shares the same centered StepLayout.
         let commands_lines = self.command_list();
         let commands_h = if self.show_commands {
@@ -2005,7 +2033,7 @@ impl App {
         self.draw_heading(f, layout.title);
         self.draw_body(f, layout.body);
         match self.screen {
-            Screen::Splash | Screen::License | Screen::Installing | Screen::Done => {}
+            Screen::Splash | Screen::License | Screen::Installing | Screen::Done | Screen::Disk => {}
             Screen::Network => crate::screens::network::draw(f, self, layout.content),
             Screen::Timezone => crate::screens::timezone::draw(f, self, layout.content),
             Screen::Locale => crate::screens::locale::draw(f, self, layout.content),
@@ -2013,7 +2041,6 @@ impl App {
             Screen::User => crate::screens::user::draw(f, self, layout.content),
             Screen::Password => crate::screens::password::draw(f, self, layout.content),
             Screen::Git => crate::screens::git::draw(f, self, layout.content),
-            Screen::Disk => crate::screens::disk::draw(f, self, layout.content),
             Screen::Encryption => crate::screens::encryption::draw(f, self, layout.content),
             Screen::Summary => crate::screens::summary::draw(f, self, layout.content),
         }
