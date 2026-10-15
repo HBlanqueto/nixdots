@@ -1,13 +1,13 @@
 //! "Disco": the disk picker. Not inside the shared box: the progress bar, a
-//! title, a row of 26-column disk cards, the automatic-decision sentence and
-//! the buttons.
+//! title, a centered carousel of 26-column disk cards, the automatic-decision
+//! sentence and the buttons.
 
 use crate::app::{Action, App};
 use crate::detect::{human_size, Disk};
 use crate::disk::{self as diskplan, DiskDecision};
 use crate::widgets::{self, Btn, ButtonRow};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
@@ -19,10 +19,19 @@ const ICON: [&str; 3] = ["╭────────────╮", "│ ▂�
 const ICON_ASCII: [&str; 3] = ["+------------+", "| =======  o |", "+------------+"];
 
 const CARD_W: u16 = 26;
-const CARD_GAP: u16 = 2;
-const CARD_H: u16 = 8;
+const CARD_GAP: u16 = 3;
+/// icon (3) + name + real size + up to two state lines, plus the borders.
+const CARD_H: u16 = 9;
+const ARROW_W: u16 = 3;
+/// The inner width of a card (26 minus the two borders).
+const CARD_INNER: usize = (CARD_W - 2) as usize;
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
+    let total_disks = app.disks.disks.len();
+    let visible = visible_count(area.width, total_disks);
+    let carousel = total_disks > visible;
+    let start = window_start(app.disks.index, visible, total_disks);
+
     let shrink_case = !app.disks.erase_all && app.disks.decision.is_shrink();
     let link_case = app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all;
     let details_h = if app.disks.details {
@@ -30,8 +39,12 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     } else {
         0
     };
-    // title + sub + gap + cards + gap + sentence (+ shrink + link + details)
-    let total = 1 + 1 + 1 + CARD_H + 1 + 1 + shrink_case as u16 + link_case as u16 + details_h;
+    // title + sub + gap + cards (+ dots) + gap + sentence (+ shrink + link + details)
+    let mut total = 1 + 1 + 1 + CARD_H + 1 + 1;
+    if carousel {
+        total += 1;
+    }
+    total += shrink_case as u16 + link_case as u16 + details_h;
     let mut y = area.y + area.height.saturating_sub(total) / 2;
 
     f.render_widget(
@@ -55,17 +68,13 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     );
     y += 2;
 
-    // Cards, centered as a row.
-    let count = app.disks.disks.len() as u16;
-    if count > 0 {
-        let row_w = count * CARD_W + count.saturating_sub(1) * CARD_GAP;
-        let mut x = area.x + area.width.saturating_sub(row_w) / 2;
-        for i in 0..count {
-            draw_card(f, app, Rect::new(x, y, CARD_W, CARD_H), i as usize);
-            x += CARD_W + CARD_GAP;
-        }
+    draw_carousel(f, app, Rect::new(area.x, y, area.width, CARD_H), visible, start);
+    y += CARD_H;
+    if carousel {
+        draw_dots(f, app, Rect::new(area.x, y, area.width, 1), total_disks);
+        y += 1;
     }
-    y += CARD_H + 1;
+    y += 1;
 
     // Decision sentence.
     let (text, color) = sentence(app);
@@ -115,8 +124,113 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// One disk card: the icon, the short name, the size and the state. Unusable
-/// disks are dimmed and their state names the reason.
+/// How many cards fit: the row plus three columns of arrow on each side, up to
+/// three cards and at least one.
+fn visible_count(width: u16, total: usize) -> usize {
+    let max = total.clamp(1, 3);
+    for n in (1..=max).rev() {
+        let n = n as u16;
+        let needed = n * CARD_W + (n - 1) * CARD_GAP + 2 * ARROW_W;
+        if needed <= width {
+            return n as usize;
+        }
+    }
+    1
+}
+
+/// The first visible disk: the window follows the selection.
+fn window_start(index: usize, visible: usize, total: usize) -> usize {
+    index
+        .saturating_sub(visible / 2)
+        .min(total.saturating_sub(visible))
+}
+
+/// The row of cards, centered with a `Fill` on each side, with the `‹`/`›`
+/// arrows in their reserved columns.
+fn draw_carousel(f: &mut Frame, app: &App, area: Rect, visible: usize, start: usize) {
+    let total = app.disks.disks.len();
+    let cards_w = visible as u16 * CARD_W + (visible as u16 - 1) * CARD_GAP;
+    let row_w = cards_w + 2 * ARROW_W;
+    let [_, mid, _] = Layout::horizontal([
+        Constraint::Fill(1),
+        Constraint::Length(row_w),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
+    let [left, cards, right] = Layout::horizontal([
+        Constraint::Length(ARROW_W),
+        Constraint::Length(cards_w),
+        Constraint::Length(ARROW_W),
+    ])
+    .areas(mid);
+
+    let mut x = cards.x;
+    for i in start..(start + visible).min(total) {
+        draw_card(f, app, Rect::new(x, cards.y, CARD_W, CARD_H), i);
+        x += CARD_W + CARD_GAP;
+    }
+
+    let arrow_y = cards.y + CARD_H / 2;
+    let left_on = start > 0;
+    let right_on = start + visible < total;
+    arrow(
+        f,
+        app,
+        Rect::new(left.x, arrow_y, ARROW_W, 1),
+        "‹",
+        left_on,
+    );
+    arrow(
+        f,
+        app,
+        Rect::new(right.x, arrow_y, ARROW_W, 1),
+        "›",
+        right_on,
+    );
+}
+
+fn arrow(f: &mut Frame, app: &App, area: Rect, glyph: &str, on: bool) {
+    let color = if on {
+        app.palette.primary
+    } else {
+        app.palette.disabled
+    };
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            glyph.to_string(),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
+        area,
+    );
+}
+
+/// The `○ ○ ● ○` dots and the `N de M` counter under the row.
+fn draw_dots(f: &mut Frame, app: &App, area: Rect, total: usize) {
+    let mut spans: Vec<Span> = Vec::new();
+    for i in 0..total {
+        if i > 0 {
+            spans.push(Span::raw(" "));
+        }
+        let (glyph, color) = if i == app.disks.index {
+            ("●", app.palette.primary)
+        } else {
+            ("○", app.palette.muted)
+        };
+        spans.push(Span::styled(glyph.to_string(), Style::default().fg(color)));
+    }
+    spans.push(Span::styled(
+        format!("   {} de {total}", app.disks.index + 1),
+        Style::default().fg(app.palette.muted),
+    ));
+    f.render_widget(
+        Paragraph::new(Line::from(spans)).alignment(Alignment::Center),
+        area,
+    );
+}
+
+/// One disk card: the icon, the name, the real size and the state (up to two
+/// lines). Unusable disks are dimmed and their state names the reason.
 fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     let Some(disk) = app.disks.disks.get(i) else {
         return;
@@ -171,7 +285,7 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     );
     lines.push(
         Line::from(Span::styled(
-            disk.size_human(),
+            disk.real_size_gb(),
             Style::default().fg(if usable {
                 app.palette.text
             } else {
@@ -180,14 +294,45 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
         ))
         .alignment(Alignment::Center),
     );
-    lines.push(
-        Line::from(Span::styled(
-            state(disk),
-            Style::default().fg(app.palette.muted),
-        ))
-        .alignment(Alignment::Center),
-    );
+    let mut state_lines = wrap_state(&state(disk), CARD_INNER);
+    state_lines.resize(2, String::new());
+    for line in state_lines {
+        lines.push(
+            Line::from(Span::styled(line, Style::default().fg(app.palette.muted)))
+                .alignment(Alignment::Center),
+        );
+    }
     f.render_widget(Paragraph::new(lines), inner);
+}
+
+/// Wraps `text` into at most two centered lines, never cutting a word; the
+/// second line ends in `…` when it still does not fit.
+fn wrap_state(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current = word.to_string();
+        } else if current.chars().count() + 1 + word.chars().count() <= width {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = word.to_string();
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.len() > 2 {
+        lines.truncate(2);
+        if let Some(last) = lines.last_mut() {
+            let mut s: String = last.chars().take(width.saturating_sub(1)).collect();
+            s.push('…');
+            *last = s;
+        }
+    }
+    lines
 }
 
 fn state(disk: &Disk) -> String {

@@ -893,7 +893,7 @@ impl App {
         let mut idx = self.disks.index as isize;
         for _ in 0..n {
             idx = (idx + delta).rem_euclid(n);
-            if self.disks.disks[idx as usize].available {
+            if self.disks.disks[idx as usize].unusable_reason().is_none() {
                 self.disks.index = idx as usize;
                 break;
             }
@@ -2015,9 +2015,9 @@ impl App {
             let layout = widgets::StepLayout::compute(area, 0, 0);
             self.draw_progress(f, layout.progress);
             let content = Rect::new(
-                layout.title.x,
+                area.x,
                 layout.title.y,
-                layout.title.width,
+                area.width,
                 layout.buttons.y.saturating_sub(layout.title.y),
             );
             crate::screens::disk::draw(f, self, content);

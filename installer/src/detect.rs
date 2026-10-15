@@ -348,17 +348,22 @@ impl Disk {
         self.windows
     }
 
-    /// "SAMSUNG 256 GB": the first model word plus the nominal capacity.
+    /// "SAMSUNG 256 GB": the model truncated to fit, plus the nominal capacity.
     pub fn short_name(&self) -> String {
-        let model = self
-            .model
-            .split_whitespace()
-            .next()
-            .unwrap_or("Disco")
-            .chars()
-            .take(11)
-            .collect::<String>();
-        format!("{model} {} GB", nominal_gb(self.size))
+        let size = format!("{} GB", self.nominal_gb());
+        let avail = 24usize.saturating_sub(size.chars().count() + 1);
+        let model: String = self.model.chars().take(avail).collect();
+        let model = model.trim_end();
+        if model.is_empty() {
+            size
+        } else {
+            format!("{model} {size}")
+        }
+    }
+
+    /// The real size with one decimal, in GB (e.g. `238.5 GB`).
+    pub fn real_size_gb(&self) -> String {
+        format!("{:.1} GB", self.size as f64 / 1_073_741_824.0)
     }
 
     /// Nominal capacity in GB (marketing size), e.g. 238.5 GiB → 256.
@@ -432,15 +437,15 @@ pub fn windows_present() -> bool {
 /// Virtual disks appended in simulation mode: whole disk, shrink Windows, and
 /// free space. They never exist in a real install.
 pub fn test_disks() -> Vec<Disk> {
-    let gib = crate::disk::GIB;
-    let make = |name: &str, size_gib: u64, note: &str, windows: bool, free_gib: u64| Disk {
+    const GB: u64 = 1_000_000_000;
+    let make = |name: &str, size_gb: u64, note: &str, windows: bool, free_gb: u64| Disk {
         name: name.to_string(),
-        size: size_gib * gib,
+        size: size_gb * GB,
         model: "Disco de prueba".to_string(),
         note: note.to_string(),
         available: true,
         windows,
-        free: free_gib * gib,
+        free: free_gb * GB,
         partitions: Vec::new(),
         test: true,
     };
