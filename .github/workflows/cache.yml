@@ -1,0 +1,35 @@
+name: cache
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  x86_64-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v15
+        with:
+          name: hblanqueto-nixdots
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - run: nix build -L .#packages.x86_64-linux.installer .#packages.x86_64-linux.launcher
+
+  aarch64-linux:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v15
+        with:
+          name: hblanqueto-nixdots
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - run: nix build -L .#packages.aarch64-linux.installer .#packages.aarch64-linux.launcher

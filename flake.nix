@@ -1,6 +1,16 @@
 {
     description = "Welcome ~/*. Watch your step, it vanishes on boot.";
 
+    # Binary cache (Cachix) so the ISO does not compile Rust in RAM. The public
+    # key is the one shown when creating the `hblanqueto-nixdots` cache; replace
+    # the placeholder with it. If the cache is unreachable nix just builds.
+    nixConfig = {
+        extra-substituters = [ "https://hblanqueto-nixdots.cachix.org" ];
+        extra-trusted-public-keys = [
+            "hblanqueto-nixdots.cachix.org-1:REPLACE_WITH_THE_KEY_FROM_CACHIX"
+        ];
+    };
+
     inputs = {
         nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
