@@ -49,10 +49,22 @@ This NixOS system features the following core components:
 
 `installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning or hashing.
 
-```shell
-nix run .#installer                 # simulation: no disk, no root
-nix run .#installer -- --install    # real install from the NixOS ISO
-```
+There are two ways to run it:
+
+* **Normal (precompiled, no compilation):** download and run the release binary for your architecture.
+
+  ```shell
+  git clone --depth 1 https://github.com/HBlanqueto/nixdots ~/nixdots && sudo ~/nixdots/install.sh
+  ```
+
+  `install.sh` picks `x86_64`/`aarch64` from `uname -m`, downloads the binary from the [latest release](https://github.com/HBlanqueto/nixdots/releases/latest), verifies it against `SHA256SUMS` and runs it with `--install`. On a real VT it opens `kmscon` (Nerd Font + the neptunia palette) first. The binaries are built and published by `.github/workflows/installer-release.yml` on every `v*` tag.
+
+* **Development (compiles from source):**
+
+  ```shell
+  sudo nix run .#installer -- --install   # real install from the NixOS ISO
+  nix run .#installer                     # simulation: no disk, no root
+  ```
 
 The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
 
@@ -80,9 +92,11 @@ On the first boot after installation, Lanzaboote automatically generates the key
 
 ### Installation
 
-The recommended path is the [installer](#installer): `nix run .#installer -- --install`
-partitions with `disko.nix` (no manual partitioning needed), generates the
-hardware config and runs `nixos-install` for you.
+The recommended path is the [installer](#installer):
+`git clone --depth 1 https://github.com/HBlanqueto/nixdots ~/nixdots && sudo ~/nixdots/install.sh`
+(normal) or `sudo nix run .#installer -- --install` (development). It partitions
+with `disko.nix` (no manual partitioning needed), generates the hardware config
+and runs `nixos-install` for you.
 
 To install manually, the flake provides two hosts: `ThinkPad-L14-Gen2` (x86_64-linux)
 and `UTM-aarch64` (aarch64-linux). Replace `#ThinkPad-L14-Gen2` with `#UTM-aarch64`
