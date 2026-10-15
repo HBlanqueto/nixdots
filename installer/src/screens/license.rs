@@ -16,10 +16,6 @@ use ratatui::Frame;
 /// Embedded so the installer works without network or the repo.
 const LICENSE: &str = include_str!("../../../LICENSE");
 
-pub fn height(_app: &App) -> u16 {
-    0
-}
-
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let console = crate::theme::console::is_linux_console();
     // Same full logo as the Inicio screen (never the compact version).

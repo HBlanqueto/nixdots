@@ -12,46 +12,33 @@ use tui_input::backend::crossterm::EventHandler;
 const MAX_ROWS: usize = 6;
 const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"];
 
-pub fn height(app: &App) -> u16 {
-    match &app.net.phase {
-        RedFase::Lista => app.net.wifi.len().clamp(1, MAX_ROWS) as u16,
-        // list + separator + password field (two lines)
-        RedFase::Contrasena { .. } => app.net.wifi.len().clamp(1, MAX_ROWS) as u16 + 3,
-        RedFase::Conectando { .. } => 1,
-        RedFase::Error { .. } => 2,
-        RedFase::Conectado { .. } => 1,
-    }
-}
-
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     match &app.net.phase {
-        RedFase::Lista => draw_list(f, app, area),
-        RedFase::Contrasena { input, visible, .. } => {
-            let list_h = app.net.wifi.len().clamp(1, MAX_ROWS) as u16;
-            draw_list(f, app, Rect::new(area.x, area.y, area.width, list_h));
-            let sep_y = area.y + list_h;
-            f.render_widget(
-                Paragraph::new(Span::styled(
-                    "─".repeat(area.width as usize),
-                    Style::default().fg(app.palette.rule),
-                )),
-                Rect::new(area.x, sep_y, area.width, 1),
-            );
-            let field = widgets::field(
+        RedFase::Lista => {
+            f.render_widget(Paragraph::new(list_lines(app)), area);
+        }
+        RedFase::Contrasena { ssid, input, visible } => {
+            let mut lines = list_lines(app);
+            lines.push(Line::from(Span::styled(
+                "─".repeat(area.width as usize),
+                Style::default().fg(app.palette.rule),
+            )));
+            let field_y = lines.len() as u16;
+            lines.extend(widgets::text_field(
                 &app.palette,
-                "contraseña",
+                &format!("Contraseña de {ssid}"),
                 input.value(),
                 input.visual_cursor(),
                 !app.focus_buttons && !app.no_focus(),
                 !*visible,
-                area.width,
-                true,
                 "",
-            );
-            f.render_widget(
-                Paragraph::new(field),
-                Rect::new(area.x, sep_y + 1, area.width, 2),
-            );
+                area.width,
+                None,
+                false,
+            ));
+            let scroll = widgets::scroll_to_show(field_y, 4, area.height);
+            f.render_widget(Paragraph::new(lines.clone()).scroll((scroll, 0)), area);
+            widgets::draw_scrollbar(f, &app.palette, area, lines.len(), scroll, area.height);
         }
         RedFase::Conectando { ssid } => {
             let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
@@ -94,21 +81,20 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn draw_list(f: &mut Frame, app: &App, area: Rect) {
+/// The Wi-Fi list rows (or the empty message).
+fn list_lines(app: &App) -> Vec<Line<'static>> {
     if app.net.wifi.is_empty() {
         let msg = if app.net.backend.name() == "ninguno" {
             "no hay backend de red (nmcli/iwctl/wpa_cli)"
         } else {
             "no se encontraron redes · pulsa r"
         };
-        f.render_widget(
-            Paragraph::new(Span::styled(msg, Style::default().fg(app.palette.warning))),
-            area,
-        );
-        return;
+        return vec![Line::from(Span::styled(
+            msg,
+            Style::default().fg(app.palette.warning),
+        ))];
     }
-    let lines: Vec<Line> = app
-        .net
+    app.net
         .wifi
         .iter()
         .take(MAX_ROWS)
@@ -118,8 +104,7 @@ fn draw_list(f: &mut Frame, app: &App, area: Rect) {
             let trailing = format!("{}  {:<7}", wifi.bars(), wifi.security());
             widgets::list_row(&app.palette, i == app.net.selected, text, Some(trailing))
         })
-        .collect();
-    f.render_widget(Paragraph::new(lines), area);
+        .collect()
 }
 
 /// Returns `true` when the key was handled by the screen (and must not fall

@@ -4,49 +4,47 @@
 use crate::app::{Action, App};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Rect};
+use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
-
-pub fn height(_app: &App) -> u16 {
-    super::picker::ROWS as u16 + 1
-}
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let Some(picker) = &app.keyboards else {
         return;
     };
-    let search = super::picker::search_line(
+    let list = super::picker::draw_search(
+        f,
         &app.palette,
+        area,
         picker,
-        "buscar distribución",
-        "distribuciones",
-        area.width,
         !app.focus_buttons && !app.key_test_focus && !app.no_focus(),
     );
-    f.render_widget(Paragraph::new(search), Rect::new(area.x, area.y, area.width, 1));
-    let list = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
-    super::picker::draw_centered(f, &app.palette, list, picker, app.keyboard_suggested);
-}
-
-/// The `prueba` field shown under the box (the screen's note, two lines).
-pub fn draw_test(f: &mut Frame, app: &App, area: Rect) {
-    let focus = app.key_test_focus && !app.focus_buttons && !app.no_focus();
-    let lines = widgets::field(
+    // The test field sits at the bottom of the box, below the list.
+    let test_y = area.bottom().saturating_sub(4);
+    let test = widgets::text_field(
         &app.palette,
-        "prueba",
+        "Prueba el teclado",
         app.key_test.value(),
         app.key_test.visual_cursor(),
-        focus,
+        app.key_test_focus && !app.focus_buttons && !app.no_focus(),
         false,
+        "ñ ¿ ¡ @ # á é",
         area.width,
-        true,
-        "escribe aquí para probar el teclado",
+        None,
+        false,
     );
     f.render_widget(
-        Paragraph::new(lines).alignment(Alignment::Center),
-        area,
+        Paragraph::new(test),
+        Rect::new(area.x, test_y, area.width, 4),
+    );
+    let list_h = test_y.saturating_sub(list.y + 1);
+    super::picker::draw_centered(
+        f,
+        &app.palette,
+        Rect::new(list.x, list.y, list.width, list_h),
+        picker,
+        app.keyboard_suggested,
     );
 }
 

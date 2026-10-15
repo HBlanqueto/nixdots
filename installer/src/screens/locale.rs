@@ -6,27 +6,19 @@ use crate::app::{Action, App, PickItem};
 use crate::widgets::Btn;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
-use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-
-pub fn height(_app: &App) -> u16 {
-    super::picker::ROWS as u16 + 1
-}
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let Some(picker) = &app.loc else {
         return;
     };
-    let search = super::picker::search_line(
+    let list = super::picker::draw_search(
+        f,
         &app.palette,
+        area,
         picker,
-        "buscar idioma",
-        "idiomas",
-        area.width,
         !app.focus_buttons && !app.no_focus(),
     );
-    f.render_widget(Paragraph::new(search), Rect::new(area.x, area.y, area.width, 1));
-    let list = Rect::new(area.x, area.y + 1, area.width, area.height.saturating_sub(1));
     super::picker::draw_centered(f, &app.palette, list, picker, None);
 }
 

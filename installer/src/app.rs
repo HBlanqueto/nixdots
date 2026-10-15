@@ -460,14 +460,6 @@ impl EncState {
         targets
     }
 
-    /// Moves the focus by `delta` positions within `targets()`.
-    pub fn move_focus(&mut self, delta: isize) {
-        let targets = self.targets();
-        let pos = targets.iter().position(|&t| t == self.focus).unwrap_or(0);
-        let next = (pos as isize + delta).clamp(0, targets.len() as isize - 1) as usize;
-        self.focus = targets[next];
-    }
-
     /// Whether the "switching the account checkbox" should send focus to the
     /// phrase field (it becomes visible) or back to the checkbox list.
     pub fn set_use_account(&mut self, reuse: bool) {
@@ -1462,7 +1454,9 @@ impl App {
     }
 
     fn tab_focus(&mut self, back: bool) {
-        if self.buttons().is_empty() {
+        let buttons = self.buttons();
+        let n = buttons.len();
+        if n == 0 {
             self.focus_buttons = false;
             return;
         }
@@ -1470,11 +1464,21 @@ impl App {
             self.focus_buttons_on_primary();
             return;
         }
-        let from = self.button_focus;
-        match self.next_enabled(from, if back { -1 } else { 1 }) {
-            Some(i) => self.button_focus = i,
-            None => self.focus_buttons = false,
+        let dir = if back { -1 } else { 1 };
+        let mut idx = self.button_focus as isize;
+        for _ in 0..n {
+            idx += dir;
+            // Past an edge, leave the button row and return to the content.
+            if idx < 0 || idx >= n as isize {
+                self.focus_buttons = false;
+                return;
+            }
+            if buttons[idx as usize].0.enabled {
+                self.button_focus = idx as usize;
+                return;
+            }
         }
+        self.focus_buttons = false;
     }
 
     fn move_button_key(&mut self, code: KeyCode) {
@@ -1943,10 +1947,10 @@ impl App {
         );
 
         // Minimum supported size: show a warning instead of a broken layout.
-        if area.width < widgets::StepLayout::WIDTH || area.height < 20 {
+        if area.width < 64 || area.height < 20 {
             f.render_widget(
                 Paragraph::new(Line::from(Span::styled(
-                    "Agranda la ventana (mín. 46×20)",
+                    "Agranda la ventana (mín. 64×20)",
                     Style::default()
                         .fg(self.palette.warning)
                         .add_modifier(Modifier::BOLD),
@@ -1995,24 +1999,23 @@ impl App {
         } else {
             0
         };
-        let body_h = self.content_height() + 2;
-        let layout = widgets::StepLayout::compute(area, body_h, self.note_height(), commands_h);
+        let layout = widgets::StepLayout::compute(area, self.note_height(), commands_h);
 
         self.draw_progress(f, layout.progress);
         self.draw_heading(f, layout.title);
         self.draw_body(f, layout.body);
         match self.screen {
             Screen::Splash | Screen::License | Screen::Installing | Screen::Done => {}
-            Screen::Network => crate::screens::network::draw(f, self, layout.inner),
-            Screen::Timezone => crate::screens::timezone::draw(f, self, layout.inner),
-            Screen::Locale => crate::screens::locale::draw(f, self, layout.inner),
-            Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.inner),
-            Screen::User => crate::screens::user::draw(f, self, layout.inner),
-            Screen::Password => crate::screens::password::draw(f, self, layout.inner),
-            Screen::Git => crate::screens::git::draw(f, self, layout.inner),
-            Screen::Disk => crate::screens::disk::draw(f, self, layout.inner),
-            Screen::Encryption => crate::screens::encryption::draw(f, self, layout.inner),
-            Screen::Summary => crate::screens::summary::draw(f, self, layout.inner),
+            Screen::Network => crate::screens::network::draw(f, self, layout.content),
+            Screen::Timezone => crate::screens::timezone::draw(f, self, layout.content),
+            Screen::Locale => crate::screens::locale::draw(f, self, layout.content),
+            Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.content),
+            Screen::User => crate::screens::user::draw(f, self, layout.content),
+            Screen::Password => crate::screens::password::draw(f, self, layout.content),
+            Screen::Git => crate::screens::git::draw(f, self, layout.content),
+            Screen::Disk => crate::screens::disk::draw(f, self, layout.content),
+            Screen::Encryption => crate::screens::encryption::draw(f, self, layout.content),
+            Screen::Summary => crate::screens::summary::draw(f, self, layout.content),
         }
         self.draw_note(f, layout.note);
         self.draw_buttons(f, layout.buttons);
@@ -2055,7 +2058,6 @@ impl App {
     /// Lines reserved between the box and the buttons for a screen's note.
     fn note_height(&self) -> u16 {
         match self.screen {
-            Screen::Keyboard => 2,
             Screen::Locale => 1,
             Screen::Summary => 2,
             _ => 0,
@@ -2081,7 +2083,7 @@ impl App {
                     area,
                 );
             }
-            Screen::Keyboard => crate::screens::keyboard::draw_test(f, self, area),
+            Screen::Keyboard => {}
             Screen::Summary => {
                 f.render_widget(
                     Paragraph::new(Span::styled(
@@ -2116,15 +2118,7 @@ impl App {
 
         if let Some(picker) = &self.key_modal {
             let content = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
-            crate::screens::picker::draw(
-                f,
-                &self.palette,
-                content,
-                picker,
-                "buscar distribución",
-                "distribuciones",
-                true,
-            );
+            crate::screens::picker::draw(f, &self.palette, content, picker);
         }
         f.render_widget(
             Paragraph::new(Span::styled(
@@ -2190,25 +2184,6 @@ impl App {
         y += 2; // prompt + blank
 
         self.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
-    }
-
-    fn content_height(&self) -> u16 {
-        match self.screen {
-            Screen::Splash => 0,
-            Screen::Network => crate::screens::network::height(self),
-            Screen::License => crate::screens::license::height(self),
-            Screen::Timezone => crate::screens::timezone::height(self),
-            Screen::Locale => crate::screens::locale::height(self),
-            Screen::Keyboard => crate::screens::keyboard::height(self),
-            Screen::User => crate::screens::user::height(self),
-            Screen::Password => crate::screens::password::height(self),
-            Screen::Git => crate::screens::git::height(self),
-            Screen::Disk => crate::screens::disk::height(self),
-            Screen::Encryption => crate::screens::encryption::height(self),
-            Screen::Summary => crate::screens::summary::height(self),
-            Screen::Installing => crate::screens::installing::height(self),
-            Screen::Done => crate::screens::done::height(self),
-        }
     }
 
     /// The `❄ nixdots instalador` header line, kept only on the final screen.

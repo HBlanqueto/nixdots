@@ -18,212 +18,187 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
-pub fn height(app: &App) -> u16 {
-    let mut h = 1; // account checkbox
-    if !app.enc.use_account {
-        h += 6; // frase(2), confirmar(2), seguridad(1), aviso(1)
-        h += 1; // muted note
-        if pass_has_non_ascii(app) {
-            h += 1;
-        }
-    }
-    if app.enc.tpm_present {
-        h += 2; // TPM checkbox + note
-    }
-    h += 1; // blank before the recovery key
-    h += 1; // "clave de recuperación" header
-    h += 3; // key box (top border, text, bottom border)
-    h += 1; // "guardar en USB"
-    h += 1; // "La anoté" checkbox
-    h
-}
-
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let mut y = area.y;
+    let w = area.width;
+    let has_focus = !app.focus_buttons && !app.no_focus();
+    let mut lines: Vec<Line> = Vec::new();
+    let mut slots: Vec<(usize, u16)> = Vec::new();
 
     // 1. Reuse the account password as the LUKS passphrase.
-    f.render_widget(
-        Paragraph::new(widgets::checkbox(
-            &app.palette,
-            app.enc.use_account,
-            "Usar la misma contraseña de la cuenta",
-            app.enc.focus == ENC_ACCOUNT && !app.focus_buttons && !app.no_focus(),
-        )),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
+    slots.push((ENC_ACCOUNT, lines.len() as u16));
+    lines.push(widgets::checkbox(
+        &app.palette,
+        app.enc.use_account,
+        "Usar la contraseña de la cuenta",
+        has_focus && app.enc.focus == ENC_ACCOUNT,
+    ));
+    lines.push(Line::from(""));
 
-    // 2. A custom passphrase, indented four columns.
+    // 2. A custom passphrase.
     if !app.enc.use_account {
-        let indent = area.x + 4;
-        let indent_w = area.width.saturating_sub(4);
-
-        let first = widgets::field(
+        slots.push((ENC_PASS, lines.len() as u16));
+        lines.extend(widgets::text_field(
             &app.palette,
-            "frase",
+            "Frase de desbloqueo",
             app.enc.pass.value(),
             app.enc.pass.visual_cursor(),
-            app.enc.focus == ENC_PASS && !app.focus_buttons && !app.no_focus(),
-            true,
-            indent_w,
+            has_focus && app.enc.focus == ENC_PASS,
             true,
             "",
-        );
-        f.render_widget(Paragraph::new(first), Rect::new(indent, y, indent_w, 2));
-        y += 2;
+            w,
+            if app.enc.pass.value().is_empty() {
+                None
+            } else {
+                Some(strength_note(app))
+            },
+            false,
+        ));
+        lines.push(Line::from(""));
 
-        let mut second = widgets::field(
+        slots.push((ENC_CONFIRM, lines.len() as u16));
+        let note = if app.enc.confirm.value().is_empty() {
+            None
+        } else if app.enc.passphrase_matches() {
+            Some(Line::from(Span::styled(
+                "✓ coinciden",
+                Style::default().fg(app.palette.success),
+            )))
+        } else {
+            Some(Line::from(Span::styled(
+                "no coinciden",
+                Style::default().fg(app.palette.error),
+            )))
+        };
+        lines.extend(widgets::text_field(
             &app.palette,
-            "confirmar",
+            "Confirmar",
             app.enc.confirm.value(),
             app.enc.confirm.visual_cursor(),
-            app.enc.focus == ENC_CONFIRM && !app.focus_buttons && !app.no_focus(),
-            true,
-            indent_w,
+            has_focus && app.enc.focus == ENC_CONFIRM,
             true,
             "",
-        );
-        if app.enc.passphrase_matches() {
-            second[0].spans.push(Span::styled(
-                "  ✓ coinciden",
-                Style::default().fg(app.palette.success),
-            ));
-        }
-        f.render_widget(Paragraph::new(second), Rect::new(indent, y, indent_w, 2));
-        y += 2;
-
-        // Strength bar (12 cells).
-        let (filled, label, color) = strength(app.enc.pass.value());
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("seguridad  ", Style::default().fg(app.palette.muted)),
-                Span::styled("━".repeat(filled), Style::default().fg(color)),
-                Span::styled(
-                    "─".repeat(12 - filled),
-                    Style::default().fg(app.palette.row_bg),
-                ),
-                Span::styled(
-                    format!("  {label}"),
-                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                ),
-            ])),
-            Rect::new(indent, y, indent_w, 1),
-        );
-        y += 1;
+            w,
+            note,
+            !app.enc.confirm.value().is_empty() && !app.enc.passphrase_matches(),
+        ));
+        lines.push(Line::from(""));
 
         // It is typed at boot, with the selected keyboard layout.
         let id = app.keyboard_active.as_str();
-        f.render_widget(
-            Paragraph::new(Span::styled(
-                format!("! se escribe al encender, con teclado: {id}"),
-                Style::default().fg(app.palette.warning),
-            )),
-            Rect::new(indent, y, indent_w, 1),
-        );
-        y += 1;
-
-        f.render_widget(
-            Paragraph::new(Span::styled(
-                "la cuenta sigue usando su propia contraseña",
-                Style::default().fg(app.palette.muted),
-            )),
-            Rect::new(indent, y, indent_w, 1),
-        );
-        y += 1;
-
+        lines.push(Line::from(Span::styled(
+            format!("! se escribe al encender, con teclado: {id}"),
+            Style::default().fg(app.palette.warning),
+        )));
         if pass_has_non_ascii(app) {
-            f.render_widget(
-                Paragraph::new(Span::styled(
-                    format!(
-                        "! contiene caracteres especiales: asegúrate de que el teclado al arrancar sea {id}"
-                    ),
-                    Style::default().fg(app.palette.warning),
-                )),
-                Rect::new(indent, y, indent_w, 1),
-            );
-            y += 1;
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "! contiene caracteres especiales: asegúrate de que el teclado al arrancar sea {id}"
+                ),
+                Style::default().fg(app.palette.warning),
+            )));
         }
+        lines.push(Line::from(""));
     }
 
     // 3. TPM auto-unlock (only when a TPM 2.0 is present).
     if app.enc.tpm_present {
-        f.render_widget(
-            Paragraph::new(widgets::checkbox(
-                &app.palette,
-                app.enc.tpm,
-                "Desbloquear automáticamente con TPM",
-                app.enc.focus == ENC_TPM && !app.focus_buttons && !app.no_focus(),
-            )),
-            Rect::new(area.x, y, area.width, 1),
-        );
-        y += 1;
-        f.render_widget(
-            Paragraph::new(Span::styled(
-                "TPM 2.0 detectado",
-                Style::default().fg(app.palette.muted),
-            )),
-            Rect::new(area.x, y, area.width, 1),
-        );
-        y += 1;
+        slots.push((ENC_TPM, lines.len() as u16));
+        lines.push(widgets::checkbox(
+            &app.palette,
+            app.enc.tpm,
+            "Desbloquear con TPM",
+            has_focus && app.enc.focus == ENC_TPM,
+        ));
+        lines.push(Line::from(Span::styled(
+            "TPM 2.0 detectado",
+            Style::default().fg(app.palette.muted),
+        )));
+        lines.push(Line::from(""));
     }
 
-    // 4. Recovery key.
-    y += 1;
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            "clave de recuperación · anótala, no se volverá a mostrar",
-            Style::default().fg(app.palette.muted),
-        )),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
-
-    draw_key_box(f, app, area, y);
-    y += 3;
-
+    // 4. The recovery key: read-only, in a yellow box.
+    lines.push(Line::from(Span::styled(
+        "clave de recuperación · anótala, no se volverá a mostrar",
+        Style::default().fg(app.palette.muted),
+    )));
+    lines.extend(key_box_lines(app, w));
     let usb = if let Some(dev) = &app.enc.usb_saved {
         format!("u  guardar en USB  ·  guardada en {dev}")
     } else {
         "u  guardar en USB".to_string()
     };
-    f.render_widget(
-        Paragraph::new(Span::styled(usb, Style::default().fg(app.palette.highlight))),
-        Rect::new(area.x, y, area.width, 1),
-    );
-    y += 1;
+    lines.push(Line::from(Span::styled(
+        usb,
+        Style::default().fg(app.palette.highlight),
+    )));
 
-    f.render_widget(
-        Paragraph::new(widgets::checkbox(
-            &app.palette,
-            app.enc.noted,
-            "La anoté en un lugar seguro",
-            app.enc.focus == ENC_NOTED && !app.focus_buttons && !app.no_focus(),
-        )),
-        Rect::new(area.x, y, area.width, 1),
-    );
+    slots.push((ENC_NOTED, lines.len() as u16));
+    lines.push(widgets::checkbox(
+        &app.palette,
+        app.enc.noted,
+        "La anoté en un lugar seguro",
+        has_focus && app.enc.focus == ENC_NOTED,
+    ));
+
+    let (_, focus_y) = slots
+        .iter()
+        .find(|(tag, _)| *tag == app.enc.focus)
+        .copied()
+        .unwrap_or((0, 0));
+    let focus_h = if app.enc.focus == ENC_PASS || app.enc.focus == ENC_CONFIRM {
+        4
+    } else {
+        1
+    };
+    let scroll = widgets::scroll_to_show(focus_y, focus_h, area.height);
+    f.render_widget(Paragraph::new(lines.clone()).scroll((scroll, 0)), area);
+    widgets::draw_scrollbar(f, &app.palette, area, lines.len(), scroll, area.height);
 }
 
-fn draw_key_box(f: &mut Frame, app: &App, area: Rect, y: u16) {
+/// The strength bar note for the passphrase field: `████░░ buena`.
+fn strength_note(app: &App) -> Line<'static> {
+    let (filled, label, color) = strength(app.enc.pass.value(), &app.palette);
+    Line::from(vec![
+        Span::styled("█".repeat(filled), Style::default().fg(color)),
+        Span::styled(
+            "░".repeat(12 - filled),
+            Style::default().fg(app.palette.rule),
+        ),
+        Span::styled(
+            format!(" {label}"),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
+/// The read-only recovery key in its yellow box, centered.
+fn key_box_lines(app: &App, width: u16) -> Vec<Line<'static>> {
     let key = app.enc.recovery.as_str();
-    let inner_w = key.chars().count() as u16 + 2;
-    let w = (inner_w + 2).min(area.width);
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let rect = Rect::new(x, y, w, 3);
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(app.palette.warning));
-    f.render_widget(block, rect);
-    f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            key.to_string(),
-            Style::default()
-                .fg(app.palette.white)
-                .add_modifier(Modifier::BOLD),
-        )))
-        .alignment(Alignment::Center),
-        Rect::new(rect.x + 1, rect.y + 1, rect.width.saturating_sub(2), 1),
-    );
+    let w = (key.chars().count() as u16 + 4).min(width);
+    let pad = " ".repeat(width.saturating_sub(w) as usize / 2);
+    let warning = Style::default().fg(app.palette.warning);
+    let border = "─".repeat(w.saturating_sub(2) as usize);
+    vec![
+        Line::from(vec![
+            Span::raw(pad.clone()),
+            Span::styled(format!("╭{border}╮"), warning),
+        ]),
+        Line::from(vec![
+            Span::raw(pad.clone()),
+            Span::styled("│ ", warning),
+            Span::styled(
+                key.to_string(),
+                Style::default()
+                    .fg(app.palette.white)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" │", warning),
+        ]),
+        Line::from(vec![
+            Span::raw(pad),
+            Span::styled(format!("╰{border}╯"), warning),
+        ]),
+    ]
 }
 
 fn pass_has_non_ascii(app: &App) -> bool {
@@ -231,7 +206,7 @@ fn pass_has_non_ascii(app: &App) -> bool {
 }
 
 /// (filled cells out of 12, label, colour) for the strength bar.
-fn strength(pass: &str) -> (usize, &'static str, Color) {
+fn strength(pass: &str, palette: &crate::theme::Palette) -> (usize, &'static str, Color) {
     let n = pass.chars().count();
     let mut classes = 0;
     if pass.chars().any(|c| c.is_ascii_lowercase()) {
@@ -249,63 +224,74 @@ fn strength(pass: &str) -> (usize, &'static str, Color) {
     let score = ((n.min(20) as f32) / 20.0) * 0.6 + (classes as f32 / 4.0) * 0.4;
     let filled = ((score * 12.0).round() as usize).clamp(1, 12);
     if n < 8 || score < 0.45 {
-        (filled, "débil", Color::Red)
+        (filled, "débil", palette.error)
     } else if score < 0.72 {
-        (filled, "aceptable", Color::Yellow)
+        (filled, "aceptable", palette.warning)
     } else {
-        (filled, "buena", Color::Green)
+        (filled, "buena", palette.success)
     }
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
-    match key.code {
-        KeyCode::Up => {
-            app.enc.move_focus(-1);
-            true
-        }
-        KeyCode::Down => {
-            app.enc.move_focus(1);
-            true
-        }
-        KeyCode::Char(' ') => match app.enc.focus {
-            ENC_ACCOUNT => {
-                let reuse = !app.enc.use_account;
-                app.enc.set_use_account(reuse);
-                true
+    if !app.focus_buttons {
+        match key.code {
+            KeyCode::Char(' ') => match app.enc.focus {
+                ENC_ACCOUNT => {
+                    let reuse = !app.enc.use_account;
+                    app.enc.set_use_account(reuse);
+                    return true;
+                }
+                ENC_TPM => {
+                    app.enc.tpm = !app.enc.tpm;
+                    return true;
+                }
+                ENC_NOTED => {
+                    app.enc.noted = !app.enc.noted;
+                    return true;
+                }
+                _ => {}
+            },
+            KeyCode::Down | KeyCode::Tab => {
+                let targets = app.enc.targets();
+                let pos = targets.iter().position(|&t| t == app.enc.focus).unwrap_or(0);
+                if pos + 1 < targets.len() {
+                    app.enc.focus = targets[pos + 1];
+                } else {
+                    app.focus_buttons_on_primary();
+                }
+                return true;
             }
-            ENC_TPM => {
-                app.enc.tpm = !app.enc.tpm;
-                true
+            KeyCode::Up | KeyCode::BackTab => {
+                let targets = app.enc.targets();
+                let pos = targets.iter().position(|&t| t == app.enc.focus).unwrap_or(0);
+                if pos > 0 {
+                    app.enc.focus = targets[pos - 1];
+                }
+                return true;
             }
-            ENC_NOTED => {
-                app.enc.noted = !app.enc.noted;
-                true
+            KeyCode::Char('u') | KeyCode::Char('U')
+                if app.enc.focus != ENC_PASS && app.enc.focus != ENC_CONFIRM =>
+            {
+                app.open_usb_modal();
+                return true;
             }
-            _ => false,
-        },
-        KeyCode::Char('u') | KeyCode::Char('U')
-            if app.enc.focus != ENC_PASS && app.enc.focus != ENC_CONFIRM =>
-        {
-            app.open_usb_modal();
-            true
+            KeyCode::Enter if app.enc.focus == ENC_PASS => {
+                app.enc.focus = ENC_CONFIRM;
+                return true;
+            }
+            _ => {}
         }
-        KeyCode::Enter if app.enc.focus == ENC_PASS => {
-            app.enc.focus = ENC_CONFIRM;
-            true
-        }
-        _ if (app.enc.focus == ENC_PASS || app.enc.focus == ENC_CONFIRM)
-            && super::is_edit_key(&key) =>
-        {
-            let target = if app.enc.focus == ENC_PASS {
-                &mut app.enc.pass
-            } else {
-                &mut app.enc.confirm
-            };
-            target.handle_event(&Event::Key(key));
-            true
-        }
-        _ => false,
     }
+    if (app.enc.focus == ENC_PASS || app.enc.focus == ENC_CONFIRM) && super::is_edit_key(&key) {
+        let target = if app.enc.focus == ENC_PASS {
+            &mut app.enc.pass
+        } else {
+            &mut app.enc.confirm
+        };
+        target.handle_event(&Event::Key(key));
+        return true;
+    }
+    false
 }
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {

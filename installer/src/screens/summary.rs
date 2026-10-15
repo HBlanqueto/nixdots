@@ -16,18 +16,6 @@ fn gb(bytes: u64) -> String {
     format!("{:.0} GB", bytes as f64 / 1_000_000_000.0)
 }
 
-pub fn height(app: &App) -> u16 {
-    // 8 pairs + separator + check line (+ uutils checkbox and its note).
-    let mut h = 10;
-    if uutils_option(app) {
-        h += 1;
-        if app.keep_uutils {
-            h += 1;
-        }
-    }
-    h
-}
-
 fn row(app: &App, label: &str, value: String) -> Line<'static> {
     Line::from(vec![
         Span::styled(format!("{label:<12}"), Style::default().fg(app.palette.muted)),

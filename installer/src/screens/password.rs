@@ -8,55 +8,74 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
-pub fn height(_app: &App) -> u16 {
-    5
-}
-
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    let first = widgets::field(
+    let w = area.width;
+    let focus = app.password.focus;
+    let has_focus = !app.focus_buttons && !app.no_focus();
+
+    let first = widgets::text_field(
         &app.palette,
-        &format!("contraseña ({})", app.settings.username),
+        "Contraseña",
         app.password.p1.value(),
         app.password.p1.visual_cursor(),
-        app.password.focus == 0 && !app.focus_buttons && !app.no_focus(),
-        true,
-        area.width,
+        has_focus && focus == 0,
         true,
         "",
+        w,
+        if app.password.p1.value().is_empty() {
+            None
+        } else {
+            Some(strength_note(app))
+        },
+        false,
     );
-    let second = widgets::field(
+    let confirm_note = if app.password.p2.value().is_empty() {
+        None
+    } else if app.passwords_match() {
+        Some(Line::from(Span::styled(
+            "✓ coinciden",
+            Style::default().fg(app.palette.success),
+        )))
+    } else {
+        Some(Line::from(Span::styled(
+            "no coinciden",
+            Style::default().fg(app.palette.error),
+        )))
+    };
+    let second = widgets::text_field(
         &app.palette,
-        "confirmar",
+        "Confirmar",
         app.password.p2.value(),
         app.password.p2.visual_cursor(),
-        app.password.focus == 1 && !app.focus_buttons && !app.no_focus(),
-        true,
-        area.width,
+        has_focus && focus == 1,
         true,
         "",
+        w,
+        confirm_note,
+        !app.password.p2.value().is_empty() && !app.passwords_match(),
     );
+
+    let mut lines = first;
+    lines.push(Line::from(""));
+    lines.extend(second);
+
+    let focus_y = if focus == 0 { 0 } else { 5 };
+    let scroll = widgets::scroll_to_show(focus_y, 4, area.height);
+    f.render_widget(Paragraph::new(lines.clone()).scroll((scroll, 0)), area);
+    widgets::draw_scrollbar(f, &app.palette, area, lines.len(), scroll, area.height);
+}
+
+/// The strength bar note: `████░░ buena`.
+fn strength_note(app: &App) -> Line<'static> {
     let (filled, label, color) = strength(app.password.p1.value(), &app.palette);
-    let bar = Line::from(vec![
-        Span::styled("seguridad  ", Style::default().fg(app.palette.muted)),
-        Span::styled("━".repeat(filled), Style::default().fg(color)),
+    Line::from(vec![
+        Span::styled("█".repeat(filled), Style::default().fg(color)),
+        Span::styled("░".repeat(12 - filled), Style::default().fg(app.palette.rule)),
         Span::styled(
-            "─".repeat(12 - filled),
-            Style::default().fg(app.palette.rule),
-        ),
-        Span::styled(
-            format!("  {label}"),
+            format!(" {label}"),
             Style::default().fg(color).add_modifier(Modifier::BOLD),
         ),
-        if app.passwords_match() {
-            Span::styled("  ✓ coinciden", Style::default().fg(app.palette.success))
-        } else {
-            Span::raw("")
-        },
-    ]);
-    let mut lines = first;
-    lines.extend(second);
-    lines.push(bar);
-    f.render_widget(Paragraph::new(lines), area);
+    ])
 }
 
 /// (filled cells out of 12, label, colour) for the strength bar.
@@ -87,33 +106,39 @@ fn strength(pass: &str, palette: &crate::theme::Palette) -> (usize, &'static str
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
-    match key.code {
-        KeyCode::Up | KeyCode::Down => {
-            app.password.focus = if app.password.focus == 0 { 1 } else { 0 };
-            true
+    if !app.focus_buttons {
+        match key.code {
+            KeyCode::Down | KeyCode::Tab => {
+                if app.password.focus == 0 {
+                    app.password.focus = 1;
+                } else {
+                    app.focus_buttons_on_primary();
+                }
+                return true;
+            }
+            KeyCode::Up | KeyCode::BackTab => {
+                if app.password.focus == 1 {
+                    app.password.focus = 0;
+                }
+                return true;
+            }
+            KeyCode::Enter if app.password.focus == 0 => {
+                app.password.focus = 1;
+                return true;
+            }
+            _ => {}
         }
-        // Shift+Tab goes back confirmar -> nueva.
-        KeyCode::BackTab if app.password.focus == 1 => {
-            app.password.focus = 0;
-            true
-        }
-        // Enter goes nueva -> confirmar; from confirmar the app moves to
-        // Continuar.
-        KeyCode::Enter if app.password.focus == 0 => {
-            app.password.focus = 1;
-            true
-        }
-        _ if super::is_edit_key(&key) => {
-            let target = if app.password.focus == 0 {
-                &mut app.password.p1
-            } else {
-                &mut app.password.p2
-            };
-            target.handle_event(&Event::Key(key));
-            true
-        }
-        _ => false,
     }
+    if super::is_edit_key(&key) {
+        let target = if app.password.focus == 0 {
+            &mut app.password.p1
+        } else {
+            &mut app.password.p2
+        };
+        target.handle_event(&Event::Key(key));
+        return true;
+    }
+    false
 }
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {

@@ -8,99 +8,122 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use tui_input::backend::crossterm::EventHandler;
 
-pub fn height(_app: &App) -> u16 {
-    // two fields + separator + the visible-name line
-    6
-}
-
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    // Nombre first, usuario second.
-    let name = widgets::field(
+    let w = area.width;
+    let focus = app.user.focus;
+    let has_focus = !app.focus_buttons && !app.no_focus();
+
+    let name = widgets::text_field(
         &app.palette,
-        "nombre completo",
+        "Nombre completo",
         app.user.name.value(),
         app.user.name.visual_cursor(),
-        app.user.focus == 0 && !app.focus_buttons && !app.no_focus(),
+        has_focus && focus == 0,
         false,
-        area.width,
-        true,
         "Nombre y apellido",
+        w,
+        None,
+        false,
     );
-    let mut username = widgets::field(
+    let username_note = username_note(app);
+    let username = widgets::text_field(
         &app.palette,
-        "usuario · se genera del nombre",
+        "Usuario",
         app.user.username.value(),
         app.user.username.visual_cursor(),
-        app.user.focus == 1 && !app.focus_buttons && !app.no_focus(),
+        has_focus && focus == 1,
         false,
-        area.width,
-        true,
         "se genera del nombre",
+        w,
+        username_note,
+        !app.user.username.value().is_empty() && !app.username_valid(),
     );
-    if !app.user.username.value().is_empty() {
-        let (mark, color) = if app.username_valid() {
-            ("✓", app.palette.success)
-        } else {
-            ("✗", app.palette.error)
-        };
-        username[0]
-            .spans
-            .push(Span::styled(format!("  {mark}"), Style::default().fg(color)));
-    }
+
     let mut lines = name;
+    lines.push(Line::from(""));
     lines.extend(username);
-    // Separator + the macOS-style visible name, updated as the name is typed.
+    lines.push(Line::from(""));
+    // Separator + the macOS-style visible name.
     lines.push(Line::from(Span::styled(
-        "─".repeat(area.width as usize),
+        "─".repeat(w as usize),
         Style::default().fg(app.palette.rule),
     )));
+    let pretty = app.pretty_host_name();
+    let pad = (w as usize).saturating_sub("Este equipo se llamará".chars().count() + pretty.chars().count() + 1);
     lines.push(Line::from(vec![
-        Span::styled("este equipo se llamará ", Style::default().fg(app.palette.muted)),
-        Span::styled(
-            app.pretty_host_name(),
-            Style::default().fg(app.palette.highlight),
-        ),
+        Span::styled("Este equipo se llamará", Style::default().fg(app.palette.muted)),
+        Span::raw(" ".repeat(pad)),
+        Span::styled(pretty, Style::default().fg(app.palette.highlight)),
     ]));
-    f.render_widget(Paragraph::new(lines), area);
+
+    let focus_y = if focus == 0 { 0 } else { 5 };
+    let scroll = widgets::scroll_to_show(focus_y, 4, area.height);
+    f.render_widget(Paragraph::new(lines.clone()).scroll((scroll, 0)), area);
+    widgets::draw_scrollbar(f, &app.palette, area, lines.len(), scroll, area.height);
+}
+
+/// The `Usuario` field's note: generation state or a validation error.
+fn username_note(app: &App) -> Option<Line<'static>> {
+    let value = app.user.username.value();
+    if value.is_empty() {
+        return None;
+    }
+    if !app.username_valid() {
+        return Some(Line::from(Span::styled(
+            "✗ inválido",
+            Style::default().fg(app.palette.error),
+        )));
+    }
+    if app.user.edited {
+        Some(Line::from(Span::styled(
+            "editado",
+            Style::default().fg(app.palette.muted),
+        )))
+    } else {
+        Some(Line::from(Span::styled(
+            "✓ generado",
+            Style::default().fg(app.palette.success),
+        )))
+    }
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {
-    match key.code {
-        // Down / Tab from the name lock the username (it becomes editable).
-        KeyCode::Down if app.user.focus == 0 => {
-            focus_username(app);
-            true
-        }
-        KeyCode::Up if app.user.focus == 1 => {
-            app.user.focus = 0;
-            true
-        }
-        KeyCode::Tab if app.user.focus == 0 => {
-            focus_username(app);
-            true
-        }
-        // Shift+Tab goes back usuario -> nombre.
-        KeyCode::BackTab if app.user.focus == 1 => {
-            app.user.focus = 0;
-            true
-        }
-        // Enter advances nombre -> usuario; from usuario the app takes over
-        // and moves the focus to Continuar.
-        KeyCode::Enter if app.user.focus == 0 => {
-            focus_username(app);
-            true
-        }
-        _ if super::is_edit_key(&key) => {
-            if app.user.focus == 0 {
-                app.user.name.handle_event(&Event::Key(key));
-                app.regenerate_username();
-            } else {
-                edit_username(app, key);
+    if !app.focus_buttons {
+        match key.code {
+            // Down / Tab move to the next field, or to Continuar past the last.
+            KeyCode::Down | KeyCode::Tab => {
+                if app.user.focus == 0 {
+                    focus_username(app);
+                } else {
+                    app.focus_buttons_on_primary();
+                }
+                return true;
             }
-            true
+            KeyCode::Up | KeyCode::BackTab => {
+                if app.user.focus == 1 {
+                    app.user.focus = 0;
+                }
+                return true;
+            }
+            // Enter advances nombre -> usuario; from usuario the app moves to
+            // Continuar.
+            KeyCode::Enter if app.user.focus == 0 => {
+                focus_username(app);
+                return true;
+            }
+            _ => {}
         }
-        _ => false,
     }
+    if super::is_edit_key(&key) {
+        if app.user.focus == 0 {
+            app.user.name.handle_event(&Event::Key(key));
+            app.regenerate_username();
+        } else {
+            edit_username(app, key);
+        }
+        return true;
+    }
+    false
 }
 
 fn focus_username(app: &mut App) {

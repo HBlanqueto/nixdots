@@ -7,10 +7,6 @@ use ratatui::Frame;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-pub fn height(_app: &App) -> u16 {
-    3
-}
-
 /// `* nixdots` + a blank line + the Salir / Reiniciar capsule row.
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let total: u16 = 3;

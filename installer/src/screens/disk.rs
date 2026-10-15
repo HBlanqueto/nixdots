@@ -18,20 +18,6 @@ const DISK_ICON: [&str; 3] = [" .------.", "|  ____  |", "|__|  |__|"];
 
 const CARD_W: u16 = 26;
 
-pub fn height(app: &App) -> u16 {
-    let mut h = 8 + 1 + 1; // card + gap + sentence
-    if !app.disks.erase_all && app.disks.decision.is_shrink() {
-        h += 1;
-    }
-    if app.selected_disk().is_some_and(|d| d.windows) && !app.disks.erase_all {
-        h += 1;
-    }
-    if app.disks.details {
-        h += 1 + details(app).len() as u16;
-    }
-    h
-}
-
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let mut y = area.y;
 

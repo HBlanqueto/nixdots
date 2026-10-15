@@ -17,62 +17,6 @@ use tui_input::backend::crossterm::EventHandler;
 
 pub const ROWS: usize = 8;
 
-pub fn height() -> u16 {
-    ROWS as u16 + 1
-}
-
-/// The always-visible search row: `› query` on the left, `N unit` on the
-/// right, with a block cursor while `focused`.
-pub fn search_line(
-    palette: &Palette,
-    picker: &Picker,
-    placeholder: &str,
-    unit: &str,
-    width: u16,
-    focused: bool,
-) -> Line<'static> {
-    let mut spans = vec![Span::styled(
-        "› ",
-        Style::default().fg(if focused { palette.primary } else { palette.muted }),
-    )];
-    let value = picker.query.value();
-    if value.is_empty() {
-        if focused {
-            spans.push(Span::styled(
-                " ",
-                Style::default().fg(palette.white).bg(palette.primary),
-            ));
-        }
-        spans.push(Span::styled(
-            placeholder.to_string(),
-            Style::default().fg(palette.muted),
-        ));
-    } else {
-        let chars: Vec<char> = value.chars().collect();
-        let cursor = picker.query.visual_cursor().min(chars.len());
-        let before: String = chars[..cursor].iter().collect();
-        let at: char = chars.get(cursor).copied().unwrap_or(' ');
-        let after: String = chars.get(cursor + 1..).unwrap_or(&[]).iter().collect();
-        spans.push(Span::styled(before, Style::default().fg(palette.text)));
-        let at_style = if focused {
-            Style::default().fg(palette.white).bg(palette.primary)
-        } else {
-            Style::default().fg(palette.text)
-        };
-        spans.push(Span::styled(at.to_string(), at_style));
-        spans.push(Span::styled(after, Style::default().fg(palette.text)));
-    }
-    let total = picker.filtered.len();
-    let total_text = format!("{total} {unit}");
-    let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let pad = (width.saturating_sub(1) as usize)
-        .saturating_sub(used)
-        .saturating_sub(total_text.chars().count());
-    spans.push(Span::raw(" ".repeat(pad)));
-    spans.push(Span::styled(total_text, Style::default().fg(palette.muted)));
-    Line::from(spans)
-}
-
 /// A centered, searchable list with centered names, an accent capsule on the
 /// chosen row and a `█`/`│` scrollbar. `suggested` highlights a row without
 /// selecting it. The box border is drawn by the screen's `StepLayout`.
@@ -150,61 +94,15 @@ pub fn draw_centered(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn draw(
     f: &mut Frame,
     palette: &Palette,
     area: Rect,
     picker: &Picker,
-    placeholder: &str,
-    unit: &str,
-    focused: bool,
 ) {
     let mut lines: Vec<Line> = Vec::new();
-
-    let mut search: Vec<Span> = vec![Span::styled(
-        "› ",
-        Style::default().fg(if focused { palette.primary } else { palette.muted }),
-    )];
-    if picker.query.value().is_empty() {
-        if focused {
-            search.push(Span::styled(
-                " ",
-                Style::default().fg(palette.white).bg(palette.primary),
-            ));
-        }
-        search.push(Span::styled(placeholder.to_string(), Style::default().fg(palette.muted)));
-    } else {
-        let value = picker.query.value();
-        let cursor = picker.query.visual_cursor();
-        let chars: Vec<char> = value.chars().collect();
-        let cursor = cursor.min(chars.len());
-        let before: String = chars[..cursor].iter().collect();
-        let at: char = chars.get(cursor).copied().unwrap_or(' ');
-        let after: String = chars.get(cursor + 1..).unwrap_or(&[]).iter().collect();
-        search.push(Span::styled(before, Style::default().fg(palette.text)));
-        if focused {
-            search.push(Span::styled(
-                at.to_string(),
-                Style::default().fg(palette.white).bg(palette.primary),
-            ));
-        } else {
-            search.push(Span::styled(at.to_string(), Style::default().fg(palette.text)));
-        }
-        search.push(Span::styled(after, Style::default().fg(palette.text)));
-    }
-    // Right-aligned total on the search row (e.g. "418 zonas").
     let total = picker.filtered.len();
-    let total_text = format!("{total} {unit}");
-    let used: usize = search.iter().map(|s| s.content.chars().count()).sum();
-    let pad = (area.width.saturating_sub(1) as usize)
-        .saturating_sub(used)
-        .saturating_sub(total_text.chars().count());
-    search.push(Span::raw(" ".repeat(pad)));
-    search.push(Span::styled(total_text, Style::default().fg(palette.muted)));
-    lines.push(Line::from(search));
-
-    let rows = (area.height.saturating_sub(1) as usize).clamp(1, ROWS);
+    let rows = (area.height as usize).clamp(1, ROWS);
     let start = picker
         .selected
         .unwrap_or(0)
@@ -242,6 +140,39 @@ pub fn draw(
             .thumb_style(Style::default().fg(palette.primary));
         f.render_stateful_widget(scrollbar, bar_area, &mut state);
     }
+}
+
+/// Renders the search box (a TextField) at the top of `area` and returns the
+/// rectangle left for the list below it.
+pub fn draw_search(
+    f: &mut Frame,
+    palette: &Palette,
+    area: Rect,
+    picker: &Picker,
+    focused: bool,
+) -> Rect {
+    let search = widgets::text_field(
+        palette,
+        "Buscar",
+        picker.query.value(),
+        picker.query.visual_cursor(),
+        focused,
+        false,
+        "escribe para filtrar",
+        area.width,
+        None,
+        false,
+    );
+    f.render_widget(
+        Paragraph::new(search),
+        Rect::new(area.x, area.y, area.width, 4),
+    );
+    Rect::new(
+        area.x,
+        area.y + 5,
+        area.width,
+        area.height.saturating_sub(5),
+    )
 }
 
 /// Handles typing, filtering and list navigation. Returns true if consumed.

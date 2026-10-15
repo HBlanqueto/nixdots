@@ -13,10 +13,6 @@ const SPINNER: [&str; 4] = ["|", "/", "-", "\\"];
 /// Cells of the big progress bar.
 const BAR: usize = 60;
 
-pub fn height(_app: &App) -> u16 {
-    5
-}
-
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     // The Ctrl+C confirmation is drawn as a dialog by the app, so while it is
     // open the screen shows no buttons of its own.

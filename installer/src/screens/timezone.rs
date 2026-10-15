@@ -9,22 +9,18 @@ use std::process::{Command, Stdio};
 /// package (`NIXDOTS_ZONE1970_TAB`).
 const ZONE1970_TAB: &str = include_str!(env!("NIXDOTS_ZONE1970_TAB"));
 
-pub fn height(_app: &App) -> u16 {
-    super::picker::height()
-}
-
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(picker) = &app.timezones {
-        super::picker::draw(
-            f,
-            &app.palette,
-            area,
-            picker,
-            "buscar zona horaria",
-            "zonas",
-            !app.focus_buttons && !app.no_focus(),
-        );
-    }
+    let Some(picker) = &app.timezones else {
+        return;
+    };
+    let list = super::picker::draw_search(
+        f,
+        &app.palette,
+        area,
+        picker,
+        !app.focus_buttons && !app.no_focus(),
+    );
+    super::picker::draw(f, &app.palette, list, picker);
 }
 
 pub fn key(app: &mut App, key: KeyEvent) -> bool {

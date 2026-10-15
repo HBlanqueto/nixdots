@@ -36,15 +36,17 @@ impl Btn {
     }
 }
 
-/// The vertical layout shared by every wizard screen: a progress bar, a bold
-/// title, a 46-column rounded box, an optional line outside it, the buttons and
-/// the shortcut line. The shortcut line is dropped first on a short terminal;
-/// the box and buttons are never hidden.
+/// The layout shared by every wizard screen: a progress bar, a bold title, a
+/// proportional rounded box, an optional line outside it, the buttons and the
+/// shortcut line. The box is the same size on every screen (60 % of the width,
+/// 64–90 columns; 50 % of the height, 14–24 rows) and never depends on the
+/// content, which scrolls inside it.
 pub struct StepLayout {
     pub progress: Rect,
     pub title: Rect,
     pub body: Rect,
-    pub inner: Rect,
+    /// Inside the border, after the 1-row / 3-column margin.
+    pub content: Rect,
     pub note: Rect,
     pub buttons: Rect,
     pub shortcuts: Rect,
@@ -52,17 +54,15 @@ pub struct StepLayout {
 }
 
 impl StepLayout {
-    pub const WIDTH: u16 = 46;
-
-    /// `body_h` is the full box height (content + two borders); `note_h`
-    /// reserves lines between the box and the buttons; `commands_h` appends the
-    /// `v` commands column.
-    pub fn compute(area: Rect, body_h: u16, note_h: u16, commands_h: u16) -> Self {
-        let width = Self::WIDTH.min(area.width);
+    /// `note_h` reserves lines between the box and the buttons; `commands_h`
+    /// appends the `v` commands column.
+    pub fn compute(area: Rect, note_h: u16, commands_h: u16) -> Self {
+        let width = (area.width * 60 / 100).clamp(64, 90).min(area.width);
+        let height = (area.height * 50 / 100).clamp(14, 24).min(area.height);
         let x = area.x + area.width.saturating_sub(width) / 2;
         let gap: u16 = 1;
         let shortcuts_h = u16::from(area.height >= 30);
-        let mut total = 1 + gap + 1 + gap + body_h + gap + 1;
+        let mut total = 1 + gap + 1 + gap + height + gap + 1;
         if note_h > 0 {
             total += note_h + gap;
         }
@@ -78,14 +78,21 @@ impl StepLayout {
         y += 1 + gap;
         let title = Rect::new(x, y, width, 1);
         y += 1 + gap;
-        let body = Rect::new(x, y, width, body_h);
-        let inner = Rect::new(
+        let body = Rect::new(x, y, width, height);
+        let inside = Rect::new(
             body.x + 1,
             body.y + 1,
             body.width.saturating_sub(2),
             body.height.saturating_sub(2),
         );
-        y += body_h + gap;
+        // 1-row and 3-column inner margin.
+        let content = Rect::new(
+            inside.x + 3,
+            inside.y + 1,
+            inside.width.saturating_sub(6),
+            inside.height.saturating_sub(2),
+        );
+        y += height + gap;
         let note = Rect::new(x, y, width, note_h);
         if note_h > 0 {
             y += note_h + gap;
@@ -102,12 +109,54 @@ impl StepLayout {
             progress,
             title,
             body,
-            inner,
+            content,
             note,
             buttons,
             shortcuts,
             commands,
         }
+    }
+}
+
+/// The scroll offset that keeps the focused row range visible: 0 while it fits,
+/// otherwise just enough to bring its bottom to the last visible row.
+pub fn scroll_to_show(focus_y: u16, focus_h: u16, visible: u16) -> u16 {
+    (focus_y + focus_h).saturating_sub(visible)
+}
+
+/// A `█`/`│` scrollbar in the right margin of `area`, drawn only when the
+/// content overflows.
+pub fn draw_scrollbar(
+    f: &mut Frame,
+    palette: &Palette,
+    area: Rect,
+    total: usize,
+    offset: u16,
+    visible: u16,
+) {
+    let visible = visible as usize;
+    if total <= visible || area.height == 0 {
+        return;
+    }
+    let thumb_h = (visible * visible / total).max(1);
+    let travel = visible.saturating_sub(thumb_h);
+    let max_start = total.saturating_sub(visible);
+    let thumb_top = (offset as usize)
+        .saturating_mul(travel)
+        .checked_div(max_start)
+        .unwrap_or(0);
+    let x = area.right();
+    for row in 0..area.height {
+        let filled = (row as usize) >= thumb_top && (row as usize) < thumb_top + thumb_h;
+        let (ch, style) = if filled {
+            ("█", Style::default().fg(palette.primary))
+        } else {
+            ("│", Style::default().fg(palette.row_bg))
+        };
+        f.render_widget(
+            Paragraph::new(Span::styled(ch, style)),
+            Rect::new(x, area.y + row, 1, 1),
+        );
     }
 }
 
@@ -254,50 +303,58 @@ fn push_button(
     }
 }
 
-/// An editable text field: a gray label on top and, below it, the value with an
-/// underline that turns accent while the field has the focus. `masked` shows
-/// bullets; an empty field shows `placeholder` in muted until something is
-/// typed. Returns the two lines (label, value) to push inside the box.
+/// An editable text field drawn as a "cajita": a label row (with an optional
+/// right-aligned note), a rounded box whose value is inset by one column, and
+/// the box's bottom border. Returns the four lines to push into the box.
 #[allow(clippy::too_many_arguments)]
-pub fn field(
+pub fn text_field(
     palette: &Palette,
     label: &str,
     value: &str,
     cursor: usize,
     focused: bool,
     masked: bool,
-    width: u16,
-    enabled: bool,
     placeholder: &str,
+    width: u16,
+    note: Option<Line<'static>>,
+    error: bool,
 ) -> Vec<Line<'static>> {
-    let label_style = if !enabled {
-        Style::default().fg(palette.disabled)
+    let w = width.max(4) as usize;
+    let label_style = if focused {
+        Style::default().fg(palette.highlight)
     } else {
         Style::default().fg(palette.muted)
     };
-    let label_line = Line::from(Span::styled(label.to_string(), label_style));
+    let note_w = note.as_ref().map(|n| n.width()).unwrap_or(0);
+    let pad = w.saturating_sub(label.chars().count() + note_w + 1);
+    let mut label_spans = vec![
+        Span::styled(label.to_string(), label_style),
+        Span::raw(" ".repeat(pad)),
+    ];
+    if let Some(note) = note {
+        label_spans.extend(note.spans);
+    }
+    let label_line = Line::from(label_spans);
 
-    let rule = if !enabled {
-        palette.disabled
+    let border_color = if error {
+        palette.error
     } else if focused {
         palette.primary
     } else {
         palette.rule
     };
-    let underline = Style::default()
-        .underline_color(rule)
-        .add_modifier(Modifier::UNDERLINED);
-    let empty = value.is_empty();
-    let value_color = if !enabled {
-        palette.disabled
-    } else if empty {
-        palette.muted
-    } else if focused {
-        palette.white
-    } else {
-        palette.text
-    };
+    let border = Style::default().fg(border_color);
+    let top = Line::from(Span::styled(
+        format!("╭{}╮", "─".repeat(w - 2)),
+        border,
+    ));
+    let bottom = Line::from(Span::styled(
+        format!("╰{}╯", "─".repeat(w - 2)),
+        border,
+    ));
 
+    let inner_w = w.saturating_sub(4);
+    let empty = value.is_empty();
     let mut display: Vec<char> = if empty {
         placeholder.chars().collect()
     } else if masked {
@@ -306,45 +363,45 @@ pub fn field(
         value.chars().collect()
     };
     let cursor = cursor.min(if empty { 0 } else { display.len() });
-    let avail = width.max(1) as usize;
-    let start = if display.len() > avail {
-        cursor.saturating_sub(avail.saturating_sub(1))
+    let start = if display.len() > inner_w {
+        cursor.saturating_sub(inner_w.saturating_sub(1))
     } else {
         0
     };
-    let end = (start + avail).min(display.len());
+    let end = (start + inner_w).min(display.len());
     let mut window: Vec<char> = display.drain(start..end).collect();
-    while window.len() < avail {
+    while window.len() < inner_w {
         window.push(' ');
     }
     let cw = cursor.saturating_sub(start);
+    let value_color = if empty {
+        palette.disabled
+    } else {
+        palette.white
+    };
     let before: String = window[..cw.min(window.len())].iter().collect();
     let at: char = window.get(cw).copied().unwrap_or(' ');
     let after: String = window.get(cw + 1..).unwrap_or(&[]).iter().collect();
 
-    let mut spans = vec![Span::styled(
-        before,
-        Style::default().fg(value_color).patch(underline),
-    )];
-    if focused && enabled {
-        spans.push(Span::styled(
+    let mut value_spans = vec![
+        Span::styled("│ ", border),
+        Span::styled(before, Style::default().fg(value_color)),
+    ];
+    if focused {
+        value_spans.push(Span::styled(
             at.to_string(),
             Style::default()
                 .fg(palette.on_primary)
-                .bg(palette.primary)
-                .patch(underline),
+                .bg(palette.primary),
         ));
     } else {
-        spans.push(Span::styled(
-            at.to_string(),
-            Style::default().fg(value_color).patch(underline),
-        ));
+        value_spans.push(Span::styled(at.to_string(), Style::default().fg(value_color)));
     }
-    spans.push(Span::styled(
-        after,
-        Style::default().fg(value_color).patch(underline),
-    ));
-    vec![label_line, Line::from(spans)]
+    value_spans.push(Span::styled(after, Style::default().fg(value_color)));
+    value_spans.push(Span::styled(" │", border));
+    let value_line = Line::from(value_spans);
+
+    vec![label_line, top, value_line, bottom]
 }
 
 /// A tick box: `[ ]` / `[x]`, the mark in accent, the label in text.
