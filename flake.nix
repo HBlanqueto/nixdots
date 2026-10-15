@@ -149,6 +149,45 @@
 
             installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
 
+            # El asistente de primer arranque: mismo patrón que el instalador,
+            # pero solo orquesta mkpasswd, git, nix y nixos-rebuild.
+            mkSetup = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+
+                    runtimeInputs = with pkgs; [
+                        git
+                        nix
+                        nixos-rebuild
+                        mkpasswd
+                        coreutils
+                    ];
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-setup";
+                    version = "0.1.0";
+
+                    src = ./.;
+                    buildAndTestSubdir = "setup";
+                    cargoLock.lockFile = ./Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.makeWrapper ];
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-setup \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                    '';
+
+                    meta = {
+                        description = "First-boot assistant CLI for the nixdots configuration";
+                        mainProgram = "nixdots-setup";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
+                };
+
+            setups = nixpkgs.lib.genAttrs supportedSystems mkSetup;
+
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
             # neptunia palette) on a real VT, then runs the installer inside it.
             launchers = nixpkgs.lib.genAttrs supportedSystems (system:
@@ -164,6 +203,7 @@
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
+                setup = setups.${system};
                 launcher = launchers.${system};
                 default = launchers.${system};
 
