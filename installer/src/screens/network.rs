@@ -15,10 +15,10 @@ const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "�
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     match &app.net.phase {
         RedFase::Lista => {
-            f.render_widget(Paragraph::new(list_lines(app)), area);
+            f.render_widget(Paragraph::new(list_lines(app, area.width)), area);
         }
         RedFase::Contrasena { ssid, input, visible } => {
-            let mut lines = list_lines(app);
+            let mut lines = list_lines(app, area.width);
             lines.push(Line::from(Span::styled(
                 "─".repeat(area.width as usize),
                 Style::default().fg(app.palette.rule),
@@ -81,8 +81,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-/// The Wi-Fi list rows (or the empty message).
-fn list_lines(app: &App) -> Vec<Line<'static>> {
+/// The Wi-Fi list rows (or the empty message). Fixed columns: the SSID, a
+/// 10-column security label and four signal bars (missing ones dimmed). The
+/// selected row is filled border to border, with no `›`.
+fn list_lines(app: &App, width: u16) -> Vec<Line<'static>> {
     if app.net.wifi.is_empty() {
         let msg = if app.net.backend.name() == "ninguno" {
             "no hay backend de red (nmcli/iwctl/wpa_cli)"
@@ -94,15 +96,51 @@ fn list_lines(app: &App) -> Vec<Line<'static>> {
             Style::default().fg(app.palette.warning),
         ))];
     }
+    let width = width as usize;
+    let name_w = width.saturating_sub(14);
     app.net
         .wifi
         .iter()
         .take(MAX_ROWS)
         .enumerate()
         .map(|(i, wifi)| {
-            let text = format!("{:<18}", wifi.ssid);
-            let trailing = format!("{}  {:<7}", wifi.bars(), wifi.security());
-            widgets::list_row(&app.palette, i == app.net.selected, text, Some(trailing))
+            let selected = i == app.net.selected;
+            let name: String = wifi.ssid.chars().take(name_w).collect();
+            let level = match wifi.signal {
+                76..=100 => 4,
+                51..=75 => 3,
+                26..=50 => 2,
+                _ => 1,
+            };
+            let name_style = if selected {
+                Style::default()
+                    .fg(app.palette.white)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
+            } else {
+                Style::default().fg(app.palette.text)
+            };
+            let bright = if selected {
+                app.palette.white
+            } else {
+                app.palette.secondary
+            };
+            let mut spans = vec![
+                Span::styled(format!("{name:<name_w$}"), name_style),
+                Span::styled(
+                    format!("{:<10}", wifi.security()),
+                    Style::default().fg(app.palette.muted),
+                ),
+            ];
+            for (k, ch) in ["▂", "▄", "▆", "█"].iter().enumerate() {
+                let color = if k < level { bright } else { app.palette.disabled };
+                spans.push(Span::styled((*ch).to_string(), Style::default().fg(color)));
+            }
+            let line = Line::from(spans);
+            if selected {
+                line.style(Style::default().bg(app.palette.primary))
+            } else {
+                line
+            }
         })
         .collect()
 }

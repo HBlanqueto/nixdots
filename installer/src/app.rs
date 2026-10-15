@@ -2297,7 +2297,7 @@ impl App {
     }
 
     fn draw_progress(&self, f: &mut Frame, area: Rect) {
-        // 3 cells per step, counted from Red to Resumen.
+        // The bar spans the whole box width; the count sits at the right.
         let flow = Screen::flow(self.show_network);
         let total = flow.len().max(1);
         let step = flow
@@ -2305,21 +2305,18 @@ impl App {
             .position(|&s| s == self.screen)
             .map(|i| i + 1)
             .unwrap_or(0);
-        let cells: usize = total * 3;
-        let filled = (step * 3).min(cells);
+        let count = format!("{step}/{total}");
+        let bar_w = (area.width as usize).saturating_sub(count.chars().count() + 1);
+        let filled = step * bar_w / total;
         let line = Line::from(vec![
             Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
             Span::styled(
-                "─".repeat(cells - filled),
+                "─".repeat(bar_w - filled),
                 // LBG, not muted.
                 Style::default().fg(self.palette.row_bg),
             ),
-            Span::styled(
-                format!("  {step}/{total}"),
-                Style::default().fg(self.palette.muted),
-            ),
-        ])
-        .alignment(Alignment::Center);
+            Span::styled(format!(" {count}"), Style::default().fg(self.palette.muted)),
+        ]);
         f.render_widget(Paragraph::new(line), area);
     }
 
