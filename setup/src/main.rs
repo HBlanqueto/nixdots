@@ -1,5 +1,5 @@
 //! `nixdots-setup` — CLI del asistente de primer arranque: aplica los datos del
-//! usuario (JSON), escribe el hash y `settings.nix`, y deja la nueva generación
+//! usuario (JSON), escribe el hash y `user.json`, y deja la nueva generación
 //! para el próximo arranque.
 //!
 //!   nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
@@ -8,7 +8,7 @@
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
 use nixdots_core::runner::{self, Cmd, Stream};
-use nixdots_core::settings::Settings;
+use nixdots_core::user_data::UserData;
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -18,8 +18,8 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
 
   datos.json  fullName, username, locale, keyboardLayout, keyboardVariant,
               timeZone y, opcionalmente, gitName y gitEmail.
-  --repo      repositorio a reconstruir (defecto /persist/nixdots)
-  --dry-run   copia temporal del repo; solo imprime los comandos
+  --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
+  --dry-run   solo imprime lo que haría, sin escribir nada
 
 La contraseña se lee de stdin.";
 
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
 
 fn apply(args: &[String]) -> Result<()> {
     let mut data_path = None;
-    let mut repo = PathBuf::from("/persist/nixdots");
+    let mut repo = PathBuf::from("/persist/nixdots/repo");
     let mut dry_run = false;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -77,9 +77,7 @@ fn apply(args: &[String]) -> Result<()> {
     validate(&data)?;
     let password = read_password()?;
 
-    let repo = if dry_run { copy_to_temp(&repo)? } else { repo };
-
-    // 1. Hash (0600) antes de settings.nix: user.nix exige que exista.
+    // 1. Hash (0600) antes de user.json: user.nix exige que exista.
     let hash = nixdots_core::crypto::hash_password(&password)?;
     let secrets = Path::new("/persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", data.username));
@@ -91,29 +89,23 @@ fn apply(args: &[String]) -> Result<()> {
         set_mode(&hash_path, 0o600)?;
     }
 
-    // 2. settings.nix: se parte del que ya hay (el instalador pudo escribir
-    //    prettyHostName, stateVersion, etc.) y solo se reemplazan los campos
-    //    que trae el JSON.
-    let mut settings = Settings::read(&repo)?;
-    settings.username = Some(data.username);
-    settings.userdescription = Some(data.full_name);
-    settings.default_locale = data.locale;
-    settings.keyboard_layout = data.keyboard_layout;
-    settings.keyboard_variant = data.keyboard_variant;
-    settings.time_zone = data.time_zone;
-    if let Some(name) = data.git_name {
-        settings.git_name = Some(name);
+    // 2. user.json, fuera del repo (el flake lo mezcla con settings.nix).
+    let user = UserData {
+        username: data.username,
+        userdescription: Some(data.full_name),
+        git_name: data.git_name,
+        git_email: data.git_email,
+        default_locale: Some(data.locale),
+        time_zone: Some(data.time_zone),
+        keyboard_layout: non_empty(data.keyboard_layout),
+        keyboard_variant: non_empty(data.keyboard_variant),
+    };
+    println!("$ escribir {} (0644)", nixdots_core::user_data::path().display());
+    if !dry_run {
+        user.write()?;
     }
-    if let Some(email) = data.git_email {
-        settings.git_email = Some(email);
-    }
-    println!("$ escribir {}/settings.nix", repo.display());
-    settings.write(&repo)?;
 
-    // 3. git add: el flake solo ve lo que git conoce.
-    run_step(&git_cmd(&repo, &["add", "-A"]), dry_run, "git add")?;
-
-    // 4. boot, no switch: activar en caliente apagaría greetd y mataría esta
+    // 3. boot, no switch: activar en caliente apagaría greetd y mataría esta
     //    misma sesión a mitad de la activación. El bucle de sesión reinicia.
     let host = hostname()?;
     let rebuild = Cmd::new("nixos-rebuild")
@@ -141,15 +133,22 @@ fn validate(data: &Data) -> Result<()> {
     if data.time_zone.trim().is_empty() {
         bail!("timeZone está vacío");
     }
-    if data.keyboard_layout.trim().is_empty() {
-        bail!("keyboardLayout está vacío");
-    }
     if let Some(email) = &data.git_email {
         if !email.trim().is_empty() && !(email.contains('@') && email.contains('.')) {
             bail!("gitEmail no parece un correo");
         }
     }
     Ok(())
+}
+
+/// `None` para cadenas vacías: así el `//` del flake deja el valor de
+/// `settings.nix` en vez de sobrescribirlo con "".
+fn non_empty(value: String) -> Option<String> {
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 /// Lee toda la entrada estándar y quita el salto de línea final. El búfer y la
@@ -176,18 +175,6 @@ fn hostname() -> Result<String> {
     Ok(name)
 }
 
-fn git_cmd(repo: &Path, args: &[&str]) -> Cmd {
-    let mut cmd = Cmd::new("git")
-        .arg("-c")
-        .arg(format!("safe.directory={}", repo.display()))
-        .arg("-C")
-        .arg_path(repo);
-    for a in args {
-        cmd = cmd.arg(*a);
-    }
-    cmd
-}
-
 /// Imprime el comando; en real lo ejecuta y transmite el registro.
 fn run_step(cmd: &Cmd, dry_run: bool, what: &str) -> Result<()> {
     println!("$ {}", cmd.display);
@@ -203,28 +190,6 @@ fn run_step(cmd: &Cmd, dry_run: bool, what: &str) -> Result<()> {
         bail!("{what} falló (código {code})");
     }
     Ok(())
-}
-
-/// Copia el repo a un directorio temporal único (`<tmp>/nixdots-setup-<pid>-<ns>`).
-fn copy_to_temp(repo: &Path) -> Result<PathBuf> {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let tmp = std::env::temp_dir().join(format!("nixdots-setup-{}-{nanos}", std::process::id()));
-    // create_dir falls over if the path already exists, so a previous run's
-    // directory is never reused.
-    std::fs::create_dir(&tmp).wrap_err_with(|| format!("no se pudo crear {}", tmp.display()))?;
-    set_mode(&tmp, 0o700)?;
-    let status = std::process::Command::new("cp")
-        .arg("-a")
-        .arg(repo.join("."))
-        .arg(&tmp)
-        .status()?;
-    if !status.success() {
-        bail!("no se pudo copiar {} al temporal", repo.display());
-    }
-    Ok(tmp)
 }
 
 fn set_mode(path: &Path, mode: u32) -> Result<()> {
