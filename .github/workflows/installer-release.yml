@@ -11,6 +11,10 @@ on:
       - master
     paths:
       - "installer/**"
+      - "core/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
       - "disko.nix"
       - "install.sh"
 
