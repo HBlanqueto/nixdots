@@ -34,7 +34,8 @@ fi
 # Ventana nueva e independiente, con recarga automática al guardar.
 setsid -f wezterm start --always-new-process --class nixdots-installer-dev \
     --cwd "$REPO" -- nix develop .#installer --command \
-    watchexec -r -c -w installer/src -w installer/Cargo.toml -e rs,toml -- \
+    watchexec -r -c -w installer/src -w core/src \
+        -w installer/Cargo.toml -w core/Cargo.toml -w Cargo.toml -e rs,toml -- \
     cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
 
 echo "Ventana de simulación lanzada (clase nixdots-installer-dev)."

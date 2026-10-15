@@ -792,12 +792,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nixdots-core"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "rand",
+ "serde",
+ "serde_json",
+ "zeroize",
+]
+
+[[package]]
 name = "nixdots-installer"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
  "crossterm",
- "rand",
+ "nixdots-core",
  "ratatui",
  "serde",
  "serde_json",

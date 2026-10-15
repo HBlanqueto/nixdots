@@ -43,9 +43,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
-        working-directory: installer
         env:
-          # clang + lld as the linker (see installer/.cargo/config.toml); CC is
+          # clang + lld as the linker (see .cargo/config.toml); CC is
           # only used if some crate ever compiles C.
           CC_x86_64_unknown_linux_musl: clang
           CC_aarch64_unknown_linux_musl: clang
@@ -54,11 +53,11 @@ jobs:
           NIXDOTS_LOCALE_DIR: /usr/share/i18n/locales
           NIXDOTS_XKB_BASE_LST: /usr/share/X11/xkb/rules/base.lst
           NIXDOTS_ZONE1970_TAB: /usr/share/zoneinfo/zone1970.tab
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }} -p nixdots-installer
 
       - name: Rename the binary
         run: |
-          cp installer/target/${{ matrix.target }}/release/nixdots-installer \
+          cp target/${{ matrix.target }}/release/nixdots-installer \
             nixdots-installer-${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4

@@ -117,11 +117,10 @@
                     # Whole repo so the palette test can read
                     # share/themes/neptunia.nix; the crate lives in installer/.
                     src = ./.;
-                    # cargoRoot locates Cargo.lock/Cargo.toml; buildAndTestSubdir
-                    # makes the hooks actually run cargo inside installer/.
-                    cargoRoot = "installer";
+                    # buildAndTestSubdir makes the hooks run cargo inside
+                    # installer/; the Cargo.lock lives at the workspace root.
                     buildAndTestSubdir = "installer";
-                    cargoLock.lockFile = ./installer/Cargo.lock;
+                    cargoLock.lockFile = ./Cargo.lock;
 
                     nativeBuildInputs = [ pkgs.makeWrapper ];
 
