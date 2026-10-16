@@ -23,4 +23,8 @@ in
     # but NetworkManager already manages every interface here; two managers on
     # the same link fight over the address.
     hardware.facter.detected.dhcp.enable = lib.mkIf readable false;
+
+    # El lector de huellas de esta máquina no funciona bien en Linux, así que no
+    # se usa: fprintd/libfprint fuera aunque el informe de facter lo detecte.
+    hardware.facter.detected.fingerprint.enable = false;
 }
