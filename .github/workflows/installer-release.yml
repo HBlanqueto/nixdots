@@ -22,8 +22,45 @@ permissions:
   contents: write
 
 jobs:
+  # Un cambio que sólo toque setup-gui (y, de rebote, Cargo.lock/Cargo.toml) no
+  # debe reconstruir ni publicar el instalador. Los tags siempre publican.
+  changes:
+    name: ¿afecta al instalador?
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$BEFORE" ] \
+             || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BEFORE" "$SHA")
+          if printf '%s\n' "$changed" \
+             | grep -qE '^(installer/|core/|\.cargo/|disko\.nix$|install\.sh$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build ${{ matrix.arch }}
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
