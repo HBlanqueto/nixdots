@@ -1,4 +1,4 @@
-{ ... }:
+_:
 
 {
     # Desktop-user bits shared by both hosts: the WezTerm configuration.

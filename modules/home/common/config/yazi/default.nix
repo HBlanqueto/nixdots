@@ -44,11 +44,7 @@ with theme.colors;
         };
 
         icon = {
-            globs = icons.globs;
-            dirs = icons.dirs;
-            files = icons.files;
-            exts = icons.exts;
-            conds = icons.conds;
+            inherit (icons) globs dirs files exts conds;
         };
     };
 }

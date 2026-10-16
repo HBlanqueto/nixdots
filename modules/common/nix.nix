@@ -1,4 +1,4 @@
-{ pkgs, lib, inputs, stateVersion, ... }:
+{ lib, inputs, stateVersion, ... }:
 
 {
     # Impermanence roots common to both hosts. ThinkPad-only persistent dirs

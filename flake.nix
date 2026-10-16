@@ -370,7 +370,16 @@
                         NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
                     };
                     default = pkgs.mkShell {
-                        packages = with pkgs; [ cargo rustc gcc pkg-config ];
+                        packages = with pkgs; [
+                            cargo
+                            rustc
+                            gcc
+                            pkg-config
+                            nixfmt-rfc-style
+                            statix
+                            deadnix
+                            nil
+                        ];
                     };
                 });
         };

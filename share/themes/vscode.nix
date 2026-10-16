@@ -1,4 +1,4 @@
-{ colors, filecolors }:
+{ colors }:
 
 let
     c = colors;

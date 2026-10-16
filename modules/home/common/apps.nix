@@ -1,4 +1,4 @@
-{ pkgs, lib, inputs, config, hostName, gitName, gitEmail, stateVersion, theme, ... }:
+{ pkgs, lib, inputs, gitName, gitEmail, stateVersion, theme, ... }:
 
 let
     yaziConfig = import ./config/yazi;
@@ -103,7 +103,7 @@ in
     };
 
     home = {
-        stateVersion = stateVersion;
+        inherit stateVersion;
 
         file = {
             ".config/Code/User/settings.json".text = builtins.toJSON vscodeSettings;
@@ -238,8 +238,7 @@ in
             };
             initLua = builtins.readFile ./config/yazi/init.lua;
             
-            settings = yaziConfig.settings;
-            theme = yaziConfig.theme;
+            inherit (yaziConfig) settings theme;
         };
 
         # mpv exposes MPRIS (and mpris:artUrl from embedded/folder art) only

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, username, ... }:
+{ pkgs, lib, inputs, username, ... }:
 
 {
     # Everything that depends on this being the physical ThinkPad L14 Gen 2a:

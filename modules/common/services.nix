@@ -1,4 +1,4 @@
-{ config, pkgs, lib, username, ... }:
+{ config, pkgs, lib, ... }:
 
 {
     options.nixdots.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
