@@ -1123,7 +1123,7 @@ impl App {
         if self.user.custom && !self.user.username.value().is_empty() {
             self.user.username.value().to_string()
         } else {
-            detect::generate_username(self.user.name.value())
+            nixdots_core::user::generate_username(self.user.name.value())
         }
     }
 
