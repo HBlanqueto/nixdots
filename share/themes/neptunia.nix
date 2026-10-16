@@ -62,7 +62,7 @@ rec {
             warning = "86661a";
             info = "7058a0";
             cyan = "3a6f87";
-            windowOuter = "rgba(13, 18, 25, 0.22)";
+            windowOuter = "rgba(13, 18, 25, 0.12)";
             windowInner = "rgba(255, 255, 255, 0)";
             scrim = "rgba(13, 18, 25, 0.28)";
         };
@@ -95,22 +95,22 @@ rec {
             scrim = "rgba(0, 0, 0, 0.5)";
         };
         darkTint = {
-            bgWindow = "1b1d21";
-            bgSunken = "141619";
-            bgSurface = "23262b";
-            bgRaised = "282b31";
-            bgControl = "363a42";
-            bgHover = "40444d";
-            line = "30343a";
-            lineStrong = "717887";
-            ink = "d8dce2";
-            inkStrong = "f3f5f8";
-            inkMuted = "969dab";
-            inkFaint = "666d79";
+            bgWindow = "1d1e20";
+            bgSunken = "151617";
+            bgSurface = "252628";
+            bgRaised = "2a2b2e";
+            bgControl = "38393d";
+            bgHover = "424448";
+            line = "323336";
+            lineStrong = "73767c";
+            ink = "dadcdf";
+            inkStrong = "f4f5f6";
+            inkMuted = "999ca3";
+            inkFaint = "696b70";
             accent = "4a64a8";
             accentStrong = "97b7ff";
             onAccent = "ffffff";
-            accentSoft = "2a3550";
+            accentSoft = "2b3550";
             danger = "e5807c";
             dangerFill = "b04a46";
             onDanger = "ffffff";
@@ -133,6 +133,7 @@ rec {
         radius = {
             xs = 4;
             sm = 7;
+            button = 8;
             md = 10;
             lg = 14;
             xl = 20;

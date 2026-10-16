@@ -51,8 +51,8 @@ let
         [ "1" "2" "3" "4" "6" "8" ];
 
     radii = lib.concatMapStrings
-        (n: "    out property <length> radius${n}: ${toString ui.radius.${n}}px;\n")
-        [ "xs" "sm" "md" "lg" "xl" "pill" ];
+        (n: "    out property <length> ${if n == "button" then "radiusButton" else "radius${n}"}: ${toString ui.radius.${n}}px;\n")
+        [ "xs" "sm" "button" "md" "lg" "xl" "pill" ];
 
     controls = lib.concatMapStrings
         (n: "    out property <length> control${n}: ${toString ui.control.${n}}px;\n")
