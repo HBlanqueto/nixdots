@@ -1,9 +1,9 @@
 { config, ... }:
 
 {
-    # Boot settings shared by both hosts. The kernel is host-specific, and the
-    # bootloader and the impermanence rollback still live under modules/hardware
-    # for now (see modules/hardware/*.nix).
+    # Boot settings shared by both hosts. The bootloader lives in
+    # modules/common/secure-boot.nix and the impermanence rollback in
+    # modules/common/rollback.nix.
     boot = {
         loader.efi.canTouchEfiVariables = true;
 
@@ -21,8 +21,9 @@
             theme = "spinner";
         };
 
-        # Generic kernel parameters shared by both hosts; modules/hardware/thinkpad.nix
-        # adds microcode.amd_sha_check=off on top of these, for ucodenix.
+        # Generic kernel parameters shared by both hosts. The microcode is
+        # enabled per-host (hardware.cpu.*.updateMicrocode), so no
+        # microcode.amd_sha_check=off is needed anymore.
         kernelParams = [ "quiet" "rd.udev.log_level=3" "rd.systemd.show_status=auto" ];
 
         kernel.sysctl = {

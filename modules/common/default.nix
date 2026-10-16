@@ -12,6 +12,10 @@
     ./filesystems.nix
     ./kernel.nix
     ./encryption.nix
+    ./machine.nix
+    ./secure-boot.nix
+    ./extras.nix
+    ./hardware-detect.nix
     ./boot.nix
     ./user.nix
     ./machine-info.nix
