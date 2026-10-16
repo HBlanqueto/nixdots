@@ -13,6 +13,10 @@ let
     inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;
     username = data.settings.username or null;
     userdescription = data.settings.userdescription or null;
+    # Región y formatos, zona horaria automática y accesibilidad.
+    region = data.settings.region or null;
+    timeZoneAuto = data.settings.timeZoneAuto or false;
+    a11y = data.settings.a11y or { };
 
     # Derivado del usuario: no se guarda en ningún archivo.
     hashedPasswordFile =
@@ -43,12 +47,28 @@ in
     ];
 
     time = {
-        inherit timeZone;
+        # Con la zona automática, timeZone queda sin definir (lo pone geoclue).
+        timeZone = lib.mkIf (!timeZoneAuto) timeZone;
     };
+
+    services.automatic-timezoned.enable = timeZoneAuto;
 
     i18n = {
         inherit defaultLocale;
+        # Región y formatos sólo si difiere del idioma base.
+        extraLocaleSettings = lib.mkIf (region != null && region != defaultLocale) {
+            LC_TIME = region;
+            LC_MONETARY = region;
+            LC_NUMERIC = region;
+            LC_MEASUREMENT = region;
+            LC_PAPER = region;
+            LC_ADDRESS = region;
+            LC_TELEPHONE = region;
+        };
     };
+
+    # dconf para los ajustes de accesibilidad de GNOME (home-manager los escribe).
+    programs.dconf.enable = true;
 
     networking = {
         hostName = data.hostName;
@@ -120,6 +140,6 @@ in
             jq
             gh
             python3
-        ];
+        ] ++ lib.optional (a11y.screenReader or false) pkgs.orca;
     };
 }
