@@ -281,10 +281,6 @@
                         libx11
                     ];
 
-                    # Acento de Neptunia para la UI, desde la única fuente de
-                    # verdad de la paleta (c4 = primary).
-                    NIXDOTS_NEPTUNIA_ACCENT = "#${(import ./share/themes/neptunia.nix).c4}";
-
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-setup-gui \
                             --prefix PATH : ${pkgs.lib.makeBinPath [ setups.${system} ]}
@@ -333,6 +329,12 @@
                 kmscon-palette =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/kmscon-palette.nix { };
 
+                # Tokens de Neptunia para Slint, generados desde share/themes.
+                # El archivo vive versionado en setup-gui/ui/neptunia-tokens.slint;
+                # regenéralo con `nix build .#neptunia-slint --print-out-paths`.
+                neptunia-slint =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/neptunia-slint.nix { };
+
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };
@@ -348,6 +350,25 @@
                     program = "${launchers.${system}}/bin/nixdots-installer";
                 };
             });
+
+            # El archivo versionado setup-gui/ui/neptunia-tokens.slint debe
+            # coincidir con lo que genera share/themes/neptunia.nix.
+            checks = nixpkgs.lib.genAttrs supportedSystems (system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                    generated = pkgs.callPackage ./packages/neptunia-slint.nix { };
+                in
+                {
+                    neptunia-slint = pkgs.runCommand "check-neptunia-slint" { } ''
+                        if ! ${pkgs.diffutils}/bin/diff -u ${./setup-gui/ui/neptunia-tokens.slint} ${generated}; then
+                            echo "" >&2
+                            echo "setup-gui/ui/neptunia-tokens.slint está desactualizado. Regéneralo con:" >&2
+                            echo "  cp \$(nix build .#neptunia-slint --print-out-paths) setup-gui/ui/neptunia-tokens.slint" >&2
+                            exit 1
+                        fi
+                        ${pkgs.coreutils}/bin/touch $out
+                    '';
+                });
 
             # Development shell for the live WezTerm window: cargo + rehearse
             # on every save with watchexec.
@@ -403,8 +424,6 @@
                             libx11
                             setups.${system}
                         ];
-                        # Acento de Neptunia para la UI.
-                        NIXDOTS_NEPTUNIA_ACCENT = "#${(import ./share/themes/neptunia.nix).c4}";
                         # Tablas que `lists` embebe: así `cargo clippy --workspace`
                         # compila el workspace entero también desde este shell.
                         NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
