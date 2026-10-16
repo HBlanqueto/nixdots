@@ -145,12 +145,6 @@
         };
     };
 
-    # AMD VA-API (radeonsi ships in mesa).
-    environment.sessionVariables = {
-        LIBVA_DRIVER_NAME = "radeonsi";
-    };
-    hardware.graphics.extraPackages = [ pkgs.mesa ];
-
     environment.systemPackages = with pkgs; [
         sbctl
         efibootmgr

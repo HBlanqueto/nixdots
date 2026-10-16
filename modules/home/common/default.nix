@@ -21,7 +21,6 @@
             CLUTTER_BACKEND = "wayland";
             NO_AT_BRIDGE = "1";
             NIXOS_OZONE_WL = "1";
-            LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
         };
 
         file = {

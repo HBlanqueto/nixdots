@@ -13,29 +13,13 @@
             enable = true;
         };
 
-        polkit = {
-            enable = true;
-        };
-
         rtkit = {
             enable = true;
-        };
-
-        pam = {
-            services = {
-                login = {
-                    enableGnomeKeyring = true;
-                };
-            };
         };
     };
 
     services = {
         bpftune.enable = true;
-        dbus.enable = true;
-        fstrim.enable = true;
-        gnome.gnome-keyring.enable = true;
-        gvfs.enable = true;
         seatd.enable = true;
 
         openssh = lib.mkIf config.nixdots.ssh.enable {

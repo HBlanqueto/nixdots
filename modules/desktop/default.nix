@@ -10,16 +10,13 @@
     hardware.graphics.enable = true;
 
     environment.systemPackages = with pkgs; [
-        gsettings-desktop-schemas
         libnotify
-        wireplumber
         playerctl
         wev
         grim
         slurp
         wl-clipboard
 
-        xwayland
         desktop-file-utils
         wayland-utils
         libinput
