@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Asistente de primer arranque</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;600;700&amp;family=Dancing+Script:wght@500&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1080px; box-sizing: border-box; position: relative; z-index: 0; overflow: hidden; background: #2b3038; font-family: 'Figtree', sans-serif; color: {{c.text}}">
+<img src="/_blob/b4a676aed649378e0d6c7ad4d5cb18f3" alt="" style="position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover">
+<div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: rgba(13,18,25,0.28)"></div>
+
+<div class="lay" style="flex-direction: column; align-items: center; justify-content: center; gap: 56px; opacity: {{hello.op}}; transform: {{hello.tf}}; pointer-events: {{hello.pe}}; transition: opacity .8s ease, transform .8s ease">
+<svg width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-label="Hola en varios idiomas" style="filter: drop-shadow(0 4px 24px rgba(0,0,0,0.25))">
+<g fill="#f4f7fb" stroke="#f4f7fb" stroke-width="1.6" stroke-linejoin="round" font-family="'Dancing Script', cursive" font-size="190" text-anchor="middle">
+<text class="wd" x="600" y="230" style="animation-delay: 0s">hola</text>
+<text class="wd" x="600" y="230" style="animation-delay: 3.5s">hello</text>
+<text class="wd" x="600" y="230" style="animation-delay: 7s">bienvenido</text>
+<text class="wd" x="600" y="230" style="animation-delay: 10.5s">bonjour</text>
+<text class="wd" x="600" y="230" style="animation-delay: 14s">olá</text>
+<text class="wd" x="600" y="230" style="animation-delay: 17.5s">ciao</text>
+</g>
+</svg>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px">
+<button class="go" onClick="{{toStart}}" aria-label="Empezar">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+</button>
+<span style="font-size: 13px; color: rgba(244,247,251,0.8)">Pulsa Intro para empezar</span>
+</div>
+</div>
+
+<div class="lay" style="align-items: center; justify-content: center; opacity: {{dlg.op}}; transform: {{dlg.tf}}; pointer-events: {{dlg.pe}}; transition: opacity .6s ease {{dlg.delay}}, transform .6s ease {{dlg.delay}}">
+<div role="dialog" aria-label="Asistente de configuración" style="width: 460px; box-sizing: border-box; background: {{c.card}}; border: 1px solid {{c.cardBorder}}; border-radius: 12px; box-shadow: {{c.shadow}}; padding: 28px 28px 20px; display: flex; flex-direction: column; gap: 16px; transition: background .4s ease, border-color .4s ease">
+<div style="position: relative; height: 448px; overflow: hidden">
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p1.op}}; transform: {{p1.tf}}; pointer-events: {{p1.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Elige tu idioma</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Se usará en el sistema, las apps y GNOME.</p></div>
+<div style="width: 100%; box-sizing: border-box; background: {{c.list}}; border: 1px solid {{c.listBorder}}; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 1px">
+<sc-for list="{{langs}}" as="l" hint-placeholder-count="5">
+<button class="opt" style="background: {{l.bg}}; color: {{c.text}}; font-weight: {{l.fw}}; justify-content: space-between" onClick="{{l.pick}}"><span>{{l.name}}</span><span style="color: {{c.accent}}; font-weight: 700">{{l.mark}}</span></button>
+</sc-for>
+</div>
+<div style="width: 100%; display: flex; flex-direction: column; gap: 10px">
+<div class="row"><label for="kb" style="font-size: 13px; color: {{c.sub}}; text-align: right">Teclado</label>
+<select id="kb" class="in" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"><option>Español (Latinoamérica)</option><option>Español (España)</option><option>Inglés (EE. UU.)</option></select></div>
+<div class="row"><label for="kt" style="font-size: 13px; color: {{c.sub}}; text-align: right">Prueba</label>
+<input id="kt" class="in" type="text" placeholder="Escribe ñ, á, ¿, ¡…" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+</div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p2.op}}; transform: {{p2.tf}}; pointer-events: {{p2.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0"></path><path d="M5 12a10.5 10.5 0 0 1 14 0"></path><path d="M8.5 15.5a5.5 5.5 0 0 1 7 0"></path><circle cx="12" cy="19" r="0.8"></circle></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Conéctate a una red</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Solo aparece si no hay cable ni Wi‑Fi conectado.</p></div>
+<div style="width: 100%; box-sizing: border-box; background: {{c.list}}; border: 1px solid {{c.listBorder}}; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 1px">
+<sc-for list="{{nets}}" as="n" hint-placeholder-count="4">
+<button class="opt" style="background: {{n.bg}}; color: {{c.text}}; font-weight: {{n.fw}}" onClick="{{n.pick}}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0"></path><path d="M5 12a10.5 10.5 0 0 1 14 0"></path><path d="M8.5 15.5a5.5 5.5 0 0 1 7 0"></path></svg>
+<span style="flex-grow: 1">{{n.name}}</span><span style="font-size: 12px; color: {{c.faint}}; font-weight: 400">{{n.sec}}</span>
+</button>
+</sc-for>
+</div>
+<div style="width: 100%"><div class="row"><label for="wpw" style="font-size: 13px; color: {{c.sub}}; text-align: right">Contraseña</label>
+<input id="wpw" class="in" type="password" value="contraseña" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div></div>
+<button class="lnk" style="color: {{c.sub}}" onClick="{{next}}">Continuar sin conexión</button>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p3.op}}; transform: {{p3.tf}}; pointer-events: {{p3.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Zona horaria</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Busca la ciudad más cercana.</p></div>
+<input class="in" type="text" placeholder="Buscar ciudad" aria-label="Buscar ciudad" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}">
+<div style="width: 100%; box-sizing: border-box; background: {{c.list}}; border: 1px solid {{c.listBorder}}; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; gap: 1px">
+<sc-for list="{{cities}}" as="t" hint-placeholder-count="5">
+<button class="opt" style="background: {{t.bg}}; color: {{c.text}}; font-weight: {{t.fw}}; justify-content: space-between" onClick="{{t.pick}}"><span>{{t.name}}</span><span style="font-size: 12px; color: {{c.faint}}; font-weight: 400">{{t.tz}}</span></button>
+</sc-for>
+</div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p4.op}}; transform: {{p4.tf}}; pointer-events: {{p4.pe}}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="width: 60px; height: 60px; border-radius: 999px; background: {{c.accent}}; color: {{c.accentInk}}; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700">HB</div>
+<button class="lnk" style="color: {{c.sub}}">Elegir foto</button>
+</div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Crea tu cuenta</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Será la cuenta de administrador de este equipo.</p></div>
+<div style="width: 100%; display: flex; flex-direction: column; gap: 10px">
+<div class="row"><label for="fn" style="font-size: 13px; color: {{c.sub}}; text-align: right">Nombre completo</label><input id="fn" class="in" type="text" value="Humberto Blanqueto" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+<div class="row"><label for="un" style="font-size: 13px; color: {{c.sub}}; text-align: right">Usuario</label><input id="un" class="in" type="text" value="humbertoblanqueto" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+<div class="row"><label for="p1" style="font-size: 13px; color: {{c.sub}}; text-align: right">Contraseña</label><input id="p1" class="in" type="password" value="••••••••••" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+<div class="row"><label for="p2" style="font-size: 13px; color: {{c.sub}}; text-align: right">Confirmar</label><input id="p2" class="in" type="password" value="••••••••••" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+<div class="row"><span></span><button class="lnk" style="display: flex; align-items: center; gap: 8px; color: {{c.text}}; font-weight: 400; font-size: 13px" onClick="{{toggleAuto}}"><span style="width: 32px; height: 18px; border-radius: 9px; background: {{autoBg}}; display: flex; align-items: center; justify-content: {{autoPos}}; padding: 0 2px; box-sizing: border-box"><span style="width: 14px; height: 14px; border-radius: 7px; background: #ffffff"></span></span>Iniciar sesión automáticamente</button></div>
+</div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p5.op}}; transform: {{p5.tf}}; pointer-events: {{p5.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"></rect><path d="M2 19h20"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Este equipo</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Esto es lo que se instaló. No hay nada que cambiar.</p></div>
+<div style="width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<div style="background: {{c.tile}}; border: 1px solid {{c.listBorder}}; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: {{c.faint}}">Modelo</span><span style="font-size: 14px; font-weight: 600; color: {{c.text}}">ThinkPad L14 Gen 2a</span></div>
+<div style="background: {{c.tile}}; border: 1px solid {{c.listBorder}}; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: {{c.faint}}">Procesador</span><span style="font-size: 14px; font-weight: 600; color: {{c.text}}">Ryzen 5 Pro 5650U</span></div>
+<div style="background: {{c.tile}}; border: 1px solid {{c.listBorder}}; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: {{c.faint}}">Memoria</span><span style="font-size: 14px; font-weight: 600; color: {{c.text}}">16 GiB</span></div>
+<div style="background: {{c.tile}}; border: 1px solid {{c.listBorder}}; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: {{c.faint}}">Disco</span><span style="font-size: 14px; font-weight: 600; color: {{c.text}}">System HD · 256 GB</span></div>
+</div>
+<div style="width: 100%; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 10px; background: {{c.list}}; border: 1px solid {{c.listBorder}}"><span style="font-size: 13px; color: {{c.sub}}">Nombre del equipo</span><span style="font-size: 13px; font-weight: 600; color: {{c.text}}">ThinkPad-L14-Gen2</span></div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p6.op}}; transform: {{p6.tf}}; pointer-events: {{p6.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Elige tu aspecto</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.</p></div>
+<div style="display: flex; gap: 16px; justify-content: center">
+<button class="mode" style="border-color: {{ringLight}}; color: {{c.text}}" onClick="{{pickLight}}">
+<span style="display: block; width: 136px; height: 86px; border-radius: 8px; overflow: hidden; position: relative; background: #e9edf3; border: 1px solid rgba(20,30,45,0.12)"><span style="position: absolute; left: 0; right: 0; top: 0; height: 10px; background: #f8f9fb"></span><span style="position: absolute; left: 20px; top: 24px; width: 96px; height: 52px; border-radius: 5px; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.12)"></span><span style="position: absolute; left: 28px; top: 32px; width: 36px; height: 6px; border-radius: 3px; background: {{c.accent}}"></span></span>
+<span>Claro</span>
+</button>
+<button class="mode" style="border-color: {{ringDark}}; color: {{c.text}}" onClick="{{pickDark}}">
+<span style="display: block; width: 136px; height: 86px; border-radius: 8px; overflow: hidden; position: relative; background: #1b2028; border: 1px solid rgba(238,244,250,0.12)"><span style="position: absolute; left: 0; right: 0; top: 0; height: 10px; background: #12161c"></span><span style="position: absolute; left: 20px; top: 24px; width: 96px; height: 52px; border-radius: 5px; background: #2a313c"></span><span style="position: absolute; left: 28px; top: 32px; width: 36px; height: 6px; border-radius: 3px; background: {{c.accent}}"></span></span>
+<span>Oscuro</span>
+</button>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 6px">
+<span style="font-size: 13px; color: {{c.sub}}">Color de acento</span>
+<div style="display: flex; gap: 10px">
+<sc-for list="{{swatches}}" as="s" hint-placeholder-count="9">
+<button class="sw" aria-label="{{s.label}}" style="background: {{s.color}}; box-shadow: {{s.ring}}" onClick="{{s.pick}}"></button>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: {{c.faint}}">{{accName}}</span>
+</div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p7.op}}; transform: {{p7.tf}}; pointer-events: {{p7.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.2"></circle><circle cx="6" cy="18" r="2.2"></circle><circle cx="18" cy="9" r="2.2"></circle><path d="M6 8.2v7.6"></path><path d="M18 11.2c0 3-4 3.5-10.5 5.5"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Git</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Opcional. Puedes configurarlo después.</p></div>
+<button class="opt" style="height: 44px; background: {{c.list}}; border: 1px solid {{c.listBorder}}; color: {{c.text}}; font-weight: 600; justify-content: space-between" onClick="{{toggleGit}}"><span>Configurar Git ahora</span><span style="width: 36px; height: 20px; border-radius: 10px; background: {{gitBg}}; display: flex; align-items: center; justify-content: {{gitPos}}; padding: 0 2px; box-sizing: border-box"><span style="width: 16px; height: 16px; border-radius: 8px; background: #ffffff"></span></span></button>
+<sc-if value="{{gitOn}}" hint-placeholder-val="{{ false }}">
+<div style="width: 100%; display: flex; flex-direction: column; gap: 10px">
+<div class="row"><label for="gn" style="font-size: 13px; color: {{c.sub}}; text-align: right">Nombre</label><input id="gn" class="in" type="text" value="Humberto Blanqueto" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+<div class="row"><label for="ge" style="font-size: 13px; color: {{c.sub}}; text-align: right">Correo</label><input id="ge" class="in" type="email" placeholder="tu@correo" style="background: {{c.field}}; border: 1px solid {{c.fieldBorder}}; color: {{c.text}}"></div>
+</div>
+</sc-if>
+<sc-if value="{{gitOff}}" hint-placeholder-val="{{ true }}">
+<p style="margin: 0; font-size: 13px; color: {{c.faint}}">Desactivado: tu nombre y correo de Git quedan vacíos.</p>
+</sc-if>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; gap: 14px; opacity: {{p8.op}}; transform: {{p8.tf}}; pointer-events: {{p8.pe}}">
+<div style="width: 44px; height: 44px; border-radius: 12px; background: {{c.sel}}; color: {{c.accent}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 20px; font-weight: 700; color: {{c.text}}">Todo listo</h1><p style="margin: 4px 0 0; font-size: 13px; color: {{c.sub}}">Revisa antes de aplicar. Puedes volver para cambiar algo.</p></div>
+<div style="width: 100%; box-sizing: border-box; background: {{c.list}}; border: 1px solid {{c.listBorder}}; border-radius: 8px; padding: 2px 14px; display: flex; flex-direction: column">
+<sc-for list="{{summary}}" as="r" hint-placeholder-count="7">
+<div style="display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid {{r.line}}; font-size: 13px"><span style="color: {{c.sub}}">{{r.k}}</span><span style="color: {{c.text}}; font-weight: 600; text-align: right">{{r.v}}</span></div>
+</sc-for>
+</div>
+</div>
+
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid {{c.line}}; padding-top: 16px">
+<div style="display: flex; gap: 5px; align-items: center">
+<sc-for list="{{dots}}" as="d" hint-placeholder-count="8">
+<span style="display: block; width: {{d.w}}; height: 5px; border-radius: 3px; background: {{d.bg}}; transition: width .3s ease, background .3s ease"></span>
+</sc-for>
+</div>
+<div style="display: flex; gap: 8px">
+<button class="btn" style="background: {{c.sec}}; color: {{c.secInk}}" onClick="{{back}}">Atrás</button>
+<button class="btn" style="background: {{c.accent}}; color: {{c.accentInk}}" onClick="{{next}}">{{nextLabel}}</button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; justify-content: center; gap: 22px; color: #f4f7fb; opacity: {{prep.op}}; transform: {{prep.tf}}; pointer-events: {{prep.pe}}; transition: opacity .7s ease, transform .7s ease">
+<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f4f7fb" stroke-width="2.2" stroke-linecap="round" style="animation: sp 1s linear infinite" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em; text-shadow: 0 2px 16px rgba(0,0,0,0.3)">Preparando tu escritorio</h1><p style="margin: 8px 0 0; font-size: 15px; color: rgba(244,247,251,0.82)">Aplicando la configuración de nixdots. El equipo se reiniciará al terminar.</p></div>
+<div style="width: 420px; height: 6px; border-radius: 3px; background: rgba(244,247,251,0.22); overflow: hidden"><span style="display: block; height: 6px; border-radius: 3px; background: #f4f7fb; width: 62%; animation: {{barAnim}}"></span></div>
+<div style="font-size: 14px; color: rgba(244,247,251,0.9)">Creando la cuenta de humbertoblanqueto…</div>
+<button class="lnk" style="color: rgba(244,247,251,0.75)" onClick="{{toggleLog}}">{{logLabel}}</button>
+<sc-if value="{{logOpen}}" hint-placeholder-val="{{ false }}">
+<div style="width: 680px; height: 170px; box-sizing: border-box; padding: 12px 16px; border-radius: 12px; background: rgba(13,18,25,0.62); border: 1px solid rgba(238,244,250,0.1); font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; color: #adbac7; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end">
+<div>escribiendo /persist/nixdots/user.json</div>
+<div>escribiendo /persist/secrets/humbertoblanqueto.hash (0600)</div>
+<div><span style="color: #97b7ff">$</span> nixos-rebuild boot --impure --flake /persist/nixdots/repo#ThinkPad-L14-Gen2</div>
+<div>building the system configuration...</div>
+<div style="color: #eef4fa">installing boot entry</div>
+</div>
+</sc-if>
+</div>
+
+<div class="lay" style="flex-direction: column; align-items: center; justify-content: center; gap: 26px; color: #f4f7fb; opacity: {{listo.op}}; transform: {{listo.tf}}; pointer-events: {{listo.pe}}; transition: opacity .8s ease, transform .8s ease">
+<div style="width: 104px; height: 104px; border-radius: 999px; background: {{c.accent}}; color: {{c.accentInk}}; display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 700; box-shadow: 0 10px 40px rgba(0,0,0,0.3)">HB</div>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; text-shadow: 0 2px 16px rgba(0,0,0,0.3)">Te damos la bienvenida, Humberto</h1><p style="margin: 10px 0 0; font-size: 16px; color: rgba(244,247,251,0.85)">Al reiniciar entrarás directamente a tu escritorio GNOME.</p></div>
+<div style="display: flex; gap: 10px">
+<div style="width: 190px; box-sizing: border-box; padding: 14px 16px; border-radius: 12px; background: rgba(13,18,25,0.38); border: 1px solid rgba(238,244,250,0.14); display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(244,247,251,0.7)">Usuario</span><span style="font-size: 14px; font-weight: 600">humbertoblanqueto</span></div>
+<div style="width: 190px; box-sizing: border-box; padding: 14px 16px; border-radius: 12px; background: rgba(13,18,25,0.38); border: 1px solid rgba(238,244,250,0.14); display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(244,247,251,0.7)">Equipo</span><span style="font-size: 14px; font-weight: 600">ThinkPad-L14-Gen2</span></div>
+<div style="width: 190px; box-sizing: border-box; padding: 14px 16px; border-radius: 12px; background: rgba(13,18,25,0.38); border: 1px solid rgba(238,244,250,0.14); display: flex; flex-direction: column; gap: 3px"><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(244,247,251,0.7)">Zona horaria</span><span style="font-size: 14px; font-weight: 600">{{tz}}</span></div>
+</div>
+<button class="btn" style="height: 40px; min-width: 200px; font-size: 15px; border-radius: 999px; background: #f4f7fb; color: #13171d" onClick="{{restart}}">Reiniciar y empezar</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"paso":{"editor":"int","default":0,"min":0,"max":10},"tema":{"editor":"enum","default":"claro","options":["claro","oscuro"]},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+componentDidUpdate(pp, ps) {
+const prev = (ps || {}).step;
+const cur = (this.state || {}).step;
+if (cur === 9 && prev !== 9) {
+clearTimeout(this.t);
+this.t = setTimeout(() => this.setState({ step: 10 }), 7000);
+}
+}
+componentWillUnmount() { clearTimeout(this.t); }
+renderVals() {
+const st = this.state || {};
+const step = st.step ?? (parseInt(this.props.paso, 10) || 0);
+const mode = st.mode ?? (this.props.tema === 'oscuro' ? 'dark' : 'light');
+const light = {
+card: 'rgba(250,251,253,0.95)', cardBorder: 'rgba(20,30,45,0.10)', shadow: '0 24px 70px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.12)',
+text: '#1b2330', sub: '#566273', faint: '#7d8898', line: 'rgba(20,30,45,0.08)',
+field: '#ffffff', fieldBorder: 'rgba(20,30,45,0.16)', list: 'rgba(20,30,45,0.035)', listBorder: 'rgba(20,30,45,0.08)',
+sel: 'rgba(79,111,179,0.13)', accent: '#4f6fb3', accentInk: '#ffffff', sec: 'rgba(20,30,45,0.07)', secInk: '#1b2330',
+tile: '#ffffff', dotOff: 'rgba(20,30,45,0.16)', dotPast: 'rgba(20,30,45,0.38)'
+};
+const dark = {
+card: 'rgba(24,29,37,0.94)', cardBorder: 'rgba(238,244,250,0.09)', shadow: '0 24px 70px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)',
+text: '#eef4fa', sub: '#8d9bb0', faint: '#6b7a90', line: 'rgba(238,244,250,0.07)',
+field: 'rgba(13,18,25,0.55)', fieldBorder: 'rgba(238,244,250,0.1)', list: 'rgba(13,18,25,0.45)', listBorder: 'rgba(238,244,250,0.07)',
+sel: 'rgba(128,154,210,0.18)', accent: '#809ad2', accentInk: '#0d1219', sec: 'rgba(238,244,250,0.08)', secInk: '#cdd9e5',
+tile: 'rgba(13,18,25,0.45)', dotOff: '#2f3a49', dotPast: '#55657e'
+};
+const accents = [
+{ id: 'blue', label: 'Azul', color: '#3584e4' }, { id: 'teal', label: 'Verde azulado', color: '#2190a4' },
+{ id: 'green', label: 'Verde', color: '#3a944a' }, { id: 'yellow', label: 'Amarillo', color: '#c88800' },
+{ id: 'orange', label: 'Naranja', color: '#ed5b00' }, { id: 'red', label: 'Rojo', color: '#e62d42' },
+{ id: 'pink', label: 'Rosa', color: '#d56199' }, { id: 'purple', label: 'Morado', color: '#9141ac' },
+{ id: 'slate', label: 'Pizarra', color: '#6f8396' }
+];
+const acc = accents.find((a) => a.id === st.acc);
+const c = Object.assign({}, mode === 'dark' ? dark : light);
+if (acc) { c.accent = acc.color; c.accentInk = '#ffffff'; }
+const lay = (i) => ({
+op: i === step ? 1 : 0,
+tf: i === step ? 'translateX(0)' : (i < step ? 'translateX(-28px)' : 'translateX(28px)'),
+pe: i === step ? 'auto' : 'none'
+});
+const full = (i) => ({ op: step === i ? 1 : 0, tf: step === i ? 'scale(1)' : 'scale(1.03)', pe: step === i ? 'auto' : 'none' });
+const inDlg = step >= 1 && step <= 8;
+const go = (n) => this.setState({ step: Math.max(0, Math.min(10, n)) });
+const langs = [
+{ id: 'es-MX', name: 'Español (México)' }, { id: 'es-ES', name: 'Español (España)' },
+{ id: 'en-US', name: 'English (United States)' }, { id: 'pt-BR', name: 'Português (Brasil)' }, { id: 'fr-FR', name: 'Français' }
+];
+const lang = st.lang ?? 'es-MX';
+const nets = [
+{ name: 'Casa', sec: 'Segura' }, { name: 'Casa 5G', sec: 'Segura' }, { name: 'Oficina', sec: 'Segura' }, { name: 'Invitados', sec: 'Abierta' }
+];
+const net = st.net ?? 0;
+const cities = [
+{ name: 'Mérida', tz: 'America/Merida' }, { name: 'Ciudad de México', tz: 'America/Mexico_City' },
+{ name: 'Monterrey', tz: 'America/Monterrey' }, { name: 'Tijuana', tz: 'America/Tijuana' }, { name: 'Madrid', tz: 'Europe/Madrid' }
+];
+const city = st.city ?? 0;
+const auto = st.auto ?? false;
+const gitOn = st.git ?? false;
+const logOpen = st.log ?? false;
+const pick = (on) => ({ bg: on ? c.sel : 'transparent', fw: on ? 600 : 400 });
+const accName = acc ? acc.label : 'Neptunia (predeterminado)';
+const summaryRows = [
+{ k: 'Idioma', v: langs.find((l) => l.id === lang).name },
+{ k: 'Teclado', v: 'Español (Latinoamérica)' },
+{ k: 'Zona horaria', v: cities[city].tz },
+{ k: 'Cuenta', v: 'humbertoblanqueto' },
+{ k: 'Equipo', v: 'ThinkPad-L14-Gen2' },
+{ k: 'Aspecto', v: (mode === 'dark' ? 'Oscuro' : 'Claro') + ' · ' + accName },
+{ k: 'Git', v: gitOn ? 'Humberto Blanqueto' : 'Sin configurar' }
+];
+return {
+c: c,
+hello: { op: step === 0 ? 1 : 0, tf: step === 0 ? 'scale(1)' : 'scale(1.04)', pe: step === 0 ? 'auto' : 'none' },
+dlg: { op: inDlg ? 1 : 0, tf: inDlg ? 'scale(1)' : 'scale(0.97)', pe: inDlg ? 'auto' : 'none', delay: inDlg ? '0.35s' : '0s' },
+p1: lay(1), p2: lay(2), p3: lay(3), p4: lay(4), p5: lay(5), p6: lay(6), p7: lay(7), p8: lay(8),
+prep: full(9), listo: full(10),
+toStart: () => go(1),
+back: () => go(step - 1),
+next: () => go(step + 1),
+nextLabel: step === 8 ? 'Aplicar' : 'Continuar',
+restart: () => this.setState({ step: 0 }),
+dots: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ w: i === step ? '14px' : '5px', bg: i === step ? c.accent : (i < step ? c.dotPast : c.dotOff) })),
+langs: langs.map((l) => Object.assign({ name: l.name, mark: l.id === lang ? '✓' : '', pick: () => this.setState({ lang: l.id }) }, pick(l.id === lang))),
+nets: nets.map((n, i) => Object.assign({ name: n.name, sec: n.sec, pick: () => this.setState({ net: i }) }, pick(i === net))),
+cities: cities.map((t, i) => Object.assign({ name: t.name, tz: t.tz, pick: () => this.setState({ city: i }) }, pick(i === city))),
+tz: cities[city].tz,
+autoBg: auto ? c.accent : c.dotOff, autoPos: auto ? 'flex-end' : 'flex-start', toggleAuto: () => this.setState({ auto: !auto }),
+ringLight: mode === 'light' ? c.accent : 'transparent', ringDark: mode === 'dark' ? c.accent : 'transparent',
+pickLight: () => this.setState({ mode: 'light' }), pickDark: () => this.setState({ mode: 'dark' }),
+swatches: accents.map((a) => ({ color: a.color, label: a.label, ring: acc && acc.id === a.id ? '0 0 0 2px ' + c.card + ', 0 0 0 4px ' + a.color : 'none', pick: () => this.setState({ acc: a.id }) })),
+accName: accName,
+gitOn: gitOn, gitOff: !gitOn, gitBg: gitOn ? c.accent : c.dotOff, gitPos: gitOn ? 'flex-end' : 'flex-start', toggleGit: () => this.setState({ git: !gitOn }),
+summary: summaryRows.map((r, i) => ({ k: r.k, v: r.v, line: i === summaryRows.length - 1 ? 'transparent' : c.line })),
+barAnim: st.step === 9 ? 'fill 7s linear forwards' : 'none',
+logOpen: logOpen, logLabel: logOpen ? 'Ocultar detalles' : 'Mostrar detalles', toggleLog: () => this.setState({ log: !logOpen })
+};
+}
+}
+</script>
+</body>
+</html>
