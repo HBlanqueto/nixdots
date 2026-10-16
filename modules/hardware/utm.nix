@@ -2,8 +2,8 @@
 
 {
     # UTM (QEMU backend) on Apple Silicon, native aarch64. Stock kernel and
-    # plain systemd-boot: no CachyOS kernel, no Lanzaboote/Secure Boot, no
-    # AMD microcode, TLP, fprintd or battery handling.
+    # plain systemd-boot: no Lanzaboote/Secure Boot, no AMD microcode, TLP,
+    # fprintd or battery handling.
     boot = {
         loader.systemd-boot.enable = true;
         loader.systemd-boot.configurationLimit = 5;

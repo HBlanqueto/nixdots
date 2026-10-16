@@ -1,11 +1,10 @@
 { config, ... }:
 
 {
-    # Boot settings shared by both hosts. The kernel, bootloader and the
-    # impermanence rollback are host-specific (see modules/hardware/*.nix).
+    # Boot settings shared by both hosts. The kernel is host-specific, and the
+    # bootloader and the impermanence rollback still live under modules/hardware
+    # for now (see modules/hardware/*.nix).
     boot = {
-        tmp.cleanOnBoot = true;
-
         loader.efi.canTouchEfiVariables = true;
 
         consoleLogLevel = 3;
