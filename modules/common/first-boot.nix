@@ -1,7 +1,6 @@
-# Primer arranque: `firstBoot` lo calcula el flake y llega por specialArgs
-# (impuro y sin user.json en un host real; siempre en la VM hasta que el
-# asistente escriba user.json). Con `firstBoot` false el módulo no hace nada.
-{ config, lib, pkgs, inputs, firstBoot, ... }:
+# Primer arranque: `firstBoot` lo calcula lib/data.nix (impuro y sin user.json
+# en un host real). Con `firstBoot` false el módulo no hace nada.
+{ config, lib, pkgs, inputs, data, ... }:
 
 let
     cfg = config.nixdots.firstBoot;
@@ -38,7 +37,7 @@ in
         description = "Comando que se ejecuta en el primer arranque (el asistente gráfico).";
     };
 
-    config = lib.mkIf firstBoot {
+    config = lib.mkIf data.firstBoot {
         # Sin cuenta todavía no hay contraseña; el autologin de greetd entra
         # como root. Al declarar el usuario se vuelve a reconstruir sin esto.
         users.allowNoPasswordLogin = true;

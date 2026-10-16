@@ -1,5 +1,8 @@
-{ pkgs, lib, username, ... }:
+{ pkgs, lib, data, ... }:
 
+let
+    username = data.settings.username or null;
+in
 lib.optionalAttrs (username != null) {
     home-manager.users.${username} = {
         # `uv` provides `uv tool install graphifyy`; installed tools land in

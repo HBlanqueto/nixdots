@@ -1,4 +1,4 @@
-{ config, lib, pkgs, data, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
+{ config, lib, pkgs, data, ... }:
 
 let
     theme = import ../../share/themes;
@@ -7,6 +7,13 @@ let
     # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
     # where the file lives. On a normal system the variable is unset ("").
     inherit (data) root;
+
+    # Todo lo personal sale de data.settings (settings.nix + user.json).
+    inherit (data.settings) username userdescription timeZone defaultLocale keyboardLayout keyboardVariant;
+
+    # Derivado del usuario: no se guarda en ningún archivo.
+    hashedPasswordFile =
+        if username == null then null else "/persist/secrets/${username}.hash";
 
     # Every declared normal user must point at an existing password hash file.
     # With mutableUsers = false a missing file leaves the account without a
@@ -41,7 +48,7 @@ in
     };
 
     networking = {
-        inherit hostName;
+        hostName = data.hostName;
     };
 
     users = {

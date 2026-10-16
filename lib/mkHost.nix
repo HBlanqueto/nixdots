@@ -5,15 +5,18 @@
 # aarch64-linux configuration. `hostName` is used both as the flake output
 # name and as networking.hostName, so `nixos-rebuild switch --flake ~/nixdots`
 # resolves the host automatically.
-{ inputs, data }:
+{ inputs, data, theme }:
 { hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
+    # Todo llega por `data` (más inputs/theme); no hay argumentos sueltos.
+    # hostName es per-config y machineData lo elige el perfil (el genérico usa
+    # machine.json; los hosts con hardware propio no).
     specialArgs = {
-        inherit inputs hostName machineData data;
-        firstBoot = data.firstBoot;
-    } // import ./specialArgs.nix { settings = data.settings; };
+        inherit inputs theme;
+        data = data // { inherit hostName; machine = machineData; };
+    };
 
     # Common + desktop layers are shared; the host supplies its own
     # hardware module and hardware-configuration.nix.

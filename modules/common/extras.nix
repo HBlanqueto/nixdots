@@ -2,11 +2,12 @@
 # machine's machineData.extras (machine.json); a host may still override any of
 # them. Everything is off when the data is missing (CI, pure evaluation), so the
 # existing hosts are unaffected.
-{ config, lib, pkgs, username, machineData ? { }, ... }:
+{ config, lib, pkgs, data, ... }:
 
 let
     cfg = config.nixdots.extras;
-    extraData = machineData.extras or { };
+    username = data.settings.username or null;
+    extraData = data.machine.extras or { };
 in
 {
     options.nixdots.extras = {

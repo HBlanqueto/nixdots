@@ -1,6 +1,8 @@
-{ pkgs, lib, inputs, gitName, gitEmail, stateVersion, theme, ... }:
+{ pkgs, lib, inputs, data, theme, ... }:
 
 let
+    inherit (data.settings) gitName gitEmail stateVersion;
+
     yaziConfig = import ./config/yazi;
 
     hexToRgb = hex:

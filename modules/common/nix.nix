@@ -1,4 +1,4 @@
-{ lib, inputs, stateVersion, ... }:
+{ lib, inputs, data, ... }:
 
 {
     nix = {
@@ -36,5 +36,5 @@
         man.enable = false;
     };
 
-    system.stateVersion = stateVersion;
+    system.stateVersion = data.settings.stateVersion;
 }

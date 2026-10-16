@@ -1,9 +1,9 @@
-# Per-machine facts that are not committed to the repo. flake.nix reads them
-# from ${NIXDOTS_ROOT}/persist/nixdots/machine.json and passes the parsed JSON
-# as the `machineData` specialArg. In a pure evaluation (CI, `nix flake check`)
-# machineData is { }, so every option below falls back to a safe default:
-# no encryption, no Secure Boot, no extra peripherals.
-{ config, lib, machineData ? { }, ... }:
+# Per-machine facts that are not committed to the repo. lib/data.nix reads them
+# from ${NIXDOTS_ROOT}/persist/nixdots/machine.json and mkHost exposes them as
+# `data.machine`. In a pure evaluation (CI, `nix flake check`), or for a host
+# with its own hardware file, `data.machine` is { }, so every option below falls
+# back to a safe default: no encryption, no Secure Boot, no extra peripherals.
+{ config, lib, data, ... }:
 
 {
     options.nixdots.machine = {
@@ -40,11 +40,11 @@
 
     config = {
         nixdots.machine = {
-            hostName = lib.mkDefault (machineData.hostName or "nixdots");
-            encrypt = lib.mkDefault (machineData.encrypt or false);
-            luksUuid = lib.mkDefault (machineData.luksUuid or "");
-            secureBoot = lib.mkDefault (machineData.secureBoot or false);
-            tpmUnlock = lib.mkDefault (machineData.tpmUnlock or false);
+            hostName = lib.mkDefault (data.machine.hostName or "nixdots");
+            encrypt = lib.mkDefault (data.machine.encrypt or false);
+            luksUuid = lib.mkDefault (data.machine.luksUuid or "");
+            secureBoot = lib.mkDefault (data.machine.secureBoot or false);
+            tpmUnlock = lib.mkDefault (data.machine.tpmUnlock or false);
         };
 
         # The generic encryption module (modules/common/encryption.nix) owns the

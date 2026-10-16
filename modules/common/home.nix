@@ -1,20 +1,19 @@
-{ inputs, lib, hostName, username, gitName, gitEmail, stateVersion, ... }:
+{ inputs, lib, data, theme, ... }:
 
-let
-    theme = import ../../share/themes;
-in
-lib.mkIf (username != null) {
+lib.mkIf (data.settings.username != null) {
     home-manager = {
         backupFileExtension = "backup";
 
         useGlobalPkgs = true;
         useUserPackages = true;
 
+        # Los módulos de home-manager reciben el mismo data/theme, no campos
+        # sueltos.
         extraSpecialArgs = {
-            inherit inputs theme hostName username gitName gitEmail stateVersion;
+            inherit inputs theme data;
         };
 
-        users.${username} = {
+        users.${data.settings.username} = {
             imports = [
                 ../home/common
                 ../home/desktop

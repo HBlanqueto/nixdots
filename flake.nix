@@ -28,7 +28,12 @@
             # impure (ver mkHost).
             data = import ./lib/data.nix;
 
-            mkHost = import ./lib/mkHost.nix { inherit inputs data; };
+            # El tema (colores, filecolors, vscode) se importa una sola vez y
+            # baja por specialArgs/extraSpecialArgs a los módulos, y como
+            # argumento a los paquetes que lo usan.
+            theme = import ./share/themes;
+
+            mkHost = import ./lib/mkHost.nix { inherit inputs data theme; };
 
             # Módulos exclusivos del perfil único (asumen el layout de disko y/o
             # un informe de facter); no los importa ningún host con hardware
@@ -100,12 +105,12 @@
                 inherit system;
 
                 specialArgs = {
-                    inherit inputs hostName data;
-                    # En la VM el asistente siempre arranca hasta que el propio
-                    # asistente escriba user.json (entonces el rebuild interno ya
-                    # crea la cuenta).
-                    firstBoot = !data.hasUser;
-                } // import ./lib/specialArgs.nix { settings = data.settings; };
+                    inherit inputs theme;
+                    # hostName es lo único per-config que los módulos necesitan
+                    # además de data; se inyecta en data para no tener más
+                    # specialArgs sueltos.
+                    data = data // { inherit hostName; };
+                };
 
                 modules = [
                     ./modules/desktop
