@@ -147,6 +147,7 @@ component TileIcon inherits Rectangle {
     in property <string> icon;
     in property <length> size: 24px;
     in property <length> radius: 7px;
+    in property <length> glyph-size: 15px;
     width: size;
     height: size;
     border-radius: radius;
@@ -154,7 +155,7 @@ component TileIcon inherits Rectangle {
     MiniIcon {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        size: size - 9px;
+        size: root.glyph-size;
         ink: #ffffff;
         commands: root.icon;
     }
@@ -509,7 +510,7 @@ component InfoTile inherits Rectangle {
     horizontal-stretch: 1;
     height: tile-h;
     border-radius: Tokens.radiuslg;
-    background: Tokens.bgSurface.mix(tint, 0.12);
+    background: Tokens.bgSurface.mix(tint, Tokens.dark ? 0.16 : 0.12);
     border-width: 1px;
     border-color: Tokens.line.mix(tint, 0.22);
     VerticalLayout {
@@ -562,6 +563,7 @@ component InfoTile inherits Rectangle {
             border-radius: 3px;
             background: Tokens.bgControl;
             Rectangle {
+                x: 0;
                 width: root.fill * parent.width;
                 height: 100%;
                 border-radius: 3px;
@@ -935,6 +937,9 @@ export component AppWindow inherits Window {
                         drop-shadow-offset-y: 4px;
                         animate background { duration: Tokens.durFast; }
                         HorizontalLayout {
+                            y: 0;
+                            width: 100%;
+                            height: 100%;
                             alignment: center;
                             spacing: 8px;
                             Text {
@@ -944,16 +949,21 @@ export component AppWindow inherits Window {
                                 font-size: 13px;
                                 font-weight: 600;
                                 wrap: no-wrap;
+                                height: 100%;
+                                vertical-alignment: center;
                                 opacity: State.g-shown ? 1 : 0;
                                 animate opacity { duration: 450ms; }
                             }
-                            MiniIcon {
-                                size: 14px;
-                                sw: 2px;
-                                ink: #ffffff;
-                                commands: State.greets[State.gi].rtl
-                                    ? "M19 12 L5 12 M11 6 L5 12 L11 18"
-                                    : "M5 12 L19 12 M13 6 L19 12 L13 18";
+                            VerticalLayout {
+                                alignment: center;
+                                MiniIcon {
+                                    size: 14px;
+                                    sw: 2px;
+                                    ink: #ffffff;
+                                    commands: State.greets[State.gi].rtl
+                                        ? "M19 12 L5 12 M11 6 L5 12 L11 18"
+                                        : "M5 12 L19 12 M13 6 L19 12 L13 18";
+                                }
                             }
                         }
                         ta := TouchArea {
@@ -1247,6 +1257,8 @@ export component AppWindow inherits Window {
                             Field {
                                 label: "Nombre completo";
                                 text <=> State.full-name;
+                                help: State.full-name == "" ? "Escribe tu nombre" : "";
+                                error: State.full-name == "";
                                 edited(t) => { root.name-edited(t); }
                             }
                             Field {
@@ -1309,6 +1321,7 @@ export component AppWindow inherits Window {
                             spacing: 12px;
                             Rectangle {
                                 width: 100%;
+                                height: tz-row.height;
                                 border-radius: Tokens.radiuslg;
                                 background: Tokens.bgSurface;
                                 border-width: 1px;
@@ -1731,6 +1744,7 @@ export component AppWindow inherits Window {
                     background: rgba(255, 255, 255, 0.24);
                     clip: true;
                     Rectangle {
+                        x: 0;
                         width: (State.prep-phase + 1) * (parent.width / 5);
                         height: 100%;
                         border-radius: Tokens.radiuspill;
@@ -1739,7 +1753,7 @@ export component AppWindow inherits Window {
                     }
                 }
             }
-            Text {
+            if State.apply-error == "" : Text {
                 text: State.prep-phase == 0 ? "Creando tu cuenta…"
                     : State.prep-phase == 1 ? "Aplicando idioma y región…"
                     : State.prep-phase == 2 ? "Construyendo el sistema…"
@@ -1803,6 +1817,7 @@ export component AppWindow inherits Window {
             color: rgba(255, 255, 255, 0.72);
             font-size: 13px;
             horizontal-alignment: center;
+            visible: State.apply-error == "";
         }
     }
 
