@@ -1,0 +1,54 @@
+// Paletas del asistente, copiadas de docs/first-boot/mockup-asistente.html
+// (objetos `light` y `dark`). El tema claro es el de por defecto; `dark`
+// cambia todo al instante porque los colores se derivan de él.
+
+import "fonts/DancingScript-Regular.ttf";
+import "fonts/DancingScript-Bold.ttf";
+
+export struct Accent {
+    color: color,
+    label: string,
+}
+
+export global Theme {
+    in-out property <bool> dark: false;
+    // -1 = acento Neptunia (el de la paleta); >= 0 = color elegido.
+    in-out property <int> accent-index: -1;
+
+    out property <[Accent]> accents: [
+        { color: #3584e4, label: "Azul" },
+        { color: #2190a4, label: "Verde azulado" },
+        { color: #3a944a, label: "Verde" },
+        { color: #c88800, label: "Amarillo" },
+        { color: #ed5b00, label: "Naranja" },
+        { color: #e62d42, label: "Rojo" },
+        { color: #d56199, label: "Rosa" },
+        { color: #9141ac, label: "Morado" },
+        { color: #6f8396, label: "Pizarra" },
+    ];
+
+    out property <color> accent: accent-index < 0
+        ? (dark ? #809ad2 : #4f6fb3)
+        : accents[max(0, min(accent-index, accents.length - 1))].color;
+    out property <color> accent-ink: (accent-index < 0 && dark) ? #0d1219 : #ffffff;
+    out property <string> accent-name: accent-index < 0
+        ? "Neptunia (predeterminado)"
+        : accents[max(0, min(accent-index, accents.length - 1))].label;
+
+    out property <color> card: dark ? rgba(24, 29, 37, 0.94) : rgba(250, 251, 253, 0.95);
+    out property <color> card-border: dark ? rgba(238, 244, 250, 0.09) : rgba(20, 30, 45, 0.10);
+    out property <color> text: dark ? #eef4fa : #1b2330;
+    out property <color> sub: dark ? #8d9bb0 : #566273;
+    out property <color> faint: dark ? #6b7a90 : #7d8898;
+    out property <color> line: dark ? rgba(238, 244, 250, 0.07) : rgba(20, 30, 45, 0.08);
+    out property <color> field: dark ? rgba(13, 18, 25, 0.55) : #ffffff;
+    out property <color> field-border: dark ? rgba(238, 244, 250, 0.10) : rgba(20, 30, 45, 0.16);
+    out property <color> list: dark ? rgba(13, 18, 25, 0.45) : rgba(20, 30, 45, 0.035);
+    out property <color> list-border: dark ? rgba(238, 244, 250, 0.07) : rgba(20, 30, 45, 0.08);
+    out property <color> sel: dark ? rgba(128, 154, 210, 0.18) : rgba(79, 111, 179, 0.13);
+    out property <color> sec: dark ? rgba(238, 244, 250, 0.08) : rgba(20, 30, 45, 0.07);
+    out property <color> sec-ink: dark ? #cdd9e5 : #1b2330;
+    out property <color> tile: dark ? rgba(13, 18, 25, 0.45) : #ffffff;
+    out property <color> dot-off: dark ? #2f3a49 : rgba(20, 30, 45, 0.16);
+    out property <color> dot-past: dark ? #55657e : rgba(20, 30, 45, 0.38);
+}

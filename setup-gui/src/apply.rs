@@ -1,13 +1,15 @@
-//! Ejecuta el CLI `nixdots-setup apply` con `gio::Subprocess`: sin hilos,
-//! lectura asíncrona línea a línea. La contraseña va por stdin y se cierra.
+//! Ejecuta el CLI `nixdots-setup apply`, con la contraseña por stdin.
+//!
+//! Fase 4a: siempre `--dry-run`. En 4b se quitará para aplicar de verdad. La
+//! salida se recoge completa y se muestra en «Mostrar detalles» (no se
+//! transmite en vivo; ver shortcut).
 
-use gtk::gio;
-use gtk::gio::prelude::*;
-use gtk::glib::Priority;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
-/// Escribe el JSON en un directorio temporal único (0700) y devuelve su ruta
-/// (archivo 0600).
-fn write_json(json: &str) -> std::io::Result<std::path::PathBuf> {
+/// Escribe el JSON en un directorio temporal único (0700) con el archivo 0600.
+fn write_json(json: &str) -> std::io::Result<PathBuf> {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
@@ -40,105 +42,43 @@ fn cli() -> std::ffi::OsString {
     "nixdots-setup".into()
 }
 
-/// Lanza `nixdots-setup apply` y llama a `on_line` por cada línea y a `on_done`
-/// una vez, con `true` si terminó bien.
-pub fn start<F, D>(
+/// Lanza `nixdots-setup apply <json>` y devuelve `(éxito, salida)`.
+///
+/// shortcut: no transmite la salida línea a línea; en 4b, si hace falta el
+/// progreso en vivo, leer stdout/stderr en hilos mientras corre.
+pub fn run(
     json: &str,
     repo: &str,
     dry_run: bool,
     password: &str,
-    on_line: F,
-    on_done: D,
-) -> Result<(), String>
-where
-    F: Fn(&str) + Clone + 'static,
-    D: Fn(bool) + Clone + 'static,
-{
+) -> Result<(bool, String), String> {
     let path = write_json(json).map_err(|e| format!("no se pudo escribir los datos: {e}"))?;
 
-    let mut argv: Vec<std::ffi::OsString> = vec![cli(), "apply".into(), path.into_os_string()];
+    let mut cmd = Command::new(cli());
+    cmd.arg("apply").arg(&path);
     if !repo.is_empty() {
-        argv.push("--repo".into());
-        argv.push(repo.into());
+        cmd.arg("--repo").arg(repo);
     }
     if dry_run {
-        argv.push("--dry-run".into());
+        cmd.arg("--dry-run");
     }
-    let argv_ref: Vec<&std::ffi::OsStr> = argv.iter().map(|s| s.as_os_str()).collect();
-
-    let launcher = gio::SubprocessLauncher::new(
-        gio::SubprocessFlags::STDIN_PIPE
-            | gio::SubprocessFlags::STDOUT_PIPE
-            | gio::SubprocessFlags::STDERR_PIPE,
-    );
-    let subprocess = launcher
-        .spawn(&argv_ref)
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("no se pudo ejecutar el CLI: {e}"))?;
 
     // Contraseña por stdin y cierre inmediato (el CLI lee hasta EOF).
-    let stdin = subprocess.stdin_pipe().ok_or("sin stdin")?;
-    let data = password.as_bytes();
-    let mut written = 0;
-    while written < data.len() {
-        let n = stdin
-            .write(&data[written..], gio::Cancellable::NONE)
+    {
+        let mut stdin = child.stdin.take().ok_or("sin stdin del CLI")?;
+        stdin
+            .write_all(password.as_bytes())
             .map_err(|e| e.to_string())?;
-        written += n as usize;
-    }
-    stdin.close(gio::Cancellable::NONE).map_err(|e| e.to_string())?;
-
-    // Terminamos solo cuando el proceso ha salido Y los dos pumps han llegado a
-    // EOF, para no perder las últimas líneas (p. ej. el error final).
-    let remaining = std::rc::Rc::new(std::cell::Cell::new(3u8));
-    let success = std::rc::Rc::new(std::cell::Cell::new(false));
-    let finish = {
-        let remaining = remaining.clone();
-        let success = success.clone();
-        let on_done = on_done.clone();
-        move || {
-            let left = remaining.get().saturating_sub(1);
-            remaining.set(left);
-            if left == 0 {
-                on_done(success.get());
-            }
-        }
-    };
-
-    match subprocess.stdout_pipe() {
-        Some(out) => pump(gio::DataInputStream::new(&out), on_line.clone(), finish.clone()),
-        None => finish(),
-    }
-    match subprocess.stderr_pipe() {
-        Some(err) => pump(gio::DataInputStream::new(&err), on_line, finish.clone()),
-        None => finish(),
     }
 
-    let done = subprocess.clone();
-    let finish2 = finish.clone();
-    let success2 = success.clone();
-    subprocess.wait_async(gio::Cancellable::NONE, move |res| {
-        success2.set(res.is_ok() && done.is_successful());
-        finish2();
-    });
-    Ok(())
-}
-
-/// Lee líneas de un stream de forma asíncrona, encadenando una lectura con la
-/// siguiente (sin hilos). Llama a `on_eof` al terminar el stream.
-fn pump<F, E>(stream: gio::DataInputStream, on_line: F, on_eof: E)
-where
-    F: Fn(&str) + Clone + 'static,
-    E: Fn() + Clone + 'static,
-{
-    let next = stream.clone();
-    let on_eof2 = on_eof.clone();
-    stream.read_line_utf8_async(Priority::DEFAULT, gio::Cancellable::NONE, move |res| {
-        match res {
-            Ok(Some(line)) => {
-                on_line(&line);
-                pump(next.clone(), on_line.clone(), on_eof2.clone());
-            }
-            _ => on_eof2(),
-        }
-    });
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
+    text.push_str(&String::from_utf8_lossy(&out.stderr));
+    Ok((out.status.success(), text))
 }

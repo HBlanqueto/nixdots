@@ -1,13 +1,20 @@
-//! Información del equipo, solo lectura.
+//! Información del equipo, solo lectura, para la pantalla «Este equipo».
 
-/// `(etiqueta, valor)` para la pantalla «Este equipo».
-pub fn rows() -> Vec<(&'static str, String)> {
-    vec![
-        ("Modelo", model()),
-        ("CPU", cpu()),
-        ("Memoria", ram()),
-        ("Equipo", hostname()),
-    ]
+/// Datos de la máquina; cadena vacía si no se pudo leer algo.
+pub struct Info {
+    pub model: String,
+    pub cpu: String,
+    pub ram: String,
+    pub host: String,
+}
+
+pub fn info() -> Info {
+    Info {
+        model: model(),
+        cpu: cpu(),
+        ram: ram(),
+        host: hostname(),
+    }
 }
 
 fn model() -> String {
@@ -58,6 +65,8 @@ fn ram() -> String {
 
 fn hostname() -> String {
     std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .ok()
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| "—".to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "—".to_string())
 }

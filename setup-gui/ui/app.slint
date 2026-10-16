@@ -1,0 +1,1284 @@
+// Asistente de primer arranque (fase 4a, sólo UI).
+//
+// Reproduce docs/first-boot/mockup-asistente.html: fondo desenfocado, pantalla
+// «Hola» a pantalla completa, diálogo de 460 px con los pasos 1–8, «Preparando»
+// y «Bienvenida» a pantalla completa. Los datos de ejemplo van por defecto para
+// poder abrirlo también con `slint-viewer`.
+
+import { Theme, Accent } from "theme.slint";
+import {
+    Icon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
+    GitIcon, CheckIcon, SpinIcon,
+} from "icons.slint";
+
+// Datos del asistente. Las listas son de ejemplo y fijas (la fase 4b traerá las
+// reales). Rust sólo rellena los datos de la máquina y valida el usuario.
+export global State {
+    in-out property <int> step: 0;
+    in-out property <bool> applying: false;
+    in-out property <string> apply-error: "";
+    in-out property <string> log-text: "";
+    in-out property <bool> show-details: false;
+
+    // Selecciones.
+    in-out property <int> lang-index: 0;
+    in-out property <int> kb-index: 0;
+    in-out property <int> net-index: 0;
+    in-out property <int> city-index: 0;
+    in-out property <bool> auto-login: false;
+    in-out property <bool> git-on: false;
+
+    // Cuenta.
+    in-out property <string> full-name: "Humberto Blanqueto";
+    in-out property <string> username: "humbertoblanqueto";
+    in-out property <string> initials: "HB";
+    in-out property <string> first-name: "Humberto";
+    in-out property <string> password: "";
+    in-out property <string> password2: "";
+    in-out property <string> username-error: "";
+    in-out property <string> git-name: "Humberto Blanqueto";
+    in-out property <string> git-email: "";
+
+    // Este equipo (sólo lectura). Rust las rellena al arrancar.
+    in-out property <string> machine-model: "ThinkPad L14 Gen 2a";
+    in-out property <string> machine-cpu: "Ryzen 5 Pro 5650U";
+    in-out property <string> machine-ram: "16 GiB";
+    in-out property <string> machine-disk: "System HD · 256 GB";
+    in-out property <string> machine-host: "ThinkPad-L14-Gen2";
+
+    // Listas de ejemplo.
+    in-out property <[string]> words: ["hola", "hello", "bienvenido", "bonjour", "olá", "ciao"];
+    in-out property <int> word-index: 0;
+
+    in-out property <[string]> lang-names: [
+        "Español (México)", "Español (España)", "English (United States)",
+        "Português (Brasil)", "Français",
+    ];
+    in-out property <[string]> lang-codes: ["es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8", "fr_FR.UTF-8"];
+
+    in-out property <[string]> kb-names: [
+        "Español (Latinoamérica)", "Español (España)", "Inglés (EE. UU.)",
+    ];
+    in-out property <[string]> kb-codes: ["latam", "es", "us"];
+
+    in-out property <[string]> net-names: ["Casa", "Casa 5G", "Oficina", "Invitados"];
+    in-out property <[string]> net-sec: ["Segura", "Segura", "Segura", "Abierta"];
+
+    in-out property <[string]> city-names: ["Mérida", "Ciudad de México", "Monterrey", "Tijuana", "Madrid"];
+    in-out property <[string]> city-tz: [
+        "America/Merida", "America/Mexico_City", "America/Monterrey", "America/Tijuana", "Europe/Madrid",
+    ];
+}
+
+// Azulejo de 44 px con el icono del paso.
+component IconTile inherits Rectangle {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: Theme.sel;
+    HorizontalLayout {
+        alignment: center;
+        @children
+    }
+}
+
+// Fila etiqueta + campo.
+component Row inherits HorizontalLayout {
+    in property <string> label;
+    spacing: 10px;
+    Text {
+        text: root.label;
+        width: 128px;
+        height: 34px;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        color: Theme.sub;
+        font-size: 13px;
+        wrap: no-wrap;
+    }
+    @children
+}
+
+// Campo de texto con el aspecto del mockup.
+component Field inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> password: false;
+    callback edited(string);
+    height: 34px;
+    border-radius: 8px;
+    background: Theme.field;
+    border-width: 1px;
+    border-color: Theme.field-border;
+    Text {
+        x: 10px;
+        y: 0;
+        width: parent.width - 20px;
+        height: parent.height;
+        text: root.placeholder;
+        color: Theme.faint;
+        font-size: 13px;
+        vertical-alignment: center;
+        visible: root.text == "";
+    }
+    input := TextInput {
+        x: 10px;
+        y: 0;
+        width: parent.width - 20px;
+        height: parent.height;
+        vertical-alignment: center;
+        font-size: 13px;
+        color: Theme.text;
+        single-line: true;
+        input-type: root.password ? InputType.password : InputType.text;
+        text <=> root.text;
+        edited => { root.edited(root.text); }
+    }
+}
+
+// «Select» compacto: muestra un valor y avanza al pulsarlo (por ahora hay tres
+// opciones fijas; en 4b será una lista real).
+component SelectField inherits Rectangle {
+    in property <string> text;
+    callback cycle();
+    height: 34px;
+    border-radius: 8px;
+    background: Theme.field;
+    border-width: 1px;
+    border-color: Theme.field-border;
+    Text {
+        x: 10px;
+        width: parent.width - 34px;
+        height: parent.height;
+        text: root.text;
+        color: Theme.text;
+        font-size: 13px;
+        vertical-alignment: center;
+        wrap: no-wrap;
+    }
+    Icon {
+        x: parent.width - self.width - 10px;
+        y: (parent.height - self.height) / 2;
+        size: 16px;
+        sw: 2px;
+        ink: Theme.faint;
+        commands: "M 7 10 L 12 15 L 17 10";
+    }
+    ta := TouchArea {
+        clicked => { root.cycle(); }
+    }
+}
+
+// Una opción de las listas.
+component OptionRow inherits Rectangle {
+    in property <string> label;
+    in property <string> trailing;
+    in property <color> trailing-ink: Theme.faint;
+    in property <bool> selected: false;
+    callback picked();
+    height: 34px;
+    border-radius: 6px;
+    background: selected ? Theme.sel : transparent;
+    Text {
+        x: 10px;
+        text: root.label;
+        color: Theme.text;
+        font-size: 13px;
+        font-weight: selected ? 600 : 400;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    Text {
+        x: parent.width - self.width - 10px;
+        text: root.trailing;
+        color: root.trailing-ink;
+        font-size: 12px;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    ta := TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Interruptor.
+component Toggle inherits Rectangle {
+    in-out property <bool> checked;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: checked ? Theme.accent : Theme.dot-off;
+    knob := Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ffffff;
+        x: root.checked ? parent.width - self.width - 2px : 2px;
+        y: 2px;
+        animate x { duration: 150ms; }
+    }
+    ta := TouchArea {
+        clicked => { root.checked = !root.checked; }
+    }
+}
+
+// Botón pequeño (footer, reintentar, bienvenida).
+component SmallButton inherits Rectangle {
+    in property <string> label;
+    in property <color> bg: Theme.sec;
+    in property <color> fg: Theme.sec-ink;
+    in property <length> w: 84px;
+    in property <length> h: 36px;
+    in property <length> fs: 14px;
+    in property <bool> round: false;
+    callback clicked();
+    width: w;
+    height: h;
+    border-radius: round ? h / 2 : 8px;
+    background: bg;
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: root.fs;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: parent.width;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Enlace de texto pulsable.
+component LinkText inherits Rectangle {
+    in property <string> label;
+    in property <color> fg: Theme.sub;
+    in property <length> fs: 13px;
+    in property <length> w;
+    callback clicked();
+    width: w;
+    height: fs + 8px;
+    background: transparent;
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: root.fs;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        width: parent.width;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Azulejo de dato (Este equipo / Bienvenida).
+component InfoTile inherits Rectangle {
+    in property <string> caption;
+    in property <string> value;
+    in property <length> w: 190px;
+    width: w;
+    height: 58px;
+    border-radius: 10px;
+    background: Theme.tile;
+    border-width: 1px;
+    border-color: Theme.list-border;
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 3px;
+        Text {
+            text: root.caption;
+            color: Theme.faint;
+            font-size: 11px;
+            font-weight: 600;
+            wrap: no-wrap;
+        }
+        Text {
+            text: root.value;
+            color: Theme.text;
+            font-size: 14px;
+            font-weight: 600;
+            wrap: no-wrap;
+        }
+    }
+}
+
+// Tarjeta de modo claro/oscuro (paso 6).
+component ModeCard inherits Rectangle {
+    in property <bool> preview-dark: false;
+    in property <bool> selected: false;
+    callback picked();
+    width: 152px;
+    height: 120px;
+    border-radius: 10px;
+    border-width: 2px;
+    border-color: selected ? Theme.accent : transparent;
+    background: transparent;
+    VerticalLayout {
+        alignment: center;
+        spacing: 8px;
+        Rectangle {
+            width: 136px;
+            height: 86px;
+            border-radius: 8px;
+            clip: true;
+            background: root.preview-dark ? #1b2028 : #e9edf3;
+            border-width: 1px;
+            border-color: root.preview-dark ? rgba(238, 244, 250, 0.12) : rgba(20, 30, 45, 0.12);
+            Rectangle {
+                width: 100%;
+                height: 10px;
+                background: root.preview-dark ? #12161c : #f8f9fb;
+            }
+            Rectangle {
+                x: 20px;
+                y: 24px;
+                width: 96px;
+                height: 52px;
+                border-radius: 5px;
+                background: root.preview-dark ? #2a313c : #ffffff;
+                Rectangle {
+                    x: 8px;
+                    y: 8px;
+                    width: 36px;
+                    height: 6px;
+                    border-radius: 3px;
+                    background: Theme.accent;
+                }
+            }
+        }
+        Text {
+            text: root.preview-dark ? "Oscuro" : "Claro";
+            color: Theme.text;
+            font-size: 13px;
+            horizontal-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Muestra de color de acento.
+component Swatch inherits Rectangle {
+    in property <color> c;
+    in property <bool> selected: false;
+    callback picked();
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    border-width: 2px;
+    border-color: selected ? c : transparent;
+    background: transparent;
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: root.c;
+    }
+    ta := TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Fila del resumen (paso 8).
+component SummaryRow inherits Rectangle {
+    in property <string> k;
+    in property <string> v;
+    in property <bool> last: false;
+    height: 34px;
+    Text {
+        x: 0;
+        text: root.k;
+        color: Theme.sub;
+        font-size: 13px;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    Text {
+        x: parent.width - self.width;
+        text: root.v;
+        color: Theme.text;
+        font-size: 13px;
+        font-weight: 600;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: root.last ? transparent : Theme.line;
+    }
+}
+
+// Encabezado de paso: icono + título + subtítulo.
+component StepHeader inherits VerticalLayout {
+    in property <string> title;
+    in property <string> subtitle;
+    spacing: 14px;
+    HorizontalLayout {
+        alignment: center;
+        @children
+    }
+    VerticalLayout {
+        spacing: 4px;
+        Text {
+            text: root.title;
+            font-size: 20px;
+            font-weight: 700;
+            color: Theme.text;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.subtitle;
+            font-size: 13px;
+            color: Theme.sub;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "nixdots";
+    width: 1280px;
+    height: 800px;
+    background: #2b3038;
+    forward-focus: key-handler;
+
+    callback quit-app();
+    callback apply();
+    callback name-edited(string);
+    callback username-edited(string);
+    callback restart-and-start();
+
+    out property <bool> in-dlg: State.step >= 1 && State.step <= 8;
+
+    function off(i: int) -> length {
+        return State.step == i ? 0px : (State.step > i ? -28px : 28px);
+    }
+    function op(i: int) -> float {
+        return State.step == i ? 1.0 : 0.0;
+    }
+
+    // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
+    // un campo tenga el foco (los eventos suben por los ancestros).
+    key-handler := FocusScope {
+    width: 100%;
+    height: 100%;
+    KeyBinding {
+        keys: @keys(Escape);
+        activated => { root.quit-app(); }
+    }
+    KeyBinding {
+        keys: @keys(Return);
+        activated => { if (State.step == 0) { State.step = 1; } }
+    }
+
+    // Fondo ya desenfocado (docs/first-boot/firstboot-blur.jpg) + velo oscuro.
+    Image {
+        source: @image-url("firstboot-blur.jpg");
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: rgba(13, 18, 25, 0.28);
+    }
+
+    // ----------------------------------------------------------------- Hola --
+    hello := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        opacity: State.step == 0 ? 1 : 0;
+        transform-scale-x: State.step == 0 ? 100% : 104%;
+        transform-scale-y: State.step == 0 ? 100% : 104%;
+        visible: self.opacity > 0.001;
+        animate opacity { duration: 800ms; }
+        animate transform-scale-x { duration: 800ms; }
+        animate transform-scale-y { duration: 800ms; }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 56px;
+
+            // Palabra cursiva que se revela de izquierda a derecha y rota.
+            reveal-word := Rectangle {
+                width: 1150px;
+                height: 300px;
+                clip: true;
+                property <bool> shown: false;
+                property <bool> started: false;
+                property <length> reveal: shown ? 1150px : 0px;
+                animate reveal { duration: 1400ms; easing: ease-in-out; }
+
+                Timer {
+                    interval: 300ms;
+                    running: !reveal-word.started;
+                    triggered => {
+                        reveal-word.started = true;
+                        reveal-word.shown = true;
+                    }
+                }
+                Timer {
+                    interval: 3400ms;
+                    running: reveal-word.started;
+                    triggered => {
+                        reveal-word.shown = !reveal-word.shown;
+                        if (!reveal-word.shown) {
+                            State.word-index = Math.mod(State.word-index + 1, State.words.length);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.reveal;
+                    height: parent.height;
+                    clip: true;
+                    Text {
+                        width: 1150px;
+                        height: parent.height;
+                        text: State.words[State.word-index];
+                        color: #f4f7fb;
+                        font-family: "Dancing Script";
+                        font-size: 150px;
+                        font-weight: 500;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 24px;
+                        background: Theme.accent;
+                        Icon {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            size: 20px;
+                            ink: Theme.accent-ink;
+                            commands: "M 5 12 L 19 12 M 13 6 L 19 12 L 13 18";
+                        }
+                        ta := TouchArea {
+                            clicked => { State.step = 1; }
+                        }
+                    }
+                }
+                Text {
+                    text: "Pulsa Intro para empezar";
+                    color: rgba(244, 247, 251, 0.8);
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------- Diálogo --
+    dialog := Rectangle {
+        width: 460px;
+        height: 548px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.card;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: Theme.card-border;
+        drop-shadow-color: rgba(0, 0, 0, Theme.dark ? 0.45 : 0.28);
+        drop-shadow-blur: 50px;
+        drop-shadow-offset-y: 24px;
+        opacity: root.in-dlg ? 1 : 0;
+        transform-scale-x: root.in-dlg ? 100% : 97%;
+        transform-scale-y: root.in-dlg ? 100% : 97%;
+        visible: self.opacity > 0.001;
+        animate opacity { duration: 600ms; }
+        animate transform-scale-x { duration: 600ms; }
+        animate transform-scale-y { duration: 600ms; }
+
+        // Contenido que se desliza con fundido entre pasos (448 px, recortado).
+        Rectangle {
+            x: 28px;
+            y: 28px;
+            width: parent.width - 56px;
+            height: 448px;
+            clip: true;
+
+            // --- Paso 1 · Idioma y teclado ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(1);
+                opacity: root.op(1);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Elige tu idioma";
+                        subtitle: "Se usará en el sistema, las apps y GNOME.";
+                        IconTile { GlobeIcon { ink: Theme.accent; } }
+                    }
+                    lang-box := Rectangle {
+                        width: 100%;
+                        height: lang-inner.preferred-height;
+                        background: Theme.list;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        lang-inner := VerticalLayout {
+                            padding: 4px;
+                            spacing: 1px;
+                            for name[i] in State.lang-names : OptionRow {
+                                label: name;
+                                trailing: i == State.lang-index ? "✓" : "";
+                                trailing-ink: Theme.accent;
+                                selected: i == State.lang-index;
+                                picked => { State.lang-index = i; }
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 10px;
+                        Row {
+                            label: "Teclado";
+                            SelectField {
+                                width: 100%;
+                                text: State.kb-names[State.kb-index];
+                                cycle => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
+                            }
+                        }
+                        Row {
+                            label: "Prueba";
+                            Field { width: 100%; placeholder: "Escribe ñ, á, ¿, ¡…"; }
+                        }
+                    }
+                }
+            }
+
+            // --- Paso 2 · Wi-Fi ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(2);
+                opacity: root.op(2);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Conéctate a una red";
+                        subtitle: "Solo aparece si no hay cable ni Wi‑Fi conectado.";
+                        IconTile { WifiIcon { ink: Theme.accent; } }
+                    }
+                    net-box := Rectangle {
+                        width: 100%;
+                        height: net-inner.preferred-height;
+                        background: Theme.list;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        net-inner := VerticalLayout {
+                            padding: 4px;
+                            spacing: 1px;
+                            for name[i] in State.net-names : OptionRow {
+                                label: name;
+                                trailing: State.net-sec[i];
+                                selected: i == State.net-index;
+                                picked => { State.net-index = i; }
+                            }
+                        }
+                    }
+                    Row {
+                        label: "Contraseña";
+                        Field { width: 100%; placeholder: "contraseña"; password: true; }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        LinkText {
+                            label: "Continuar sin conexión";
+                            w: 190px;
+                            clicked => { State.step = 3; }
+                        }
+                    }
+                }
+            }
+
+            // --- Paso 3 · Zona horaria ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(3);
+                opacity: root.op(3);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Zona horaria";
+                        subtitle: "Busca la ciudad más cercana.";
+                        IconTile { ClockIcon { ink: Theme.accent; } }
+                    }
+                    Field { width: 100%; placeholder: "Buscar ciudad"; }
+                    city-box := Rectangle {
+                        width: 100%;
+                        height: city-inner.preferred-height;
+                        background: Theme.list;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        city-inner := VerticalLayout {
+                            padding: 4px;
+                            spacing: 1px;
+                            for name[i] in State.city-names : OptionRow {
+                                label: name;
+                                trailing: State.city-tz[i];
+                                selected: i == State.city-index;
+                                picked => { State.city-index = i; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Paso 4 · Tu cuenta ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(4);
+                opacity: root.op(4);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    VerticalLayout {
+                        spacing: 2px;
+                        HorizontalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 60px;
+                                height: 60px;
+                                border-radius: 30px;
+                                background: Theme.accent;
+                                Text {
+                                    text: State.initials;
+                                    color: Theme.accent-ink;
+                                    font-size: 22px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: parent.width;
+                                    height: parent.height;
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            LinkText { label: "Elegir foto"; w: 90px; }
+                        }
+                    }
+                    StepHeader {
+                        title: "Crea tu cuenta";
+                        subtitle: "Será la cuenta de administrador de este equipo.";
+                    }
+                    VerticalLayout {
+                        spacing: 10px;
+                        Row {
+                            label: "Nombre completo";
+                            Field {
+                                width: 100%;
+                                text <=> State.full-name;
+                                edited(t) => { root.name-edited(t); }
+                            }
+                        }
+                        Row {
+                            label: "Usuario";
+                            Field {
+                                width: 100%;
+                                text <=> State.username;
+                                edited(t) => { root.username-edited(t); }
+                            }
+                        }
+                        Row { label: "Contraseña"; Field { width: 100%; password: true; text <=> State.password; } }
+                        Row { label: "Confirmar"; Field { width: 100%; password: true; text <=> State.password2; } }
+                        if State.username-error != "" : HorizontalLayout {
+                            spacing: 10px;
+                            Rectangle { width: 128px; }
+                            Text { text: State.username-error; color: #e0566a; font-size: 12px; vertical-alignment: center; }
+                        }
+                        Row {
+                            label: "";
+                            HorizontalLayout {
+                                width: 100%;
+                                spacing: 8px;
+                                Toggle { checked <=> State.auto-login; }
+                                Text {
+                                    text: "Iniciar sesión automáticamente";
+                                    color: Theme.text;
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Paso 5 · Este equipo ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(5);
+                opacity: root.op(5);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Este equipo";
+                        subtitle: "Esto es lo que se instaló. No hay nada que cambiar.";
+                        IconTile { MonitorIcon { ink: Theme.accent; } }
+                    }
+                    GridLayout {
+                        spacing: 8px;
+                        InfoTile { col: 0; row: 0; caption: "Modelo"; value: State.machine-model; }
+                        InfoTile { col: 1; row: 0; caption: "Procesador"; value: State.machine-cpu; }
+                        InfoTile { col: 0; row: 1; caption: "Memoria"; value: State.machine-ram; }
+                        InfoTile { col: 1; row: 1; caption: "Disco"; value: State.machine-disk; }
+                    }
+                    Rectangle {
+                        width: 100%;
+                        height: 42px;
+                        border-radius: 10px;
+                        background: Theme.list;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        Text {
+                            x: 14px;
+                            text: "Nombre del equipo";
+                            color: Theme.sub;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            height: parent.height;
+                        }
+                        Text {
+                            x: parent.width - self.width - 14px;
+                            text: State.machine-host;
+                            color: Theme.text;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                            height: parent.height;
+                        }
+                    }
+                }
+            }
+
+            // --- Paso 6 · Apariencia ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(6);
+                opacity: root.op(6);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Elige tu aspecto";
+                        subtitle: "Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.";
+                        IconTile { ContrastIcon { ink: Theme.accent; } }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 16px;
+                        ModeCard {
+                            selected: !Theme.dark;
+                            picked => { Theme.dark = false; }
+                        }
+                        ModeCard {
+                            preview-dark: true;
+                            selected: Theme.dark;
+                            picked => { Theme.dark = true; }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 10px;
+                        Text { text: "Color de acento"; color: Theme.sub; font-size: 13px; horizontal-alignment: center; }
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            for a[i] in Theme.accents : Swatch {
+                                c: a.color;
+                                selected: i == Theme.accent-index;
+                                picked => { Theme.accent-index = i; }
+                            }
+                        }
+                        Text { text: Theme.accent-name; color: Theme.faint; font-size: 12px; horizontal-alignment: center; }
+                    }
+                }
+            }
+
+            // --- Paso 7 · Git ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(7);
+                opacity: root.op(7);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Git";
+                        subtitle: "Opcional. Puedes configurarlo después.";
+                        IconTile { GitIcon { ink: Theme.accent; } }
+                    }
+                    Rectangle {
+                        width: 100%;
+                        height: 44px;
+                        border-radius: 8px;
+                        background: Theme.list;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        Text {
+                            x: 12px;
+                            text: "Configurar Git ahora";
+                            color: Theme.text;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                            height: parent.height;
+                        }
+                        Toggle {
+                            x: parent.width - self.width - 10px;
+                            y: (parent.height - self.height) / 2;
+                            checked <=> State.git-on;
+                        }
+                    }
+                    if State.git-on : VerticalLayout {
+                        spacing: 10px;
+                        Row { label: "Nombre"; Field { width: 100%; text <=> State.git-name; } }
+                        Row { label: "Correo"; Field { width: 100%; text <=> State.git-email; placeholder: "tu@correo"; } }
+                    }
+                    if !State.git-on : Text {
+                        text: "Desactivado: tu nombre y correo de Git quedan vacíos.";
+                        color: Theme.faint;
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+
+            // --- Paso 8 · Todo listo ---
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                x: root.off(8);
+                opacity: root.op(8);
+                visible: self.opacity > 0.001;
+                animate x { duration: 300ms; }
+                animate opacity { duration: 250ms; }
+                VerticalLayout {
+                    spacing: 14px;
+                    StepHeader {
+                        title: "Todo listo";
+                        subtitle: "Revisa antes de aplicar. Puedes volver para cambiar algo.";
+                        IconTile { CheckIcon { ink: Theme.accent; } }
+                    }
+                    Rectangle {
+                        width: 100%;
+                        height: 34px * 7;
+                        background: Theme.list;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.list-border;
+                        VerticalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            SummaryRow { k: "Idioma"; v: State.lang-names[State.lang-index]; }
+                            SummaryRow { k: "Teclado"; v: State.kb-names[State.kb-index]; }
+                            SummaryRow { k: "Zona horaria"; v: State.city-tz[State.city-index]; }
+                            SummaryRow { k: "Cuenta"; v: State.username; }
+                            SummaryRow { k: "Equipo"; v: State.machine-host; }
+                            SummaryRow { k: "Aspecto"; v: (Theme.dark ? "Oscuro" : "Claro") + " · " + Theme.accent-name; }
+                            SummaryRow { k: "Git"; v: State.git-on ? State.git-name : "Sin configurar"; last: true; }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Footer: puntos de progreso + botones.
+        Rectangle {
+            x: 28px;
+            y: 476px;
+            width: parent.width - 56px;
+            height: 56px;
+            Rectangle { width: 100%; height: 1px; background: Theme.line; }
+            HorizontalLayout {
+                y: 16px;
+                width: 100%;
+                height: 36px;
+                alignment: space-between;
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 5px;
+                    for di in 8 : Rectangle {
+                        height: 36px;
+                        width: (di + 1) == State.step ? 14px : 5px;
+                        animate width { duration: 300ms; }
+                        Rectangle {
+                            width: parent.width;
+                            height: 5px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 3px;
+                            background: (di + 1) == State.step ? Theme.accent : ((di + 1) < State.step ? Theme.dot-past : Theme.dot-off);
+                            animate background { duration: 300ms; }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+                    SmallButton {
+                        label: "Atrás";
+                        w: 76px;
+                        clicked => { if (State.step > 1) { State.step = State.step - 1; } }
+                    }
+                    SmallButton {
+                        label: State.step == 8 ? "Aplicar" : "Continuar";
+                        w: 104px;
+                        bg: Theme.accent;
+                        fg: Theme.accent-ink;
+                        clicked => {
+                            if (State.step == 8) { root.apply(); }
+                            else { State.step = State.step + 1; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ----------------------------------------------------------- Preparando --
+    prepare := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        opacity: State.step == 9 ? 1 : 0;
+        transform-scale-x: State.step == 9 ? 100% : 103%;
+        transform-scale-y: State.step == 9 ? 100% : 103%;
+        visible: self.opacity > 0.001;
+        animate opacity { duration: 700ms; }
+        animate transform-scale-x { duration: 700ms; }
+        animate transform-scale-y { duration: 700ms; }
+
+        property <float> spin: 0;
+        Timer {
+            interval: 16ms;
+            running: State.step == 9;
+            triggered => { prepare.spin = Math.mod(prepare.spin + 6, 360); }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 22px;
+            HorizontalLayout {
+                alignment: center;
+                SpinIcon {
+                    size: 36px;
+                    ink: #f4f7fb;
+                    transform-rotation: prepare.spin * 1deg;
+                }
+            }
+            VerticalLayout {
+                spacing: 8px;
+                Text {
+                    text: "Preparando tu escritorio";
+                    color: #f4f7fb;
+                    font-size: 30px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Aplicando la configuración de nixdots. El equipo se reiniciará al terminar.";
+                    color: rgba(244, 247, 251, 0.82);
+                    font-size: 15px;
+                    horizontal-alignment: center;
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 420px;
+                    height: 6px;
+                    border-radius: 3px;
+                    background: rgba(244, 247, 251, 0.22);
+                    Rectangle {
+                        width: State.step == 9 ? 100% : 0%;
+                        height: 100%;
+                        border-radius: 3px;
+                        background: #f4f7fb;
+                        animate width { duration: 7000ms; easing: linear; }
+                    }
+                }
+            }
+            Text {
+                text: "Creando la cuenta de " + State.username + "…";
+                color: rgba(244, 247, 251, 0.9);
+                font-size: 14px;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                LinkText {
+                    label: State.show-details ? "Ocultar detalles" : "Mostrar detalles";
+                    fg: rgba(244, 247, 251, 0.75);
+                    w: 150px;
+                    clicked => { State.show-details = !State.show-details; }
+                }
+            }
+            if State.show-details : Rectangle {
+                width: 680px;
+                height: 170px;
+                border-radius: 12px;
+                background: rgba(13, 18, 25, 0.62);
+                border-width: 1px;
+                border-color: rgba(238, 244, 250, 0.1);
+                Text {
+                    x: 16px;
+                    y: 12px;
+                    width: parent.width - 32px;
+                    height: parent.height - 24px;
+                    text: State.log-text;
+                    color: #adbac7;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                    vertical-alignment: bottom;
+                }
+            }
+            if State.apply-error != "" : Text {
+                text: State.apply-error;
+                color: #ff9a9a;
+                font-size: 13px;
+                horizontal-alignment: center;
+            }
+            if State.apply-error != "" : HorizontalLayout {
+                alignment: center;
+                SmallButton {
+                    label: "Reintentar";
+                    w: 110px;
+                    bg: #f4f7fb;
+                    fg: #13171d;
+                    clicked => { root.apply(); }
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------- Bienvenida --
+    welcome := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        opacity: State.step == 10 ? 1 : 0;
+        transform-scale-x: State.step == 10 ? 100% : 103%;
+        transform-scale-y: State.step == 10 ? 100% : 103%;
+        visible: self.opacity > 0.001;
+        animate opacity { duration: 800ms; }
+        animate transform-scale-x { duration: 800ms; }
+        animate transform-scale-y { duration: 800ms; }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 26px;
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 104px;
+                    height: 104px;
+                    border-radius: 52px;
+                    background: Theme.accent;
+                    drop-shadow-color: rgba(0, 0, 0, 0.3);
+                    drop-shadow-blur: 30px;
+                    drop-shadow-offset-y: 10px;
+                    Text {
+                        text: State.initials;
+                        color: Theme.accent-ink;
+                        font-size: 38px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 10px;
+                Text {
+                    text: "Te damos la bienvenida, " + State.first-name;
+                    color: #f4f7fb;
+                    font-size: 40px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Al reiniciar entrarás directamente a tu escritorio GNOME.";
+                    color: rgba(244, 247, 251, 0.85);
+                    font-size: 16px;
+                    horizontal-alignment: center;
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 10px;
+                InfoTile { caption: "USUARIO"; value: State.username; }
+                InfoTile { caption: "EQUIPO"; value: State.machine-host; }
+                InfoTile { caption: "ZONA HORARIA"; value: State.city-tz[State.city-index]; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                SmallButton {
+                    label: "Reiniciar y empezar";
+                    w: 200px;
+                    h: 40px;
+                    fs: 15px;
+                    round: true;
+                    bg: #f4f7fb;
+                    fg: #13171d;
+                    clicked => { root.restart-and-start(); }
+                }
+            }
+        }
+    }
+    }
+}
