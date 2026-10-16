@@ -72,6 +72,8 @@ where
     let path = write_json(json).map_err(|e| format!("no se pudo escribir los datos: {e}"))?;
 
     let mut cmd = Command::new(cli());
+    // Sin color en la salida (además la GUI filtra secuencias ANSI).
+    cmd.env("NO_COLOR", "1");
     cmd.arg("apply").arg(&path);
     if !repo.is_empty() {
         cmd.arg("--repo").arg(repo);

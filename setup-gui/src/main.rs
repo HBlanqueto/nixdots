@@ -45,6 +45,9 @@ fn main() -> Result<(), slint::PlatformError> {
     // Preferencia del sistema para la reducción de movimiento (GNOME).
     ui.global::<Theme>().set_reduced_motion(reduced_motion());
 
+    // Saludo del paso 0: máquina de escribir (letra a letra) y luego fundido.
+    spawn_greeting(&ui);
+
     // Esc cierra la ventana de prueba.
     ui.on_quit_app({
         let weak = ui.as_weak();
@@ -117,14 +120,31 @@ fn main() -> Result<(), slint::PlatformError> {
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = weak.upgrade() {
                         let st = ui.global::<State>();
-                        let mut log = st.get_log_text().to_string();
-                        log.push_str(&line);
-                        log.push('\n');
-                        st.set_log_text(log.into());
-                        let phase = phase_for(&line);
-                        if phase > st.get_prep_phase() {
-                            st.set_prep_phase(phase);
+                        let clean = strip_ansi(&line);
+                        let trimmed = clean.trim();
+                        if let Some(rest) = trimmed.strip_prefix("PHASE ") {
+                            if let Ok(n) = rest.trim().parse::<i32>() {
+                                if n > st.get_prep_phase() {
+                                    st.set_prep_phase(n);
+                                }
+                            }
+                            return;
                         }
+                        if let Some(msg) = trimmed.strip_prefix("ERROR: ") {
+                            let msg = msg.trim().to_string();
+                            st.set_error_step(if msg.to_lowercase().contains("contraseña") {
+                                4
+                            } else {
+                                9
+                            });
+                            st.set_apply_error(msg.into());
+                        }
+                        let mut log = st.get_log_text().to_string();
+                        if !log.is_empty() {
+                            log.push('\n');
+                        }
+                        log.push_str(&clean);
+                        st.set_log_text(log.into());
                     }
                 });
             };
@@ -138,9 +158,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     st.set_applying(false);
                     if !ok {
                         st.set_show_details(true);
-                        st.set_apply_error(
-                            "No se pudo aplicar la configuración. Revisa los detalles.".into(),
-                        );
+                        if st.get_apply_error().is_empty() {
+                            st.set_error_step(9);
+                            st.set_apply_error("No se pudo terminar la configuración.".into());
+                        }
                         return;
                     }
                     st.set_prep_phase(4);
@@ -192,20 +213,83 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.run()
 }
 
-/// Deduce la fase de «Preparando» a partir de una línea del CLI.
-fn phase_for(line: &str) -> i32 {
-    let l = line.to_ascii_lowercase();
-    if l.contains("secrets") || l.contains(".hash") {
-        0
-    } else if l.contains("user.json") {
-        1
-    } else if l.contains("nixos-rebuild") {
-        2
-    } else if l.contains("boot entry") || l.contains("installing") {
-        3
-    } else {
-        0
+/// Quita secuencias ANSI (`ESC [ ... letra`) para mostrar el log limpio.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for n in chars.by_ref() {
+                if n.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
     }
+    out
+}
+
+/// Aplica un cambio al `State` desde otro hilo.
+fn set_state(weak: &slint::Weak<AppWindow>, f: impl FnOnce(State) + Send + 'static) {
+    let weak = weak.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(ui) = weak.upgrade() {
+            f(ui.global::<State>());
+        }
+    });
+}
+
+/// Máquina de escribir del saludo: escribe cada palabra letra a letra y luego
+/// la funde antes de pasar a la siguiente.
+fn spawn_greeting(ui: &AppWindow) {
+    let greets = ui.global::<State>().get_greets();
+    let words: Vec<String> = (0..greets.row_count())
+        .map(|i| {
+            greets
+                .row_data(i)
+                .map(|g| g.word.to_string())
+                .unwrap_or_default()
+        })
+        .collect();
+    if words.is_empty() {
+        return;
+    }
+    let weak = ui.as_weak();
+    std::thread::spawn(move || {
+        // Deja arrancar el bucle de eventos antes del primer invoke.
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let n = words.len();
+        let mut i = 0usize;
+        loop {
+            let chars: Vec<char> = words[i].chars().collect();
+            set_state(&weak, move |st| {
+                st.set_gi(i as i32);
+                st.set_greet_typed("".into());
+                st.set_greet_animate(true);
+                st.set_g_shown(true);
+            });
+            let mut prefix = String::new();
+            for c in chars {
+                prefix.push(c);
+                let p = prefix.clone();
+                set_state(&weak, move |st| st.set_greet_typed(p.into()));
+                if weak.upgrade().is_none() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(90));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            set_state(&weak, |st| st.set_g_shown(false));
+            if weak.upgrade().is_none() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            i = (i + 1) % n;
+        }
+    });
 }
 
 /// Construye el JSON que espera `nixdots-setup apply`.
