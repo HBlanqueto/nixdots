@@ -10,12 +10,17 @@
 { lib, ... }:
 
 let
-    report = "/persist/nixdots/facter.json";
+    # Same NIXDOTS_ROOT dance as user.json: the installer evaluates with the
+    # variable pointing at the target (e.g. "/mnt"); on a running system it is
+    # unset ("").
+    root = builtins.getEnv "NIXDOTS_ROOT";
+    report = "${root}/persist/nixdots/facter.json";
 
     readable = builtins ? currentSystem && builtins.pathExists report;
 in
 {
-    hardware.facter.report = lib.mkIf readable (builtins.fromJSON (builtins.readFile report));
+    # nixpkgs reads and parses reportPath itself (report defaults to it).
+    hardware.facter.reportPath = lib.mkIf readable report;
 
     # facter would hand the network to DHCP when it sees a wired/wireless NIC,
     # but NetworkManager already manages every interface here; two managers on
