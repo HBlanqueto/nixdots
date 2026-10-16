@@ -20,7 +20,6 @@
 
     services = {
         bpftune.enable = true;
-        seatd.enable = true;
 
         openssh = lib.mkIf config.nixdots.ssh.enable {
             enable = true;

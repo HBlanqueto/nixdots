@@ -54,7 +54,7 @@ in
             # pueda hacer el chown del repo a 1000:users. Ver setup/src/main.rs.
             uid = 1000;
             description = userdescription;
-            extraGroups = [ "networkmanager" "wheel" "video" "seat" ];
+            extraGroups = [ "networkmanager" "wheel" "video" ];
             createHome = true;
             inherit hashedPasswordFile;
         };

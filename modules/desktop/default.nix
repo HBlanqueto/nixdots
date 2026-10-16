@@ -12,16 +12,10 @@
     environment.systemPackages = with pkgs; [
         libnotify
         playerctl
-        wev
-        grim
-        slurp
         wl-clipboard
 
         desktop-file-utils
         wayland-utils
         libinput
-        drm_info
-        vulkan-tools
-        mesa-demos
     ];
 }
