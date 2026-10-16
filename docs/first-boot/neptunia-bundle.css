@@ -12,9 +12,9 @@ body { margin: 0; background: var(--bg-window); color: var(--ink); font-family: 
 :focus { outline: none; }
 .np-focus, :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 
-/* ── Button: siempre cápsula ─────────────────────────────── */
+/* ── Button: rectángulo redondeado (radius-button), no cápsula ── */
 .np-btn { appearance: none; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1);
-  height: var(--control-md); padding: 0 var(--space-4); border-radius: var(--radius-pill);
+  height: var(--control-md); padding: 0 var(--space-4); border-radius: var(--radius-button);
   font: 500 13px/18px var(--font-sans); color: var(--ink-strong); background: var(--bg-control); cursor: default;
   transition: background var(--dur-fast), transform var(--dur-fast); }
 .np-btn:hover, .np-btn.is-hover { background: var(--bg-hover); }
@@ -24,7 +24,7 @@ body { margin: 0; background: var(--bg-window); color: var(--ink); font-family: 
 .np-btn--danger { background: var(--danger-fill); color: var(--on-danger); }
 .np-btn--plain { background: transparent; color: var(--accent-strong); padding: 0 var(--space-2); }
 .np-btn--plain:hover { background: var(--accent-soft); }
-.np-btn--lg { height: var(--control-lg); padding: 0 22px; font-weight: 600; min-width: 112px; }
+.np-btn--lg { height: var(--control-lg); padding: 0 22px; font-weight: 600; min-width: 112px; border-radius: var(--radius-md); }
 .np-btn--sm { height: var(--control-sm); padding: 0 var(--space-3); font-size: 12px; }
 .np-btn[disabled], .np-btn.is-disabled { opacity: 0.4; }
 
@@ -36,9 +36,9 @@ body { margin: 0; background: var(--bg-window); color: var(--ink); font-family: 
 .np-iconbtn--round { border-radius: var(--radius-pill); background: var(--bg-control); color: var(--ink-strong); }
 
 /* ── Switch ─────────────────────────────────────────────── */
-.np-switch { position: relative; width: 38px; height: 22px; border-radius: var(--radius-pill); background: var(--bg-control); flex: none;
+.np-switch { position: relative; width: 36px; height: 20px; border-radius: var(--radius-pill); background: var(--bg-control); flex: none;
   box-shadow: inset 0 0 0 1px var(--line); transition: background var(--dur-fast); }
-.np-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #ffffff;
+.np-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #ffffff;
   box-shadow: var(--shadow-knob); transition: transform var(--dur-fast); }
 .np-switch.is-on { background: var(--accent); box-shadow: none; }
 .np-switch.is-on::after { transform: translateX(16px); }
@@ -121,7 +121,8 @@ body { margin: 0; background: var(--bg-window); color: var(--ink); font-family: 
 .np-titlebar .np-title { font-weight: 600; color: var(--ink-strong); }
 .np-titlebar .np-spacer { flex: 1; }
 .np-traffic { display: inline-flex; gap: 8px; margin-right: var(--space-2); }
-.np-traffic > i { width: 12px; height: 12px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.18); }
+/* Semáforos: cuadrados redondeados (squircle), no círculos. */
+.np-traffic > i { width: 12px; height: 12px; border-radius: 4px; display: block; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.18); }
 .np-traffic > i:nth-child(1) { background: var(--traffic-close); }
 .np-traffic > i:nth-child(2) { background: var(--traffic-min); }
 .np-traffic > i:nth-child(3) { background: var(--traffic-zoom); }
@@ -193,7 +194,12 @@ body { margin: 0; background: var(--bg-window); color: var(--ink); font-family: 
 
 /* ── Popover ────────────────────────────────────────────── */
 .np-popover { position: relative; width: 260px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-raised); box-shadow: var(--shadow-float); box-sizing: border-box; }
-.np-popover::before { content: ""; position: absolute; top: -6px; left: 28px; width: 12px; height: 12px; background: var(--bg-raised); transform: rotate(45deg); border-radius: 2px; }
+/* Piquito: un cuadrado girado 45°; sus dos lados de arriba (lados local
+   superior y derecho) llevan el mismo borde doble que el popover: exterior
+   (window-outer) e interior blanco translúcido (window-inner). Los de abajo
+   quedan dentro del cuerpo y tapan su borde en ese tramo. */
+.np-popover::before { content: ""; position: absolute; top: -6px; left: 28px; width: 12px; height: 12px; background: var(--bg-raised); transform: rotate(45deg); border-radius: 2px 2px 2px 0;
+  box-shadow: 1px -1px 0 0 var(--window-outer), inset -1px 1px 0 0 var(--window-inner); }
 
 /* ── Tabs (barra de pestañas tipo navegador / editor) ───── */
 .np-tabs { display: flex; gap: 2px; padding: 0 var(--space-2); box-shadow: inset 0 -1px 0 var(--line); }

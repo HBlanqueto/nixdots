@@ -1,16 +1,16 @@
 /* Psamathe — asistente de primer arranque. Solo lo propio de esta pantalla;
    todo lo demás sale de ds/neptunia/tokens.css y components/bundle.css. */
 
-/* Saludo: 13 palabras, 3,5 s cada una (ciclo 45,5 s; un hueco = 7,69 %). */
-@keyframes fb-write {
-  0%    { opacity: 1; stroke-dashoffset: 3200; fill-opacity: 0; }
-  3.7%  { stroke-dashoffset: 0; fill-opacity: 0; }
-  4.8%  { fill-opacity: 1; }
-  6.6%  { opacity: 1; }
-  7.69% { opacity: 0; stroke-dashoffset: 0; fill-opacity: 1; }
-  100%  { opacity: 0; stroke-dashoffset: 0; fill-opacity: 1; }
-}
-.fb-word { opacity: 0; stroke-dasharray: 3200; stroke-dashoffset: 3200; fill-opacity: 0; animation: fb-write 45.5s linear infinite; }
+/* Saludo: cursiva de trazo continuo (Dancing Script 600). Cada 2,6 s el
+   saludo, el texto del botón y la ayuda se funden al siguiente idioma; el
+   botón en sí no se mueve ni se desvanece. */
+.fb-greet { transition: opacity 450ms ease, transform 450ms ease; }
+
+/* Botón del saludo: el botón principal de Neptunia (np-btn np-btn--lg
+   np-btn--primary: accent, texto blanco, 38 px, radius-md). Ancho fijo para
+   que no cambie de tamaño con cada idioma; solo su texto se funde. */
+.fb-cta { width: 180px; gap: 8px; box-shadow: 0 4px 16px rgba(13, 18, 25, 0.25); }
+.fb-cta:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 
 @keyframes fb-spin { to { transform: rotate(360deg); } }
 @keyframes fb-fill { from { width: 4%; } to { width: 100%; } }

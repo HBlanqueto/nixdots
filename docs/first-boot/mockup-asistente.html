@@ -12,7 +12,7 @@
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Victor+Mono:ital,wght@1,300&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Dancing+Script:wght@600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
 <style>
 body{margin:0}
 </style>
@@ -21,29 +21,18 @@ body{margin:0}
 <img src="/_blob/b4a676aed649378e0d6c7ad4d5cb18f3" alt="" style="position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover">
 <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: rgba(13,18,25,0.26)"></div>
 
-<div class="fb-layer fb-screen" style="flex-direction: column; align-items: center; justify-content: center; gap: 48px; opacity: {{hello.op}}; transform: {{hello.tf}}; pointer-events: {{hello.pe}}">
-<svg width="1400" height="300" viewBox="0 0 1400 300" role="img" aria-label="Hola en varios idiomas" style="filter: drop-shadow(0 4px 24px rgba(0,0,0,0.25))">
-<g fill="#ffffff" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round" font-family="'Victor Mono', 'Noto Sans CJK SC', monospace" font-style="italic" font-weight="300" font-size="150" text-anchor="middle">
-<text class="fb-word" x="700" y="200" style="animation-delay: 0s">hola</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 3.5s">hello</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 7s">bonjour</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 10.5s">ciao</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 14s">olá</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 17.5s">hallo</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 21s">こんにちは</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 24.5s">你好</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 28s">안녕하세요</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 31.5s">привет</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 35s">مرحبا</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 38.5s">γεια σου</text>
-<text class="fb-word" x="700" y="200" style="animation-delay: 42s">merhaba</text>
-</g>
-</svg>
-<div style="display: flex; flex-direction: column; align-items: center; gap: 12px">
-<button class="fb-go" onClick="{{toStart}}" aria-label="Empezar">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+<div class="fb-layer fb-screen" style="opacity: {{hello.op}}; transform: {{hello.tf}}; pointer-events: {{hello.pe}}">
+<div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-bottom: 40px; box-sizing: border-box">
+<div class="fb-greet" dir="{{g.dir}}" style="width: 100%; height: 200px; display: flex; align-items: center; justify-content: center; opacity: {{gop}}; transform: translateY({{gdy}}px)">
+<span style="display: inline-block; padding: 0 0.18em; font-family: 'Dancing Script', var(--font-sans); font-weight: 600; font-size: {{g.size}}px; line-height: 1; color: #f4f6fa; text-shadow: 0 2px 24px rgba(0,0,0,0.25); white-space: nowrap">{{g.word}}</span>
+</div>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 120px; display: flex; flex-direction: column; align-items: center; gap: 12px">
+<button class="np-btn np-btn--lg np-btn--primary fb-cta" style="background: {{accent}}" onClick="{{toStart}}">
+<span class="fb-greet" dir="{{g.dir}}" style="opacity: {{gop}}; white-space: nowrap">{{g.cta}}</span>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: scaleX({{g.flip}})"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
 </button>
-<span style="font-size: 13px; color: rgba(255,255,255,0.82)">Pulsa Intro para empezar</span>
+<div class="fb-greet" dir="{{g.dir}}" style="opacity: {{gop}}; font-size: 14px; line-height: 18px; color: #d7dce6">{{g.hint}}</div>
 </div>
 </div>
 
@@ -227,6 +216,13 @@ body{margin:0}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"paso":{"editor":"int","default":0,"min":0,"max":10},"tema":{"editor":"enum","default":"light","options":["light","dark","dark-tint"]},"$preview":{"width":1920,"height":1080}}'>
 class Component extends DCLogic {
+componentDidMount() {
+this.greet = setInterval(() => {
+this.setState({ gShown: false });
+clearTimeout(this.gf);
+this.gf = setTimeout(() => this.setState({ gi: (((this.state || {}).gi ?? 0) + 1) % 13, gShown: true }), 450);
+}, 2600);
+}
 componentDidUpdate(pp, ps) {
 const prev = (ps || {}).step;
 const cur = (this.state || {}).step;
@@ -235,7 +231,7 @@ clearTimeout(this.t);
 this.t = setTimeout(() => this.setState({ step: 10 }), 7000);
 }
 }
-componentWillUnmount() { clearTimeout(this.t); }
+componentWillUnmount() { clearTimeout(this.t); clearInterval(this.greet); clearTimeout(this.gf); }
 renderVals() {
 const st = this.state || {};
 const step = st.step ?? (parseInt(this.props.paso, 10) || 0);
@@ -290,7 +286,27 @@ const summaryRows = [
 { k: 'Aspecto', v: modeName + ' · ' + acc.label },
 { k: 'Git', v: gitOn ? 'Humberto Blanqueto' : 'Sin configurar' }
 ];
+const greets = [
+{ word: 'hola', cta: 'Continuar', hint: 'Pulsa Intro para empezar', size: 150 },
+{ word: 'hello', cta: 'Continue', hint: 'Press Return to get started', size: 150 },
+{ word: 'bonjour', cta: 'Continuer', hint: 'Appuyez sur Entrée pour commencer', size: 140 },
+{ word: 'olá', cta: 'Continuar', hint: 'Prima Enter para começar', size: 150 },
+{ word: 'ciao', cta: 'Continua', hint: 'Premi Invio per iniziare', size: 150 },
+{ word: 'hallo', cta: 'Weiter', hint: 'Drücke die Eingabetaste, um zu beginnen', size: 150 },
+{ word: 'こんにちは', cta: '続ける', hint: 'Return キーを押して開始', size: 96 },
+{ word: '你好', cta: '继续', hint: '按回车键开始', size: 110 },
+{ word: '안녕하세요', cta: '계속', hint: 'Enter 키를 눌러 시작하세요', size: 96 },
+{ word: 'привет', cta: 'Продолжить', hint: 'Нажмите Enter, чтобы начать', size: 130 },
+{ word: 'γεια σου', cta: 'Συνέχεια', hint: 'Πατήστε Enter για να ξεκινήσετε', size: 124 },
+{ word: 'merhaba', cta: 'Devam', hint: 'Başlamak için Enter tuşuna basın', size: 140 },
+{ word: 'مرحبا', cta: 'متابعة', hint: 'اضغط على Enter للبدء', size: 120, rtl: true }
+];
+const g0 = greets[(st.gi ?? 0) % greets.length];
+const gShown = st.gShown ?? true;
 return {
+g: Object.assign({}, g0, { dir: g0.rtl ? 'rtl' : 'ltr', flip: g0.rtl ? -1 : 1 }),
+gop: gShown ? 1 : 0,
+gdy: gShown ? 0 : 6,
 theme: theme,
 accent: accent,
 hello: { op: step === 0 ? 1 : 0, tf: step === 0 ? 'scale(1)' : 'scale(1.04)', pe: step === 0 ? 'auto' : 'none' },
