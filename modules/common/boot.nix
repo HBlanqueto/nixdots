@@ -1,4 +1,4 @@
-{ ... }:
+{ config, ... }:
 
 {
     # Boot settings shared by both hosts. The kernel, bootloader and the
@@ -12,9 +12,10 @@
 
         initrd.verbose = false;
 
-        # Sin esto, un fallo en el initrd deja la consola de emergencia
-        # bloqueada ("root account is locked") y no hay forma de diagnosticar.
-        initrd.systemd.emergencyAccess = true;
+        # Con el disco cifrado, quien llega a esa consola ya pasó la frase
+        # LUKS. Sin cifrar, es un acceso de root físico: se activa a mano solo
+        # para diagnosticar puntualmente.
+        initrd.systemd.emergencyAccess = config.nixdots.encryption.enable;
 
         plymouth = {
             enable = true;
