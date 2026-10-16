@@ -318,6 +318,37 @@ fn build(app: &adw::Application, state: Rc<RefCell<Model>>, repo: Rc<String>, si
     bar.append(&next);
 
     let header = adw::HeaderBar::new();
+
+    // Menú: reiniciar o apagar (en --sim solo imprime el comando).
+    let menu = gtk::MenuButton::builder()
+        .icon_name("open-menu-symbolic")
+        .build();
+    let popover = gtk::Popover::new();
+    let menu_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let reboot = gtk::Button::with_label("Reiniciar");
+    reboot.add_css_class("flat");
+    let poweroff = gtk::Button::with_label("Apagar");
+    poweroff.add_css_class("flat");
+    menu_box.append(&reboot);
+    menu_box.append(&poweroff);
+    popover.set_child(Some(&menu_box));
+    menu.set_popover(Some(&popover));
+    header.pack_end(&menu);
+    {
+        let popover = popover.clone();
+        reboot.connect_clicked(move |_| {
+            popover.popdown();
+            power(sim, "reboot");
+        });
+    }
+    {
+        let popover = popover.clone();
+        poweroff.connect_clicked(move |_| {
+            popover.popdown();
+            power(sim, "poweroff");
+        });
+    }
+
     let view = adw::ToolbarView::new();
     view.add_top_bar(&header);
     view.set_content(Some(&stack));
@@ -449,6 +480,15 @@ fn split_keyboard(code: &str) -> (String, String) {
     match code.split_once(':') {
         Some((layout, variant)) => (layout.to_string(), variant.to_string()),
         None => (code.to_string(), String::new()),
+    }
+}
+
+/// Reinicia o apaga; en --sim solo imprime el comando.
+fn power(sim: bool, action: &str) {
+    if sim {
+        println!("systemctl {action}");
+    } else {
+        let _ = std::process::Command::new("systemctl").arg(action).status();
     }
 }
 

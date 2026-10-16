@@ -1,11 +1,21 @@
 # Renders the neptunia palette as GTK/libadwaita CSS (`@define-color` over the
-# libadwaita named colors), generated from `share/themes/neptunia.nix` — the
-# same source of truth as `kmscon-palette`.
+# libadwaita named colors) plus a full-screen blurred background, generated from
+# `share/themes/neptunia.nix` — the same source of truth as `kmscon-palette`.
 { pkgs }:
 
 let
     t = import ../share/themes/neptunia.nix;
     hex = name: "#${t.${name}}";
+
+    # Fondo a pantalla completa, generado en tiempo de build (gradiente de la
+    # paleta, desenfocado y teñido con el color base).
+    wallpaper = pkgs.runCommand "nixdots-wallpaper.png" {
+        nativeBuildInputs = [ pkgs.imagemagick ];
+    } ''
+        magick -size 1920x1080 gradient:"${hex "lbg"}"-"${hex "dbg"}" \
+            -blur 0x30 -fill "${hex "bg"}" -colorize 35% "$out"
+    '';
+
     lines = [
         "@define-color window_bg_color ${hex "bg"};"
         "@define-color window_fg_color ${hex "fg"};"
@@ -30,6 +40,12 @@ let
         "@define-color error_color ${hex "c1"};"
         "@define-color borders ${hex "lbg"};"
         "@define-color dim_label_color ${hex "c8"};"
+        ''
+            window {
+                background-image: url("file://${wallpaper}");
+                background-size: cover;
+                background-position: center;
+            }''
     ];
 in
 pkgs.writeText "neptunia.css" (builtins.concatStringsSep "\n" lines + "\n")

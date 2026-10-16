@@ -52,7 +52,7 @@ pub fn start<F, D>(
 ) -> Result<(), String>
 where
     F: Fn(&str) + Clone + 'static,
-    D: Fn(bool) + 'static,
+    D: Fn(bool) + Clone + 'static,
 {
     let path = write_json(json).map_err(|e| format!("no se pudo escribir los datos: {e}"))?;
 
@@ -87,30 +87,58 @@ where
     }
     stdin.close(gio::Cancellable::NONE).map_err(|e| e.to_string())?;
 
-    // Salida línea a línea.
-    if let Some(out) = subprocess.stdout_pipe() {
-        pump(gio::DataInputStream::new(&out), on_line.clone());
+    // Terminamos solo cuando el proceso ha salido Y los dos pumps han llegado a
+    // EOF, para no perder las últimas líneas (p. ej. el error final).
+    let remaining = std::rc::Rc::new(std::cell::Cell::new(3u8));
+    let success = std::rc::Rc::new(std::cell::Cell::new(false));
+    let finish = {
+        let remaining = remaining.clone();
+        let success = success.clone();
+        let on_done = on_done.clone();
+        move || {
+            let left = remaining.get().saturating_sub(1);
+            remaining.set(left);
+            if left == 0 {
+                on_done(success.get());
+            }
+        }
+    };
+
+    match subprocess.stdout_pipe() {
+        Some(out) => pump(gio::DataInputStream::new(&out), on_line.clone(), finish.clone()),
+        None => finish(),
     }
-    if let Some(err) = subprocess.stderr_pipe() {
-        pump(gio::DataInputStream::new(&err), on_line);
+    match subprocess.stderr_pipe() {
+        Some(err) => pump(gio::DataInputStream::new(&err), on_line, finish.clone()),
+        None => finish(),
     }
 
-    // Fin: éxito = salió 0.
     let done = subprocess.clone();
+    let finish2 = finish.clone();
+    let success2 = success.clone();
     subprocess.wait_async(gio::Cancellable::NONE, move |res| {
-        on_done(res.is_ok() && done.is_successful());
+        success2.set(res.is_ok() && done.is_successful());
+        finish2();
     });
     Ok(())
 }
 
 /// Lee líneas de un stream de forma asíncrona, encadenando una lectura con la
-/// siguiente (sin hilos).
-fn pump<F: Fn(&str) + Clone + 'static>(stream: gio::DataInputStream, on_line: F) {
+/// siguiente (sin hilos). Llama a `on_eof` al terminar el stream.
+fn pump<F, E>(stream: gio::DataInputStream, on_line: F, on_eof: E)
+where
+    F: Fn(&str) + Clone + 'static,
+    E: Fn() + Clone + 'static,
+{
     let next = stream.clone();
+    let on_eof2 = on_eof.clone();
     stream.read_line_utf8_async(Priority::DEFAULT, gio::Cancellable::NONE, move |res| {
-        if let Ok(Some(line)) = res {
-            on_line(&line);
-            pump(next.clone(), on_line.clone());
+        match res {
+            Ok(Some(line)) => {
+                on_line(&line);
+                pump(next.clone(), on_line.clone(), on_eof2.clone());
+            }
+            _ => on_eof2(),
         }
     });
 }
