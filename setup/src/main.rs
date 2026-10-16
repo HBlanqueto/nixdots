@@ -91,7 +91,7 @@ fn apply(args: &[String]) -> Result<()> {
 
     // 2. user.json, fuera del repo (el flake lo mezcla con settings.nix).
     let user = UserData {
-        username: data.username,
+        username: data.username.clone(),
         userdescription: Some(data.full_name),
         git_name: data.git_name,
         git_email: data.git_email,
@@ -103,6 +103,14 @@ fn apply(args: &[String]) -> Result<()> {
     println!("$ escribir {} (0644)", nixdots_core::user_data::path().display());
     if !dry_run {
         user.write()?;
+    }
+
+    // ~<usuario>/nixdots -> repo, y el repo en manos del usuario, para que
+    // nixdots-rebuild y los alias sigan funcionando con ~/nixdots.
+    let home_link = format!("/home/{}/nixdots", data.username);
+    println!("$ ln -sfn {} {home_link} && chown -R <uid>:users {}", repo.display(), repo.display());
+    if !dry_run {
+        link_home(&data.username, &repo)?;
     }
 
     // 3. boot, no switch: activar en caliente apagaría greetd y mataría esta
@@ -195,5 +203,45 @@ fn run_step(cmd: &Cmd, dry_run: bool, what: &str) -> Result<()> {
 fn set_mode(path: &Path, mode: u32) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
+    Ok(())
+}
+
+/// Deja `~<usuario>/nixdots` como enlace al repo y pone el repo en manos del
+/// usuario. El asistente corre antes de que exista la cuenta, así que el uid se
+/// busca y, si aún no está, se usa el del primer usuario normal (1000).
+fn link_home(username: &str, repo: &Path) -> Result<()> {
+    let home = format!("/home/{username}");
+    std::fs::create_dir_all(&home).wrap_err_with(|| format!("no se pudo crear {home}"))?;
+    let link = format!("{home}/nixdots");
+    let _ = std::fs::remove_file(&link);
+    std::os::unix::fs::symlink(repo, &link).wrap_err("no se pudo crear el enlace ~/nixdots")?;
+
+    let uid = user_id(username).unwrap_or(1000);
+    let owner = format!("{uid}:users");
+    chown(&["-R", &owner], repo)?;
+    chown(&[&owner], Path::new(&home))?;
+    Ok(())
+}
+
+fn user_id(username: &str) -> Option<u32> {
+    let out = std::process::Command::new("id")
+        .arg("-u")
+        .arg(username)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+}
+
+fn chown(args: &[&str], path: &Path) -> Result<()> {
+    let status = std::process::Command::new("chown")
+        .args(args)
+        .arg(path)
+        .status()?;
+    if !status.success() {
+        bail!("chown falló en {}", path.display());
+    }
     Ok(())
 }
