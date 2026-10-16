@@ -307,14 +307,17 @@
                     inherit theme;
                 });
         in
+        let
+            # Perfil único: hardware detectado por facter + machine.json. La
+            # forma impura resuelve la arquitectura con builtins.currentSystem.
+            nixdots = mkGeneric {
+                system = if data.impure then builtins.currentSystem else "x86_64-linux";
+                requireImpure = true;
+            };
+        in
         {
             nixosConfigurations = hosts // {
-                # Perfil único: hardware detectado por facter + machine.json. La
-                # forma impura resuelve la arquitectura con builtins.currentSystem.
-                nixdots = mkGeneric {
-                    system = if data.impure then builtins.currentSystem else "x86_64-linux";
-                    requireImpure = true;
-                };
+                inherit nixdots;
 
                 # Variantes puras para CI (`nix flake check` / `nix build`
                 # sin --impure): sin user.json/machine.json/facter.json, no
@@ -339,6 +342,11 @@
                     system = "aarch64-linux";
                     hostName = "firstboot-vm-aarch64";
                 };
+            }
+            # El mismo sistema expuesto con el hostname del equipo, para que
+            # `nixos-rebuild --flake ~/nixdots` sin `#…` también funcione.
+            // nixpkgs.lib.optionalAttrs (data.machine ? hostName) {
+                ${data.machine.hostName} = nixdots;
             };
 
             # install.sh lee la copia versionada de la paleta sin pasar por

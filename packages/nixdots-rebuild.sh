@@ -5,9 +5,8 @@
 #   rb     same, but stage for the next boot instead of switching
 #   build  only build; never activate
 #
-# The canonical repo path is ~/nixdots (override with NIXDOTS_REPO). The host
-# is the current hostname; if it is not a nixosConfiguration the script stops
-# and lists the available ones instead of guessing.
+# The canonical repo path is ~/nixdots (override with NIXDOTS_REPO). The
+# configuration is always #nixdots.
 
 mode="${1:-sw}"
 case "$mode" in
@@ -21,7 +20,6 @@ case "$mode" in
 esac
 
 repo="${NIXDOTS_REPO:-$HOME/nixdots}"
-host="$(uname -n)"
 
 if [ ! -e "$repo/flake.nix" ]; then
     echo "No existe $repo/flake.nix (usa NIXDOTS_REPO para cambiar la ruta canónica)." >&2
@@ -30,28 +28,9 @@ fi
 
 cd "$repo"
 
-# 1. Refuse to continue if the flake would silently ignore new files: Nix only
-#    sees tracked files in a git tree, so untracked hosts/ or settings.nix are
-#    invisible and the rebuild would use stale values.
-untracked="$(git ls-files --others --exclude-standard -- hosts settings.nix)"
-if [ -n "$untracked" ]; then
-    echo "Hay archivos sin seguimiento en hosts/ o settings.nix (el flake no los ve):" >&2
-    while IFS= read -r file; do
-        echo "  $file" >&2
-    done <<<"$untracked"
-    exit 1
-fi
+ref="$repo#nixdots"
 
-# 2. The running hostname must be a declared configuration.
-available="$(nix eval --impure --json "$repo#nixosConfigurations" --apply builtins.attrNames)"
-if ! jq -e --arg host "$host" 'index($host)' >/dev/null <<<"$available"; then
-    echo "El host '$host' no existe en $repo. Disponibles: $(jq -r 'join(", ")' <<<"$available")" >&2
-    exit 1
-fi
-
-ref="$repo#$host"
-
-# 3. Always build first; only activate once the checks below pass.
+# 1. Always build first; only activate once the checks below pass.
 echo "== nixos-rebuild build ($ref) =="
 nixos-rebuild build --impure --flake "$ref"
 
@@ -59,9 +38,9 @@ if [ "$mode" = "build" ]; then
     exit 0
 fi
 
-# 4. Compare the normal users of the running system (uid >= 1000) with the new
+# 2. Compare the normal users of the running system (uid >= 1000) with the new
 #    configuration, and make sure every declared normal user has its hash file.
-new_users="$(nix eval --impure --json "$repo#nixosConfigurations.$host.config.users.users" --apply '
+new_users="$(nix eval --impure --json "$repo#nixosConfigurations.nixdots.config.users.users" --apply '
     users: builtins.mapAttrs (_: u: {
         isNormalUser = u.isNormalUser or false;
         hashedPasswordFile =
@@ -96,6 +75,6 @@ while IFS=$'\t' read -r user hashfile; do
     fi
 done < <(jq -r 'to_entries[] | select(.value.isNormalUser) | "\(.key)\t\(.value.hashedPasswordFile)"' <<<"$new_users")
 
-# 5. Activate.
+# 3. Activate.
 echo "== nixos-rebuild $mode ($ref) =="
 sudo nixos-rebuild "$mode" --impure --flake "$ref"
