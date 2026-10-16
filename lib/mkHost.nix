@@ -21,7 +21,7 @@ inputs.nixpkgs.lib.nixosSystem {
         ../modules/desktop
         # Sin evaluación impura no se puede leer user.json; abortar en vez de
         # tratar el host como primer arranque (que borraría la cuenta).
-        ({ lib, ... }: {
+        (_: {
             assertions = [
                 {
                     assertion = impure;

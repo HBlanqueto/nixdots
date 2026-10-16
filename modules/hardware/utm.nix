@@ -1,4 +1,4 @@
-{ lib, ... }:
+_:
 
 {
     # UTM (QEMU backend) on Apple Silicon, native aarch64. Stock kernel and

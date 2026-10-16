@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
+{ config, lib, pkgs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
 
 let
     theme = import ../../share/themes;
@@ -33,15 +33,15 @@ in
     ];
 
     time = {
-        timeZone = timeZone;
+        inherit timeZone;
     };
 
     i18n = {
-        defaultLocale = defaultLocale;
+        inherit defaultLocale;
     };
 
     networking = {
-        hostName = hostName;
+        inherit hostName;
     };
 
     users = {
@@ -56,7 +56,7 @@ in
             description = userdescription;
             extraGroups = [ "networkmanager" "wheel" "video" "seat" ];
             createHome = true;
-            hashedPasswordFile = hashedPasswordFile;
+            inherit hashedPasswordFile;
         };
     };
 

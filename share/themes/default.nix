@@ -7,6 +7,6 @@ rec {
 
     vscode =
         import ./vscode.nix {
-            inherit colors filecolors;
+            inherit colors;
         };
 }
