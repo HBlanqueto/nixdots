@@ -10,11 +10,6 @@
             directories = [
                 "/var/lib/bluetooth"
                 "/var/lib/nixos"
-                {
-                    directory = "/var/lib/ollama/models";
-                    user = "ollama";
-                    group = "ollama";
-                }
                 "/etc/NetworkManager/system-connections"
                 "/var/lib/AccountsService"
                 "/etc/nixos"
