@@ -1,0 +1,47 @@
+/* Neptunia — tokens as CSS variables (from tokens.json). Light first; data-theme="dark" or "dark-tint" on any element switches its subtree. */
+:root, [data-theme="light"] {
+  --bg-window: #f2f4f7; --bg-sunken: #e7ebf1; --bg-surface: #ffffff; --bg-raised: #ffffff;
+  --bg-control: #e3e8ef; --bg-hover: #dde3eb; --line: #d6dce5; --line-strong: #848fa1;
+  --ink: #1b2330; --ink-strong: #0d1219; --ink-muted: #55657e; --ink-faint: #8a96a8;
+  --accent: #4a64a8; --accent-strong: #3b5496; --on-accent: #ffffff; --accent-soft: #dce4f5;
+  --danger: #b04a46; --danger-fill: #b04a46; --on-danger: #ffffff; --success: #357a42; --warning: #86661a; --info: #7058a0; --cyan: #3a6f87;
+  --traffic-close: #e0625d; --traffic-min: #d9a63a; --traffic-zoom: #4fae5f;
+  --scrim: rgba(13, 18, 25, 0.28);
+  --window-outer: rgba(13, 18, 25, 0.22); --window-inner: rgba(255, 255, 255, 0);
+  --shadow-window: 0 0 0 1px rgba(13, 18, 25, 0.12), 0 18px 48px rgba(13, 18, 25, 0.18), 0 4px 12px rgba(13, 18, 25, 0.08);
+  --shadow-float: 0 0 0 1px rgba(13, 18, 25, 0.12), 0 10px 28px rgba(13, 18, 25, 0.16);
+  --shadow-knob: 0 1px 3px rgba(13, 18, 25, 0.3), 0 0 0 0.5px rgba(13, 18, 25, 0.12);
+}
+[data-theme="dark"], [data-theme="dark-tint"] {
+  --accent: #4a64a8; --accent-strong: #97b7ff; --on-accent: #ffffff;
+  --danger: #e5807c; --danger-fill: #b04a46; --on-danger: #ffffff;
+  --success: #8ecb94; --warning: #cfb984; --info: #aa96c2; --cyan: #a5c0d2;
+  --traffic-close: #e59592; --traffic-min: #dfca9b; --traffic-zoom: #a3dcb1;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --window-outer: rgba(0, 0, 0, 0.9); --window-inner: rgba(255, 255, 255, 0.14);
+  --shadow-window: 0 0 0 1px rgba(0, 0, 0, 0.9), 0 22px 56px rgba(0, 0, 0, 0.55), 0 6px 16px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+/* Oscuro: gris neutro estilo macOS. */
+[data-theme="dark"] {
+  --bg-window: #1e1e1e; --bg-sunken: #161616; --bg-surface: #262626; --bg-raised: #2b2b2b;
+  --bg-control: #3a3a3a; --bg-hover: #444444; --line: #333333; --line-strong: #747474;
+  --ink: #dcdcdc; --ink-strong: #f5f5f5; --ink-muted: #9b9b9b; --ink-faint: #6b6b6b;
+  --accent-soft: #2c3550;
+}
+/* Oscuro tintado (propuesta): los mismos grises con un tinte azul leve. */
+[data-theme="dark-tint"] {
+  --bg-window: #1b1d21; --bg-sunken: #141619; --bg-surface: #23262b; --bg-raised: #282b31;
+  --bg-control: #363a42; --bg-hover: #40444d; --line: #30343a; --line-strong: #717887;
+  --ink: #d8dce2; --ink-strong: #f3f5f8; --ink-muted: #969dab; --ink-faint: #666d79;
+  --accent-soft: #2a3550;
+}
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --radius-xs: 4px; --radius-sm: 7px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-pill: 999px;
+  --control-sm: 24px; --control-md: 30px; --control-lg: 38px; --titlebar-h: 44px; --sidebar-w: 220px;
+  --dur-fast: 120ms; --dur-base: 220ms; --dur-slow: 420ms;
+  --font-sans: Inter, "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-mono: "SF Mono Ligaturized", "UbuntuMono Nerd Font", "Victor Mono", ui-monospace, monospace;
+  --font-script: "Victor Mono", ui-monospace, monospace;
+}
