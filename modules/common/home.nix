@@ -1,4 +1,4 @@
-{ inputs, lib, hostName, username, gitName, gitEmail, stateVersion, ... }:
+{ inputs, lib, hostName, username, gitName, gitEmail, stateVersion, a11y, timeZoneAuto, ... }:
 
 let
     theme = import ../../share/themes;
@@ -8,7 +8,7 @@ lib.mkIf (username != null) {
         backupFileExtension = "backup";
 
         extraSpecialArgs = {
-            inherit inputs theme hostName username gitName gitEmail stateVersion;
+            inherit inputs theme hostName username gitName gitEmail stateVersion a11y timeZoneAuto;
         };
 
         users.${username} = {

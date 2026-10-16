@@ -11,6 +11,11 @@ in
 
     inherit (settings) stateVersion timeZone defaultLocale keyboardLayout keyboardVariant;
 
+    # Locale de región y formatos; zona horaria automática; accesibilidad.
+    region = settings.region or null;
+    timeZoneAuto = settings.timeZoneAuto or false;
+    a11y = settings.a11y or { };
+
     inherit username;
     userdescription = settings.userdescription or null;
     # Derivado del usuario: no se guarda en ningún archivo.
