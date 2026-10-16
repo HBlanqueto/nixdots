@@ -31,7 +31,8 @@ let
         { suffix = "light-cyan"; value = rgb theme.c14; }
         { suffix = "white"; value = rgb theme.c15; }
         { suffix = "foreground"; value = rgb theme.fg; }
-        { suffix = "background"; value = rgb theme.bg; }
+        # Fondo de la TTY en negro puro, no el bg neptunia (por defecto de kmscon).
+        { suffix = "background"; value = "0,0,0"; }
     ];
 
     name = suffix: if suffix == "" then "palette" else "palette-${suffix}";

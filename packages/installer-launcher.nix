@@ -34,7 +34,7 @@ pkgs.writeShellApplication {
             --palette-light-cyan "$(rgb ${theme.c14})"
             --palette-white "$(rgb ${theme.c15})"
             --palette-foreground "$(rgb ${theme.fg})"
-            --palette-background "$(rgb ${theme.bg})"
+            --palette-background "0,0,0"
         )
 
         # On a real VT, outside kmscon, with a render node (what --hwaccel

@@ -62,7 +62,8 @@ in
 
     console = {
         earlySetup = true;
-        colors = with theme.colors; [ bg c1 c2 c3 c4 c5 c6 c7 ] ++ [ lbg c9 c10 c11 c12 c13 c14 c15 ];
+        # Fondo negro puro en la consola del kernel (no el bg neptunia).
+        colors = with theme.colors; [ "000000" c1 c2 c3 c4 c5 c6 c7 ] ++ [ lbg c9 c10 c11 c12 c13 c14 c15 ];
         font = "Lat2-Terminus16";
         # The console uses the same xkb layout as the desktop.
         useXkbConfig = true;
