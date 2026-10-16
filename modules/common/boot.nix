@@ -12,6 +12,10 @@
 
         initrd.verbose = false;
 
+        # Sin esto, un fallo en el initrd deja la consola de emergencia
+        # bloqueada ("root account is locked") y no hay forma de diagnosticar.
+        initrd.systemd.emergencyAccess = true;
+
         plymouth = {
             enable = true;
             theme = "spinner";
