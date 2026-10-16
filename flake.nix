@@ -430,6 +430,16 @@
                         NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
                         NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                         NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                        # winit/femtovg cargan libwayland, libEGL… con dlopen, que
+                        # no mira el PATH: hacen falta en el loader path.
+                        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
+                            wayland
+                            libxkbcommon
+                            libglvnd
+                            fontconfig
+                            freetype
+                            libx11
+                        ]);
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];

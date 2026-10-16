@@ -27,9 +27,9 @@ if [ -z "${WAYLAND_DISPLAY:-}" ] || [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     exec "${RUN[@]}"
 fi
 
-# No abras otra si ya existe.
-if pgrep -f -- "--class nixdots-setup-sim" >/dev/null 2>&1; then
-    echo "Ya hay una ventana nixdots-setup-sim abierta (se recarga al guardar)."
+# No abras otra de ESTE worktree (una ventana de otro worktree no bloquea).
+if pgrep -f -- "--class nixdots-setup-sim --cwd $REPO " >/dev/null 2>&1; then
+    echo "Ya hay una ventana de simulación de $REPO abierta (se recarga al guardar)."
     exit 0
 fi
 
