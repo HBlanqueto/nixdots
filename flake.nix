@@ -114,6 +114,11 @@
 
                 modules = [
                     ./modules/desktop
+                    # nix.nix aporta el overlay (pkgs.xnu-console-font);
+                    # console.nix define nixdots.console.font, que user.nix usa
+                    # directamente (sin el parche `or "sfmono"`).
+                    ./modules/common/nix.nix
+                    ./modules/common/console.nix
                     ./modules/common/first-boot.nix
                     ./modules/common/user.nix
                     { system.stateVersion = data.settings.stateVersion; }
