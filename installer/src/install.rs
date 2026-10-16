@@ -122,10 +122,8 @@ pub struct Plan {
 
 impl Plan {
     pub fn installed_repo(&self) -> PathBuf {
-        self.root
-            .join("home")
-            .join(&self.settings.username)
-            .join("nixdots")
+        // El repo vive en /persist (persistente), no en el home del usuario.
+        self.root.join("persist/nixdots/repo")
     }
 
     pub fn log_path(&self) -> PathBuf {
@@ -225,12 +223,12 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         if plan.dry_run { "simulación" } else { "real" }
     ));
     report.raw(&format!("host: {}", plan.settings.host_name));
-    report.raw(&format!("usuario: {}", plan.settings.username));
-    report.raw(&format!("dispositivo: {}", plan.device));
     report.raw(&format!(
-        "repo destino: {}",
-        plan.installed_repo().display()
+        "usuario: {}",
+        plan.settings.username.as_deref().unwrap_or("(ninguno)")
     ));
+    report.raw(&format!("dispositivo: {}", plan.device));
+    report.raw(&format!("repo destino: {}", plan.installed_repo().display()));
 
     match run_steps(&plan, &mut report) {
         Ok(()) => {
@@ -271,6 +269,9 @@ fn run(plan: Plan, tx: Sender<Msg>) {
 }
 
 fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    // The installer always installs an account; fail clearly if the plan
+    // somehow has none instead of writing a nameless user.
+    plan.settings.username_required()?;
     let resume = plan.resume_from;
 
     // Disk is only formatted when it is the (re)starting point. When resuming
@@ -1340,7 +1341,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     fs::create_dir_all(dest.join("hosts"))?;
     fs::create_dir_all(dest.join("modules/common"))?;
     fs::create_dir_all(dest.join("modules/hardware"))?;
-    fs::write(dest.join("settings.nix"), plan.settings.render())?;
+    fs::write(dest.join("settings.nix"), plan.settings.without_user().render())?;
     fs::write(
         dest.join("modules/common/default.nix"),
         "{\n    imports = [\n        ./user.nix\n        ./uutils.nix\n    ];\n}\n",
@@ -1353,9 +1354,25 @@ const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/di
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
-    report.log("escribiendo settings.nix, la contraseña y hardware-configuration");
+    report.log("escribiendo settings.nix, user.json, la contraseña y hardware-configuration");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
-    plan.settings.write(&repo)?;
+    plan.settings.without_user().write(&repo)?;
+
+    // Datos personales fuera del repo; el flake los mezcla con settings.nix.
+    // `NIXDOTS_ROOT` es el target (prepare_target_tmp), así que va a
+    // /mnt/persist/nixdots/user.json.
+    let user = nixdots_core::user_data::UserData {
+        username: plan.settings.username_required()?.to_string(),
+        userdescription: plan.settings.userdescription.clone(),
+        git_name: plan.settings.git_name.clone(),
+        git_email: plan.settings.git_email.clone(),
+        default_locale: None,
+        time_zone: None,
+        keyboard_layout: None,
+        keyboard_variant: None,
+    };
+    report.log(format!("$ escribir {}", nixdots_core::user_data::path().display()));
+    user.write()?;
 
     // Keep a copy of the license in the installed system.
     let lic_dst = plan.root.join("etc/nixdots");
@@ -1371,7 +1388,7 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // `${NIXDOTS_ROOT}${hashedPasswordFile}`, so this is the file the install
     // evaluates.
     let secrets = plan.root.join("persist/secrets");
-    let hash_path = secrets.join(format!("{}.hash", plan.settings.username));
+    let hash_path = secrets.join(format!("{}.hash", plan.settings.username_required()?));
     report.log(format!("$ escribir {}", hash_path.display()));
     if !plan.dry_run {
         fs::create_dir_all(&secrets)?;
@@ -2142,42 +2159,6 @@ fn shell_command(cmd: &Cmd) -> String {
     parts.join(" ")
 }
 
-/// Hashes a password with `mkpasswd -m yescrypt --stdin`.
-///
-/// The plaintext is only ever written to the child's stdin; it is never logged,
-/// put in a display string or written to disk.
-pub fn hash_password(password: &str) -> Result<String> {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
-
-    let mut child = Command::new("mkpasswd")
-        .arg("-m")
-        .arg("yescrypt")
-        .arg("--stdin")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| eyre!("no se pudo ejecutar mkpasswd: {e}"))?;
-
-    // Exact bytes on stdin, no trailing newline: `--stdin` reads the secret
-    // verbatim (EOF terminates it), so the hash matches what was typed.
-    child
-        .stdin
-        .take()
-        .ok_or_else(|| eyre!("mkpasswd no aceptó la entrada"))?
-        .write_all(password.as_bytes())?;
-
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        return Err(eyre!(
-            "mkpasswd falló: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
 /// Evaluates the repo in a temporary copy to catch configuration errors before
 /// the install starts. The password hash the config asserts on is a marker file
 /// under `NIXDOTS_ROOT`, so the evaluation only checks that the repo is sound;
@@ -2191,17 +2172,8 @@ pub fn check_source(repo: &Path, host: &str) -> Result<(), String> {
         .arg(&tmp)
         .status();
 
-    // A marker hash so `hashedPasswordFile` resolves during evaluation.
-    let user = crate::settings::Settings::read(repo)
-        .ok()
-        .map(|settings| settings.username)
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "nixdots".to_string());
-    let secrets = tmp.join("persist/secrets");
-    fs::create_dir_all(&secrets).map_err(|err| err.to_string())?;
-    fs::write(secrets.join(format!("{user}.hash")), "$y$marker")
-        .map_err(|err| err.to_string())?;
-
+    // Sin user.json (NIXDOTS_ROOT=tmp) el config no declara cuenta, así que no
+    // hace falta un hash marcador: la evaluación solo valida la estructura.
     ensure_git_tree(&tmp);
 
     let expr = format!(

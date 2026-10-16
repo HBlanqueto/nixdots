@@ -2,9 +2,11 @@
 #
 # test.sh — checks for nixdots-installer.
 #
-# Runs the Rust lints and tests, builds the installer, then drives its TUI
-# through a pty in simulation mode and asserts the expected screens and widgets
-# render. Nothing touches a disk and no root is needed.
+# Runs the Rust lints and tests, `nix flake check --impure --no-build` (la
+# evaluación pura de los hosts reales es un error a propósito), builds the
+# installer, then drives its TUI through a pty in simulation mode and asserts
+# the expected screens and widgets render. Nothing touches a disk and no root is
+# needed.
 #
 # Usage:
 #   ./test.sh            # full run
@@ -36,12 +38,18 @@ ok()   { printf '\033[32mok\033[0m  %s\n' "$*"; }
 # ---------------------------------------------------------------------------
 say "cargo clippy -D warnings"
 nix develop ".#installer" -c \
-    cargo clippy --manifest-path installer/Cargo.toml --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
 ok "clippy"
 
 say "cargo test"
-nix develop ".#installer" -c cargo test --manifest-path installer/Cargo.toml
+nix develop ".#installer" -c cargo test --workspace
 ok "tests"
+
+# La evaluación pura no puede leer user.json: los hosts reales abortan, así que
+# el chequeo va con --impure (y --no-build: solo evalúa).
+say "nix flake check --impure --no-build"
+nix flake check --impure --no-build
+ok "flake"
 
 # ---------------------------------------------------------------------------
 if [ "$BUILD" -eq 1 ]; then

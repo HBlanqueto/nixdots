@@ -14,6 +14,7 @@
     ./boot.nix
     ./user.nix
     ./machine-info.nix
+    ./first-boot.nix
     ./services.nix
     ./fonts.nix
     ./uutils.nix

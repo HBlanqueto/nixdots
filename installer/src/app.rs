@@ -789,8 +789,8 @@ impl App {
         // Hostname defaults per machine profile; everything else starts empty
         // (only stateVersion is kept from the repo).
         settings.host_name = profile.default_hostname().to_string();
-        settings.username = String::new();
-        settings.userdescription = String::new();
+        settings.username = None;
+        settings.userdescription = None;
         settings.git_name = None;
         settings.git_email = None;
         settings.time_zone = String::new();
@@ -1123,7 +1123,7 @@ impl App {
         if self.user.custom && !self.user.username.value().is_empty() {
             self.user.username.value().to_string()
         } else {
-            detect::generate_username(self.user.name.value())
+            nixdots_core::user::generate_username(self.user.name.value())
         }
     }
 
@@ -1147,23 +1147,7 @@ impl App {
         if !self.user.custom || self.user.username.value().is_empty() {
             return None;
         }
-        let name = self.user.username.value();
-        let mut chars = name.chars();
-        match chars.next() {
-            Some(c) if c.is_ascii_lowercase() || c == '_' => {}
-            Some(c) if c.is_ascii_digit() => return Some("no puede empezar por número"),
-            _ => return Some("solo a-z, 0-9, - y _"),
-        }
-        if name.chars().count() > 32 {
-            return Some("máximo 32 caracteres");
-        }
-        if !chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
-            return Some("solo a-z, 0-9, - y _");
-        }
-        if RESERVED_USERS.contains(&name) {
-            return Some("nombre reservado");
-        }
-        None
+        nixdots_core::user::username_error(self.user.username.value())
     }
 
     pub fn username_valid(&self) -> bool {
@@ -1178,8 +1162,8 @@ impl App {
     fn apply_current(&mut self) {
         match self.screen {
             Screen::User => {
-                self.settings.username = self.final_username();
-                self.settings.userdescription = self.user.name.value().to_string();
+                self.settings.username = Some(self.final_username());
+                self.settings.userdescription = Some(self.user.name.value().to_string());
                 self.settings.pretty_host_name = self.pretty_host_name();
             }
             Screen::Git => {
@@ -1227,6 +1211,10 @@ impl App {
             self.status = Some("no hay disco seleccionado".into());
             return;
         };
+        if self.settings.username.is_none() {
+            self.status = Some("no hay usuario: completa la pantalla Usuario".into());
+            return;
+        }
         let hash = if let Some(hash) = self.password_hash.clone() {
             hash
         } else {
@@ -1234,7 +1222,7 @@ impl App {
             let hash = if self.dry_run {
                 "$y$j9T$SIMULATED".to_string()
             } else {
-                match install::hash_password(&password) {
+                match crate::crypto::hash_password(&password) {
                     Ok(hash) => hash,
                     Err(err) => {
                         self.status = Some(format!("mkpasswd: {err}"));
@@ -3158,34 +3146,6 @@ impl App {
         }
     }
 }
-
-/// Usernames that already exist on the system.
-const RESERVED_USERS: &[&str] = &[
-    "root",
-    "nixos",
-    "bin",
-    "daemon",
-    "nobody",
-    "adm",
-    "lp",
-    "sync",
-    "shutdown",
-    "halt",
-    "mail",
-    "operator",
-    "games",
-    "ftp",
-    "http",
-    "systemd-network",
-    "systemd-resolve",
-    "systemd-timesync",
-    "messagebus",
-    "polkitd",
-    "sshd",
-    "dbus",
-    "nscd",
-    "tss",
-];
 
 /// The first whitespace-separated token of a full name.
 fn first_name(full: &str) -> &str {

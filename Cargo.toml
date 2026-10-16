@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["installer", "core", "setup", "lists", "setup-gui"]
+
+# Small, self-contained release binary for the precompiled GitHub release.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

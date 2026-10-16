@@ -5,22 +5,29 @@
 # aarch64-linux configuration. `hostName` is used both as the flake output
 # name and as networking.hostName, so `nixos-rebuild switch --flake ~/nixdots`
 # resolves the host automatically.
-{ inputs, settings }:
+{ inputs, settings, firstBoot, impure }:
 { hostName, system, modules ? [ ] }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     specialArgs = {
-        inherit inputs hostName settings;
-        inherit (settings)
-            stateVersion timeZone defaultLocale username userdescription
-            hashedPasswordFile keyboardLayout keyboardVariant gitName gitEmail;
-    };
+        inherit inputs hostName firstBoot;
+    } // import ./specialArgs.nix { inherit settings; };
 
     # Common + desktop layers are shared; the host supplies its own
     # hardware module and hardware-configuration.nix.
     modules = [
         ../modules/common
         ../modules/desktop
+        # Sin evaluación impura no se puede leer user.json; abortar en vez de
+        # tratar el host como primer arranque (que borraría la cuenta).
+        ({ lib, ... }: {
+            assertions = [
+                {
+                    assertion = impure;
+                    message = "nixdots necesita evaluación impura para leer /persist/nixdots/user.json: usa nixdots-rebuild o añade --impure";
+                }
+            ];
+        })
     ] ++ modules;
 }

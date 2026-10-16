@@ -1,15 +1,16 @@
 //! Library for the nixdots installer (`nixdots-installer`).
 
 pub mod app;
-pub mod crypto;
 pub mod detect;
 pub mod disk;
 pub mod install;
 pub mod keyboard;
 pub mod logo;
 pub mod net;
-pub mod runner;
 pub mod screens;
-pub mod settings;
 pub mod theme;
 pub mod widgets;
+
+// Shared, TUI-free logic lives in nixdots-core (also used by the first-boot
+// assistant); re-exported so `crate::settings`/`runner`/`crypto` keep resolving.
+pub use nixdots_core::{crypto, runner, settings};

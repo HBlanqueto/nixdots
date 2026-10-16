@@ -69,7 +69,9 @@
     # virt-manager drives libvirtd from the GNOME session.
     programs.virt-manager.enable = true;
 
-    users.users.${username}.extraGroups = [ "libvirtd" ];
+    users.users = lib.mkIf (username != null) {
+        ${username}.extraGroups = [ "libvirtd" ];
+    };
 
     # The default libvirt NAT network lives on virbr0.
     networking.firewall.trustedInterfaces = [ "virbr0" ];
@@ -95,7 +97,8 @@
         };
     };
 
-    systemd.services.chime = {
+    # El chime suena en la sesión del usuario, así que solo aplica con cuenta.
+    systemd.services.chime = lib.mkIf (username != null) {
         enable = true;
         description = "Boot up";
         wants = [ "sound.target" ];

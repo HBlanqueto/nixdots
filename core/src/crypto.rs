@@ -3,11 +3,49 @@
 //! The LUKS recovery key is generated here, shown once on the Cifrado screen
 //! and handed to `systemd-cryptenroll`/`cryptsetup` during the install. It is
 //! never written to the log, to `settings.nix` or to anything inside the
-//! encrypted disk; [`zeroize`] wipes it as soon as it goes out of scope.
+//! encrypted disk; [`zeroize`] wipes it as soon as it goes out of scope. The
+//! password hash (`mkpasswd`) also lives here because it is another secret.
 
+use color_eyre::eyre::{eyre, Result};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use zeroize::Zeroizing;
+
+/// Hashes a password with `mkpasswd -m yescrypt --stdin`.
+///
+/// The plaintext is only ever written to the child's stdin; it is never logged,
+/// put in a display string or written to disk.
+pub fn hash_password(password: &str) -> Result<String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let mut child = Command::new("mkpasswd")
+        .arg("-m")
+        .arg("yescrypt")
+        .arg("--stdin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| eyre!("no se pudo ejecutar mkpasswd: {e}"))?;
+
+    // Exact bytes on stdin, no trailing newline: `--stdin` reads the secret
+    // verbatim (EOF terminates it), so the hash matches what was typed.
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| eyre!("mkpasswd no aceptó la entrada"))?
+        .write_all(password.as_bytes())?;
+
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        return Err(eyre!(
+            "mkpasswd falló: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
 
 /// systemd's `modhex` alphabet: the 16 letters that are unambiguous when typed
 /// from a recovery sheet (no vowels, no look-alikes).

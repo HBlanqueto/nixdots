@@ -1,10 +1,9 @@
-{ inputs, hostName, username, gitName, gitEmail, stateVersion, ... }:
+{ inputs, lib, hostName, username, gitName, gitEmail, stateVersion, ... }:
 
 let
     theme = import ../../share/themes;
 in
-
-{
+lib.mkIf (username != null) {
     home-manager = {
         backupFileExtension = "backup";
 

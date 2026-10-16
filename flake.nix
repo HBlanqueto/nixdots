@@ -24,8 +24,37 @@
 
     outputs = inputs@{ nixpkgs, ... }:
         let
-            settings = import ./settings.nix;
-            mkHost = import ./lib/mkHost.nix { inherit inputs settings; };
+            # La evaluación tiene que ser impura para leer user.json:
+            # `nix flake check`/`nix eval` puros no ven /persist/nixdots y darían
+            # por hecho un primer arranque (borrarían la cuenta). En los hosts
+            # reales eso es un error (ver mkHost); firstboot-vm no se ve afectado.
+            impure = builtins ? currentSystem;
+
+            # Los datos personales no se versionan: viven en
+            # ${NIXDOTS_ROOT}/persist/nixdots/user.json (los escribe el asistente
+            # o el instalador). `settings` = settings.nix del repo + esos datos.
+            userData =
+                let
+                    root = builtins.getEnv "NIXDOTS_ROOT";
+                    file = root + "/persist/nixdots/user.json";
+                in
+                if impure && builtins.pathExists file
+                then builtins.fromJSON (builtins.readFile file)
+                else { };
+
+            hasUser = userData ? username;
+
+            settings = import ./settings.nix // userData;
+
+            # Primer arranque en un host real: solo impuro y sin user.json. Se
+            # pasa como specialArg, así en evaluación pura `firstBoot` es false
+            # y nunca puede activar el asistente.
+            firstBootHost = impure && !hasUser;
+
+            mkHost = import ./lib/mkHost.nix {
+                inherit inputs settings impure;
+                firstBoot = firstBootHost;
+            };
 
             # Every directory under hosts/ with a host.nix is a configuration.
             # host.nix declares the per-host `profile` and `system`; the flake
@@ -47,6 +76,78 @@
             hosts = builtins.listToAttrs (
                 map (name: { inherit name; value = mkHostFromDir name; }) hostNames
             );
+
+            # VM de prueba del primer arranque, en ambas arquitecturas. Vive en
+            # el flake, no en hosts/, porque toda carpeta bajo hosts/ se
+            # convierte en un host real. Solo desktop + first-boot + user.
+            #
+            # Se construye con NIXDOTS_ROOT vacío (ver run-firstboot-vm.sh), así
+            # el flake no ve ningún user.json, firstBoot = !(settings ? username)
+            # es true y arranca el asistente. El asistente escribe user.json,
+            # reconstruye y el reinicio ya crea la cuenta.
+            mkFirstBootVm = { system, hostName }: nixpkgs.lib.nixosSystem {
+                inherit system;
+
+                specialArgs = {
+                    inherit inputs hostName;
+                    # En la VM el asistente siempre arranca hasta que el propio
+                    # asistente escriba user.json (entonces el rebuild interno ya
+                    # crea la cuenta).
+                    firstBoot = !hasUser;
+                } // import ./lib/specialArgs.nix { inherit settings; };
+
+                modules = [
+                    ./modules/desktop
+                    ./modules/common/first-boot.nix
+                    ./modules/common/user.nix
+                    { system.stateVersion = settings.stateVersion; }
+                    # Solo en la VM de prueba: root con contraseña para poder
+                    # depurar desde tty2. Nunca en los hosts reales.
+                    { users.users.root.password = "test"; }
+
+                    # La config base ES la VM (qemu-vm.nix importado aquí, no
+                    # como virtualisation.vmVariant): así el `nixos-rebuild
+                    # boot` interno construye el mismo sistema que arranca, con
+                    # sus fileSystems y su bootloader.
+                    (nixpkgs.outPath + "/nixos/modules/virtualisation/qemu-vm.nix")
+
+                    ({ pkgs, ... }: {
+                        virtualisation = {
+                            memorySize = 4096;
+                            cores = 4;
+
+                            # Sin bootloader, QEMU arranca el toplevel original
+                            # (kernel/initrd directos) y un reinicio tras
+                            # `nixos-rebuild boot` no vería la nueva generación.
+                            useBootLoader = true;
+                            useEFIBoot = true;
+                        };
+
+                        # El bootloader que instala en la imagen de la VM.
+                        boot.loader.systemd-boot.enable = true;
+
+                        # El asistente reconstruye desde esta copia del repo.
+                        # Solo se siembra si no existe (persiste en el qcow2).
+                        systemd.services.nixdots-seed = {
+                            wantedBy = [ "multi-user.target" ];
+                            before = [ "greetd.service" ];
+                            serviceConfig.Type = "oneshot";
+                            path = with pkgs; [ git coreutils ];
+                            script = ''
+                                if [ -e /persist/nixdots/repo ]; then exit 0; fi
+                                mkdir -p /persist/nixdots
+                                cp -a ${inputs.self} /persist/nixdots/repo
+                                chmod -R u+w /persist/nixdots/repo
+                                git -C /persist/nixdots/repo init -q
+                                git -C /persist/nixdots/repo add -A
+                                git -C /persist/nixdots/repo \
+                                    -c user.name=seed -c user.email=seed@localhost \
+                                    commit -qm seed
+                            '';
+                        };
+                    })
+                ];
+            };
 
             # The installer is built for both architectures the ISO is offered
             # on; it only orchestrates other tools.
@@ -80,11 +181,10 @@
                     # Whole repo so the palette test can read
                     # share/themes/neptunia.nix; the crate lives in installer/.
                     src = ./.;
-                    # cargoRoot locates Cargo.lock/Cargo.toml; buildAndTestSubdir
-                    # makes the hooks actually run cargo inside installer/.
-                    cargoRoot = "installer";
+                    # buildAndTestSubdir makes the hooks run cargo inside
+                    # installer/; the Cargo.lock lives at the workspace root.
                     buildAndTestSubdir = "installer";
-                    cargoLock.lockFile = ./installer/Cargo.lock;
+                    cargoLock.lockFile = ./Cargo.lock;
 
                     nativeBuildInputs = [ pkgs.makeWrapper ];
 
@@ -113,6 +213,83 @@
 
             installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
 
+            # El asistente de primer arranque: mismo patrón que el instalador,
+            # pero solo orquesta mkpasswd, git, nix y nixos-rebuild.
+            mkSetup = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+
+                    runtimeInputs = with pkgs; [
+                        git
+                        nix
+                        nixos-rebuild
+                        mkpasswd
+                        coreutils
+                    ];
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-setup";
+                    version = "0.1.0";
+
+                    src = ./.;
+                    buildAndTestSubdir = "setup";
+                    cargoLock.lockFile = ./Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.makeWrapper ];
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-setup \
+                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                    '';
+
+                    meta = {
+                        description = "First-boot assistant CLI for the nixdots configuration";
+                        mainProgram = "nixdots-setup";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
+                };
+
+            setups = nixpkgs.lib.genAttrs supportedSystems mkSetup;
+
+            # Asistente gráfico (GTK4 + libadwaita): llama al CLI nixdots-setup.
+            mkSetupGui = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-setup-gui";
+                    version = "0.1.0";
+
+                    src = ./.;
+                    buildAndTestSubdir = "setup-gui";
+                    cargoLock.lockFile = ./Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
+                    buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
+
+                    # Tablas de nixdots-lists y el CSS del tema (include_str!).
+                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                    NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-setup-gui \
+                            --prefix PATH : ${pkgs.lib.makeBinPath [ setups.${system} ]}
+                    '';
+
+                    meta = {
+                        description = "Graphical first-boot assistant for the nixdots configuration";
+                        mainProgram = "nixdots-setup-gui";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
+                };
+
+            setupsGui = nixpkgs.lib.genAttrs supportedSystems mkSetupGui;
+
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
             # neptunia palette) on a real VT, then runs the installer inside it.
             launchers = nixpkgs.lib.genAttrs supportedSystems (system:
@@ -121,10 +298,21 @@
                 });
         in
         {
-            nixosConfigurations = hosts;
+            nixosConfigurations = hosts // {
+                firstboot-vm = mkFirstBootVm {
+                    system = "x86_64-linux";
+                    hostName = "firstboot-vm";
+                };
+                firstboot-vm-aarch64 = mkFirstBootVm {
+                    system = "aarch64-linux";
+                    hostName = "firstboot-vm-aarch64";
+                };
+            };
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
+                setup = setups.${system};
+                setup-gui = setupsGui.${system};
                 launcher = launchers.${system};
                 default = launchers.${system};
 
@@ -171,6 +359,8 @@
                             clang
                             lld
                             pkg-config
+                            gtk4
+                            libadwaita
                         ];
 
                         # The installer embeds these tables at compile time with
@@ -180,6 +370,7 @@
                         NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
                         NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                         NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];
