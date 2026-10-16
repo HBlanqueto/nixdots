@@ -5,6 +5,9 @@
 // (neptunia-tokens.slint, generado desde share/themes/neptunia.nix); aquí no hay
 // hexes salvo los que vienen del propio sistema.
 
+import "fonts/DancingScript-Regular.ttf";
+import "fonts/DancingScript-Bold.ttf";
+
 import { Tokens } from "neptunia-tokens.slint";
 export { Tokens } from "neptunia-tokens.slint";
 import { Theme } from "theme.slint";
@@ -13,6 +16,15 @@ import {
     Icon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
     GitIcon, CheckIcon, SpinIcon,
 } from "icons.slint";
+
+// Un idioma del saludo: palabra, texto del botón, ayuda, tamaño y RTL.
+struct Greet {
+    word: string,
+    cta: string,
+    hint: string,
+    size: length,
+    rtl: bool,
+}
 
 // Datos del asistente. Las listas son de ejemplo y fijas (la fase 4b traerá las
 // reales). Rust sólo rellena los datos de la máquina y valida el usuario.
@@ -46,11 +58,24 @@ export global State {
     in-out property <string> machine-disk: "System HD · 256 GB";
     in-out property <string> machine-host: "ThinkPad-L14-Gen2";
 
-    in-out property <[string]> words: [
-        "hola", "hello", "bonjour", "ciao", "olá", "hallo",
-        "こんにちは", "你好", "안녕하세요", "привет", "مرحبا", "γεια σου", "merhaba",
+    // Saludo (paso 0): 13 idiomas; cambian palabra, botón y ayuda a la vez.
+    in-out property <[Greet]> greets: [
+        { word: "hola", cta: "Continuar", hint: "Pulsa Intro para empezar", size: 150px, rtl: false },
+        { word: "hello", cta: "Continue", hint: "Press Return to get started", size: 150px, rtl: false },
+        { word: "bonjour", cta: "Continuer", hint: "Appuyez sur Entrée pour commencer", size: 140px, rtl: false },
+        { word: "olá", cta: "Continuar", hint: "Prima Enter para começar", size: 150px, rtl: false },
+        { word: "ciao", cta: "Continua", hint: "Premi Invio per iniziare", size: 150px, rtl: false },
+        { word: "hallo", cta: "Weiter", hint: "Drücke die Eingabetaste, um zu beginnen", size: 150px, rtl: false },
+        { word: "こんにちは", cta: "続ける", hint: "Return キーを押して開始", size: 96px, rtl: false },
+        { word: "你好", cta: "继续", hint: "按回车键开始", size: 110px, rtl: false },
+        { word: "안녕하세요", cta: "계속", hint: "Enter 키를 눌러 시작하세요", size: 96px, rtl: false },
+        { word: "привет", cta: "Продолжить", hint: "Нажмите Enter, чтобы начать", size: 130px, rtl: false },
+        { word: "γεια σου", cta: "Συνέχεια", hint: "Πατήστε Enter για να ξεκινήσετε", size: 124px, rtl: false },
+        { word: "merhaba", cta: "Devam", hint: "Başlamak için Enter tuşuna basın", size: 140px, rtl: false },
+        { word: "مرحبا", cta: "متابعة", hint: "اضغط على Enter للبدء", size: 120px, rtl: true },
     ];
-    in-out property <int> word-index: 0;
+    in-out property <int> gi: 0;
+    in-out property <bool> g-shown: true;
 
     in-out property <[string]> lang-names: [
         "Español (México)", "Español (España)", "English (United States)",
@@ -570,6 +595,7 @@ export component AppWindow inherits Window {
     // Alias para `slint-viewer --load-data` (capturas por pantalla/tema).
     in-out property <int> step <=> State.step;
     in-out property <string> theme <=> Tokens.theme;
+    in-out property <int> greet <=> State.gi;
 
     callback quit-app();
     callback apply();
@@ -585,17 +611,14 @@ export component AppWindow inherits Window {
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
     }
-    // Fuente del saludo: Victor Mono cursiva 300 para el latino; del sistema
-    // para CJK, cirílico, árabe y griego.
-    function word-family(i: int) -> string {
+    // Fuente del saludo: Dancing Script 600 (latino); Noto Sans CJK para
+    // japonés/chino/coreano y DejaVu Sans para cirílico, griego y árabe.
+    function greet-family(i: int) -> string {
         return i >= 6 && i <= 8 ? "Noto Sans CJK SC"
-            : (i >= 9 && i <= 11 ? "DejaVu Sans" : "Victor Mono");
+            : (i >= 9 && i <= 10 ? "DejaVu Sans" : (i == 12 ? "DejaVu Sans" : "Dancing Script"));
     }
-    function word-italic(i: int) -> bool {
-        return i < 6 || i == 12;
-    }
-    function word-size(i: int) -> length {
-        return i >= 6 && i <= 8 ? 128px : 150px;
+    function greet-weight(i: int) -> int {
+        return (i <= 5 || i == 11) ? 600 : 400;
     }
 
     // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
@@ -638,79 +661,108 @@ export component AppWindow inherits Window {
         animate transform-scale-x { duration: Tokens.durSlow; }
         animate transform-scale-y { duration: Tokens.durSlow; }
 
+        // Cada 2,6 s se funde (450 ms) al siguiente idioma: saludo, botón y ayuda.
+        Timer {
+            interval: 2600ms;
+            running: true;
+            triggered => { State.g-shown = false; }
+        }
+        Timer {
+            interval: 450ms;
+            running: !State.g-shown;
+            triggered => {
+                State.gi = Math.mod(State.gi + 1, State.greets.length);
+                State.g-shown = true;
+            }
+        }
+
+        // Saludo, un poco por encima del centro (40 px de padding inferior).
         VerticalLayout {
+            width: 100%;
+            height: 100%;
+            padding-bottom: 40px;
             alignment: center;
-            spacing: 48px;
-
-            // Palabra que se revela de izquierda a derecha y rota de idioma.
-            reveal-word := Rectangle {
+            greet-word := Rectangle {
                 width: 100%;
-                height: 210px;
-                clip: true;
-                property <bool> shown: true;
-                property <length> reveal: shown ? self.width : 0px;
-                animate reveal { duration: 1400ms; easing: ease-in-out; }
-
-                Timer {
-                    interval: 3500ms;
-                    running: true;
-                    triggered => {
-                        reveal-word.shown = !reveal-word.shown;
-                        if (reveal-word.shown) {
-                            State.word-index = Math.mod(State.word-index + 1, State.words.length);
-                        }
-                    }
-                }
-
-                Rectangle {
-                    width: parent.reveal;
-                    height: parent.height;
-                    clip: true;
-                    Text {
-                        width: reveal-word.width;
-                        height: parent.height;
-                        text: State.words[State.word-index];
-                        color: #ffffff;
-                        font-family: root.word-family(State.word-index);
-                        font-italic: root.word-italic(State.word-index);
-                        font-weight: root.word-italic(State.word-index) ? 300 : 400;
-                        font-size: root.word-size(State.word-index);
-                        vertical-alignment: center;
-                        horizontal-alignment: center;
-                    }
+                height: 200px;
+                opacity: State.g-shown ? 1 : 0;
+                property <length> gdy: State.g-shown ? 0px : 6px;
+                animate opacity { duration: 450ms; }
+                animate gdy { duration: 450ms; }
+                Text {
+                    y: greet-word.gdy;
+                    width: 100%;
+                    height: 100%;
+                    text: State.greets[State.gi].word;
+                    color: #f4f6fa;
+                    font-family: root.greet-family(State.gi);
+                    font-weight: root.greet-weight(State.gi);
+                    font-size: State.greets[State.gi].size;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                    wrap: no-wrap;
                 }
             }
+        }
 
+        // Botón (principal Neptunia, 180 px fijos) + ayuda, a 120 px del pie.
+        Rectangle {
+            width: 100%;
+            height: 68px;
+            y: parent.height - self.height - 120px;
             VerticalLayout {
+                width: 100%;
                 alignment: center;
                 spacing: 12px;
                 HorizontalLayout {
                     alignment: center;
-                    Rectangle {
-                        width: 52px;
-                        height: 52px;
-                        border-radius: 26px;
-                        background: rgba(13, 18, 25, 0.22);
-                        border-width: 1px;
-                        border-color: rgba(255, 255, 255, 0.45);
+                Rectangle {
+                    width: 180px;
+                    height: Tokens.controllg;
+                    border-radius: Tokens.radiusmd;
+                    background: ta.pressed ? Theme.accent : (ta.has-hover ? Theme.accent-strong : Theme.accent);
+                    transform-scale-x: ta.pressed ? 97% : 100%;
+                    transform-scale-y: ta.pressed ? 97% : 100%;
+                    drop-shadow-color: rgba(13, 18, 25, 0.25);
+                    drop-shadow-blur: 16px;
+                    drop-shadow-offset-y: 4px;
+                    animate background { duration: Tokens.durFast; }
+                    animate transform-scale-x { duration: Tokens.durFast; }
+                    animate transform-scale-y { duration: Tokens.durFast; }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+                        Text {
+                            text: State.greets[State.gi].cta;
+                            color: #ffffff;
+                            font-family: "Inter";
+                            font-size: 13px;
+                            font-weight: 600;
+                            wrap: no-wrap;
+                            opacity: State.g-shown ? 1 : 0;
+                            animate opacity { duration: 450ms; }
+                        }
                         Icon {
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            size: 20px;
+                            size: 14px;
                             sw: 2px;
                             ink: #ffffff;
-                            commands: "M 5 12 L 19 12 M 13 6 L 19 12 L 13 18";
-                        }
-                        TouchArea {
-                            clicked => { State.step = 1; }
+                            commands: State.greets[State.gi].rtl
+                                ? "M 19 12 L 5 12 M 11 6 L 5 12 L 11 18"
+                                : "M 5 12 L 19 12 M 13 6 L 19 12 L 13 18";
                         }
                     }
+                    ta := TouchArea {
+                        clicked => { State.step = 1; }
+                    }
+                }
                 }
                 Text {
-                    text: "Pulsa Intro para empezar";
-                    color: rgba(255, 255, 255, 0.82);
-                    font-size: 13px;
+                    text: State.greets[State.gi].hint;
+                    color: #d7dce6;
+                    font-size: 14px;
                     horizontal-alignment: center;
+                    opacity: State.g-shown ? 1 : 0;
+                    animate opacity { duration: 450ms; }
                 }
             }
         }
