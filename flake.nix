@@ -379,7 +379,8 @@
                         NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
                     };
                     # Shell del asistente Slint: compila (winit + femtovg) y abre
-                    # la UI; slint-viewer/slint-lsp para editar .slint.
+                    # la UI; slint-viewer/slint-lsp para editar .slint. Incluye el
+                    # CLI nixdots-setup para que «Aplicar» (--dry-run) funcione.
                     setup-gui = pkgs.mkShell {
                         packages = with pkgs; [
                             cargo
@@ -396,6 +397,7 @@
                             libglvnd
                             wayland
                             libx11
+                            setups.${system}
                         ];
                     };
                     default = pkgs.mkShell {
