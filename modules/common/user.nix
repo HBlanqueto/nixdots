@@ -50,6 +50,9 @@ in
     } // lib.optionalAttrs (username != null) {
         users.${username} = {
             isNormalUser = true;
+            # Fijo para que el asistente (que corre antes de existir la cuenta)
+            # pueda hacer el chown del repo a 1000:users. Ver setup/src/main.rs.
+            uid = 1000;
             description = userdescription;
             extraGroups = [ "networkmanager" "wheel" "video" "seat" ];
             createHome = true;

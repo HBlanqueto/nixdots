@@ -105,21 +105,22 @@ fn apply(args: &[String]) -> Result<()> {
         user.write()?;
     }
 
-    // ~<usuario>/nixdots -> repo, y el repo en manos del usuario, para que
-    // nixdots-rebuild y los alias sigan funcionando con ~/nixdots.
-    let home_link = format!("/home/{}/nixdots", data.username);
-    println!("$ ln -sfn {} {home_link} && chown -R <uid>:users {}", repo.display(), repo.display());
-    if !dry_run {
-        link_home(&data.username, &repo)?;
-    }
-
     // 3. boot, no switch: activar en caliente apagaría greetd y mataría esta
     //    misma sesión a mitad de la activación. El bucle de sesión reinicia.
     let host = hostname()?;
     let rebuild = Cmd::new("nixos-rebuild")
         .args(["boot", "--impure", "--flake"])
         .arg(format!("{}#{host}", repo.display()));
-    run_step(&rebuild, dry_run, "nixos-rebuild")
+    run_step(&rebuild, dry_run, "nixos-rebuild")?;
+
+    // ~<usuario>/nixdots -> repo, y el repo en manos del usuario, solo cuando el
+    // rebuild ha terminado bien: si falla no se tocan permisos.
+    let home_link = format!("/home/{}/nixdots", data.username);
+    println!("$ ln -sfn {} {home_link} && chown -R 1000:users {}", repo.display(), repo.display());
+    if !dry_run {
+        link_home(&data.username, &repo)?;
+    }
+    Ok(())
 }
 
 fn load_data(path: &Path) -> Result<Data> {
@@ -207,8 +208,8 @@ fn set_mode(path: &Path, mode: u32) -> Result<()> {
 }
 
 /// Deja `~<usuario>/nixdots` como enlace al repo y pone el repo en manos del
-/// usuario. El asistente corre antes de que exista la cuenta, así que el uid se
-/// busca y, si aún no está, se usa el del primer usuario normal (1000).
+/// usuario. El uid está fijado a 1000 en `modules/common/user.nix` (el asistente
+/// corre antes de que exista la cuenta).
 fn link_home(username: &str, repo: &Path) -> Result<()> {
     let home = format!("/home/{username}");
     std::fs::create_dir_all(&home).wrap_err_with(|| format!("no se pudo crear {home}"))?;
@@ -216,23 +217,9 @@ fn link_home(username: &str, repo: &Path) -> Result<()> {
     let _ = std::fs::remove_file(&link);
     std::os::unix::fs::symlink(repo, &link).wrap_err("no se pudo crear el enlace ~/nixdots")?;
 
-    let uid = user_id(username).unwrap_or(1000);
-    let owner = format!("{uid}:users");
-    chown(&["-R", &owner], repo)?;
-    chown(&[&owner], Path::new(&home))?;
+    chown(&["-R", "1000:users"], repo)?;
+    chown(&["1000:users"], Path::new(&home))?;
     Ok(())
-}
-
-fn user_id(username: &str) -> Option<u32> {
-    let out = std::process::Command::new("id")
-        .arg("-u")
-        .arg(username)
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
 }
 
 fn chown(args: &[&str], path: &Path) -> Result<()> {
