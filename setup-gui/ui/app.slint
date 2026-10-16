@@ -46,10 +46,14 @@ export global State {
     in-out property <string> machine-disk: "System HD · 256 GB";
     in-out property <string> machine-host: "ThinkPad-L14-Gen2";
 
-    // Listas de ejemplo.
-    in-out property <[string]> words: ["hola", "hello", "bienvenido", "bonjour", "olá", "ciao"];
+    // Saludo de «Hola»: se revela de izquierda a derecha y rota de idioma.
+    in-out property <[string]> words: [
+        "hello", "hola", "bonjour", "ciao", "olá", "hallo",
+        "こんにちは", "你好", "안녕하세요", "привет", "مرحبا", "γεια σου", "merhaba",
+    ];
     in-out property <int> word-index: 0;
 
+    // Listas de ejemplo.
     in-out property <[string]> lang-names: [
         "Español (México)", "Español (España)", "English (United States)",
         "Português (Brasil)", "Français",
@@ -473,6 +477,15 @@ export component AppWindow inherits Window {
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
     }
+    // Fuente del saludo: cursiva para el latino y del sistema para el resto
+    // (Dancing Script no cubre CJK, cirílico, árabe ni griego).
+    function word-font(i: int) -> string {
+        return i >= 6 && i <= 8 ? "Noto Sans CJK SC"
+            : (i >= 9 && i <= 11 ? "DejaVu Sans" : "Dancing Script");
+    }
+    function word-size(i: int) -> length {
+        return i >= 6 && i <= 8 ? 128px : 150px;
+    }
 
     // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
     // un campo tenga el foco (los eventos suben por los ancestros).
@@ -515,32 +528,26 @@ export component AppWindow inherits Window {
 
         VerticalLayout {
             alignment: center;
-            spacing: 56px;
+            // La caja de la palabra tiene relleno de fuente (la tinta queda
+            // centrada con aire arriba y abajo), así que sin separación se ven
+            // ~48 px entre la palabra y el botón.
+            spacing: 0px;
 
             // Palabra cursiva que se revela de izquierda a derecha y rota.
             reveal-word := Rectangle {
-                width: 1150px;
-                height: 300px;
+                width: 100%;
+                height: 200px;
                 clip: true;
-                property <bool> shown: false;
-                property <bool> started: false;
-                property <length> reveal: shown ? 1150px : 0px;
+                property <bool> shown: true;
+                property <length> reveal: shown ? self.width : 0px;
                 animate reveal { duration: 1400ms; easing: ease-in-out; }
 
                 Timer {
-                    interval: 300ms;
-                    running: !reveal-word.started;
-                    triggered => {
-                        reveal-word.started = true;
-                        reveal-word.shown = true;
-                    }
-                }
-                Timer {
                     interval: 3400ms;
-                    running: reveal-word.started;
+                    running: true;
                     triggered => {
                         reveal-word.shown = !reveal-word.shown;
-                        if (!reveal-word.shown) {
+                        if (reveal-word.shown) {
                             State.word-index = Math.mod(State.word-index + 1, State.words.length);
                         }
                     }
@@ -551,15 +558,14 @@ export component AppWindow inherits Window {
                     height: parent.height;
                     clip: true;
                     Text {
-                        width: 1150px;
+                        width: reveal-word.width;
                         height: parent.height;
                         text: State.words[State.word-index];
                         color: #f4f7fb;
-                        font-family: "Dancing Script";
-                        font-size: 150px;
-                        font-weight: 500;
-                        horizontal-alignment: center;
+                        font-family: root.word-font(State.word-index);
+                        font-size: root.word-size(State.word-index);
                         vertical-alignment: center;
+                        horizontal-alignment: center;
                     }
                 }
             }
