@@ -1,12 +1,12 @@
-{ config, lib, pkgs, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
+{ config, lib, pkgs, data, hostName, username, userdescription, hashedPasswordFile, timeZone, defaultLocale, keyboardLayout, keyboardVariant, ... }:
 
 let
     theme = import ../../share/themes;
 
     # The installed system checks the final path; the installer evaluates from
-    # the ISO, so it points NIXDOTS_ROOT at the target (e.g. "/mnt"), where the
-    # file lives. On a normal system the variable is unset ("").
-    root = builtins.getEnv "NIXDOTS_ROOT";
+    # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
+    # where the file lives. On a normal system the variable is unset ("").
+    inherit (data) root;
 
     # Every declared normal user must point at an existing password hash file.
     # With mutableUsers = false a missing file leaves the account without a
@@ -14,7 +14,7 @@ let
     # inspected.
     normalUsers = builtins.filter (u: u.isNormalUser) (builtins.attrValues config.users.users);
     missingHashes = builtins.filter
-        (u: (u.hashedPasswordFile or null) != null && !(builtins.pathExists "${root}${u.hashedPasswordFile}"))
+        (u: (u.hashedPasswordFile or null) != null && !(data.exists u.hashedPasswordFile))
         normalUsers;
 in
 

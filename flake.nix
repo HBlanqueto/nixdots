@@ -22,49 +22,13 @@
 
     outputs = inputs@{ nixpkgs, ... }:
         let
-            # La evaluación tiene que ser impura para leer user.json:
-            # `nix flake check`/`nix eval` puros no ven /persist/nixdots y darían
-            # por hecho un primer arranque (borrarían la cuenta). En los hosts
-            # reales eso es un error (ver mkHost); firstboot-vm no se ve afectado.
-            impure = builtins ? currentSystem;
+            # Único punto de lectura de user.json/machine.json/facter.json: en
+            # evaluación pura (nix flake check sin --impure) no ve /persist y
+            # todo cae a los valores seguros, por eso los hosts reales exigen
+            # impure (ver mkHost).
+            data = import ./lib/data.nix;
 
-            # Los datos personales no se versionan: viven en
-            # ${NIXDOTS_ROOT}/persist/nixdots/user.json (los escribe el asistente
-            # o el instalador). `settings` = settings.nix del repo + esos datos.
-            userData =
-                let
-                    root = builtins.getEnv "NIXDOTS_ROOT";
-                    file = root + "/persist/nixdots/user.json";
-                in
-                if impure && builtins.pathExists file
-                then builtins.fromJSON (builtins.readFile file)
-                else { };
-
-            hasUser = userData ? username;
-
-            settings = import ./settings.nix // userData;
-
-            # Primer arranque en un host real: solo impuro y sin user.json. Se
-            # pasa como specialArg, así en evaluación pura `firstBoot` es false
-            # y nunca puede activar el asistente.
-            firstBootHost = impure && !hasUser;
-
-            # Igual que userData, pero per-machine: qué disco/cifrado/Secure
-            # Boot y qué periféricos. Sin el archivo cae a los defaults seguros
-            # del módulo (sin cifrado, sin Secure Boot, extras apagados).
-            machineData =
-                let
-                    root = builtins.getEnv "NIXDOTS_ROOT";
-                    file = root + "/persist/nixdots/machine.json";
-                in
-                if impure && builtins.pathExists file
-                then builtins.fromJSON (builtins.readFile file)
-                else { };
-
-            mkHost = import ./lib/mkHost.nix {
-                inherit inputs settings impure;
-                firstBoot = firstBootHost;
-            };
+            mkHost = import ./lib/mkHost.nix { inherit inputs data; };
 
             # Módulos exclusivos del perfil único (asumen el layout de disko y/o
             # un informe de facter); no los importa ningún host con hardware
@@ -81,7 +45,7 @@
                     # facter ve una CPU AMD en bare-metal.
                     inputs.ucodenix.nixosModules.default
                 ]
-                ++ nixpkgs.lib.optionals (machineData.secureBoot or false) [
+                ++ nixpkgs.lib.optionals (data.machine.secureBoot or false) [
                     inputs.lanzaboote.nixosModules.lanzaboote
                     ./modules/common/luks-tpm.nix
                 ];
@@ -91,8 +55,9 @@
             # /persist). En evaluación pura cae a x86_64-linux para que
             # `nix flake check` al menos liste la salida.
             mkGeneric = { system, requireImpure ? true, ciOnly ? false }: mkHost {
-                hostName = machineData.hostName or "nixdots";
-                inherit system machineData requireImpure;
+                hostName = data.machine.hostName or "nixdots";
+                inherit system requireImpure;
+                machineData = data.machine;
                 modules = genericModules
                     ++ nixpkgs.lib.optional ciOnly {
                         # Las salidas puras de CI no tienen cuenta (no hay
@@ -135,18 +100,18 @@
                 inherit system;
 
                 specialArgs = {
-                    inherit inputs hostName;
+                    inherit inputs hostName data;
                     # En la VM el asistente siempre arranca hasta que el propio
                     # asistente escriba user.json (entonces el rebuild interno ya
                     # crea la cuenta).
-                    firstBoot = !hasUser;
-                } // import ./lib/specialArgs.nix { inherit settings; };
+                    firstBoot = !data.hasUser;
+                } // import ./lib/specialArgs.nix { settings = data.settings; };
 
                 modules = [
                     ./modules/desktop
                     ./modules/common/first-boot.nix
                     ./modules/common/user.nix
-                    { system.stateVersion = settings.stateVersion; }
+                    { system.stateVersion = data.settings.stateVersion; }
                     # Solo en la VM de prueba: root con contraseña para poder
                     # depurar desde tty2. Nunca en los hosts reales.
                     { users.users.root.password = "test"; }
@@ -325,7 +290,7 @@
                 # Perfil único: hardware detectado por facter + machine.json. La
                 # forma impura resuelve la arquitectura con builtins.currentSystem.
                 nixdots = mkGeneric {
-                    system = if impure then builtins.currentSystem else "x86_64-linux";
+                    system = if data.impure then builtins.currentSystem else "x86_64-linux";
                     requireImpure = true;
                 };
 
