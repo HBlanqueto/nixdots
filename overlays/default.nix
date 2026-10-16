@@ -1,7 +1,7 @@
-{ inputs }:
+{ ... }:
 
 final: prev: {
-    sf-mono-liga-bin = final.callPackage ../packages/sf-mono-liga-bin.nix { inherit inputs; };
+    sf-mono-liga-bin = final.callPackage ../packages/sf-mono-liga-bin.nix { };
 
     # brave-previews is intentionally not exposed here: the input only ships
     # x86_64-linux outputs, so referencing it would break aarch64 evaluation.

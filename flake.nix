@@ -15,9 +15,6 @@
 
         brave-previews.url = "github:drishal/brave-browser-flake";
 
-        sf-mono-liga-src.url = "github:shaunsingh/SFMono-Nerd-Font-Ligaturized";
-        sf-mono-liga-src.flake = false;
-
         disko.url = "github:nix-community/disko";
         disko.inputs.nixpkgs.follows = "nixpkgs";
     };
