@@ -1,0 +1,1850 @@
+// Asistente de primer arranque (fase 4a, sólo UI) sobre el sistema Neptunia.
+//
+// Referencias: ~/Descargas/first-boot/mockup-asistente.html + firstboot.css + los
+// tokens/componentes Neptunia. Los colores y medidas salen de Tokens
+// (neptunia-tokens.slint, generado desde share/themes/neptunia.nix).
+
+import "fonts/DancingScript-Regular.ttf";
+import "fonts/DancingScript-Bold.ttf";
+
+import { Tokens } from "neptunia-tokens.slint";
+export { Tokens } from "neptunia-tokens.slint";
+import { Theme } from "theme.slint";
+export { Theme } from "theme.slint";
+import {
+    Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
+    GitIcon, CheckIcon, SpinIcon,
+} from "icons.slint";
+
+// Un idioma del saludo: palabra, texto del botón, ayuda, tamaño y RTL.
+struct Greet {
+    word: string,
+    cta: string,
+    hint: string,
+    size: length,
+    rtl: bool,
+}
+
+// Datos del asistente. Las listas son de ejemplo y fijas (la fase 4b traerá las
+// reales). Rust rellena los datos de la máquina, valida el usuario y aplica.
+export global State {
+    in-out property <int> step: 0;
+    in-out property <bool> applying: false;
+    in-out property <string> apply-error: "";
+    in-out property <string> log-text: "";
+    in-out property <bool> show-details: false;
+    // Fase real del CLI (0..4) y fundido final a negro.
+    in-out property <int> prep-phase: 0;
+    in-out property <bool> prep-black: false;
+    // A dónde vuelve «Volver a la configuración» (Cuenta si fue la contraseña).
+    in-out property <int> error-step: 9;
+    // Saludo escrito letra a letra por Rust.
+    in-out property <string> greet-typed: "";
+    in-out property <bool> greet-animate: false;
+
+    // ¿Hay red? Si la hay, el paso de Wi‑Fi se salta (pero cuenta en los puntos).
+    in-out property <bool> has-network: false;
+
+    in-out property <int> lang-index: 0;
+    in-out property <int> region-index: 0;
+    in-out property <int> kb-index: 0;
+    in-out property <int> net-index: 0;
+    in-out property <int> city-index: 0;
+    in-out property <bool> tz-auto: true;
+    in-out property <bool> auto-login: false;
+    in-out property <bool> git-on: false;
+
+    // Accesibilidad (todas false por defecto).
+    in-out property <bool> a11y-large-text: false;
+    in-out property <bool> a11y-high-contrast: false;
+    in-out property <bool> a11y-screen-reader: false;
+    in-out property <bool> a11y-reduce-motion: false;
+    in-out property <bool> a11y-screen-keyboard: false;
+
+    in-out property <string> full-name: "Humberto Blanqueto";
+    in-out property <string> username: "humbertoblanqueto";
+    in-out property <string> initials: "HB";
+    in-out property <string> first-name: "Humberto";
+    in-out property <string> password: "";
+    in-out property <string> password2: "";
+    in-out property <string> username-error: "";
+    in-out property <string> git-name: "Humberto Blanqueto";
+    in-out property <string> git-email: "";
+
+    in-out property <string> machine-model: "ThinkPad L14 Gen 2a";
+    in-out property <string> machine-cpu: "AMD Ryzen 5 PRO 5650U with Radeon Graphics";
+    in-out property <string> machine-ram: "16 GB";
+    in-out property <string> machine-disk: "System HD · 256 GB";
+    in-out property <string> machine-disk-used: "38 GB usados";
+    in-out property <float> machine-disk-fill: 0.15;
+    in-out property <string> machine-host: "ThinkPad-L14-Gen2";
+
+    // Saludo (paso 0): 13 idiomas.
+    in-out property <[Greet]> greets: [
+        { word: "hola", cta: "Continuar", hint: "Pulsa Intro para empezar", size: 150px, rtl: false },
+        { word: "hello", cta: "Continue", hint: "Press Return to get started", size: 150px, rtl: false },
+        { word: "bonjour", cta: "Continuer", hint: "Appuyez sur Entrée pour commencer", size: 140px, rtl: false },
+        { word: "olá", cta: "Continuar", hint: "Prima Enter para começar", size: 150px, rtl: false },
+        { word: "ciao", cta: "Continua", hint: "Premi Invio per iniziare", size: 150px, rtl: false },
+        { word: "hallo", cta: "Weiter", hint: "Drücke die Eingabetaste, um zu beginnen", size: 150px, rtl: false },
+        { word: "こんにちは", cta: "続ける", hint: "Return キーを押して開始", size: 96px, rtl: false },
+        { word: "你好", cta: "继续", hint: "按回车键开始", size: 110px, rtl: false },
+        { word: "안녕하세요", cta: "계속", hint: "Enter 키를 눌러 시작하세요", size: 96px, rtl: false },
+        { word: "привет", cta: "Продолжить", hint: "Нажмите Enter, чтобы начать", size: 130px, rtl: false },
+        { word: "γεια σου", cta: "Συνέχεια", hint: "Πατήστε Enter για να ξεκινήσετε", size: 124px, rtl: false },
+        { word: "merhaba", cta: "Devam", hint: "Başlamak için Enter tuşuna basın", size: 140px, rtl: false },
+        { word: "مرحبا", cta: "متابعة", hint: "اضغط على Enter للبدء", size: 120px, rtl: true },
+    ];
+    in-out property <int> gi: 0;
+    in-out property <bool> g-shown: true;
+
+    // Listas de ejemplo. `region-*` va en paralelo a `lang-*`.
+    in-out property <[string]> lang-names: [
+        "Español (México)", "Español (España)", "English (United States)",
+        "Português (Brasil)", "Français",
+    ];
+    in-out property <[string]> lang-codes: ["es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8", "fr_FR.UTF-8"];
+    in-out property <[string]> region-names: ["México", "España", "Estados Unidos", "Brasil", "Francia"];
+    in-out property <[string]> region-codes: ["es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8", "fr_FR.UTF-8"];
+
+    in-out property <[string]> kb-names: [
+        "Español (Latinoamérica)", "Español (España)", "Inglés (EE. UU.)",
+    ];
+    in-out property <[string]> kb-codes: ["latam", "es", "us"];
+
+    in-out property <[string]> net-names: ["Casa", "Casa 5G", "Oficina", "Invitados"];
+    in-out property <[string]> net-sec: ["Segura", "Segura", "Segura", "Abierta"];
+
+    in-out property <[string]> city-names: ["Mérida", "Ciudad de México", "Monterrey", "Tijuana", "Madrid"];
+    in-out property <[string]> city-tz: [
+        "America/Merida", "America/Mexico_City", "America/Monterrey", "America/Tijuana", "Europe/Madrid",
+    ];
+}
+
+// Cuadro de icono de paso (48 px) con tinte sólido y brillo arriba.
+component StepIcon inherits Rectangle {
+    in property <color> tint: Tokens.accent;
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    background: tint;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.14);
+    drop-shadow-color: rgba(13, 18, 25, 0.18);
+    drop-shadow-blur: 12px;
+    drop-shadow-offset-y: 4px;
+    Rectangle {
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%);
+        border-radius: 13px;
+    }
+    HorizontalLayout {
+        alignment: center;
+        VerticalLayout {
+            alignment: center;
+            @children
+        }
+    }
+}
+
+// Cuadro de icono de fila/ficha (24 px de fila, 26 px de ficha).
+component TileIcon inherits Rectangle {
+    in property <color> tint: Theme.accent;
+    in property <string> icon;
+    in property <length> size: 24px;
+    in property <length> radius: 7px;
+    in property <length> glyph-size: 15px;
+    width: size;
+    height: size;
+    border-radius: radius;
+    background: tint;
+    MiniIcon {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        size: root.glyph-size;
+        ink: #ffffff;
+        commands: root.icon;
+    }
+}
+
+// Cabecera de sección (np-group-hd).
+component SectionLabel inherits Rectangle {
+    in property <string> text;
+    height: 28px;
+    Text {
+        x: 14px;
+        text: root.text;
+        color: Tokens.inkMuted;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+}
+
+// Campo de texto Neptunia (np-field/np-input): etiqueta encima, caja de 36 px.
+component Field inherits VerticalLayout {
+    in-out property <string> text;
+    in property <string> label;
+    in property <string> placeholder;
+    in property <bool> password: false;
+    in property <string> help;
+    in property <bool> error: false;
+    callback edited(string);
+    spacing: 6px;
+    alignment: start;
+    Text {
+        text: root.label;
+        color: Tokens.inkStrong;
+        font-weight: 600;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        wrap: no-wrap;
+    }
+    input := Rectangle {
+        width: 100%;
+        height: 36px;
+        border-radius: Tokens.radiussm;
+        background: Tokens.bgSurface;
+        border-width: 1px;
+        border-color: root.error ? Tokens.danger : (ti.has-focus ? Theme.accent : Tokens.line);
+        Text {
+            x: 12px;
+            width: parent.width - 24px;
+            height: parent.height;
+            text: root.placeholder;
+            color: Tokens.inkFaint;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+            vertical-alignment: center;
+            wrap: no-wrap;
+            visible: root.text == "";
+        }
+        ti := TextInput {
+            x: 12px;
+            y: 0;
+            width: parent.width - 24px;
+            height: parent.height;
+            vertical-alignment: center;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+            color: Tokens.inkStrong;
+            single-line: true;
+            input-type: root.password ? InputType.password : InputType.text;
+            text <=> root.text;
+            edited => { root.edited(root.text); }
+        }
+    }
+    if root.help != "" : Text {
+        text: root.help;
+        color: root.error ? Tokens.danger : Tokens.inkMuted;
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+        wrap: word-wrap;
+    }
+}
+
+// Campo de búsqueda (np-input--search): cápsula sobre bg-control.
+component SearchField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    height: 36px;
+    border-radius: Tokens.radiuspill;
+    background: Tokens.bgControl;
+    MiniIcon {
+        x: 12px;
+        y: (parent.height - self.height) / 2;
+        size: 16px;
+        ink: Tokens.inkFaint;
+        commands: "M4 11 A7 7 0 1 0 18 11 A7 7 0 1 0 4 11 Z M20 20 L16 16";
+    }
+    Text {
+        x: 36px;
+        width: parent.width - 48px;
+        height: parent.height;
+        text: root.placeholder;
+        color: Tokens.inkFaint;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        wrap: no-wrap;
+        visible: root.text == "";
+    }
+    TextInput {
+        x: 36px;
+        y: 0;
+        width: parent.width - 48px;
+        height: parent.height;
+        vertical-alignment: center;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        color: Tokens.inkStrong;
+        single-line: true;
+        text <=> root.text;
+    }
+}
+
+// Select «popup» Neptunia (np-popup): muestra un valor y avanza al pulsarlo.
+component SelectField inherits Rectangle {
+    in property <string> text;
+    callback cycle();
+    height: 36px;
+    border-radius: Tokens.radiussm;
+    background: Tokens.bgSurface;
+    border-width: 1px;
+    border-color: Tokens.line;
+    Text {
+        x: 12px;
+        width: parent.width - 48px;
+        height: parent.height;
+        text: root.text;
+        color: Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        wrap: no-wrap;
+    }
+    Rectangle {
+        x: parent.width - self.width - 6px;
+        y: (parent.height - self.height) / 2;
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: Theme.accent;
+        MiniIcon {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            size: 10px;
+            sw: 2px;
+            ink: Theme.accent-ink;
+            commands: "M3 4.5 L6 7.5 L9 4.5";
+        }
+    }
+    TouchArea {
+        clicked => { root.cycle(); }
+    }
+}
+
+// Fila de lista Neptunia (np-listrow). La elegida se rellena de acento.
+component OptionRow inherits Rectangle {
+    in property <string> label;
+    in property <string> trailing;
+    in property <bool> trailing-accent: false;
+    in property <bool> selected: false;
+    in property <bool> divider: true;
+    in property <bool> wifi: false;
+    callback picked();
+    height: 44px;
+    background: selected ? Theme.accent : transparent;
+    Rectangle {
+        y: 0;
+        width: 100%;
+        height: 1px;
+        background: root.divider && !root.selected ? Tokens.line : transparent;
+    }
+    MiniIcon {
+        x: 12px;
+        y: (parent.height - self.height) / 2;
+        size: 16px;
+        sw: 1.8px;
+        ink: root.selected ? Theme.accent-ink : Tokens.inkMuted;
+        visible: root.wifi;
+        commands: "M2 8.5 A15 15 0 0 1 22 8.5 M5 12 A10.5 10.5 0 0 1 19 12 M8.5 15.5 A5.5 5.5 0 0 1 15.5 15.5";
+    }
+    Text {
+        x: root.wifi ? 38px : 12px;
+        text: root.label;
+        color: root.selected ? Theme.accent-ink : Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 500;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    Text {
+        x: parent.width - self.width - 12px;
+        text: root.trailing;
+        color: root.selected ? Theme.accent-ink : (root.trailing-accent ? Theme.accent : Tokens.inkMuted);
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Interruptor Neptunia (np-switch): 36 × 20, perilla de 16.
+component Toggle inherits Rectangle {
+    in-out property <bool> checked;
+    width: 36px;
+    height: 20px;
+    border-radius: Tokens.radiuspill;
+    background: checked ? Theme.accent : Tokens.bgControl;
+    border-width: checked ? 0px : 1px;
+    border-color: Tokens.line;
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ffffff;
+        drop-shadow-color: rgba(13, 18, 25, 0.3);
+        drop-shadow-blur: 3px;
+        drop-shadow-offset-y: 1px;
+        x: root.checked ? parent.width - self.width - 2px : 2px;
+        y: 2px;
+        animate x { duration: Tokens.durFast; }
+    }
+    TouchArea {
+        clicked => { root.checked = !root.checked; }
+    }
+}
+
+// Fila con icono de color (np-ricon), título, descripción y interruptor.
+component IconRow inherits Rectangle {
+    in property <string> title;
+    in property <string> desc;
+    in property <string> icon;
+    in property <color> tint: Theme.accent;
+    in-out property <bool> on;
+    in property <bool> divider: true;
+    height: 48px;
+    Rectangle {
+        y: 0;
+        x: 50px;
+        width: parent.width - 64px;
+        height: 1px;
+        background: root.divider ? Tokens.line : transparent;
+    }
+    TileIcon {
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        tint: root.tint;
+        icon: root.icon;
+    }
+    Text {
+        x: 50px;
+        y: 7px;
+        height: 18px;
+        text: root.title;
+        color: Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 500;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 50px;
+        y: 25px;
+        width: parent.width - 110px;
+        height: 16px;
+        text: root.desc;
+        color: Tokens.inkMuted;
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        wrap: no-wrap;
+        overflow: elide;
+    }
+    TouchArea {
+        clicked => { root.on = !root.on; }
+    }
+    Toggle {
+        x: parent.width - self.width - 14px;
+        y: (parent.height - self.height) / 2;
+        checked <=> root.on;
+    }
+}
+
+
+// Botón Neptunia (np-btn--lg): 38 px, radius-md, no cápsula.
+component Button inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    in property <length> w: 112px;
+    callback clicked();
+    width: w;
+    height: Tokens.controllg;
+    border-radius: Tokens.radiusmd;
+    background: primary ? Theme.accent : Tokens.bgControl;
+    opacity: root.enabled ? 1 : 0.4;
+    Text {
+        text: root.label;
+        color: primary ? Theme.accent-ink : Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: parent.width;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    TouchArea {
+        clicked => { if (root.enabled) { root.clicked(); } }
+    }
+}
+
+// Enlace Neptunia (fb-link).
+component LinkText inherits Rectangle {
+    in property <string> label;
+    in property <color> fg: Theme.accent-strong;
+    in property <length> w;
+    callback clicked();
+    width: w;
+    height: 22px;
+    background: transparent;
+    Text {
+        text: root.label;
+        color: root.fg;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 500;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        width: parent.width;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Ficha tintada Neptunia (np-tile--tint) para «Este equipo».
+component InfoTile inherits Rectangle {
+    in property <string> caption;
+    in property <string> value;
+    in property <string> icon;
+    in property <color> tint: Theme.accent;
+    in property <string> extra;
+    in property <bool> progress: false;
+    in property <float> fill: 0.15;
+    in property <length> tile-h: 84px;
+    horizontal-stretch: 1;
+    height: tile-h;
+    border-radius: Tokens.radiuslg;
+    background: Tokens.bgSurface.mix(tint, Tokens.dark ? 0.16 : 0.12);
+    border-width: 1px;
+    border-color: Tokens.line.mix(tint, 0.22);
+    VerticalLayout {
+        alignment: start;
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 8px;
+        Rectangle {
+            width: 100%;
+            height: 26px;
+            TileIcon {
+                x: 0;
+                y: 0;
+                size: 26px;
+                radius: 8px;
+                tint: root.tint;
+                icon: root.icon;
+            }
+            Text {
+                x: 34px;
+                text: root.caption;
+                color: Tokens.inkMuted;
+                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                font-weight: 500;
+                vertical-alignment: center;
+                height: parent.height;
+            }
+            Text {
+                x: parent.width - self.width;
+                text: root.extra;
+                color: Tokens.inkMuted;
+                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                vertical-alignment: center;
+                height: parent.height;
+            }
+        }
+        Text {
+            text: root.value;
+            color: Tokens.inkStrong;
+            font-size: 15px * (State.a11y-large-text ? 1.25 : 1.0);
+            font-weight: 600;
+            wrap: no-wrap;
+            overflow: elide;
+        }
+        if root.progress : Rectangle {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: Tokens.bgControl;
+            Rectangle {
+                x: 0;
+                width: root.fill * parent.width;
+                height: 100%;
+                border-radius: 3px;
+                background: root.tint;
+            }
+        }
+    }
+}
+
+// Tarjeta de modo claro/oscuro (fb-mode). Anillo de 2 px + 2 px de aire.
+component ModeCard inherits Rectangle {
+    in property <bool> preview-dark: false;
+    in property <bool> selected: false;
+    callback picked();
+    width: 166px;
+    height: 124px;
+    background: transparent;
+    VerticalLayout {
+        alignment: center;
+        spacing: 8px;
+        Rectangle {
+            width: 158px;
+            height: 102px;
+            border-radius: Tokens.radiusmd + 4px;
+            background: transparent;
+            border-width: 2px;
+            border-color: root.selected ? Theme.accent : transparent;
+            Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                border-radius: Tokens.radiusmd + 2px;
+                background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
+                Rectangle {
+                    x: 2px;
+                    y: 2px;
+                    width: parent.width - 4px;
+                    height: parent.height - 4px;
+                    border-radius: Tokens.radiusmd;
+                    clip: true;
+                    background: root.preview-dark ? #161616 : #e7ebf1;
+                    Rectangle {
+                        x: 22px;
+                        y: 18px;
+                        width: 106px;
+                        height: 62px;
+                        border-radius: 7px;
+                        background: root.preview-dark ? #1e1e1e : #f2f4f7;
+                        border-width: root.preview-dark ? 1px : 0px;
+                        border-color: #000000;
+                        Rectangle {
+                            x: 10px;
+                            y: 12px;
+                            width: 40px;
+                            height: 7px;
+                            border-radius: 4px;
+                            background: Theme.accent;
+                        }
+                        Rectangle {
+                            x: 10px;
+                            y: 26px;
+                            width: 70px;
+                            height: 5px;
+                            border-radius: 3px;
+                            background: root.preview-dark ? #3a3a3a : #d6dce5;
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            text: root.preview-dark ? "Oscuro" : "Claro";
+            color: Tokens.ink;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+            font-weight: 500;
+            horizontal-alignment: center;
+        }
+    }
+    TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Muestra de acento (fb-swatch): 24 px, anillo de 2 px con 2 px de aire.
+component Swatch inherits Rectangle {
+    in property <color> c;
+    in property <bool> selected: false;
+    callback picked();
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    Rectangle {
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: transparent;
+        border-width: 2px;
+        border-color: root.selected ? root.c : transparent;
+    }
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        background: root.selected ? (Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow) : transparent;
+    }
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: root.c;
+    }
+    TouchArea {
+        clicked => { root.picked(); }
+    }
+}
+
+// Fila del resumen (np-listrow con icono).
+component SummaryRow inherits Rectangle {
+    in property <string> k;
+    in property <string> v;
+    in property <string> icon;
+    in property <color> tint;
+    in property <bool> divider: true;
+    height: 32px;
+    Rectangle {
+        y: 0;
+        x: 50px;
+        width: parent.width - 64px;
+        height: 1px;
+        background: root.divider ? Tokens.line : transparent;
+    }
+    TileIcon {
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        tint: root.tint;
+        icon: root.icon;
+    }
+    Text {
+        x: 50px;
+        text: root.k;
+        color: Tokens.inkMuted;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+    }
+    Text {
+        x: parent.width - self.width - 14px;
+        text: root.v;
+        color: Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 500;
+        vertical-alignment: center;
+        height: parent.height;
+        wrap: no-wrap;
+        overflow: elide;
+    }
+}
+
+// Cabecera de paso: icono → 12 px → título 22/28 → 6 px → descripción.
+component StepHeader inherits VerticalLayout {
+    in property <string> title;
+    in property <string> subtitle;
+    alignment: start;
+    spacing: 12px;
+    HorizontalLayout {
+        alignment: center;
+        @children
+    }
+    VerticalLayout {
+        alignment: start;
+        spacing: 6px;
+        Text {
+            text: root.title;
+            font-size: 22px * (State.a11y-large-text ? 1.25 : 1.0);
+            font-weight: 650;
+            color: Tokens.inkStrong;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.subtitle;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+            color: Tokens.inkMuted;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "nixdots";
+    width: 1280px;
+    height: 800px;
+    background: #2b3038;
+    default-font-family: "Inter";
+    forward-focus: key-handler;
+
+    // Alias para `slint-viewer --load-data` (capturas por pantalla/tema).
+    in-out property <int> step <=> State.step;
+    in-out property <string> theme <=> Tokens.theme;
+    in-out property <int> greet <=> State.gi;
+    in-out property <bool> tz-auto <=> State.tz-auto;
+    in-out property <int> prep-phase <=> State.prep-phase;
+    in-out property <string> apply-error <=> State.apply-error;
+
+    callback quit-app();
+    callback apply();
+    callback name-edited(string);
+    callback username-edited(string);
+
+    out property <bool> in-dlg: State.step >= 1 && State.step <= 9;
+
+    function off(i: int) -> length {
+        return (Theme.reduced-motion || State.a11y-reduce-motion) ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
+    }
+    function op(i: int) -> float {
+        return State.step == i ? 1.0 : 0.0;
+    }
+    function next-step(s: int) -> int {
+        return (s + 1 == 3 && State.has-network) ? 4 : s + 1;
+    }
+    function prev-step(s: int) -> int {
+        return (s - 1 == 3 && State.has-network) ? 2 : s - 1;
+    }
+    // Tinte del icono de cada paso.
+    function step-tint(i: int) -> color {
+        return i == 1 ? Tokens.warning
+            : i == 2 ? Theme.accents[0].color
+            : i == 3 ? Tokens.cyan
+            : i == 5 ? Theme.accent
+            : i == 6 ? Theme.accents[8].color
+            : i == 7 ? Tokens.info
+            : i == 8 ? Tokens.success
+            : Theme.accent;
+    }
+    // Fuente del saludo: Dancing Script 600 (latino); Noto Sans CJK y DejaVu.
+    function greet-family(i: int) -> string {
+        return i >= 6 && i <= 8 ? "Noto Sans CJK SC"
+            : (i >= 9 && i <= 10 ? "DejaVu Sans" : (i == 12 ? "DejaVu Sans" : "Dancing Script"));
+    }
+    function greet-weight(i: int) -> int {
+        return (i <= 5 || i == 11) ? 600 : 400;
+    }
+    // Resumen de accesibilidad: opciones activas separadas por comas.
+    function a11y-join(acc: string, on: bool, name: string) -> string {
+        return on ? (acc == "" ? name : acc + ", " + name) : acc;
+    }
+    function a11y-summary() -> string {
+        return a11y-join(
+            a11y-join(
+                a11y-join(
+                    a11y-join(
+                        a11y-join("", State.a11y-large-text, "Texto grande"),
+                        State.a11y-high-contrast, "Alto contraste"),
+                    State.a11y-screen-reader, "Lector de pantalla"),
+                State.a11y-reduce-motion, "Reducir animaciones"),
+            State.a11y-screen-keyboard, "Teclado en pantalla");
+    }
+    // «Continuar» del paso Cuenta sólo con nombre, usuario válido y contraseñas.
+    function cuenta-valid() -> bool {
+        return State.full-name != ""
+            && State.username != ""
+            && State.username-error == ""
+            && State.password != ""
+            && State.password2 == State.password;
+    }
+
+    // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
+    // un campo tenga el foco (los eventos suben por los ancestros).
+    key-handler := FocusScope {
+    width: 100%;
+    height: 100%;
+    KeyBinding {
+        keys: @keys(Escape);
+        activated => { root.quit-app(); }
+    }
+    KeyBinding {
+        keys: @keys(Return);
+        activated => { if (State.step == 0) { State.step = 1; } }
+    }
+
+    // Fondo ya desenfocado (docs/first-boot/firstboot-blur.jpg) + velo.
+    Image {
+        source: @image-url("firstboot-blur.jpg");
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: rgba(13, 18, 25, 0.26);
+    }
+
+    // ----------------------------------------------------------------- Hola --
+    hello := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        opacity: State.step == 0 ? 1 : 0;
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
+        visible: self.opacity > 0.001;
+        animate opacity { duration: Tokens.durSlow; }
+        animate transform-scale-x { duration: Tokens.durSlow; }
+        animate transform-scale-y { duration: Tokens.durSlow; }
+
+        // El saludo lo escribe Rust letra a letra (State.greet-typed) y luego lo
+        // funde; `greet-animate` es falso en slint-viewer (muestra la palabra).
+
+        // Saludo, un poco por encima del centro (40 px de padding inferior).
+        VerticalLayout {
+            width: 100%;
+            height: 100%;
+            padding-bottom: 40px;
+            alignment: center;
+            Rectangle {
+                width: 100%;
+                height: 200px;
+                opacity: State.g-shown ? 1 : 0;
+                animate opacity { duration: 450ms; }
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: State.greet-animate ? State.greet-typed : State.greets[State.gi].word;
+                    color: #f4f6fa;
+                    font-family: root.greet-family(State.gi);
+                    font-weight: root.greet-weight(State.gi);
+                    font-size: State.greets[State.gi].size;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                    wrap: no-wrap;
+                }
+            }
+        }
+
+        // Botón principal + ayuda, a 120 px del pie.
+        Rectangle {
+            width: 100%;
+            height: 68px;
+            y: parent.height - self.height - 120px;
+            VerticalLayout {
+                width: 100%;
+                alignment: center;
+                spacing: 12px;
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 180px;
+                        height: Tokens.controllg;
+                        border-radius: Tokens.radiusmd;
+                        background: ta.pressed ? Theme.accent : (ta.has-hover ? Theme.accent-strong : Theme.accent);
+                        transform-scale-x: ta.pressed ? 97% : 100%;
+                        transform-scale-y: ta.pressed ? 97% : 100%;
+                        drop-shadow-color: rgba(13, 18, 25, 0.25);
+                        drop-shadow-blur: 16px;
+                        drop-shadow-offset-y: 4px;
+                        animate background { duration: Tokens.durFast; }
+                        HorizontalLayout {
+                            y: 0;
+                            width: 100%;
+                            height: 100%;
+                            alignment: center;
+                            spacing: 8px;
+                            Text {
+                                text: State.greets[State.gi].cta;
+                                color: #ffffff;
+                                font-family: "Inter";
+                                font-size: 13px;
+                                font-weight: 600;
+                                wrap: no-wrap;
+                                height: 100%;
+                                vertical-alignment: center;
+                                opacity: State.g-shown ? 1 : 0;
+                                animate opacity { duration: 450ms; }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                MiniIcon {
+                                    size: 14px;
+                                    sw: 2px;
+                                    ink: #ffffff;
+                                    commands: State.greets[State.gi].rtl
+                                        ? "M19 12 L5 12 M11 6 L5 12 L11 18"
+                                        : "M5 12 L19 12 M13 6 L19 12 L13 18";
+                                }
+                            }
+                        }
+                        ta := TouchArea {
+                            clicked => { State.step = 1; }
+                        }
+                    }
+                }
+                Text {
+                    text: State.greets[State.gi].hint;
+                    color: #d7dce6;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                    opacity: State.g-shown ? 1 : 0;
+                    animate opacity { duration: 450ms; }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------- Diálogo --
+    dialog := Rectangle {
+        width: 560px;
+        height: 668px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
+        border-radius: Tokens.radiusxl;
+        border-width: 1px;
+        border-color: Tokens.windowOuter;
+        drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.55 : 0.18);
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 18px;
+        opacity: root.in-dlg ? 1 : 0;
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
+        visible: self.opacity > 0.001;
+        animate opacity { duration: Tokens.durSlow; delay: 180ms; }
+        animate transform-scale-x { duration: Tokens.durSlow; delay: 180ms; }
+        animate transform-scale-y { duration: Tokens.durSlow; delay: 180ms; }
+
+        VerticalLayout {
+            padding-left: 48px;
+            padding-right: 48px;
+            padding-top: 36px;
+            padding-bottom: 28px;
+            spacing: 20px;
+
+            // Contenido entre pasos (520 px, recortado).
+            Rectangle {
+                width: 100%;
+                height: 520px;
+                clip: true;
+
+                // --- Paso 1 · Idioma y región ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(1);
+                    opacity: root.op(1);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Idioma y región";
+                            subtitle: "Se usará en el sistema, las apps y GNOME.";
+                            StepIcon { tint: root.step-tint(1); GlobeIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 14px;
+                            Rectangle {
+                                width: 100%;
+                                height: lang-inner.preferred-height;
+                                border-radius: Tokens.radiusmd;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                lang-inner := VerticalLayout {
+                                    for name[i] in State.lang-names : OptionRow {
+                                        label: name;
+                                        trailing: i == State.lang-index ? "✓" : "";
+                                        trailing-accent: i == State.lang-index;
+                                        selected: i == State.lang-index;
+                                        divider: i > 0;
+                                        picked => { State.lang-index = i; State.region-index = i; }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text { text: "Región y formatos"; color: Tokens.inkStrong; font-weight: 600; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); }
+                                    SelectField {
+                                        text: State.region-names[State.region-index];
+                                        cycle => { State.region-index = Math.mod(State.region-index + 1, State.region-names.length); }
+                                    }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text { text: "Teclado"; color: Tokens.inkStrong; font-weight: 600; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); }
+                                    SelectField {
+                                        text: State.kb-names[State.kb-index];
+                                        cycle => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 2 · Accesibilidad ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(2);
+                    opacity: root.op(2);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Accesibilidad";
+                            subtitle: "Actívalo ahora si lo necesitas para seguir. Puedes cambiarlo después en Ajustes.";
+                            StepIcon {
+                                tint: root.step-tint(2);
+                                Icon {
+                                    ink: #ffffff;
+                                    commands: "M 12 2.9 A 1.6 1.6 0 1 0 12 6.1 A 1.6 1.6 0 1 0 12 2.9 Z M 5 8.5 C 7.3 9.2 9.6 9.5 12 9.5 C 14.4 9.5 16.7 9.2 19 8.5 M 12 9.5 L 12 14 M 9 21 L 12 14 L 15 21";
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 14px;
+                            Rectangle {
+                                width: 100%;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                a11y-inner := VerticalLayout {
+                                    SectionLabel { text: "VISIÓN"; }
+                                    IconRow {
+                                        title: "Texto grande"; desc: "Aumenta el tamaño del texto un 25 %";
+                                        icon: "M1.5 12.5 L5 3.5 L8.5 12.5 M2.7 9.5 H7.3 M10 12.5 L12.25 6.5 L14.5 12.5 M10.7 10.7 H13.8";
+                                        tint: Theme.accents[0].color;
+                                        on <=> State.a11y-large-text;
+                                    }
+                                    IconRow {
+                                        title: "Alto contraste"; desc: "Bordes y texto más marcados";
+                                        icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M8 1.5 L8 14.5 M8 4.5 H12 M8 8 H13.5 M8 11.5 H12";
+                                        tint: Theme.accents[8].color;
+                                        on <=> State.a11y-high-contrast;
+                                    }
+                                    IconRow {
+                                        title: "Lector de pantalla"; desc: "Orca lee en voz alta lo que hay en pantalla";
+                                        icon: "M2.5 6 H5 L8.5 3 V13 L5 10 H2.5 Z M11 5.5 A3.5 3.5 0 0 1 11 10.5 M12.8 3.5 A6.3 6.3 0 0 1 12.8 12.5";
+                                        tint: Tokens.info;
+                                        on <=> State.a11y-screen-reader;
+                                    }
+                                    SectionLabel { text: "MOVIMIENTO E INTERACCIÓN"; }
+                                    IconRow {
+                                        title: "Reducir animaciones"; desc: "Desactiva las animaciones de GNOME";
+                                        icon: "M1.5 8 H4.5 M2.5 5 H5.5 M2.5 11 H5.5 M8 8 A3 3 0 1 0 14 8 A3 3 0 1 0 8 8 Z";
+                                        tint: Tokens.warning;
+                                        on <=> State.a11y-reduce-motion;
+                                    }
+                                    IconRow {
+                                        title: "Teclado en pantalla"; desc: "Aparece al escribir en un campo de texto";
+                                        icon: "M1.5 4 H14.5 V12 H1.5 Z M4 7 H5 M7 7 H9 M11 7 H12 M5 9.5 H11";
+                                        tint: Tokens.cyan;
+                                        divider: false;
+                                        on <=> State.a11y-screen-keyboard;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: center;
+                                LinkText {
+                                    label: "Ahora no";
+                                    w: 120px;
+                                    clicked => { State.step = root.next-step(2); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 3 · Wi-Fi ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(3);
+                    opacity: root.op(3);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Conéctate a una red";
+                            subtitle: "Solo aparece si no hay cable ni Wi‑Fi conectado.";
+                            StepIcon { tint: root.step-tint(3); WifiIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 14px;
+                            Rectangle {
+                                width: 100%;
+                                height: net-inner.preferred-height;
+                                border-radius: Tokens.radiusmd;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                net-inner := VerticalLayout {
+                                    for name[i] in State.net-names : OptionRow {
+                                        label: name;
+                                        trailing: State.net-sec[i];
+                                        selected: i == State.net-index;
+                                        divider: i > 0;
+                                        wifi: true;
+                                        picked => { State.net-index = i; }
+                                    }
+                                }
+                            }
+                            Field {
+                                label: "Contraseña de «" + State.net-names[State.net-index] + "»";
+                                password: true;
+                            }
+                            HorizontalLayout {
+                                alignment: center;
+                                LinkText {
+                                    label: "Continuar sin conexión";
+                                    w: 190px;
+                                    clicked => { State.step = 4; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 4 · Tu cuenta ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(4);
+                    opacity: root.op(4);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Crea tu cuenta";
+                            subtitle: "Se usará para iniciar sesión y para tus archivos.";
+                            Rectangle {
+                                width: 76px;
+                                height: 76px;
+                                border-radius: 38px;
+                                background: Tokens.accentSoft;
+                                Text {
+                                    text: State.initials;
+                                    color: Theme.accent-strong;
+                                    font-size: 26px * (State.a11y-large-text ? 1.25 : 1.0);
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    width: parent.width;
+                                    height: parent.height;
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 12px;
+                            Field {
+                                label: "Nombre completo";
+                                text <=> State.full-name;
+                                help: State.full-name == "" ? "Escribe tu nombre" : "";
+                                error: State.full-name == "";
+                                edited(t) => { root.name-edited(t); }
+                            }
+                            Field {
+                                label: "Nombre de usuario";
+                                text <=> State.username;
+                                help: State.username-error != "" ? State.username-error : "Se genera a partir de tu nombre; puedes cambiarlo.";
+                                error: State.username-error != "";
+                                edited(t) => { root.username-edited(t); }
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Field {
+                                    label: "Contraseña";
+                                    password: true;
+                                    text <=> State.password;
+                                    help: State.password == "" ? "Escribe una contraseña" : "";
+                                    error: State.password == "";
+                                }
+                                Field {
+                                    label: "Repetir";
+                                    password: true;
+                                    text <=> State.password2;
+                                    help: State.password2 != "" && State.password2 != State.password ? "Las contraseñas no coinciden" : "";
+                                    error: State.password2 != "" && State.password2 != State.password;
+                                }
+                            }
+                            HorizontalLayout {
+                                spacing: 8px;
+                                Toggle { checked <=> State.auto-login; }
+                                Text {
+                                    text: "Iniciar sesión automáticamente";
+                                    color: Tokens.ink;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 5 · Zona horaria ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(5);
+                    opacity: root.op(5);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Zona horaria";
+                            subtitle: "Se ajusta sola con tu ubicación, o elige una ciudad.";
+                            StepIcon { tint: root.step-tint(5); ClockIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 12px;
+                            Rectangle {
+                                width: 100%;
+                                height: tz-row.height;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                tz-row := IconRow {
+                                    title: "Ajustar automáticamente";
+                                    desc: State.tz-auto
+                                        ? "Según tu ubicación: " + State.city-names[State.city-index]
+                                        : "Usa tu ubicación aproximada (requiere red)";
+                                    icon: "M8 14.5 S12.5 10.3 12.5 7 A4.5 4.5 0 0 0 3.5 7 C3.5 10.3 8 14.5 8 14.5 Z M8 8.5 A1.5 1.5 0 1 0 8 5.5 A1.5 1.5 0 1 0 8 8.5 Z";
+                                    tint: Theme.accent;
+                                    divider: false;
+                                    on <=> State.tz-auto;
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: start;
+                                spacing: 12px;
+                                opacity: State.tz-auto ? 0.45 : 1.0;
+                                animate opacity { duration: Tokens.durBase; }
+                                SearchField { placeholder: "Buscar ciudad"; }
+                                Rectangle {
+                                    width: 100%;
+                                    height: city-inner.preferred-height;
+                                    border-radius: Tokens.radiusmd;
+                                    background: Tokens.bgSurface;
+                                    border-width: 1px;
+                                    border-color: Tokens.line;
+                                    clip: true;
+                                    city-inner := VerticalLayout {
+                                        for name[i] in State.city-names : OptionRow {
+                                            label: name;
+                                            trailing: State.city-tz[i];
+                                            selected: i == State.city-index;
+                                            divider: i > 0;
+                                            picked => { if (!State.tz-auto) { State.city-index = i; } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 6 · Este equipo ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(6);
+                    opacity: root.op(6);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Este equipo";
+                            subtitle: "Esto es lo que se instaló. No hay nada que cambiar.";
+                            StepIcon { tint: root.step-tint(6); MonitorIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 12px;
+                            InfoTile {
+                                caption: "Procesador";
+                                value: State.machine-cpu;
+                                icon: "M4 4 H12 V12 H4 Z M6.5 1.5 V3.5 M9.5 1.5 V3.5 M6.5 12.5 V14.5 M9.5 12.5 V14.5 M1.5 6.5 H3.5 M1.5 9.5 H3.5 M12.5 6.5 H14.5 M12.5 9.5 H14.5";
+                                tint: Theme.accent;
+                            }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                InfoTile {
+                                    caption: "Modelo";
+                                    value: State.machine-model;
+                                    icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
+                                    tint: Theme.accents[8].color;
+                                }
+                                InfoTile {
+                                    caption: "Memoria";
+                                    value: State.machine-ram;
+                                    icon: "M1.5 4.5 H14.5 V10.5 H1.5 Z M4 10.5 V12.5 M7 10.5 V12.5 M10 10.5 V12.5 M13 10.5 V12.5";
+                                    tint: Tokens.info;
+                                }
+                            }
+                            InfoTile {
+                                caption: "Disco";
+                                value: State.machine-disk;
+                                extra: State.machine-disk-used;
+                                icon: "M2.5 4 A5.5 2 0 1 0 13.5 4 A5.5 2 0 1 0 2.5 4 Z M2.5 4 V12 C2.5 13.1 5 14 8 14 C11 14 13.5 13.1 13.5 12 V4 M2.5 8 C2.5 9.1 5 10 8 10 C11 10 13.5 9.1 13.5 8";
+                                tint: Tokens.cyan;
+                                progress: true;
+                                fill: State.machine-disk-fill;
+                            }
+                            Rectangle {
+                                width: 100%;
+                                height: 40px;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                Text {
+                                    x: 14px;
+                                    text: "Nombre del equipo";
+                                    color: Tokens.inkStrong;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+                                    font-weight: 500;
+                                    vertical-alignment: center;
+                                    height: parent.height;
+                                }
+                                Text {
+                                    x: parent.width - self.width - 14px;
+                                    text: State.machine-host;
+                                    color: Tokens.inkMuted;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+                                    vertical-alignment: center;
+                                    height: parent.height;
+                                    wrap: no-wrap;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 7 · Apariencia ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(7);
+                    opacity: root.op(7);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Elige tu aspecto";
+                            subtitle: "Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.";
+                            StepIcon { tint: root.step-tint(7); ContrastIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 18px;
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 20px;
+                                ModeCard {
+                                    selected: !Tokens.dark;
+                                    picked => { Tokens.theme = "light"; }
+                                }
+                                ModeCard {
+                                    preview-dark: true;
+                                    selected: Tokens.dark;
+                                    picked => { Tokens.theme = "dark"; }
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 10px;
+                                Text { text: "Color de acento"; color: Tokens.inkStrong; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); font-weight: 600; horizontal-alignment: center; }
+                                HorizontalLayout {
+                                    alignment: center;
+                                    spacing: 10px;
+                                    Swatch {
+                                        c: Tokens.accent;
+                                        selected: Theme.accent-index == 0;
+                                        picked => { Theme.accent-index = 0; }
+                                    }
+                                    for a[i] in Theme.accents : Swatch {
+                                        c: a.color;
+                                        selected: Theme.accent-index == i + 1;
+                                        picked => { Theme.accent-index = i + 1; }
+                                    }
+                                }
+                                Text { text: Theme.accent-name; color: Tokens.inkMuted; font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0); horizontal-alignment: center; }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 8 · Git ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(8);
+                    opacity: root.op(8);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Git";
+                            subtitle: "Opcional. Puedes configurarlo después.";
+                            StepIcon { tint: root.step-tint(8); GitIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 12px;
+                            Rectangle {
+                                width: 100%;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                IconRow {
+                                    title: "Configurar Git ahora";
+                                    desc: "Nombre y correo para tus commits";
+                                    icon: "M4.5 2.5 V13.5 M11.5 4.5 A1.5 1.5 0 1 0 11.5 7.5 A1.5 1.5 0 1 0 11.5 4.5 Z M11.5 7.5 C11.5 9.5 9 9.8 4.5 11.1";
+                                    tint: Tokens.success;
+                                    divider: false;
+                                    on <=> State.git-on;
+                                }
+                            }
+                            if State.git-on : VerticalLayout {
+                                alignment: start;
+                                spacing: 12px;
+                                Field { label: "Nombre"; text <=> State.git-name; }
+                                Field { label: "Correo"; text <=> State.git-email; placeholder: "tu@correo"; }
+                            }
+                            if !State.git-on : Text {
+                                text: "Desactivado: el nombre y el correo de Git quedan vacíos.";
+                                color: Tokens.inkMuted;
+                                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                                horizontal-alignment: center;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 9 · Todo listo ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(9);
+                    opacity: root.op(9);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 16px;
+                        StepHeader {
+                            title: "Todo listo";
+                            subtitle: "Revisa antes de aplicar. Puedes volver para cambiar algo.";
+                            StepIcon { tint: root.step-tint(9); CheckIcon { ink: #ffffff; } }
+                        }
+                        Rectangle {
+                            width: 100%;
+                            border-radius: Tokens.radiuslg;
+                            background: Tokens.bgSurface;
+                            border-width: 1px;
+                            border-color: Tokens.line;
+                            clip: true;
+                            summary-inner := VerticalLayout {
+                                SectionLabel { text: "CUENTA"; }
+                                SummaryRow {
+                                    k: "Usuario"; v: State.username; divider: false;
+                                    icon: "M8 8 A2.5 2.5 0 1 0 8 3 A2.5 2.5 0 1 0 8 8 Z M3 13.5 C3.8 11.3 5.7 10 8 10 C10.3 10 12.2 11.3 13 13.5";
+                                    tint: Theme.accent;
+                                }
+                                SummaryRow {
+                                    k: "Equipo"; v: State.machine-host;
+                                    icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
+                                    tint: Theme.accents[8].color;
+                                }
+                                SectionLabel { text: "REGIÓN"; }
+                                SummaryRow {
+                                    k: "Idioma"; v: State.lang-names[State.lang-index]; divider: false;
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M1.5 8 H14.5 M8 1.5 C9.8 3.3 10.6 5.5 10.6 8 C10.6 10.5 9.8 12.7 8 14.5 C6.2 12.7 5.4 10.5 5.4 8 C5.4 5.5 6.2 3.3 8 1.5";
+                                    tint: Tokens.warning;
+                                }
+                                SummaryRow {
+                                    k: "Teclado"; v: State.kb-names[State.kb-index];
+                                    icon: "M1.5 4 H14.5 V12 H1.5 Z M4 7 H5 M7 7 H9 M11 7 H12 M5 9.5 H11";
+                                    tint: Tokens.warning;
+                                }
+                                SummaryRow {
+                                    k: "Zona horaria";
+                                    v: State.city-tz[State.city-index] + (State.tz-auto ? " · automática" : "");
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M8 4.5 V8 L10.5 9.5";
+                                    tint: Theme.accent;
+                                }
+                                SectionLabel { text: "PREFERENCIAS"; }
+                                SummaryRow {
+                                    k: "Accesibilidad";
+                                    v: root.a11y-summary() == "" ? "Sin cambios" : root.a11y-summary();
+                                    divider: false;
+                                    icon: "M8 1.5 A1.2 1.2 0 1 0 8 3.9 A1.2 1.2 0 1 0 8 1.5 Z M2.5 5.5 C4.3 6 6.1 6.3 8 6.3 C9.9 6.3 11.7 6 13.5 5.5 M8 6.3 V9.5 M5.8 14.5 L8 9.5 L10.2 14.5";
+                                    tint: Theme.accents[0].color;
+                                }
+                                SummaryRow {
+                                    k: "Aspecto"; v: (Tokens.dark ? "Oscuro" : "Claro") + " · " + Theme.accent-name;
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 Z M8 1.5 A6.5 6.5 0 0 1 8 14.5";
+                                    tint: Tokens.info;
+                                }
+                                SummaryRow {
+                                    k: "Git"; v: State.git-on ? State.git-name : "Sin configurar";
+                                    icon: "M4.5 2.5 V13.5 M11.5 4.5 A1.5 1.5 0 1 0 11.5 7.5 A1.5 1.5 0 1 0 11.5 4.5 Z M11.5 7.5 C11.5 9.5 9 9.8 4.5 11.1";
+                                    tint: Tokens.success;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Puntos de progreso (9), centrados.
+            HorizontalLayout {
+                width: 100%;
+                height: 6px;
+                alignment: center;
+                spacing: 6px;
+                accessible-role: none;
+                accessible-label: "Paso " + State.step + " de 9";
+                for di in 9 : Rectangle {
+                    height: 6px;
+                    width: (di + 1) == State.step ? 18px : 6px;
+                    border-radius: 3px;
+                    background: (di + 1) == State.step ? Theme.accent : Tokens.lineStrong;
+                    animate width { duration: Tokens.durBase; }
+                    animate background { duration: Tokens.durBase; }
+                }
+            }
+
+            // Atrás (izquierda) y Continuar/Aplicar (derecha).
+            HorizontalLayout {
+                width: 100%;
+                height: 38px;
+                alignment: space-between;
+                Button {
+                    label: "Atrás";
+                    opacity: State.step > 1 ? 1 : 0;
+                    clicked => { if (State.step > 1) { State.step = root.prev-step(State.step); } }
+                }
+                Button {
+                    label: State.step == 9 ? "Aplicar" : "Continuar";
+                    primary: true;
+                    enabled: State.step != 4 || root.cuenta-valid();
+                    clicked => {
+                        if (State.step == 9) { root.apply(); }
+                        else { State.step = root.next-step(State.step); }
+                    }
+                }
+            }
+        }
+
+        // Línea interior (window-inner): sólo visible en oscuro.
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            border-radius: Tokens.radiusxl - 1px;
+            background: transparent;
+            border-width: 1px;
+            border-color: Tokens.windowInner;
+        }
+    }
+
+    // ----------------------------------------------------------- Preparando --
+    prepare := Rectangle {
+        width: parent.width;
+        height: parent.height;
+        opacity: State.step == 10 ? 1 : 0;
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
+        visible: self.opacity > 0.001;
+        animate opacity { duration: Tokens.durSlow; }
+        animate transform-scale-x { duration: Tokens.durSlow; }
+        animate transform-scale-y { duration: Tokens.durSlow; }
+
+        property <float> spin: 0;
+        Timer {
+            interval: 16ms;
+            running: State.step == 10;
+            triggered => { prepare.spin = Math.mod(prepare.spin + 6, 360); }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 22px;
+            HorizontalLayout {
+                alignment: center;
+                if State.apply-error == "" : SpinIcon {
+                    size: 36px;
+                    sw: 2.2px;
+                    ink: #ffffff;
+                    transform-rotation: prepare.spin * 1deg;
+                }
+                if State.apply-error != "" : Rectangle {
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 13px;
+                    background: Tokens.dangerFill;
+                    Text {
+                        text: "!";
+                        color: #ffffff;
+                        font-size: 28px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 8px;
+                Text {
+                    text: State.apply-error == "" ? "Preparando tu escritorio" : "No se pudo terminar la configuración";
+                    color: #ffffff;
+                    font-size: 28px;
+                    font-weight: 650;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: State.apply-error == "" ? "Aplicando la configuración de nixdots." : State.apply-error;
+                    color: rgba(255, 255, 255, 0.84);
+                    font-size: 15px;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+            if State.apply-error == "" : HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 420px;
+                    height: 6px;
+                    border-radius: Tokens.radiuspill;
+                    background: rgba(255, 255, 255, 0.24);
+                    clip: true;
+                    Rectangle {
+                        x: 0;
+                        width: (State.prep-phase + 1) * (parent.width / 5);
+                        height: 100%;
+                        border-radius: Tokens.radiuspill;
+                        background: #ffffff;
+                        animate width { duration: 1200ms; easing: ease-in-out; }
+                    }
+                }
+            }
+            if State.apply-error == "" : Text {
+                text: State.prep-phase == 0 ? "Creando tu cuenta…"
+                    : State.prep-phase == 1 ? "Aplicando idioma y región…"
+                    : State.prep-phase == 2 ? "Construyendo el sistema…"
+                    : State.prep-phase == 3 ? "Instalando la entrada de arranque…"
+                    : "Listo. Reiniciando…";
+                color: rgba(255, 255, 255, 0.9);
+                font-size: 13px;
+                horizontal-alignment: center;
+                animate opacity { duration: 250ms; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                LinkText {
+                    label: State.show-details ? "Ocultar detalles" : "Mostrar detalles";
+                    fg: rgba(255, 255, 255, 0.8);
+                    w: 150px;
+                    clicked => { State.show-details = !State.show-details; }
+                }
+            }
+            if State.show-details : Rectangle {
+                width: 680px;
+                height: 170px;
+                border-radius: Tokens.radiuslg;
+                background: rgba(13, 18, 25, 0.36);
+                border-width: 1px;
+                border-color: rgba(255, 255, 255, 0.16);
+                Text {
+                    x: 16px;
+                    y: 12px;
+                    width: parent.width - 32px;
+                    height: parent.height - 24px;
+                    text: State.log-text;
+                    color: rgba(255, 255, 255, 0.78);
+                    font-family: "DejaVu Sans Mono";
+                    font-size: 12px;
+                    wrap: word-wrap;
+                    vertical-alignment: bottom;
+                }
+            }
+            if State.apply-error != "" : HorizontalLayout {
+                alignment: center;
+                spacing: 10px;
+                Button {
+                    label: "Volver a la configuración";
+                    w: 210px;
+                    clicked => { State.step = State.error-step; }
+                }
+                Button {
+                    label: "Volver a intentar";
+                    primary: true;
+                    w: 170px;
+                    clicked => { root.apply(); }
+                }
+            }
+        }
+
+        // Aviso de no apagar, a 56 px del pie.
+        Text {
+            x: 0;
+            y: parent.height - 56px - 18px;
+            width: parent.width;
+            text: "No apagues el equipo. Se reiniciará solo cuando termine.";
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 13px;
+            horizontal-alignment: center;
+            visible: State.apply-error == "";
+        }
+    }
+
+    // Fundido final a negro (reinicio).
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #000000;
+        opacity: State.prep-black ? 1 : 0;
+        visible: self.opacity > 0.001;
+        animate opacity { duration: 600ms; }
+    }
+
+    }
+}

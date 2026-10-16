@@ -1,0 +1,23 @@
+// Estado de tema del asistente. Los tokens (colores, medidas, duraciones) viven
+// en neptunia-tokens.slint, generado desde share/themes/neptunia.nix; aquí sólo
+// va lo que el usuario elige (tema y acento) y la preferencia de movimiento.
+
+import { Tokens, Accent } from "neptunia-tokens.slint";
+export { Tokens } from "neptunia-tokens.slint";
+
+export global Theme {
+    // Acento elegido: 0 = Neptunia (Tokens.accent), 1..9 = accent-color de GNOME.
+    in-out property <int> accent-index: 0;
+    // Preferencia del sistema: con reducción de movimiento, sólo fundidos.
+    in-out property <bool> reduced-motion: false;
+
+
+    out property <[Accent]> accents: Tokens.gnomeAccents;
+    out property <int> gi: accent-index <= 0 ? 0 : min(accent-index, accents.length) - 1;
+
+    out property <color> accent: accent-index == 0 ? Tokens.accent : accents[gi].color;
+    out property <color> accent-strong: accent-index == 0 ? Tokens.accentStrong : accents[gi].color;
+    out property <color> accent-ink: Tokens.onAccent;
+    out property <string> accent-id: accent-index == 0 ? "neptunia" : accents[gi].id;
+    out property <string> accent-name: accent-index == 0 ? "Neptunia" : accents[gi].label;
+}
