@@ -36,6 +36,11 @@ export global State {
     // Fase real del CLI (0..4) y fundido final a negro.
     in-out property <int> prep-phase: 0;
     in-out property <bool> prep-black: false;
+    // A dónde vuelve «Volver a la configuración» (Cuenta si fue la contraseña).
+    in-out property <int> error-step: 9;
+    // Saludo escrito letra a letra por Rust.
+    in-out property <string> greet-typed: "";
+    in-out property <bool> greet-animate: false;
 
     // ¿Hay red? Si la hay, el paso de Wi‑Fi se salta (pero cuenta en los puntos).
     in-out property <bool> has-network: false;
@@ -771,6 +776,8 @@ export component AppWindow inherits Window {
     in-out property <string> theme <=> Tokens.theme;
     in-out property <int> greet <=> State.gi;
     in-out property <bool> tz-auto <=> State.tz-auto;
+    in-out property <int> prep-phase <=> State.prep-phase;
+    in-out property <string> apply-error <=> State.apply-error;
 
     callback quit-app();
     callback apply();
@@ -873,20 +880,8 @@ export component AppWindow inherits Window {
         animate transform-scale-x { duration: Tokens.durSlow; }
         animate transform-scale-y { duration: Tokens.durSlow; }
 
-        // Cada 2,6 s se funde (450 ms) al siguiente idioma.
-        Timer {
-            interval: 2600ms;
-            running: true;
-            triggered => { State.g-shown = false; }
-        }
-        Timer {
-            interval: 450ms;
-            running: !State.g-shown;
-            triggered => {
-                State.gi = Math.mod(State.gi + 1, State.greets.length);
-                State.g-shown = true;
-            }
-        }
+        // El saludo lo escribe Rust letra a letra (State.greet-typed) y luego lo
+        // funde; `greet-animate` es falso en slint-viewer (muestra la palabra).
 
         // Saludo, un poco por encima del centro (40 px de padding inferior).
         VerticalLayout {
@@ -902,7 +897,7 @@ export component AppWindow inherits Window {
                 Text {
                     width: 100%;
                     height: 100%;
-                    text: State.greets[State.gi].word;
+                    text: State.greet-animate ? State.greet-typed : State.greets[State.gi].word;
                     color: #f4f6fa;
                     font-family: root.greet-family(State.gi);
                     font-weight: root.greet-weight(State.gi);
