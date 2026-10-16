@@ -3,3 +3,6 @@
 
 # Rust build artifacts (Cargo workspace at the repo root).
 /target
+
+# Capturas de las pantallas del asistente (se regeneran).
+docs/first-boot/screens/
