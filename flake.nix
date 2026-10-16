@@ -24,23 +24,37 @@
 
     outputs = inputs@{ nixpkgs, ... }:
         let
+            # La evaluación tiene que ser impura para leer user.json:
+            # `nix flake check`/`nix eval` puros no ven /persist/nixdots y darían
+            # por hecho un primer arranque (borrarían la cuenta). En los hosts
+            # reales eso es un error (ver mkHost); firstboot-vm no se ve afectado.
+            impure = builtins ? currentSystem;
+
             # Los datos personales no se versionan: viven en
             # ${NIXDOTS_ROOT}/persist/nixdots/user.json (los escribe el asistente
-            # o el instalador). `settings` = settings.nix del repo + esos datos;
-            # sin el archivo no hay campos de usuario y first-boot.nix abre el
-            # asistente. `getEnv`/`pathExists` van guardados para no romper la
-            # evaluación pura (`nix flake check`).
+            # o el instalador). `settings` = settings.nix del repo + esos datos.
             userData =
                 let
                     root = builtins.getEnv "NIXDOTS_ROOT";
                     file = root + "/persist/nixdots/user.json";
                 in
-                if (builtins ? currentSystem) && builtins.pathExists file
+                if impure && builtins.pathExists file
                 then builtins.fromJSON (builtins.readFile file)
                 else { };
 
+            hasUser = userData ? username;
+
             settings = import ./settings.nix // userData;
-            mkHost = import ./lib/mkHost.nix { inherit inputs settings; };
+
+            # Primer arranque en un host real: solo impuro y sin user.json. Se
+            # pasa como specialArg, así en evaluación pura `firstBoot` es false
+            # y nunca puede activar el asistente.
+            firstBootHost = impure && !hasUser;
+
+            mkHost = import ./lib/mkHost.nix {
+                inherit inputs settings impure;
+                firstBoot = firstBootHost;
+            };
 
             # Every directory under hosts/ with a host.nix is a configuration.
             # host.nix declares the per-host `profile` and `system`; the flake
@@ -76,6 +90,10 @@
 
                 specialArgs = {
                     inherit inputs hostName;
+                    # En la VM el asistente siempre arranca hasta que el propio
+                    # asistente escriba user.json (entonces el rebuild interno ya
+                    # crea la cuenta).
+                    firstBoot = !hasUser;
                 } // import ./lib/specialArgs.nix { inherit settings; };
 
                 modules = [

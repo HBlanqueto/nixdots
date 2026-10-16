@@ -1,19 +1,17 @@
-# Primer arranque derivado de los datos: si settings.nix no trae `username`,
-# todavía no hay cuenta y en su lugar se abre el asistente. Con usuario, el
-# módulo no hace nada.
-{ config, lib, pkgs, settings, ... }:
+# Primer arranque: `firstBoot` lo calcula el flake y llega por specialArgs
+# (impuro y sin user.json en un host real; siempre en la VM hasta que el
+# asistente escriba user.json). Con `firstBoot` false el módulo no hace nada.
+{ config, lib, pkgs, firstBoot, ... }:
 
 let
     cfg = config.nixdots.firstBoot;
-    firstBoot = (settings.username or null) == null;
 
     # Contrato del asistente: salir con código 0 significa que ya escribió
-    # settings.nix con un usuario y ejecutó `nixos-rebuild switch`; entonces se
-    # reinicia para arrancar con GDM. Mientras salga != 0 se relanza (con una
-    # espera de un segundo para no girar en vacío si cage no llega a arrancar).
-    # El bucle nunca deja salir a la sesión de greetd: greetd no ve un greeter
-    # que muere y no se cae. El propio asistente debe ofrecer «Apagar» y
-    # «Reiniciar» (`systemctl poweroff` / `reboot`).
+    # user.json y ejecutó `nixos-rebuild boot`; entonces se reinicia para
+    # arrancar con GDM. Mientras salga != 0 se relanza (con una espera de un
+    # segundo para no girar en vacío si cage no llega a arrancar). El bucle
+    # nunca deja salir a la sesión de greetd: greetd no ve un greeter que muere
+    # y no se cae. El propio asistente ofrece «Apagar» y «Reiniciar».
     firstBootSession = pkgs.writeShellScript "nixdots-first-boot" ''
         until ${pkgs.cage}/bin/cage -s -- ${cfg.command}; do
             ${pkgs.coreutils}/bin/sleep 1
