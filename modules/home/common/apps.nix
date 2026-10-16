@@ -257,7 +257,7 @@ in
             '';
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
-                nix-update = "sudo nixos-rebuild switch";
+                nix-update = "nixdots-rebuild sw";
                 flake-update-rb = "nix flake update --flake $HOME/nixdots && nixdots-rebuild rb";
                 flake-update-sw = "nix flake update --flake $HOME/nixdots && nixdots-rebuild sw";
 
