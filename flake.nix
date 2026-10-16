@@ -8,12 +8,15 @@
         home.inputs.nixpkgs.follows = "nixpkgs";
 
         impermanence.url = "github:nix-community/impermanence";
+        impermanence.inputs.nixpkgs.follows = "nixpkgs";
+        impermanence.inputs.home-manager.follows = "home";
         ucodenix.url = "github:e-tho/ucodenix";
 
         lanzaboote.url = "github:nix-community/lanzaboote";
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
         brave-previews.url = "github:drishal/brave-browser-flake";
+        brave-previews.inputs.nixpkgs.follows = "nixpkgs";
     };
 
     outputs = inputs@{ nixpkgs, ... }:
