@@ -6,6 +6,7 @@
     # AMD microcode, TLP, fprintd or battery handling.
     boot = {
         loader.systemd-boot.enable = true;
+        loader.systemd-boot.configurationLimit = 5;
 
         # virtio drivers needed to find the disk, network and console inside
         # the VM. virtio_gpu is used by the virtio-gpu(-gl) display device.

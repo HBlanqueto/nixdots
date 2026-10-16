@@ -36,6 +36,14 @@
         };
 
         optimise.automatic = true;
+
+        # Semanalmente recoge lo que no se use en 14 días; sin esto /nix (y las
+        # generaciones que lanzaboote deja en la ESP) crecen sin límite.
+        gc = {
+            automatic = true;
+            dates = "weekly";
+            options = "--delete-older-than 14d";
+        };
     };
 
     nixpkgs = {

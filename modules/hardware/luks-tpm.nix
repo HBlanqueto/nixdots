@@ -13,10 +13,6 @@ in
 {
     config = lib.mkIf (cfg.enable && cfg.tpmUnlock) {
         boot.lanzaboote = {
-            # systemd-pcrlock refuses to create a policy for more than 8 PCR4
-            # variants (2 bootloader x N generations), hence the hard cap of 4.
-            configurationLimit = 4;
-
             measuredBoot = {
                 enable = true;
                 pcrs = [ 0 4 7 ];

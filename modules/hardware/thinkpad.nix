@@ -19,6 +19,11 @@
             enable = true;
             pkiBundle = "/var/lib/sbctl";
 
+            # Cap what lands on the 511 MiB ESP. 4 also keeps the pcrlock PCR4
+            # variants (2 bootloader stubs x N generations) under the hard limit
+            # of 8.
+            configurationLimit = 4;
+
             autoGenerateKeys = {
                 enable = true;
             };
