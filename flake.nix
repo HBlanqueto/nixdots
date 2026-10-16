@@ -145,23 +145,6 @@
                                     commit -qm seed
                             '';
                         };
-
-                        # /run/user/0 para el bus de sesión del asistente (root).
-                        systemd.tmpfiles.rules = [ "d /run/user/0 0700 root root -" ];
-
-                        # El asistente gráfico corre bajo cage, como root, con un
-                        # bus de sesión propio (sin él, libadwaita/portales
-                        # avisan y StyleManager no funciona). Los hosts reales
-                        # conservan el placeholder de first-boot.nix.
-                        nixdots.firstBoot.command =
-                            "${pkgs.writeShellScript "firstboot-vm-gui" ''
-                                export XDG_RUNTIME_DIR=/run/user/0
-                                export GSETTINGS_BACKEND=memory
-                                export GDK_BACKEND=wayland
-                                export NO_AT_BRIDGE=1
-                                exec ${pkgs.dbus}/bin/dbus-run-session -- \
-                                    ${setupsGui.${system}}/bin/nixdots-setup-gui
-                            ''}";
                     })
                 ];
             };
