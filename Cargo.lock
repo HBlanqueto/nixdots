@@ -809,12 +809,17 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "nixdots-core",
+ "nixdots-lists",
  "ratatui",
  "serde",
  "serde_json",
  "tui-input",
  "zeroize",
 ]
+
+[[package]]
+name = "nixdots-lists"
+version = "0.1.0"
 
 [[package]]
 name = "nixdots-setup"

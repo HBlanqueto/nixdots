@@ -5,11 +5,7 @@ use ratatui::layout::Rect;
 use ratatui::Frame;
 use std::process::{Command, Stdio};
 
-/// `share/zoneinfo/zone1970.tab` from tzdata, embedded at compile time by the
-/// package (`NIXDOTS_ZONE1970_TAB`).
-const ZONE1970_TAB: &str = include_str!(env!("NIXDOTS_ZONE1970_TAB"));
-
-pub fn draw(f: &mut Frame, app: &App, area: Rect) {
+pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let Some(picker) = &app.timezones else {
         return;
     };
@@ -55,10 +51,10 @@ pub fn commands(app: &App) -> Vec<String> {
     vec![format!("settings.nix: timeZone = \"{}\";", app.settings.time_zone)]
 }
 
-/// Builds the timezone list with each zone's current local time, from the
-/// embedded tzdata table.
+/// Builds the timezone list with each zone's current local time; las zonas
+/// vienen de la tabla compartida (`nixdots-lists`).
 pub fn load_items() -> Vec<PickItem> {
-    let zones = parse_zones(ZONE1970_TAB);
+    let zones = nixdots_lists::timezone::zones();
     let times = zone_times(&zones);
     zones
         .into_iter()
@@ -75,25 +71,6 @@ pub fn load_items() -> Vec<PickItem> {
             }
         })
         .collect()
-}
-
-/// Parses the tab-separated `zone1970.tab` (country, coordinates, TZ, notes),
-/// always starting with UTC.
-fn parse_zones(text: &str) -> Vec<String> {
-    let mut zones = vec!["UTC".to_string()];
-    for line in text.lines() {
-        if line.starts_with('#') {
-            continue;
-        }
-        let Some(zone) = line.split('\t').nth(2) else {
-            continue;
-        };
-        let zone = zone.trim();
-        if !zone.is_empty() {
-            zones.push(zone.to_string());
-        }
-    }
-    zones
 }
 
 fn zone_times(zones: &[String]) -> Vec<(String, String)> {

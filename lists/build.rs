@@ -1,5 +1,5 @@
 //! Generates the locale name table from the glibc source locale files
-//! (`LC_ADDRESS`'s `country_name` and `lang_name`), so the installer can show
+//! (`LC_ADDRESS`'s `country_name` and `lang_name`), so the UI can show
 //! «Español (Bolivia)» instead of «es_BO». The path comes from
 //! `NIXDOTS_LOCALE_DIR` (the full glibc package's `share/i18n/locales`).
 
