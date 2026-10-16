@@ -10,7 +10,6 @@
         impermanence.url = "github:nix-community/impermanence";
         impermanence.inputs.nixpkgs.follows = "nixpkgs";
         impermanence.inputs.home-manager.follows = "home";
-        ucodenix.url = "github:e-tho/ucodenix";
 
         lanzaboote.url = "github:nix-community/lanzaboote";
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
@@ -48,9 +47,53 @@
             # y nunca puede activar el asistente.
             firstBootHost = impure && !hasUser;
 
+            # Igual que userData, pero per-machine: qué disco/cifrado/Secure
+            # Boot y qué periféricos. Sin el archivo cae a los defaults seguros
+            # del módulo (sin cifrado, sin Secure Boot, extras apagados).
+            machineData =
+                let
+                    root = builtins.getEnv "NIXDOTS_ROOT";
+                    file = root + "/persist/nixdots/machine.json";
+                in
+                if impure && builtins.pathExists file
+                then builtins.fromJSON (builtins.readFile file)
+                else { };
+
             mkHost = import ./lib/mkHost.nix {
                 inherit inputs settings impure;
                 firstBoot = firstBootHost;
+            };
+
+            # Módulos exclusivos del perfil único (asumen el layout de disko y/o
+            # un informe de facter); no los importa ningún host con hardware
+            # propio. lanzaboote y luks-tpm solo se importan si la máquina pide
+            # Secure Boot (secure-boot.nix no puede importarlos condicionalmente,
+            # y luks-tpm define boot.lanzaboote, que necesita ese módulo).
+            genericModules =
+                [
+                    ./modules/common/facter.nix
+                    ./modules/common/filesystems-labels.nix
+                    ./modules/common/rollback.nix
+                ]
+                ++ nixpkgs.lib.optionals (machineData.secureBoot or false) [
+                    inputs.lanzaboote.nixosModules.lanzaboote
+                    ./modules/common/luks-tpm.nix
+                ];
+
+            # El perfil único detecta el hardware en tiempo de evaluación, así
+            # que necesita impure (builtins.currentSystem + los .json en
+            # /persist). En evaluación pura cae a x86_64-linux para que
+            # `nix flake check` al menos liste la salida.
+            mkGeneric = { system, requireImpure ? true, ciOnly ? false }: mkHost {
+                hostName = machineData.hostName or "nixdots";
+                inherit system machineData requireImpure;
+                modules = genericModules
+                    ++ nixpkgs.lib.optional ciOnly {
+                        # Las salidas puras de CI no tienen cuenta (no hay
+                        # user.json), así que satisfacen la assertion de NixOS
+                        # "ningún usuario con contraseña". Nunca se arrancan.
+                        users.allowNoPasswordLogin = true;
+                    };
             };
 
             # Every directory under hosts/ with a host.nix is a configuration.
@@ -273,6 +316,28 @@
         in
         {
             nixosConfigurations = hosts // {
+                # Perfil único: hardware detectado por facter + machine.json. La
+                # forma impura resuelve la arquitectura con builtins.currentSystem.
+                nixdots = mkGeneric {
+                    system = if impure then builtins.currentSystem else "x86_64-linux";
+                    requireImpure = true;
+                };
+
+                # Variantes puras para CI (`nix flake check` / `nix build`
+                # sin --impure): sin user.json/machine.json/facter.json, no
+                # arrancan, solo comprueban que el árbol evalúa en ambas
+                # arquitecturas.
+                nixdots-x86_64-linux = mkGeneric {
+                    system = "x86_64-linux";
+                    requireImpure = false;
+                    ciOnly = true;
+                };
+                nixdots-aarch64-linux = mkGeneric {
+                    system = "aarch64-linux";
+                    requireImpure = false;
+                    ciOnly = true;
+                };
+
                 firstboot-vm = mkFirstBootVm {
                     system = "x86_64-linux";
                     hostName = "firstboot-vm";
