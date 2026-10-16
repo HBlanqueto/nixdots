@@ -300,6 +300,10 @@
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };
+
+                # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
+                xnu-console-font =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/xnu-console-font.nix { };
             });
 
             apps = nixpkgs.lib.genAttrs supportedSystems (system: {
