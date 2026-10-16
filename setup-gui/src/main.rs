@@ -43,10 +43,8 @@ fn main() -> Result<(), slint::PlatformError> {
         st.set_machine_host(info.host.into());
     }
 
-    // Acento de Neptunia desde share/themes/neptunia.nix, inyectado por Nix.
-    // El valor de reserva sólo aplica fuera del flake (cargo a pelo).
-    let accent = option_env!("NIXDOTS_NEPTUNIA_ACCENT").unwrap_or("#809ad2");
-    ui.global::<Theme>().set_neptunia_accent(parse_hex(accent));
+    // Preferencia del sistema para la reducción de movimiento (GNOME).
+    ui.global::<Theme>().set_reduced_motion(reduced_motion());
 
     // Esc cierra la ventana de prueba (fase 4a).
     ui.on_quit_app({
@@ -116,7 +114,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 st.set_apply_error("".into());
                 st.set_show_details(false);
                 st.set_step(9);
-                let json = build_json(&st, &ui.global::<Theme>());
+                let json = build_json(&st, &ui.global::<Theme>(), &ui.global::<Tokens>());
                 (json, st.get_password().to_string())
             };
             drop(ui);
@@ -151,7 +149,7 @@ fn main() -> Result<(), slint::PlatformError> {
 }
 
 /// Construye el JSON que espera `nixdots-setup apply`.
-fn build_json(st: &State, theme: &Theme) -> String {
+fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
     let mut map = serde_json::Map::new();
     map.insert("fullName".into(), st.get_full_name().to_string().into());
     map.insert("username".into(), st.get_username().to_string().into());
@@ -159,7 +157,7 @@ fn build_json(st: &State, theme: &Theme) -> String {
     map.insert("keyboardLayout".into(), pick(st.get_kb_codes(), st.get_kb_index()).into());
     map.insert("keyboardVariant".into(), "".into());
     map.insert("timeZone".into(), pick(st.get_city_tz(), st.get_city_index()).into());
-    map.insert("theme".into(), if theme.get_dark() { "dark" } else { "light" }.into());
+    map.insert("theme".into(), tokens.get_theme().to_string().into());
     map.insert("accentColor".into(), theme.get_accent_id().to_string().into());
     if st.get_git_on() {
         map.insert("gitName".into(), st.get_git_name().to_string().into());
@@ -168,15 +166,18 @@ fn build_json(st: &State, theme: &Theme) -> String {
     serde_json::Value::Object(map).to_string()
 }
 
-/// «#rrggbb» → Color, con gris de reserva si viene mal.
-fn parse_hex(hex: &str) -> slint::Color {
-    let s = hex.trim().trim_start_matches('#');
-    let byte = |i: usize| {
-        s.get(i..i + 2)
-            .and_then(|h| u8::from_str_radix(h, 16).ok())
-            .unwrap_or(0x80)
-    };
-    slint::Color::from_rgb_u8(byte(0), byte(2), byte(4))
+/// Lee `org.gnome.desktop.interface enable-animations`; true si está desactivado
+/// (o si gsettings no está, lo dejamos en falso).
+fn reduced_motion() -> bool {
+    let out = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "enable-animations"])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            String::from_utf8_lossy(&o.stdout).trim() == "false"
+        }
+        _ => false,
+    }
 }
 
 fn pick(model: ModelRc<SharedString>, index: i32) -> String {

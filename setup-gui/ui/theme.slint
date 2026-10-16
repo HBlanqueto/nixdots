@@ -1,63 +1,22 @@
-// Paletas del asistente, copiadas de docs/first-boot/mockup-asistente.html
-// (objetos `light` y `dark`). El tema claro es el de por defecto; `dark`
-// cambia todo al instante porque los colores se derivan de él.
-//
-// El acento vive en una sola propiedad, `accent`, que alimenta botones, iconos,
-// puntos, avatar y pantalla final. Puede ser Neptunia (opción 0, la de por
-// defecto) o uno de los accent-color válidos de GNOME. El valor de Neptunia
-// sale de share/themes/neptunia.nix: el flake lo inyecta en tiempo de compilación
-// (NIXDOTS_NEPTUNIA_ACCENT) y Rust lo fija aquí; el valor de abajo es sólo el de
-// reserva para `slint-viewer` sin Rust.
+// Estado de tema del asistente. Los tokens (colores, medidas, duraciones) viven
+// en neptunia-tokens.slint, generado desde share/themes/neptunia.nix; aquí sólo
+// va lo que el usuario elige (tema y acento) y la preferencia de movimiento.
 
-import "fonts/DancingScript-Regular.ttf";
-import "fonts/DancingScript-Bold.ttf";
-
-export struct Accent {
-    id: string,
-    color: color,
-    label: string,
-}
+import { Tokens, Accent } from "neptunia-tokens.slint";
+export { Tokens } from "neptunia-tokens.slint";
 
 export global Theme {
-    in-out property <bool> dark: false;
-    // 0 = Neptunia; 1..9 = accent-color de GNOME.
+    // Acento elegido: 0 = Neptunia (Tokens.accent), 1..9 = accent-color de GNOME.
     in-out property <int> accent-index: 0;
-    in-out property <color> neptunia-accent: #809ad2;
+    // Preferencia del sistema: con reducción de movimiento, sólo fundidos.
+    in-out property <bool> reduced-motion: false;
 
-    // Los nueve accent-color válidos de GNOME.
-    out property <[Accent]> accents: [
-        { id: "blue", color: #3584e4, label: "Azul" },
-        { id: "teal", color: #2190a4, label: "Verde azulado" },
-        { id: "green", color: #3a944a, label: "Verde" },
-        { id: "yellow", color: #c88800, label: "Amarillo" },
-        { id: "orange", color: #ed5b00, label: "Naranja" },
-        { id: "red", color: #e62d42, label: "Rojo" },
-        { id: "pink", color: #d56199, label: "Rosa" },
-        { id: "purple", color: #9141ac, label: "Morado" },
-        { id: "slate", color: #6f8396, label: "Pizarra" },
-    ];
-    // Índice dentro de `accents` para el acento de GNOME elegido.
+    out property <[Accent]> accents: Tokens.gnomeAccents;
     out property <int> gi: accent-index <= 0 ? 0 : min(accent-index, accents.length) - 1;
 
-    out property <color> accent: accent-index == 0 ? neptunia-accent : accents[gi].color;
+    out property <color> accent: accent-index == 0 ? Tokens.accent : accents[gi].color;
+    out property <color> accent-strong: accent-index == 0 ? Tokens.accentStrong : accents[gi].color;
+    out property <color> accent-ink: Tokens.onAccent;
     out property <string> accent-id: accent-index == 0 ? "neptunia" : accents[gi].id;
     out property <string> accent-name: accent-index == 0 ? "Neptunia" : accents[gi].label;
-    out property <color> accent-ink: #ffffff;
-
-    out property <color> card: dark ? rgba(24, 29, 37, 0.94) : rgba(250, 251, 253, 0.95);
-    out property <color> card-border: dark ? rgba(238, 244, 250, 0.09) : rgba(20, 30, 45, 0.10);
-    out property <color> text: dark ? #eef4fa : #1b2330;
-    out property <color> sub: dark ? #8d9bb0 : #566273;
-    out property <color> faint: dark ? #6b7a90 : #7d8898;
-    out property <color> line: dark ? rgba(238, 244, 250, 0.07) : rgba(20, 30, 45, 0.08);
-    out property <color> field: dark ? rgba(13, 18, 25, 0.55) : #ffffff;
-    out property <color> field-border: dark ? rgba(238, 244, 250, 0.10) : rgba(20, 30, 45, 0.16);
-    out property <color> list: dark ? rgba(13, 18, 25, 0.45) : rgba(20, 30, 45, 0.035);
-    out property <color> list-border: dark ? rgba(238, 244, 250, 0.07) : rgba(20, 30, 45, 0.08);
-    out property <color> sel: dark ? rgba(128, 154, 210, 0.18) : rgba(79, 111, 179, 0.13);
-    out property <color> sec: dark ? rgba(238, 244, 250, 0.08) : rgba(20, 30, 45, 0.07);
-    out property <color> sec-ink: dark ? #cdd9e5 : #1b2330;
-    out property <color> tile: dark ? rgba(13, 18, 25, 0.45) : #ffffff;
-    out property <color> dot-off: dark ? #2f3a49 : rgba(20, 30, 45, 0.16);
-    out property <color> dot-past: dark ? #55657e : rgba(20, 30, 45, 0.38);
 }
