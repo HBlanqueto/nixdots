@@ -7,6 +7,9 @@ lib.mkIf (username != null) {
     home-manager = {
         backupFileExtension = "backup";
 
+        useGlobalPkgs = true;
+        useUserPackages = true;
+
         extraSpecialArgs = {
             inherit inputs theme hostName username gitName gitEmail stateVersion;
         };

@@ -46,10 +46,4 @@
             download = "${config.home.homeDirectory}/Descargas";
         };
     };
-
-    nixpkgs = {
-        config = {
-            allowUnfree = true;
-        };
-    };
 }
