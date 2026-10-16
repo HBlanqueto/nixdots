@@ -1,7 +1,7 @@
 { config, lib, pkgs, theme, ... }:
 
 let
-    palette = import ../../lib/kmscon-palette.nix { inherit theme; };
+    palette = import ../../lib/palette.nix { inherit theme; };
 
     # kmscon fija el DPI en 72, así que font-size son los píxeles del em: la
     # fuente de la consola de macOS es 8x16 y hay que pedirla a 16 para que no

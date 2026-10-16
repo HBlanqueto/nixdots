@@ -1,7 +1,8 @@
-# La paleta neptunia como lista ordenada de (sufijo, "R,G,B"), compartida por
-# la línea de comandos de kmscon (packages/kmscon-palette.nix) y su archivo de
-# config (modules/common/console.nix). El tema llega como argumento (se importa
-# una sola vez en flake.nix).
+# Paleta de la consola (neptunia): única fuente para los 16 colores ANSI de
+# console.colors (user.nix) y para la config/línea de comandos de kmscon
+# (modules/common/console.nix y packages/kmscon-palette.nix). El negro de fondo
+# puro se define aquí una sola vez. El tema llega como argumento (se importa una
+# sola vez en flake.nix).
 { theme }:
 let
     colors = theme.colors;
@@ -12,6 +13,29 @@ let
     };
     byte = s: digits.${builtins.substring 0 1 s} * 16 + digits.${builtins.substring 1 1 s};
     rgb = c: "${toString (byte (builtins.substring 0 2 c))},${toString (byte (builtins.substring 2 2 c))},${toString (byte (builtins.substring 4 2 c))}";
+
+    # Fondo negro puro de la TTY (no el bg neptunia).
+    black = "000000";
+
+    # Los 16 colores ANSI de la consola del kernel, en orden (0-15).
+    consoleColors = [
+        black
+        colors.c1
+        colors.c2
+        colors.c3
+        colors.c4
+        colors.c5
+        colors.c6
+        colors.c7
+        colors.lbg
+        colors.c9
+        colors.c10
+        colors.c11
+        colors.c12
+        colors.c13
+        colors.c14
+        colors.c15
+    ];
 
     # sufijo "" => opción `palette`, el resto => `palette-<sufijo>`.
     entries = [
@@ -33,12 +57,11 @@ let
         { suffix = "light-cyan"; value = rgb colors.c14; }
         { suffix = "white"; value = rgb colors.c15; }
         { suffix = "foreground"; value = rgb colors.fg; }
-        # Fondo de la TTY en negro puro, no el bg neptunia (por defecto de kmscon).
-        { suffix = "background"; value = "0,0,0"; }
+        { suffix = "background"; value = rgb black; }
     ];
 
     name = suffix: if suffix == "" then "palette" else "palette-${suffix}";
 in
 {
-    inherit name entries rgb;
+    inherit name entries rgb black consoleColors;
 }

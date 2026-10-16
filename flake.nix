@@ -325,6 +325,26 @@
                 };
             };
 
+            # install.sh lee la copia versionada de la paleta sin pasar por
+            # Nix; este check falla si dejó de coincidir con lo que genera
+            # packages/kmscon-palette.nix.
+            checks = nixpkgs.lib.genAttrs supportedSystems (system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                    generated = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
+                in
+                {
+                    kmscon-palette = pkgs.runCommand "check-kmscon-palette" { } ''
+                        if ! ${pkgs.diffutils}/bin/diff -u ${./share/themes/kmscon-palette} ${generated}; then
+                            echo "" >&2
+                            echo "share/themes/kmscon-palette está desactualizado. Regéneralo con:" >&2
+                            echo "  cp \$(nix build .#kmscon-palette --print-out-paths) share/themes/kmscon-palette" >&2
+                            exit 1
+                        fi
+                        ${pkgs.coreutils}/bin/touch $out
+                    '';
+                });
+
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
                 setup = setups.${system};

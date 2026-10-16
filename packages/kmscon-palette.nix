@@ -6,7 +6,7 @@
 { pkgs, theme }:
 
 let
-    palette = import ../lib/kmscon-palette.nix { inherit theme; };
+    palette = import ../lib/palette.nix { inherit theme; };
 in
 pkgs.writeText "kmscon-palette"
     (pkgs.lib.concatMapStrings (e: "--${palette.name e.suffix}\n${e.value}\n") palette.entries)

@@ -1,6 +1,8 @@
 { config, lib, pkgs, data, theme, ... }:
 
 let
+    palette = import ../../lib/palette.nix { inherit theme; };
+
     # The installed system checks the final path; the installer evaluates from
     # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
     # where the file lives. On a normal system the variable is unset ("").
@@ -67,8 +69,8 @@ in
 
     console = {
         earlySetup = true;
-        # Fondo negro puro en la consola del kernel (no el bg neptunia).
-        colors = with theme.colors; [ "000000" c1 c2 c3 c4 c5 c6 c7 ] ++ [ lbg c9 c10 c11 c12 c13 c14 c15 ];
+        # Los 16 colores ANSI (con el fondo negro puro) salen de lib/palette.nix.
+        colors = palette.consoleColors;
         # "xnu" usa la fuente bitmap que incrusta xnu (el kernel de macOS) en
         # initrd, consola de emergencia y arranque de Plymouth. La VM de primer
         # arranque no importa console.nix y cae a "sfmono".
