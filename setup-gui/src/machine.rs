@@ -70,11 +70,25 @@ fn cpu(facter: Option<&Value>) -> String {
 }
 
 fn ram(facter: Option<&Value>) -> String {
-    let bytes = facter.and_then(installed_bytes).or_else(mem_total_bytes);
+    let bytes = facter
+        .and_then(smbios_installed_bytes)
+        .or_else(|| facter.and_then(installed_bytes))
+        .or_else(mem_total_bytes);
     match bytes {
-        Some(b) => format!("{} GB", round_up_4gb(b)),
+        Some(b) => format!("{} GB", even_gb(b)),
         None => "—".to_string(),
     }
+}
+
+/// Suma de los módulos SMBIOS (tipo 17): memoria instalada de verdad. `size`
+/// viene en KB y 0/ausente = ranura vacía.
+fn smbios_installed_bytes(facter: &Value) -> Option<u64> {
+    let devices = facter.pointer("/smbios/memory_device")?.as_array()?;
+    let mut total = 0u64;
+    for device in devices {
+        total += device.get("size").and_then(Value::as_u64).unwrap_or(0) * 1024;
+    }
+    (total > 0).then_some(total)
 }
 
 /// Suma de los rangos `phys_mem` de facter (memoria disponible, no la total).
@@ -104,10 +118,10 @@ fn mem_total_bytes() -> Option<u64> {
     None
 }
 
-/// Redondea hacia arriba al múltiplo de 4 GB (mínimo 4).
-fn round_up_4gb(bytes: u64) -> u64 {
-    const FOUR_GIB: u64 = 4 << 30;
-    (bytes.div_ceil(FOUR_GIB) * 4).max(4)
+/// Redondea al número par de GB más cercano (mínimo 2).
+fn even_gb(bytes: u64) -> u64 {
+    let gb = bytes as f64 / 1_073_741_824.0;
+    (((gb / 2.0).round() as u64) * 2).max(2)
 }
 
 fn hostname() -> String {
