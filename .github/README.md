@@ -1,4 +1,4 @@
-These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The same flake builds **one configuration per host**: a physical **ThinkPad L14 Gen 2a** (`ThinkPad-L14-Gen2`, x86_64-linux) and a native **aarch64 UTM/QEMU VM** on Apple Silicon (`UTM-aarch64`).
+These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The flake builds **one generic configuration** (`nixdots`): the hardware is detected at evaluation time by [nixos-facter](https://github.com/nix-community/nixos-facter) and the per-machine choices (hostname, encryption, Secure Boot, peripherals) live in `machine.json` under `/persist`. The same output name is also exposed as the machine's hostname, so `nixos-rebuild --flake ~/nixdots` without `#…` works.
 
 This NixOS system features the following core components:
 
@@ -10,7 +10,7 @@ This NixOS system features the following core components:
 ## Environment
 
 - [x] **Flakes:** Fully flake-based system configuration
-- [x] **Multi-host:** `ThinkPad-L14-Gen2` (x86_64-linux) and `UTM-aarch64` (aarch64-linux), auto-discovered from `hosts/`
+- [x] **Single config:** one generic `nixdots` output; hardware detected by facter, per-machine facts in `machine.json`
 - [x] **Installer:** text-mode installer (`installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
@@ -22,32 +22,29 @@ This NixOS system features the following core components:
 
 ```text
 .
-├── hosts/                   # one directory per host; auto-discovered by flake.nix
-│   ├── ThinkPad-L14-Gen2/   # physical L14 Gen 2a (x86_64-linux)
-│   └── UTM-aarch64/         # UTM/QEMU VM on Apple Silicon (aarch64-linux)
 ├── installer/               # Rust text-mode installer (see installer/README.md)
-├── lib/mkHost.nix           # helper: mkHost { hostName, system, modules }
+├── lib/mkHost.nix           # helper: mkHost { hostName, system, modules, data }
 ├── modules/                 # shared NixOS + home-manager configuration
-│   ├── common/              # users, fish, locale, nix, services, iPhone, boot
+│   ├── common/              # users, fish, locale, nix, services, hardware-detect, boot
 │   ├── desktop/             # GNOME/GDM
-│   ├── hardware/            # per-host hardware (thinkpad, utm)
+│   ├── hardware/            # boot rollback snapshot helper
 │   └── home/                # home-manager (apps, style, wezterm, yazi…)
 ├── overlays/  packages/  share/
 ├── disko.nix                # standalone disk layout applied by the installer
-├── settings.nix             # host-independent values (user, locale, git)
+├── settings.nix             # machine-independent values (locale, keyboard, stateVersion)
 └── flake.nix  flake.lock
 ```
 
-* **`flake.nix`:** discovers every `hosts/<name>/host.nix` and emits one `nixosConfigurations.<name>` per host; also packages the installer for `x86_64-linux` and `aarch64-linux`.
-* **`settings.nix`:** host-independent values (username, locale, `hashedPasswordFile`, Git identity).
-* **`hosts/<host>/`:** `host.nix` holds per-host metadata (`profile`, `system`); `default.nix` imports the host's hardware module and `hardware-configuration.nix`.
+* **`flake.nix`:** emits the generic `nixdots` configuration (plus pure CI variants and the first-boot test VMs); also packages the installer for `x86_64-linux` and `aarch64-linux`.
+* **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
+* **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`, written by the installer and merged by `lib/data.nix`.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `core` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
 ## Installer
 
-`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning or hashing.
+`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `mkpasswd`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning or hashing.
 
 There are two ways to run it:
 
@@ -98,15 +95,13 @@ sudo ./nixdots/install.sh
 ```
 
 (development: `sudo nix run .#installer -- --install`). It partitions with
-`disko.nix` (no manual partitioning needed), generates the hardware config and
-runs `nixos-install` for you.
+`disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
+`machine.json` and runs `nixos-install --flake <repo>#nixdots` for you.
 
-To install manually, the flake provides two hosts: `ThinkPad-L14-Gen2` (x86_64-linux)
-and `UTM-aarch64` (aarch64-linux). Replace `#ThinkPad-L14-Gen2` with `#UTM-aarch64`
-when installing the VM.
+To install manually, the flake provides the single `nixdots` configuration:
 
 ```shell
-nixos-install --root /mnt --flake ~/nixdots#ThinkPad-L14-Gen2 --impure --show-trace
+nixos-install --root /mnt --flake ~/nixdots#nixdots --impure --show-trace
 ```
 
 ### Disk encryption (LUKS + TPM)
@@ -116,7 +111,7 @@ subvolumes; only the ESP stays unencrypted (Lanzaboote must read the kernel and
 initrd before unlocking). The installer uses the account password as the LUKS
 passphrase, so early boots ask for it.
 
-On the **ThinkPad**, once reinstalled with encryption, `modules/hardware/luks-tpm.nix`
+On the **ThinkPad**, once reinstalled with encryption, `modules/common/luks-tpm.nix`
 enables Lanzaboote's **Measured Boot** (`systemd-pcrlock`): the passphrase is
 enrolled into the TPM2 chip, bound to the firmware, bootloader and Secure Boot
 PCRs (`0 4 7`), so boots unlock without typing. The `pcrlock` policy and
@@ -141,7 +136,7 @@ passphrase.
 
 Two details matter when partitioning by hand (the installer handles them):
 
-- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems in `hosts/<host>/hardware-configuration.nix`.
+- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems (NixOS already marks `/persist` and `/var/log` in `modules/common/filesystems.nix`).
 - For boot rollback, `modules/hardware/snapshot.sh` must mount the Btrfs partition at the top level (`subvolid=5`, via the drive's UUID) so both `@rootfs` and `old_roots/` are visible; expired snapshots are pruned bottom-up (deepest nested subvolume first), because Btrfs refuses to delete a parent subvolume while children exist.
 
 ## Credits

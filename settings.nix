@@ -1,7 +1,7 @@
 {
-    # Host-independent values. Per-host values (system, hostName) live in
-    # hosts/<host>/default.nix, not here. Los datos de usuario viven en
-    # ${NIXDOTS_ROOT}/persist/nixdots/user.json, no aquí.
+    # Host-independent values. Per-machine values (system, hostName) live in
+    # ${NIXDOTS_ROOT}/persist/nixdots/machine.json, not here. Los datos de
+    # usuario viven en ${NIXDOTS_ROOT}/persist/nixdots/user.json, no aquí.
     stateVersion = "26.05";
 
     timeZone = "America/Merida";

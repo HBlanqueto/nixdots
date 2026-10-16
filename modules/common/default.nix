@@ -1,8 +1,8 @@
 { inputs, ... }:
 
 {
-  # Shared NixOS layer for every host. Host-specific hardware lives under
-  # modules/hardware/<host>.nix and is pulled in by hosts/<host>/default.nix.
+  # Shared NixOS layer for the single generic configuration; per-machine facts
+  # come from machine.json/facter.json (see lib/data.nix).
   imports = [
     inputs.impermanence.nixosModules.impermanence
     inputs.home.nixosModules.home-manager

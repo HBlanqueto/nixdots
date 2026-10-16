@@ -22,9 +22,8 @@
         };
 
         # Generic kernel parameters shared by both hosts; the AMD hardware
-        # modules (modules/hardware/thinkpad.nix and
-        # modules/common/hardware-detect.nix) add microcode.amd_sha_check=off
-        # on top of these, for ucodenix.
+        # module (modules/common/hardware-detect.nix) adds
+        # microcode.amd_sha_check=off on top of these, for ucodenix.
         kernelParams = [ "quiet" "rd.udev.log_level=3" "rd.systemd.show_status=auto" ];
 
         kernel.sysctl = {

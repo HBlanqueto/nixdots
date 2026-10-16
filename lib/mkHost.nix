@@ -1,30 +1,27 @@
-# Builds one nixosConfiguration per host.
+# Builds the nixosConfiguration for the single generic profile.
 #
-# The host's `system` is passed in by the caller (from hosts/<host>/host.nix,
-# never hardcoded), so the flake can emit both an x86_64-linux and an
-# aarch64-linux configuration. `hostName` is used both as the flake output
-# name and as networking.hostName, so `nixos-rebuild switch --flake ~/nixdots`
-# resolves the host automatically.
-{ inputs, baseData, theme }:
-{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true, data ? baseData }:
+# `system` comes from the caller (builtins.currentSystem with --impure, a fixed
+# value in pure evaluation), never hardcoded, so the flake can emit both an
+# x86_64-linux and an aarch64-linux configuration. `hostName` is used as
+# networking.hostName; `data` carries user.json/machine.json/facter.json and
+# `machineData` is data.machine ({} in CI/pure evaluation).
+{ inputs, theme }:
+{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true, data }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     # Todo llega por `data` (más inputs/theme); no hay argumentos sueltos.
-    # hostName es per-config y machineData lo elige el perfil (el genérico usa
-    # machine.json; los hosts con hardware propio no).
+    # hostName es per-config y machineData lo elige el perfil.
     specialArgs = {
         inherit inputs theme;
         data = data // { inherit hostName; machine = machineData; };
     };
 
-    # Common + desktop layers are shared; the host supplies its own
-    # hardware module and hardware-configuration.nix.
     modules = [
-        # Per-host hardware-configuration.nix sets this too. The generic
-        # profile has no such file, so derive it from the system argument —
-        # unless facter already supplies it from the report (both are
-        # mkDefault, and a string would clash with facter's platform attrs).
+        # The generic profile has no per-host hardware file, so derive the
+        # platform from the system argument — unless facter already supplies it
+        # from the report (both are mkDefault, and a string would clash with
+        # facter's platform attrs).
         ({ config, lib, ... }: {
             nixpkgs.hostPlatform =
                 lib.mkIf (!config.hardware.facter.enable) (lib.mkDefault system);

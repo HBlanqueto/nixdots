@@ -7,10 +7,10 @@
 #
 # This module does NOT import lanzaboote itself (imports cannot depend on
 # `config`). Whoever sets secureBoot = true must import
-# inputs.lanzaboote.nixosModules.lanzaboote: modules/hardware/thinkpad.nix for
-# the physical machine, and flake.nix for the generic `nixdots` output. The
-# boot.lanzaboote definitions are only emitted when that option actually exists,
-# so hosts without lanzaboote evaluate fine.
+# inputs.lanzaboote.nixosModules.lanzaboote: flake.nix does it for the generic
+# `nixdots` output whenever machine.json asks for Secure Boot. The boot.lanzaboote
+# definitions are only emitted when that option actually exists, so hosts without
+# lanzaboote evaluate fine.
 { config, options, lib, pkgs, ... }:
 
 let
@@ -62,11 +62,10 @@ in
             }
         ))
 
-        # Sin Secure Boot basta con systemd-boot. mkDefault para que el módulo de
-        # hardware del host pueda sobreescribirlo (p. ej. el UTM, que también lo
-        # activa pero con su propio configurationLimit).
+        # Sin Secure Boot basta con systemd-boot.
         (lib.mkIf (!m.secureBoot) {
             boot.loader.systemd-boot.enable = lib.mkDefault true;
+            boot.loader.systemd-boot.configurationLimit = lib.mkDefault 5;
         })
     ];
 }

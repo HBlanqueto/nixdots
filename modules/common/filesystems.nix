@@ -1,6 +1,7 @@
 # Endurecimiento de los montajes del sistema en marcha. Las opciones base de
 # cada sistema de archivos (device, fsType, subvol, noatime, compress, …) viven
-# en hardware-configuration.nix; aquí solo se AÑADEN flags de endurecimiento.
+# en modules/common/filesystems-labels.nix; aquí solo se AÑADEN flags de
+# endurecimiento.
 #
 # NUNCA usar lib.mkForce en las options de un sistema necesario para arrancar
 # (/ , /nix, /persist, /var/log): nixpkgs inyecta "x-initrd.mount" en esas

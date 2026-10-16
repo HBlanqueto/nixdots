@@ -99,7 +99,7 @@ in
         binsh = "${pkgs.dash}/bin/dash";
 
         # Cross-platform CLI tools only. Desktop/GPU tools live in
-        # modules/desktop, laptop-only tools in modules/hardware/thinkpad.nix.
+        # modules/desktop, laptop-only tools in modules/common/hardware-detect.nix.
         systemPackages = with pkgs; [
             comma
 

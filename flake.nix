@@ -24,7 +24,7 @@
         let
             # Único punto de lectura de user.json/machine.json/facter.json: en
             # evaluación pura (nix flake check sin --impure) no ve /persist y
-            # todo cae a los valores seguros, por eso los hosts reales exigen
+            # todo cae a los valores seguros, por eso la config real exige
             # impure (ver mkHost).
             data = import ./lib/data.nix { };
 
@@ -37,13 +37,13 @@
             # argumento a los paquetes que lo usan.
             theme = import ./share/themes;
 
-            mkHost = import ./lib/mkHost.nix { inherit inputs theme; baseData = data; };
+            mkHost = import ./lib/mkHost.nix { inherit inputs theme; };
 
             # Módulos exclusivos del perfil único (asumen el layout de disko y/o
-            # un informe de facter); no los importa ningún host con hardware
-            # propio. lanzaboote y luks-tpm solo se importan si la máquina pide
-            # Secure Boot (secure-boot.nix no puede importarlos condicionalmente,
-            # y luks-tpm define boot.lanzaboote, que necesita ese módulo).
+            # un informe de facter). lanzaboote y luks-tpm solo se importan si la
+            # máquina pide Secure Boot (secure-boot.nix no puede importarlos
+            # condicionalmente, y luks-tpm define boot.lanzaboote, que necesita
+            # ese módulo).
             genericModules = machineData:
                 [
                     ./modules/common/facter.nix
@@ -83,30 +83,9 @@
                         };
                 };
 
-            # Every directory under hosts/ with a host.nix is a configuration.
-            # host.nix declares the per-host `profile` and `system`; the flake
-            # output name is the directory name and equals networking.hostName.
-            hostNames = builtins.attrNames (
-                nixpkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ./hosts)
-            );
-
-            mkHostFromDir = name:
-                let
-                    meta = import (./hosts + "/${name}/host.nix");
-                in
-                mkHost {
-                    hostName = name;
-                    inherit (meta) system;
-                    modules = [ (./hosts + "/${name}") ];
-                };
-
-            hosts = builtins.listToAttrs (
-                map (name: { inherit name; value = mkHostFromDir name; }) hostNames
-            );
-
-            # VM de prueba del primer arranque, en ambas arquitecturas. Vive en
-            # el flake, no en hosts/, porque toda carpeta bajo hosts/ se
-            # convierte en un host real. Solo desktop + first-boot + user.
+            # VM de prueba del primer arranque, en ambas arquitecturas. Vive
+            # solo en el flake, no en la config real. Solo desktop + first-boot
+            # + user.
             #
             # Se construye con NIXDOTS_ROOT vacío (ver run-firstboot-vm.sh), así
             # el flake no ve ningún user.json, firstBoot = !(settings ? username)
@@ -316,7 +295,7 @@
             };
         in
         {
-            nixosConfigurations = hosts // {
+            nixosConfigurations = {
                 inherit nixdots;
 
                 # Variantes puras para CI (`nix flake check` / `nix build`

@@ -1,7 +1,8 @@
 _: {
-    # Impermanence roots common to both hosts. ThinkPad-only persistent dirs
-    # (cups, sbctl, auto-cryptenroll, fwupd…) are appended by
-    # modules/hardware/thinkpad.nix, and luks-tpm.nix adds its own.
+    # Impermanence roots common to every machine. Persistent dirs that depend on
+    # the hardware/roles (cups, sbctl, auto-cryptenroll, fwupd, libvirt…) are
+    # appended by modules/common/extras.nix, secure-boot.nix, hardware-detect.nix
+    # and luks-tpm.nix.
     environment = {
         persistence."/persist" = {
             hideMounts = true;

@@ -1,7 +1,7 @@
 # Explicit opt-in for a LUKS2-encrypted root. Nothing is autodetected: the
-# installer writes these options (and the LUKS device) into the host's
-# `hardware-configuration.nix`, so a host installed without encryption simply
-# keeps the defaults (`enable = false`) and is unaffected.
+# installer writes these options (and the LUKS device) into machine.json, so a
+# machine installed without encryption simply keeps the defaults
+# (`enable = false`) and is unaffected.
 { config, options, lib, ... }:
 
 let
@@ -17,7 +17,7 @@ in
         assertions = [
             {
                 assertion = config.boot.initrd.luks.devices ? "cryptroot";
-                message = "nixdots.encryption.enable está activo pero no hay boot.initrd.luks.devices.cryptroot en hardware-configuration.nix";
+                message = "nixdots.encryption.enable está activo pero no hay boot.initrd.luks.devices.cryptroot";
             }
             {
                 # `tpmUnlock` needs lanzaboote (Secure Boot + measured boot on the

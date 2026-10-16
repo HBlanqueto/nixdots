@@ -51,6 +51,9 @@ in
                 # virtio-gpu.
                 WLR_NO_HARDWARE_CURSORS = "1";
             };
+
+            # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.
+            nixdots.console.hwRender = lib.mkIf isQemu false;
         }
 
         # ucodenix only exists where its module is imported (the generic profile

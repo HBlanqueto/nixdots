@@ -15,8 +15,9 @@ use std::process::{Command, Stdio};
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub state_version: String,
-    /// The chosen hostname. Not stored in settings.nix anymore (hosts live in
-    /// hosts/<name>/); kept here as the installer's current selection.
+    /// The chosen hostname. Not stored in settings.nix anymore (the machine's
+    /// name lives in machine.json); kept here as the installer's current
+    /// selection.
     #[serde(default)]
     pub host_name: String,
     pub time_zone: String,
