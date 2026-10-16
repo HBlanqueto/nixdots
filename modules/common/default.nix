@@ -18,7 +18,6 @@
     ./services.nix
     ./console.nix
     ./fonts.nix
-    ./uutils.nix
     ./ai.nix
     ./iphone-tethering.nix
     ./remote-access.nix

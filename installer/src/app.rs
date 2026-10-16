@@ -736,7 +736,6 @@ pub struct App {
     // disk / summary
     pub disks: DiskState,
     pub enc: EncState,
-    pub keep_uutils: bool,
 
     // installing / done
     pub install: InstallView,
@@ -895,7 +894,6 @@ impl App {
             keyboard_active: kb_active,
             keyboard_layout: kb_layout,
             keyboard_variant: kb_variant,
-            keep_uutils: false,
             install: InstallView::new(),
             install_rx: None,
             install_cancel: false,
@@ -1127,12 +1125,6 @@ impl App {
         }
     }
 
-    /// uutils is x86_64-only (see modules/common/uutils.nix), so the option is
-    /// only offered on the ThinkPad profile.
-    pub fn uutils_available(&self) -> bool {
-        self.profile == detect::Profile::Thinkpad
-    }
-
     /// The panel title, which for Contraseña names the resulting user.
     pub fn screen_title(&self) -> String {
         match self.screen {
@@ -1304,8 +1296,6 @@ impl App {
             luks_tpm: encrypt && self.enc.tpm && self.enc.tpm_present,
             device: disk.path(),
             disk_mode,
-            // uutils is only offered (and only applied) on the ThinkPad.
-            keep_uutils: self.keep_uutils && self.uutils_available(),
             dry_run: self.dry_run,
             profile: self.profile,
             wifi,

@@ -37,7 +37,7 @@
         # Btrfs subvolume rollback (impermanence). The script mounts the
         # ThinkPad's top-level subvolume, so it is ThinkPad-only.
         initrd.systemd = {
-            initrdBin = with pkgs; [ uutils-coreutils-noprefix btrfs-progs findutils util-linux gawk e2fsprogs ];
+            initrdBin = with pkgs; [ coreutils btrfs-progs findutils util-linux gawk e2fsprogs ];
 
             services.rollback = {
                 wantedBy = [ "initrd.target" ];

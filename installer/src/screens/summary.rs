@@ -1,16 +1,12 @@
 use crate::app::{Action, App, CheckState};
 use crate::detect::Profile;
-use crate::widgets::{self, Btn};
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use crate::widgets::Btn;
+use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-
-fn uutils_option(app: &App) -> bool {
-    app.uutils_available()
-}
 
 fn gb(bytes: u64) -> String {
     format!("{:.0} GB", bytes as f64 / 1_000_000_000.0)
@@ -94,32 +90,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(text, Style::default().fg(color)),
     ]));
 
-    if uutils_option(app) {
-        lines.push(widgets::checkbox(
-            &app.palette,
-            app.keep_uutils,
-            "uutils en vez de coreutils (experimental)",
-            !app.focus_buttons && !app.no_focus(),
-        ));
-        if app.keep_uutils {
-            lines.push(Line::from(Span::styled(
-                "nixos-rebuild puede pedir confirmar con mv",
-                Style::default().fg(app.palette.muted),
-            )));
-        }
-    }
-
     f.render_widget(Paragraph::new(lines), area);
 }
 
-pub fn key(app: &mut App, key: KeyEvent) -> bool {
-    match key.code {
-        KeyCode::Char(' ') | KeyCode::Char('x') if uutils_option(app) => {
-            app.keep_uutils = !app.keep_uutils;
-            true
-        }
-        _ => false,
-    }
+pub fn key(_app: &mut App, _key: KeyEvent) -> bool {
+    false
 }
 
 pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
@@ -145,9 +120,6 @@ pub fn commands(app: &App) -> Vec<String> {
     ];
     if app.profile == Profile::Thinkpad {
         commands.push("sbctl create-keys --directory /mnt/persist/var/lib/sbctl".into());
-        if !app.keep_uutils {
-            commands.push("quitar ./uutils.nix de modules/common/default.nix".into());
-        }
     }
     commands
 }

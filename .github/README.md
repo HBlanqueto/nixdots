@@ -74,9 +74,6 @@ The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,defaul
 > [!NOTE]
 > I am not a Nix expert.
 
-> [!WARNING]
-> This system may be considered unstable due to replacing `coreutils` with `uutils`. Disable this feature if necessary.
-
 ### Secure Boot (Lanzaboote)
 
 > [!IMPORTANT]

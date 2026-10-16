@@ -107,11 +107,10 @@ pub struct Plan {
     /// Enroll TPM2 (PCR 7) auto-unlock in addition to the passphrase.
     pub luks_tpm: bool,
     pub device: String,
-    pub keep_uutils: bool,
     pub dry_run: bool,
     /// How the chosen disk is prepared (whole disk vs. alongside Windows).
     pub disk_mode: DiskMode,
-    /// Machine class: decides the secure-boot step and the uutils option.
+    /// Machine class: decides the secure-boot step.
     pub profile: crate::detect::Profile,
     /// Wi-Fi connection to persist into /persist, if any.
     pub wifi: Option<WifiSave>,
@@ -1344,7 +1343,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     fs::write(dest.join("settings.nix"), plan.settings.without_user().render())?;
     fs::write(
         dest.join("modules/common/default.nix"),
-        "{\n    imports = [\n        ./user.nix\n        ./uutils.nix\n    ];\n}\n",
+        "{\n    imports = [\n        ./user.nix\n    ];\n}\n",
     )?;
     fs::write(dest.join("modules/hardware/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
     Ok(())
@@ -1405,23 +1404,6 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     } else {
         fs::create_dir_all(&secrets)?;
         fs::write(&hash_path, "$y$(simulación)")?;
-    }
-
-    // Optionally drop the uutils replacement (imported by modules/common).
-    let default_nix = repo.join("modules/common/default.nix");
-    if default_nix.exists() {
-        if plan.keep_uutils {
-            report.log("uutils: se conserva (experimental)");
-        } else {
-            report.log("uutils: se quita de modules/common/default.nix");
-            let text = fs::read_to_string(&default_nix)?;
-            let filtered: String = text
-                .lines()
-                .filter(|line| !line.contains("uutils.nix"))
-                .collect::<Vec<_>>()
-                .join("\n");
-            fs::write(&default_nix, format!("{filtered}\n"))?;
-        }
     }
 
     // Repoint the boot rollback at the label instead of a fixed UUID.
