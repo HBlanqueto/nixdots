@@ -684,8 +684,8 @@ pub struct App {
     pub settings: Settings,
     pub settings_ok: bool,
 
-    /// Machine class (thinkpad | utm), detected from arch + virt.
-    pub profile: detect::Profile,
+    /// Lanzaboote Secure Boot (x86_64 bare metal, never the aarch64 VM).
+    pub secure_boot: bool,
 
     // machine detection (only used for the default hostname)
     pub arch: Option<String>,
@@ -784,10 +784,10 @@ impl App {
             Err(_) => (Settings::fallback(), false),
         };
         let arch = detect::arch();
-        let profile = detect::Profile::detect();
-        // Hostname defaults per machine profile; everything else starts empty
+        let secure_boot = detect::secure_boot();
+        // Hostname defaults per architecture; everything else starts empty
         // (only stateVersion is kept from the repo).
-        settings.host_name = profile.default_hostname().to_string();
+        settings.host_name = detect::default_hostname(arch.as_deref().unwrap_or_default());
         settings.username = None;
         settings.userdescription = None;
         settings.git_name = None;
@@ -834,7 +834,7 @@ impl App {
             source_check: CheckState::Idle,
             source_check_rx: None,
             settings_ok,
-            profile,
+            secure_boot,
             user: UserState {
                 name: Input::default(),
                 custom: false,
@@ -864,9 +864,9 @@ impl App {
                 bar_focus: false,
                 encrypt: true,
             },
-            // TPM auto-unlock is ThinkPad-only: never offer it on the VM, even
+            // TPM auto-unlock needs Secure Boot; never offer it on the VM, even
             // if a virtual TPM is reported.
-            enc: EncState::new(detect::tpm2_present() && profile == detect::Profile::Thinkpad),
+            enc: EncState::new(detect::tpm2_present() && secure_boot),
             net: NetState {
                 backend: net::backend(dry_run),
                 phase: RedFase::Lista,
@@ -957,10 +957,6 @@ impl App {
     }
 
     // -- data -----------------------------------------------------------------
-
-    pub fn detected_system(&self) -> String {
-        self.profile.system().to_string()
-    }
 
     pub fn cycle_disk(&mut self, delta: isize) {
         if self.disks.disks.is_empty() {
@@ -1297,7 +1293,7 @@ impl App {
             device: disk.path(),
             disk_mode,
             dry_run: self.dry_run,
-            profile: self.profile,
+            secure_boot: self.secure_boot,
             wifi,
             resume_from: resume,
         };
@@ -2122,12 +2118,11 @@ impl App {
             return;
         }
         let repo = self.repo_dir.clone();
-        let host = self.settings.host_name.clone();
         let (tx, rx) = mpsc::channel();
         self.source_check_rx = Some(rx);
         self.source_check = CheckState::Running;
         std::thread::spawn(move || {
-            let result = crate::install::check_source(&repo, &host);
+            let result = crate::install::check_source(&repo);
             let _ = tx.send(result);
         });
     }
@@ -2801,7 +2796,7 @@ impl App {
                 format!("{action} · EFI + System HD (btrfs, {cif})")
             }
             Step::Settings => {
-                "settings.nix · contraseña · hardware-configuration".to_string()
+                "settings.nix · user.json · machine.json".to_string()
             }
             Step::System => {
                 if self.install.total > 0 {
@@ -2814,7 +2809,7 @@ impl App {
                 }
             }
             Step::Boot => {
-                if self.profile == detect::Profile::Thinkpad {
+                if self.secure_boot {
                     "lanzaboote · claves de Secure Boot".to_string()
                 } else {
                     "systemd-boot".to_string()

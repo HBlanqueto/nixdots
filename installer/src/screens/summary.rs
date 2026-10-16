@@ -1,5 +1,4 @@
 use crate::app::{Action, App, CheckState};
-use crate::detect::Profile;
 use crate::widgets::Btn;
 use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -112,13 +111,12 @@ pub fn commands(app: &App) -> Vec<String> {
     let mut commands = vec![
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
         format!(
-            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.{}... --store /mnt",
-            app.settings.username.as_deref().unwrap_or(""),
-            app.settings.host_name
+            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.nixdots... --store /mnt",
+            app.settings.username.as_deref().unwrap_or("")
         ),
         "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
     ];
-    if app.profile == Profile::Thinkpad {
+    if app.secure_boot {
         commands.push("sbctl create-keys --directory /mnt/persist/var/lib/sbctl".into());
     }
     commands

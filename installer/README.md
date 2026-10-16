@@ -2,7 +2,7 @@
 
 Un instalador de terminal («siguiente, siguiente, aceptar») para la
 configuración NixOS de este repositorio. Es un ejecutable Rust que **orquesta**
-herramientas existentes — `disko`, `mkpasswd`, `nixos-generate-config`, `sbctl`,
+herramientas existentes — `disko`, `nixos-facter`, `mkpasswd`, `sbctl`,
 `nix`, `nixos-install`, `nmcli`… — y nunca reimplementa el particionado ni el
 hashing.
 

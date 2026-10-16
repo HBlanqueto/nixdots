@@ -15,7 +15,7 @@
 # flake.lock:
 #
 #   Missing on the ISO, added here:
-#     disko, mkpasswd (whois), sbctl
+#     disko, mkpasswd (whois), sbctl, nixos-facter
 #   Already on the ISO (no need):
 #     util-linux  blkid lsblk mount umount swapon swapoff wipefs partprobe
 #                 blockdev mkswapfile mountpoint dmesg
@@ -73,7 +73,7 @@ fi
 
 # Tools the static binary needs that the live ISO lacks (see the header).
 # shellcheck disable=SC2086
-tool_pkgs="$nixpkgs#disko $nixpkgs#mkpasswd $nixpkgs#sbctl"
+tool_pkgs="$nixpkgs#disko $nixpkgs#mkpasswd $nixpkgs#sbctl $nixpkgs#nixos-facter"
 
 # 4. Download and verify the precompiled binary.
 mkdir -p "$WORK"

@@ -49,51 +49,18 @@ pub fn default_hostname(arch: &str) -> String {
     }
 }
 
-/// The two machine classes the flake declares (`hosts/<profile>`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Profile {
-    Thinkpad,
-    Utm,
-}
-
-impl Profile {
-    /// Detected from the architecture, corroborated by `systemd-detect-virt`.
-    pub fn detect() -> Profile {
-        let arch = arch().unwrap_or_default();
-        if arch == "aarch64" || arch == "arm64" {
-            Profile::Utm
-        } else if arch == "x86_64" || arch == "amd64" {
-            Profile::Thinkpad
-        } else {
-            // Unknown arch: a qemu/utm guest is the VM profile, else the
-            // physical one.
-            match run_trim("systemd-detect-virt", &[]).as_deref() {
-                Some("qemu") | Some("kvm") => Profile::Utm,
-                _ => Profile::Thinkpad,
-            }
-        }
-    }
-
-    /// Directory name under `hosts/`, and the flake output name of the profile.
-    pub fn name(self) -> &'static str {
-        match self {
-            Profile::Thinkpad => "thinkpad",
-            Profile::Utm => "utm",
-        }
-    }
-
-    pub fn system(self) -> &'static str {
-        match self {
-            Profile::Thinkpad => "x86_64-linux",
-            Profile::Utm => "aarch64-linux",
-        }
-    }
-
-    pub fn default_hostname(self) -> &'static str {
-        match self {
-            Profile::Thinkpad => "ThinkPad-L14-Gen2",
-            Profile::Utm => "UTM-aarch64",
-        }
+/// Whether this machine is expected to use Lanzaboote Secure Boot: an x86_64
+/// bare-metal machine (never the aarch64/UTM VM). Drives the sbctl step and the
+/// `secureBoot` field of machine.json.
+pub fn secure_boot() -> bool {
+    match arch().as_deref() {
+        Some("aarch64") | Some("arm64") => false,
+        Some("x86_64") | Some("amd64") => true,
+        // Unknown arch: a qemu/utm guest has no Secure Boot, anything else does.
+        _ => !matches!(
+            run_trim("systemd-detect-virt", &[]).as_deref(),
+            Some("qemu") | Some("kvm")
+        ),
     }
 }
 

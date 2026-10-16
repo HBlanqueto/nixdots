@@ -233,6 +233,7 @@
                         systemd
                         mkpasswd
                         sbctl
+                        nixos-facter
                         less
                         git
                         nix
