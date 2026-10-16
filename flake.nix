@@ -271,14 +271,14 @@
                     buildAndTestSubdir = "setup-gui";
                     cargoLock.lockFile = ./Cargo.lock;
 
-                    nativeBuildInputs = [ pkgs.pkg-config ];
+                    nativeBuildInputs = [ pkgs.pkg-config pkgs.makeWrapper ];
                     buildInputs = with pkgs; [
                         fontconfig
                         freetype
                         libxkbcommon
                         libglvnd
                         wayland
-                        xorg.libX11
+                        libx11
                     ];
 
                     postInstall = ''
@@ -395,7 +395,7 @@
                             libxkbcommon
                             libglvnd
                             wayland
-                            xorg.libX11
+                            libx11
                         ];
                     };
                     default = pkgs.mkShell {
