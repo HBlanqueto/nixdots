@@ -1,9 +1,8 @@
 // Asistente de primer arranque (fase 4a, sólo UI) sobre el sistema Neptunia.
 //
-// Referencias: docs/first-boot/mockup-asistente.html + firstboot.css + los
+// Referencias: ~/Descargas/first-boot/mockup-asistente.html + firstboot.css + los
 // tokens/componentes Neptunia. Los colores y medidas salen de Tokens
-// (neptunia-tokens.slint, generado desde share/themes/neptunia.nix); aquí no hay
-// hexes salvo los que vienen del propio sistema.
+// (neptunia-tokens.slint, generado desde share/themes/neptunia.nix).
 
 import "fonts/DancingScript-Regular.ttf";
 import "fonts/DancingScript-Bold.ttf";
@@ -13,7 +12,7 @@ export { Tokens } from "neptunia-tokens.slint";
 import { Theme } from "theme.slint";
 export { Theme } from "theme.slint";
 import {
-    Icon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
+    Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
     GitIcon, CheckIcon, SpinIcon,
 } from "icons.slint";
 
@@ -27,20 +26,35 @@ struct Greet {
 }
 
 // Datos del asistente. Las listas son de ejemplo y fijas (la fase 4b traerá las
-// reales). Rust sólo rellena los datos de la máquina y valida el usuario.
+// reales). Rust rellena los datos de la máquina, valida el usuario y aplica.
 export global State {
     in-out property <int> step: 0;
     in-out property <bool> applying: false;
     in-out property <string> apply-error: "";
     in-out property <string> log-text: "";
     in-out property <bool> show-details: false;
+    // Fase real del CLI (0..4) y fundido final a negro.
+    in-out property <int> prep-phase: 0;
+    in-out property <bool> prep-black: false;
+
+    // ¿Hay red? Si la hay, el paso de Wi‑Fi se salta (pero cuenta en los puntos).
+    in-out property <bool> has-network: false;
 
     in-out property <int> lang-index: 0;
+    in-out property <int> region-index: 0;
     in-out property <int> kb-index: 0;
     in-out property <int> net-index: 0;
     in-out property <int> city-index: 0;
+    in-out property <bool> tz-auto: true;
     in-out property <bool> auto-login: false;
     in-out property <bool> git-on: false;
+
+    // Accesibilidad (todas false por defecto).
+    in-out property <bool> a11y-large-text: false;
+    in-out property <bool> a11y-high-contrast: false;
+    in-out property <bool> a11y-screen-reader: false;
+    in-out property <bool> a11y-reduce-motion: false;
+    in-out property <bool> a11y-screen-keyboard: false;
 
     in-out property <string> full-name: "Humberto Blanqueto";
     in-out property <string> username: "humbertoblanqueto";
@@ -56,9 +70,11 @@ export global State {
     in-out property <string> machine-cpu: "AMD Ryzen 5 PRO 5650U with Radeon Graphics";
     in-out property <string> machine-ram: "16 GB";
     in-out property <string> machine-disk: "System HD · 256 GB";
+    in-out property <string> machine-disk-used: "38 GB usados";
+    in-out property <float> machine-disk-fill: 0.15;
     in-out property <string> machine-host: "ThinkPad-L14-Gen2";
 
-    // Saludo (paso 0): 13 idiomas; cambian palabra, botón y ayuda a la vez.
+    // Saludo (paso 0): 13 idiomas.
     in-out property <[Greet]> greets: [
         { word: "hola", cta: "Continuar", hint: "Pulsa Intro para empezar", size: 150px, rtl: false },
         { word: "hello", cta: "Continue", hint: "Press Return to get started", size: 150px, rtl: false },
@@ -77,11 +93,14 @@ export global State {
     in-out property <int> gi: 0;
     in-out property <bool> g-shown: true;
 
+    // Listas de ejemplo. `region-*` va en paralelo a `lang-*`.
     in-out property <[string]> lang-names: [
         "Español (México)", "Español (España)", "English (United States)",
         "Português (Brasil)", "Français",
     ];
     in-out property <[string]> lang-codes: ["es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8", "fr_FR.UTF-8"];
+    in-out property <[string]> region-names: ["México", "España", "Estados Unidos", "Brasil", "Francia"];
+    in-out property <[string]> region-codes: ["es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8", "fr_FR.UTF-8"];
 
     in-out property <[string]> kb-names: [
         "Español (Latinoamérica)", "Español (España)", "Inglés (EE. UU.)",
@@ -97,18 +116,63 @@ export global State {
     ];
 }
 
-// Cuadro de 44 px con el icono del paso, centrado en las dos direcciones.
-component IconTile inherits Rectangle {
-    width: 44px;
-    height: 44px;
-    border-radius: Tokens.radiusmd;
-    background: Tokens.accentSoft;
+// Cuadro de icono de paso (48 px) con tinte sólido y brillo arriba.
+component StepIcon inherits Rectangle {
+    in property <color> tint: Tokens.accent;
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    background: tint;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.14);
+    drop-shadow-color: rgba(13, 18, 25, 0.18);
+    drop-shadow-blur: 12px;
+    drop-shadow-offset-y: 4px;
+    Rectangle {
+        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%);
+        border-radius: 13px;
+    }
     HorizontalLayout {
         alignment: center;
         VerticalLayout {
             alignment: center;
             @children
         }
+    }
+}
+
+// Cuadro de icono de fila/ficha (24 px de fila, 26 px de ficha).
+component TileIcon inherits Rectangle {
+    in property <color> tint: Theme.accent;
+    in property <string> icon;
+    in property <length> size: 24px;
+    in property <length> radius: 7px;
+    width: size;
+    height: size;
+    border-radius: radius;
+    background: tint;
+    MiniIcon {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        size: size - 9px;
+        ink: #ffffff;
+        commands: root.icon;
+    }
+}
+
+// Cabecera de sección (np-group-hd).
+component SectionLabel inherits Rectangle {
+    in property <string> text;
+    height: 28px;
+    Text {
+        x: 14px;
+        text: root.text;
+        color: Tokens.inkMuted;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        vertical-alignment: center;
+        height: parent.height;
     }
 }
 
@@ -127,7 +191,7 @@ component Field inherits VerticalLayout {
         text: root.label;
         color: Tokens.inkStrong;
         font-weight: 600;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         wrap: no-wrap;
     }
     input := Rectangle {
@@ -143,7 +207,7 @@ component Field inherits VerticalLayout {
             height: parent.height;
             text: root.placeholder;
             color: Tokens.inkFaint;
-            font-size: 13px;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
             vertical-alignment: center;
             wrap: no-wrap;
             visible: root.text == "";
@@ -154,7 +218,7 @@ component Field inherits VerticalLayout {
             width: parent.width - 24px;
             height: parent.height;
             vertical-alignment: center;
-            font-size: 13px;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
             color: Tokens.inkStrong;
             single-line: true;
             input-type: root.password ? InputType.password : InputType.text;
@@ -165,7 +229,7 @@ component Field inherits VerticalLayout {
     if root.help != "" : Text {
         text: root.help;
         color: root.error ? Tokens.danger : Tokens.inkMuted;
-        font-size: 12px;
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
         wrap: word-wrap;
     }
 }
@@ -177,12 +241,12 @@ component SearchField inherits Rectangle {
     height: 36px;
     border-radius: Tokens.radiuspill;
     background: Tokens.bgControl;
-    Icon {
+    MiniIcon {
         x: 12px;
         y: (parent.height - self.height) / 2;
         size: 16px;
         ink: Tokens.inkFaint;
-        commands: "M 4 11 A 7 7 0 1 0 18 11 A 7 7 0 1 0 4 11 Z M 20 20 L 16 16";
+        commands: "M4 11 A7 7 0 1 0 18 11 A7 7 0 1 0 4 11 Z M20 20 L16 16";
     }
     Text {
         x: 36px;
@@ -190,7 +254,7 @@ component SearchField inherits Rectangle {
         height: parent.height;
         text: root.placeholder;
         color: Tokens.inkFaint;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         vertical-alignment: center;
         wrap: no-wrap;
         visible: root.text == "";
@@ -201,7 +265,7 @@ component SearchField inherits Rectangle {
         width: parent.width - 48px;
         height: parent.height;
         vertical-alignment: center;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         color: Tokens.inkStrong;
         single-line: true;
         text <=> root.text;
@@ -223,7 +287,7 @@ component SelectField inherits Rectangle {
         height: parent.height;
         text: root.text;
         color: Tokens.inkStrong;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         vertical-alignment: center;
         wrap: no-wrap;
     }
@@ -234,13 +298,13 @@ component SelectField inherits Rectangle {
         height: 18px;
         border-radius: 5px;
         background: Theme.accent;
-        Icon {
+        MiniIcon {
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             size: 10px;
             sw: 2px;
             ink: Theme.accent-ink;
-            commands: "M 3 4.5 L 6 7.5 L 9 4.5";
+            commands: "M3 4.5 L6 7.5 L9 4.5";
         }
     }
     TouchArea {
@@ -265,20 +329,20 @@ component OptionRow inherits Rectangle {
         height: 1px;
         background: root.divider && !root.selected ? Tokens.line : transparent;
     }
-    Icon {
+    MiniIcon {
         x: 12px;
         y: (parent.height - self.height) / 2;
         size: 16px;
         sw: 1.8px;
         ink: root.selected ? Theme.accent-ink : Tokens.inkMuted;
         visible: root.wifi;
-        commands: "M 2 8.5 A 15 15 0 0 1 22 8.5 M 5 12 A 10.5 10.5 0 0 1 19 12 M 8.5 15.5 A 5.5 5.5 0 0 1 15.5 15.5";
+        commands: "M2 8.5 A15 15 0 0 1 22 8.5 M5 12 A10.5 10.5 0 0 1 19 12 M8.5 15.5 A5.5 5.5 0 0 1 15.5 15.5";
     }
     Text {
         x: root.wifi ? 38px : 12px;
         text: root.label;
         color: root.selected ? Theme.accent-ink : Tokens.inkStrong;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         font-weight: 500;
         vertical-alignment: center;
         height: parent.height;
@@ -288,7 +352,7 @@ component OptionRow inherits Rectangle {
         x: parent.width - self.width - 12px;
         text: root.trailing;
         color: root.selected ? Theme.accent-ink : (root.trailing-accent ? Theme.accent : Tokens.inkMuted);
-        font-size: 12px;
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
         vertical-alignment: center;
         height: parent.height;
         wrap: no-wrap;
@@ -307,7 +371,7 @@ component Toggle inherits Rectangle {
     background: checked ? Theme.accent : Tokens.bgControl;
     border-width: checked ? 0px : 1px;
     border-color: Tokens.line;
-    knob := Rectangle {
+    Rectangle {
         width: 16px;
         height: 16px;
         border-radius: 8px;
@@ -324,8 +388,63 @@ component Toggle inherits Rectangle {
     }
 }
 
+// Fila con icono de color (np-ricon), título, descripción y interruptor.
+component IconRow inherits Rectangle {
+    in property <string> title;
+    in property <string> desc;
+    in property <string> icon;
+    in property <color> tint: Theme.accent;
+    in-out property <bool> on;
+    in property <bool> divider: true;
+    height: 48px;
+    Rectangle {
+        y: 0;
+        x: 50px;
+        width: parent.width - 64px;
+        height: 1px;
+        background: root.divider ? Tokens.line : transparent;
+    }
+    TileIcon {
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        tint: root.tint;
+        icon: root.icon;
+    }
+    Text {
+        x: 50px;
+        y: 7px;
+        height: 18px;
+        text: root.title;
+        color: Tokens.inkStrong;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
+        font-weight: 500;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 50px;
+        y: 25px;
+        width: parent.width - 110px;
+        height: 16px;
+        text: root.desc;
+        color: Tokens.inkMuted;
+        font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+        vertical-alignment: center;
+        wrap: no-wrap;
+        overflow: elide;
+    }
+    TouchArea {
+        clicked => { root.on = !root.on; }
+    }
+    Toggle {
+        x: parent.width - self.width - 14px;
+        y: (parent.height - self.height) / 2;
+        checked <=> root.on;
+    }
+}
+
+
 // Botón Neptunia (np-btn--lg): 38 px, radius-md, no cápsula.
-component CapsuleButton inherits Rectangle {
+component Button inherits Rectangle {
     in property <string> label;
     in property <bool> primary: false;
     in property <length> w: 112px;
@@ -337,7 +456,7 @@ component CapsuleButton inherits Rectangle {
     Text {
         text: root.label;
         color: primary ? Theme.accent-ink : Tokens.inkStrong;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -362,7 +481,7 @@ component LinkText inherits Rectangle {
     Text {
         text: root.label;
         color: root.fg;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         font-weight: 500;
         vertical-alignment: center;
         horizontal-alignment: center;
@@ -375,35 +494,77 @@ component LinkText inherits Rectangle {
     }
 }
 
-// Ficha Neptunia (np-tile) para «Este equipo».
+// Ficha tintada Neptunia (np-tile--tint) para «Este equipo».
 component InfoTile inherits Rectangle {
     in property <string> caption;
     in property <string> value;
-    height: 84px;
+    in property <string> icon;
+    in property <color> tint: Theme.accent;
+    in property <string> extra;
+    in property <bool> progress: false;
+    in property <float> fill: 0.15;
+    in property <length> tile-h: 84px;
     horizontal-stretch: 1;
+    height: tile-h;
     border-radius: Tokens.radiuslg;
-    background: Tokens.bgSurface;
+    background: Tokens.bgSurface.mix(tint, 0.12);
     border-width: 1px;
-    border-color: Tokens.line;
+    border-color: Tokens.line.mix(tint, 0.22);
     VerticalLayout {
         alignment: start;
-        padding: Tokens.space4;
-        spacing: 6px;
-        Text {
-            text: root.caption;
-            color: Tokens.inkMuted;
-            font-size: 12px;
-            font-weight: 500;
-            wrap: no-wrap;
-            overflow: elide;
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 8px;
+        Rectangle {
+            width: 100%;
+            height: 26px;
+            TileIcon {
+                x: 0;
+                y: 0;
+                size: 26px;
+                radius: 8px;
+                tint: root.tint;
+                icon: root.icon;
+            }
+            Text {
+                x: 34px;
+                text: root.caption;
+                color: Tokens.inkMuted;
+                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                font-weight: 500;
+                vertical-alignment: center;
+                height: parent.height;
+            }
+            Text {
+                x: parent.width - self.width;
+                text: root.extra;
+                color: Tokens.inkMuted;
+                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                vertical-alignment: center;
+                height: parent.height;
+            }
         }
         Text {
             text: root.value;
             color: Tokens.inkStrong;
-            font-size: 15px;
+            font-size: 15px * (State.a11y-large-text ? 1.25 : 1.0);
             font-weight: 600;
             wrap: no-wrap;
             overflow: elide;
+        }
+        if root.progress : Rectangle {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: Tokens.bgControl;
+            Rectangle {
+                width: root.fill * parent.width;
+                height: 100%;
+                border-radius: 3px;
+                background: root.tint;
+            }
         }
     }
 }
@@ -473,7 +634,7 @@ component ModeCard inherits Rectangle {
         Text {
             text: root.preview-dark ? "Oscuro" : "Claro";
             color: Tokens.ink;
-            font-size: 13px;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
             font-weight: 500;
             horizontal-alignment: center;
         }
@@ -505,7 +666,7 @@ component Swatch inherits Rectangle {
         width: 28px;
         height: 28px;
         border-radius: 14px;
-        background: root.selected ? Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow : transparent;
+        background: root.selected ? (Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow) : transparent;
     }
     Rectangle {
         x: (parent.width - self.width) / 2;
@@ -520,32 +681,41 @@ component Swatch inherits Rectangle {
     }
 }
 
-// Fila del resumen (np-listrow de 40 px).
+// Fila del resumen (np-listrow con icono).
 component SummaryRow inherits Rectangle {
     in property <string> k;
     in property <string> v;
+    in property <string> icon;
+    in property <color> tint;
     in property <bool> divider: true;
-    height: 40px;
+    height: 32px;
     Rectangle {
         y: 0;
-        width: 100%;
+        x: 50px;
+        width: parent.width - 64px;
         height: 1px;
         background: root.divider ? Tokens.line : transparent;
     }
+    TileIcon {
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        tint: root.tint;
+        icon: root.icon;
+    }
     Text {
-        x: 12px;
+        x: 50px;
         text: root.k;
         color: Tokens.inkMuted;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         vertical-alignment: center;
         height: parent.height;
         wrap: no-wrap;
     }
     Text {
-        x: parent.width - self.width - 12px;
+        x: parent.width - self.width - 14px;
         text: root.v;
         color: Tokens.inkStrong;
-        font-size: 13px;
+        font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
         font-weight: 500;
         vertical-alignment: center;
         height: parent.height;
@@ -569,14 +739,14 @@ component StepHeader inherits VerticalLayout {
         spacing: 6px;
         Text {
             text: root.title;
-            font-size: 22px;
+            font-size: 22px * (State.a11y-large-text ? 1.25 : 1.0);
             font-weight: 650;
             color: Tokens.inkStrong;
             horizontal-alignment: center;
         }
         Text {
             text: root.subtitle;
-            font-size: 13px;
+            font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
             color: Tokens.inkMuted;
             horizontal-alignment: center;
             wrap: word-wrap;
@@ -596,29 +766,60 @@ export component AppWindow inherits Window {
     in-out property <int> step <=> State.step;
     in-out property <string> theme <=> Tokens.theme;
     in-out property <int> greet <=> State.gi;
+    in-out property <bool> tz-auto <=> State.tz-auto;
 
     callback quit-app();
     callback apply();
     callback name-edited(string);
     callback username-edited(string);
-    callback restart-and-start();
 
-    out property <bool> in-dlg: State.step >= 1 && State.step <= 8;
+    out property <bool> in-dlg: State.step >= 1 && State.step <= 9;
 
     function off(i: int) -> length {
-        return Theme.reduced-motion ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
+        return (Theme.reduced-motion || State.a11y-reduce-motion) ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
     }
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
     }
-    // Fuente del saludo: Dancing Script 600 (latino); Noto Sans CJK para
-    // japonés/chino/coreano y DejaVu Sans para cirílico, griego y árabe.
+    function next-step(s: int) -> int {
+        return (s + 1 == 3 && State.has-network) ? 4 : s + 1;
+    }
+    function prev-step(s: int) -> int {
+        return (s - 1 == 3 && State.has-network) ? 2 : s - 1;
+    }
+    // Tinte del icono de cada paso.
+    function step-tint(i: int) -> color {
+        return i == 1 ? Tokens.warning
+            : i == 2 ? Theme.accents[0].color
+            : i == 3 ? Tokens.cyan
+            : i == 5 ? Theme.accent
+            : i == 6 ? Theme.accents[8].color
+            : i == 7 ? Tokens.info
+            : i == 8 ? Tokens.success
+            : Theme.accent;
+    }
+    // Fuente del saludo: Dancing Script 600 (latino); Noto Sans CJK y DejaVu.
     function greet-family(i: int) -> string {
         return i >= 6 && i <= 8 ? "Noto Sans CJK SC"
             : (i >= 9 && i <= 10 ? "DejaVu Sans" : (i == 12 ? "DejaVu Sans" : "Dancing Script"));
     }
     function greet-weight(i: int) -> int {
         return (i <= 5 || i == 11) ? 600 : 400;
+    }
+    // Resumen de accesibilidad: opciones activas separadas por comas.
+    function a11y-join(acc: string, on: bool, name: string) -> string {
+        return on ? (acc == "" ? name : acc + ", " + name) : acc;
+    }
+    function a11y-summary() -> string {
+        return a11y-join(
+            a11y-join(
+                a11y-join(
+                    a11y-join(
+                        a11y-join("", State.a11y-large-text, "Texto grande"),
+                        State.a11y-high-contrast, "Alto contraste"),
+                    State.a11y-screen-reader, "Lector de pantalla"),
+                State.a11y-reduce-motion, "Reducir animaciones"),
+            State.a11y-screen-keyboard, "Teclado en pantalla");
     }
 
     // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
@@ -635,7 +836,7 @@ export component AppWindow inherits Window {
         activated => { if (State.step == 0) { State.step = 1; } }
     }
 
-    // Fondo ya desenfocado (docs/first-boot/firstboot-blur.jpg).
+    // Fondo ya desenfocado (docs/first-boot/firstboot-blur.jpg) + velo.
     Image {
         source: @image-url("firstboot-blur.jpg");
         width: parent.width;
@@ -645,8 +846,7 @@ export component AppWindow inherits Window {
     Rectangle {
         width: parent.width;
         height: parent.height;
-        background: Tokens.scrim;
-        animate background { duration: Tokens.durSlow; }
+        background: rgba(13, 18, 25, 0.26);
     }
 
     // ----------------------------------------------------------------- Hola --
@@ -654,14 +854,14 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         opacity: State.step == 0 ? 1 : 0;
-        transform-scale-x: Theme.reduced-motion ? 100% : (State.step == 0 ? 100% : 104%);
-        transform-scale-y: Theme.reduced-motion ? 100% : (State.step == 0 ? 100% : 104%);
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
         visible: self.opacity > 0.001;
         animate opacity { duration: Tokens.durSlow; }
         animate transform-scale-x { duration: Tokens.durSlow; }
         animate transform-scale-y { duration: Tokens.durSlow; }
 
-        // Cada 2,6 s se funde (450 ms) al siguiente idioma: saludo, botón y ayuda.
+        // Cada 2,6 s se funde (450 ms) al siguiente idioma.
         Timer {
             interval: 2600ms;
             running: true;
@@ -682,15 +882,12 @@ export component AppWindow inherits Window {
             height: 100%;
             padding-bottom: 40px;
             alignment: center;
-            greet-word := Rectangle {
+            Rectangle {
                 width: 100%;
                 height: 200px;
                 opacity: State.g-shown ? 1 : 0;
-                property <length> gdy: State.g-shown ? 0px : 6px;
                 animate opacity { duration: 450ms; }
-                animate gdy { duration: 450ms; }
                 Text {
-                    y: greet-word.gdy;
                     width: 100%;
                     height: 100%;
                     text: State.greets[State.gi].word;
@@ -705,7 +902,7 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Botón (principal Neptunia, 180 px fijos) + ayuda, a 120 px del pie.
+        // Botón principal + ayuda, a 120 px del pie.
         Rectangle {
             width: 100%;
             height: 68px;
@@ -716,45 +913,43 @@ export component AppWindow inherits Window {
                 spacing: 12px;
                 HorizontalLayout {
                     alignment: center;
-                Rectangle {
-                    width: 180px;
-                    height: Tokens.controllg;
-                    border-radius: Tokens.radiusmd;
-                    background: ta.pressed ? Theme.accent : (ta.has-hover ? Theme.accent-strong : Theme.accent);
-                    transform-scale-x: ta.pressed ? 97% : 100%;
-                    transform-scale-y: ta.pressed ? 97% : 100%;
-                    drop-shadow-color: rgba(13, 18, 25, 0.25);
-                    drop-shadow-blur: 16px;
-                    drop-shadow-offset-y: 4px;
-                    animate background { duration: Tokens.durFast; }
-                    animate transform-scale-x { duration: Tokens.durFast; }
-                    animate transform-scale-y { duration: Tokens.durFast; }
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 8px;
-                        Text {
-                            text: State.greets[State.gi].cta;
-                            color: #ffffff;
-                            font-family: "Inter";
-                            font-size: 13px;
-                            font-weight: 600;
-                            wrap: no-wrap;
-                            opacity: State.g-shown ? 1 : 0;
-                            animate opacity { duration: 450ms; }
+                    Rectangle {
+                        width: 180px;
+                        height: Tokens.controllg;
+                        border-radius: Tokens.radiusmd;
+                        background: ta.pressed ? Theme.accent : (ta.has-hover ? Theme.accent-strong : Theme.accent);
+                        transform-scale-x: ta.pressed ? 97% : 100%;
+                        transform-scale-y: ta.pressed ? 97% : 100%;
+                        drop-shadow-color: rgba(13, 18, 25, 0.25);
+                        drop-shadow-blur: 16px;
+                        drop-shadow-offset-y: 4px;
+                        animate background { duration: Tokens.durFast; }
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 8px;
+                            Text {
+                                text: State.greets[State.gi].cta;
+                                color: #ffffff;
+                                font-family: "Inter";
+                                font-size: 13px;
+                                font-weight: 600;
+                                wrap: no-wrap;
+                                opacity: State.g-shown ? 1 : 0;
+                                animate opacity { duration: 450ms; }
+                            }
+                            MiniIcon {
+                                size: 14px;
+                                sw: 2px;
+                                ink: #ffffff;
+                                commands: State.greets[State.gi].rtl
+                                    ? "M19 12 L5 12 M11 6 L5 12 L11 18"
+                                    : "M5 12 L19 12 M13 6 L19 12 L13 18";
+                            }
                         }
-                        Icon {
-                            size: 14px;
-                            sw: 2px;
-                            ink: #ffffff;
-                            commands: State.greets[State.gi].rtl
-                                ? "M 19 12 L 5 12 M 11 6 L 5 12 L 11 18"
-                                : "M 5 12 L 19 12 M 13 6 L 19 12 L 13 18";
+                        ta := TouchArea {
+                            clicked => { State.step = 1; }
                         }
                     }
-                    ta := TouchArea {
-                        clicked => { State.step = 1; }
-                    }
-                }
                 }
                 Text {
                     text: State.greets[State.gi].hint;
@@ -771,7 +966,7 @@ export component AppWindow inherits Window {
     // -------------------------------------------------------------- Diálogo --
     dialog := Rectangle {
         width: 560px;
-        height: 618px;
+        height: 668px;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
@@ -782,8 +977,8 @@ export component AppWindow inherits Window {
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 18px;
         opacity: root.in-dlg ? 1 : 0;
-        transform-scale-x: Theme.reduced-motion ? 100% : (root.in-dlg ? 100% : 97%);
-        transform-scale-y: Theme.reduced-motion ? 100% : (root.in-dlg ? 100% : 97%);
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
         visible: self.opacity > 0.001;
         animate opacity { duration: Tokens.durSlow; delay: 180ms; }
         animate transform-scale-x { duration: Tokens.durSlow; delay: 180ms; }
@@ -796,28 +991,28 @@ export component AppWindow inherits Window {
             padding-bottom: 28px;
             spacing: 20px;
 
-            // Contenido entre pasos (470 px, recortado).
+            // Contenido entre pasos (520 px, recortado).
             Rectangle {
                 width: 100%;
-                height: 470px;
+                height: 520px;
                 clip: true;
 
-                // --- Paso 1 · Idioma y teclado ---
+                // --- Paso 1 · Idioma y región ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
                     x: root.off(1);
                     opacity: root.op(1);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
-                            title: "Elige tu idioma";
+                            title: "Idioma y región";
                             subtitle: "Se usará en el sistema, las apps y GNOME.";
-                            IconTile { GlobeIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(1); GlobeIcon { ink: #ffffff; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -837,39 +1032,134 @@ export component AppWindow inherits Window {
                                         trailing-accent: i == State.lang-index;
                                         selected: i == State.lang-index;
                                         divider: i > 0;
-                                        picked => { State.lang-index = i; }
+                                        picked => { State.lang-index = i; State.region-index = i; }
                                     }
                                 }
                             }
-                            VerticalLayout {
-                                alignment: start;
-                                spacing: 6px;
-                                Text { text: "Teclado"; color: Tokens.inkStrong; font-weight: 600; font-size: 13px; }
-                                SelectField {
-                                    text: State.kb-names[State.kb-index];
-                                    cycle => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
+                            HorizontalLayout {
+                                spacing: 12px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text { text: "Región y formatos"; color: Tokens.inkStrong; font-weight: 600; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); }
+                                    SelectField {
+                                        text: State.region-names[State.region-index];
+                                        cycle => { State.region-index = Math.mod(State.region-index + 1, State.region-names.length); }
+                                    }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: start;
+                                    spacing: 6px;
+                                    Text { text: "Teclado"; color: Tokens.inkStrong; font-weight: 600; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); }
+                                    SelectField {
+                                        text: State.kb-names[State.kb-index];
+                                        cycle => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // --- Paso 2 · Wi-Fi ---
+                // --- Paso 2 · Accesibilidad ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
                     x: root.off(2);
                     opacity: root.op(2);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Accesibilidad";
+                            subtitle: "Actívalo ahora si lo necesitas para seguir. Puedes cambiarlo después en Ajustes.";
+                            StepIcon {
+                                tint: root.step-tint(2);
+                                Icon {
+                                    ink: #ffffff;
+                                    commands: "M 12 2.9 A 1.6 1.6 0 1 0 12 6.1 A 1.6 1.6 0 1 0 12 2.9 Z M 5 8.5 C 7.3 9.2 9.6 9.5 12 9.5 C 14.4 9.5 16.7 9.2 19 8.5 M 12 9.5 L 12 14 M 9 21 L 12 14 L 15 21";
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 14px;
+                            Rectangle {
+                                width: 100%;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                a11y-inner := VerticalLayout {
+                                    SectionLabel { text: "VISIÓN"; }
+                                    IconRow {
+                                        title: "Texto grande"; desc: "Aumenta el tamaño del texto un 25 %";
+                                        icon: "M1.5 12.5 L5 3.5 L8.5 12.5 M2.7 9.5 H7.3 M10 12.5 L12.25 6.5 L14.5 12.5 M10.7 10.7 H13.8";
+                                        tint: Theme.accents[0].color;
+                                        on <=> State.a11y-large-text;
+                                    }
+                                    IconRow {
+                                        title: "Alto contraste"; desc: "Bordes y texto más marcados";
+                                        icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M8 1.5 L8 14.5 M8 4.5 H12 M8 8 H13.5 M8 11.5 H12";
+                                        tint: Theme.accents[8].color;
+                                        on <=> State.a11y-high-contrast;
+                                    }
+                                    IconRow {
+                                        title: "Lector de pantalla"; desc: "Orca lee en voz alta lo que hay en pantalla";
+                                        icon: "M2.5 6 H5 L8.5 3 V13 L5 10 H2.5 Z M11 5.5 A3.5 3.5 0 0 1 11 10.5 M12.8 3.5 A6.3 6.3 0 0 1 12.8 12.5";
+                                        tint: Tokens.info;
+                                        on <=> State.a11y-screen-reader;
+                                    }
+                                    SectionLabel { text: "MOVIMIENTO E INTERACCIÓN"; }
+                                    IconRow {
+                                        title: "Reducir animaciones"; desc: "Desactiva las animaciones de GNOME";
+                                        icon: "M1.5 8 H4.5 M2.5 5 H5.5 M2.5 11 H5.5 M8 8 A3 3 0 1 0 14 8 A3 3 0 1 0 8 8 Z";
+                                        tint: Tokens.warning;
+                                        on <=> State.a11y-reduce-motion;
+                                    }
+                                    IconRow {
+                                        title: "Teclado en pantalla"; desc: "Aparece al escribir en un campo de texto";
+                                        icon: "M1.5 4 H14.5 V12 H1.5 Z M4 7 H5 M7 7 H9 M11 7 H12 M5 9.5 H11";
+                                        tint: Tokens.cyan;
+                                        divider: false;
+                                        on <=> State.a11y-screen-keyboard;
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: center;
+                                LinkText {
+                                    label: "Ahora no";
+                                    w: 120px;
+                                    clicked => { State.step = root.next-step(2); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 3 · Wi-Fi ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(3);
+                    opacity: root.op(3);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
                             title: "Conéctate a una red";
                             subtitle: "Solo aparece si no hay cable ni Wi‑Fi conectado.";
-                            IconTile { WifiIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(3); WifiIcon { ink: #ffffff; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -902,50 +1192,7 @@ export component AppWindow inherits Window {
                                 LinkText {
                                     label: "Continuar sin conexión";
                                     w: 190px;
-                                    clicked => { State.step = 3; }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- Paso 3 · Zona horaria ---
-                Rectangle {
-                    width: 100%;
-                    height: 100%;
-                    x: root.off(3);
-                    opacity: root.op(3);
-                    visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
-                    VerticalLayout {
-                        alignment: start;
-                        spacing: 20px;
-                        StepHeader {
-                            title: "Zona horaria";
-                            subtitle: "Busca la ciudad más cercana.";
-                            IconTile { ClockIcon { ink: Theme.accent-strong; } }
-                        }
-                        VerticalLayout {
-                            alignment: start;
-                            spacing: 12px;
-                            SearchField { placeholder: "Buscar ciudad"; }
-                            Rectangle {
-                                width: 100%;
-                                height: city-inner.preferred-height;
-                                border-radius: Tokens.radiusmd;
-                                background: Tokens.bgSurface;
-                                border-width: 1px;
-                                border-color: Tokens.line;
-                                clip: true;
-                                city-inner := VerticalLayout {
-                                    for name[i] in State.city-names : OptionRow {
-                                        label: name;
-                                        trailing: State.city-tz[i];
-                                        selected: i == State.city-index;
-                                        divider: i > 0;
-                                        picked => { State.city-index = i; }
-                                    }
+                                    clicked => { State.step = 4; }
                                 }
                             }
                         }
@@ -959,8 +1206,8 @@ export component AppWindow inherits Window {
                     x: root.off(4);
                     opacity: root.op(4);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -975,7 +1222,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: State.initials;
                                     color: Theme.accent-strong;
-                                    font-size: 26px;
+                                    font-size: 26px * (State.a11y-large-text ? 1.25 : 1.0);
                                     font-weight: 600;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
@@ -1010,7 +1257,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: "Iniciar sesión automáticamente";
                                     color: Tokens.ink;
-                                    font-size: 13px;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
                                     vertical-alignment: center;
                                 }
                             }
@@ -1018,57 +1265,144 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 5 · Este equipo ---
+                // --- Paso 5 · Zona horaria ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
                     x: root.off(5);
                     opacity: root.op(5);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    VerticalLayout {
+                        alignment: start;
+                        spacing: 20px;
+                        StepHeader {
+                            title: "Zona horaria";
+                            subtitle: "Se ajusta sola con tu ubicación, o elige una ciudad.";
+                            StepIcon { tint: root.step-tint(5); ClockIcon { ink: #ffffff; } }
+                        }
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 12px;
+                            Rectangle {
+                                width: 100%;
+                                border-radius: Tokens.radiuslg;
+                                background: Tokens.bgSurface;
+                                border-width: 1px;
+                                border-color: Tokens.line;
+                                clip: true;
+                                tz-row := IconRow {
+                                    title: "Ajustar automáticamente";
+                                    desc: State.tz-auto
+                                        ? "Según tu ubicación: " + State.city-names[State.city-index]
+                                        : "Usa tu ubicación aproximada (requiere red)";
+                                    icon: "M8 14.5 S12.5 10.3 12.5 7 A4.5 4.5 0 0 0 3.5 7 C3.5 10.3 8 14.5 8 14.5 Z M8 8.5 A1.5 1.5 0 1 0 8 5.5 A1.5 1.5 0 1 0 8 8.5 Z";
+                                    tint: Theme.accent;
+                                    divider: false;
+                                    on <=> State.tz-auto;
+                                }
+                            }
+                            VerticalLayout {
+                                alignment: start;
+                                spacing: 12px;
+                                opacity: State.tz-auto ? 0.45 : 1.0;
+                                animate opacity { duration: Tokens.durBase; }
+                                SearchField { placeholder: "Buscar ciudad"; }
+                                Rectangle {
+                                    width: 100%;
+                                    height: city-inner.preferred-height;
+                                    border-radius: Tokens.radiusmd;
+                                    background: Tokens.bgSurface;
+                                    border-width: 1px;
+                                    border-color: Tokens.line;
+                                    clip: true;
+                                    city-inner := VerticalLayout {
+                                        for name[i] in State.city-names : OptionRow {
+                                            label: name;
+                                            trailing: State.city-tz[i];
+                                            selected: i == State.city-index;
+                                            divider: i > 0;
+                                            picked => { if (!State.tz-auto) { State.city-index = i; } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- Paso 6 · Este equipo ---
+                Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    x: root.off(6);
+                    opacity: root.op(6);
+                    visible: self.opacity > 0.001;
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
                             title: "Este equipo";
                             subtitle: "Esto es lo que se instaló. No hay nada que cambiar.";
-                            IconTile { MonitorIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(6); MonitorIcon { ink: #ffffff; } }
                         }
                         VerticalLayout {
                             alignment: start;
                             spacing: 12px;
-                            HorizontalLayout {
-                                spacing: 12px;
-                                InfoTile { caption: "Modelo"; value: State.machine-model; }
-                                InfoTile { caption: "Procesador"; value: State.machine-cpu; }
+                            InfoTile {
+                                caption: "Procesador";
+                                value: State.machine-cpu;
+                                icon: "M4 4 H12 V12 H4 Z M6.5 1.5 V3.5 M9.5 1.5 V3.5 M6.5 12.5 V14.5 M9.5 12.5 V14.5 M1.5 6.5 H3.5 M1.5 9.5 H3.5 M12.5 6.5 H14.5 M12.5 9.5 H14.5";
+                                tint: Theme.accent;
                             }
                             HorizontalLayout {
                                 spacing: 12px;
-                                InfoTile { caption: "Memoria"; value: State.machine-ram; }
-                                InfoTile { caption: "Disco"; value: State.machine-disk; }
+                                InfoTile {
+                                    caption: "Modelo";
+                                    value: State.machine-model;
+                                    icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
+                                    tint: Theme.accents[8].color;
+                                }
+                                InfoTile {
+                                    caption: "Memoria";
+                                    value: State.machine-ram;
+                                    icon: "M1.5 4.5 H14.5 V10.5 H1.5 Z M4 10.5 V12.5 M7 10.5 V12.5 M10 10.5 V12.5 M13 10.5 V12.5";
+                                    tint: Tokens.info;
+                                }
+                            }
+                            InfoTile {
+                                caption: "Disco";
+                                value: State.machine-disk;
+                                extra: State.machine-disk-used;
+                                icon: "M2.5 4 A5.5 2 0 1 0 13.5 4 A5.5 2 0 1 0 2.5 4 Z M2.5 4 V12 C2.5 13.1 5 14 8 14 C11 14 13.5 13.1 13.5 12 V4 M2.5 8 C2.5 9.1 5 10 8 10 C11 10 13.5 9.1 13.5 8";
+                                tint: Tokens.cyan;
+                                progress: true;
+                                fill: State.machine-disk-fill;
                             }
                             Rectangle {
                                 width: 100%;
-                                height: 44px;
-                                border-radius: Tokens.radiusmd;
+                                height: 40px;
+                                border-radius: Tokens.radiuslg;
                                 background: Tokens.bgSurface;
                                 border-width: 1px;
                                 border-color: Tokens.line;
                                 Text {
-                                    x: 12px;
+                                    x: 14px;
                                     text: "Nombre del equipo";
                                     color: Tokens.inkStrong;
-                                    font-size: 13px;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
                                     font-weight: 500;
                                     vertical-alignment: center;
                                     height: parent.height;
                                 }
                                 Text {
-                                    x: parent.width - self.width - 12px;
+                                    x: parent.width - self.width - 14px;
                                     text: State.machine-host;
                                     color: Tokens.inkMuted;
-                                    font-size: 13px;
+                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
                                     vertical-alignment: center;
                                     height: parent.height;
                                     wrap: no-wrap;
@@ -1079,22 +1413,22 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 6 · Apariencia ---
+                // --- Paso 7 · Apariencia ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
-                    x: root.off(6);
-                    opacity: root.op(6);
+                    x: root.off(7);
+                    opacity: root.op(7);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
                             title: "Elige tu aspecto";
                             subtitle: "Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.";
-                            IconTile { ContrastIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(7); ContrastIcon { ink: #ffffff; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1115,7 +1449,7 @@ export component AppWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 spacing: 10px;
-                                Text { text: "Color de acento"; color: Tokens.inkStrong; font-size: 13px; font-weight: 600; horizontal-alignment: center; }
+                                Text { text: "Color de acento"; color: Tokens.inkStrong; font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0); font-weight: 600; horizontal-alignment: center; }
                                 HorizontalLayout {
                                     alignment: center;
                                     spacing: 10px;
@@ -1130,61 +1464,46 @@ export component AppWindow inherits Window {
                                         picked => { Theme.accent-index = i + 1; }
                                     }
                                 }
-                                Text { text: Theme.accent-name; color: Tokens.inkMuted; font-size: 12px; horizontal-alignment: center; }
+                                Text { text: Theme.accent-name; color: Tokens.inkMuted; font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0); horizontal-alignment: center; }
                             }
                         }
                     }
                 }
 
-                // --- Paso 7 · Git ---
+                // --- Paso 8 · Git ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
-                    x: root.off(7);
-                    opacity: root.op(7);
+                    x: root.off(8);
+                    opacity: root.op(8);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
                             title: "Git";
                             subtitle: "Opcional. Puedes configurarlo después.";
-                            IconTile { GitIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(8); GitIcon { ink: #ffffff; } }
                         }
                         VerticalLayout {
                             alignment: start;
                             spacing: 12px;
                             Rectangle {
                                 width: 100%;
-                                height: 56px;
-                                border-radius: Tokens.radiusmd;
+                                border-radius: Tokens.radiuslg;
                                 background: Tokens.bgSurface;
                                 border-width: 1px;
                                 border-color: Tokens.line;
-                                Text {
-                                    x: 12px;
-                                    width: parent.width - 70px;
-                                    height: parent.height;
-                                    text: "Configurar Git ahora";
-                                    color: Tokens.inkStrong;
-                                    font-size: 13px;
-                                    font-weight: 500;
-                                    vertical-alignment: center;
-                                }
-                                Text {
-                                    x: 12px;
-                                    y: 30px;
-                                    width: parent.width - 70px;
-                                    text: "Nombre y correo para tus commits";
-                                    color: Tokens.inkMuted;
-                                    font-size: 12px;
-                                }
-                                Toggle {
-                                    x: parent.width - self.width - 12px;
-                                    y: (parent.height - self.height) / 2;
-                                    checked <=> State.git-on;
+                                clip: true;
+                                IconRow {
+                                    title: "Configurar Git ahora";
+                                    desc: "Nombre y correo para tus commits";
+                                    icon: "M4.5 2.5 V13.5 M11.5 4.5 A1.5 1.5 0 1 0 11.5 7.5 A1.5 1.5 0 1 0 11.5 4.5 Z M11.5 7.5 C11.5 9.5 9 9.8 4.5 11.1";
+                                    tint: Tokens.success;
+                                    divider: false;
+                                    on <=> State.git-on;
                                 }
                             }
                             if State.git-on : VerticalLayout {
@@ -1196,7 +1515,7 @@ export component AppWindow inherits Window {
                             if !State.git-on : Text {
                                 text: "Desactivado: el nombre y el correo de Git quedan vacíos.";
                                 color: Tokens.inkMuted;
-                                font-size: 12px;
+                                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
                                 horizontal-alignment: center;
                                 wrap: word-wrap;
                             }
@@ -1204,52 +1523,92 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 8 · Todo listo ---
+                // --- Paso 9 · Todo listo ---
                 Rectangle {
                     width: 100%;
                     height: 100%;
-                    x: root.off(8);
-                    opacity: root.op(8);
+                    x: root.off(9);
+                    opacity: root.op(9);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Tokens.durBase; }
-                    animate opacity { duration: Tokens.durBase; }
+                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
                     VerticalLayout {
                         alignment: start;
-                        spacing: 20px;
+                        spacing: 16px;
                         StepHeader {
                             title: "Todo listo";
                             subtitle: "Revisa antes de aplicar. Puedes volver para cambiar algo.";
-                            IconTile { CheckIcon { ink: Theme.accent-strong; } }
+                            StepIcon { tint: root.step-tint(9); CheckIcon { ink: #ffffff; } }
                         }
                         Rectangle {
                             width: 100%;
-                            height: 40px * 7;
-                            border-radius: Tokens.radiusmd;
+                            border-radius: Tokens.radiuslg;
                             background: Tokens.bgSurface;
                             border-width: 1px;
                             border-color: Tokens.line;
                             clip: true;
-                            VerticalLayout {
-                                SummaryRow { k: "Idioma"; v: State.lang-names[State.lang-index]; divider: false; }
-                                SummaryRow { k: "Teclado"; v: State.kb-names[State.kb-index]; }
-                                SummaryRow { k: "Zona horaria"; v: State.city-tz[State.city-index]; }
-                                SummaryRow { k: "Cuenta"; v: State.username; }
-                                SummaryRow { k: "Equipo"; v: State.machine-host; }
-                                SummaryRow { k: "Aspecto"; v: (Tokens.dark ? "Oscuro" : "Claro") + " · " + Theme.accent-name; }
-                                SummaryRow { k: "Git"; v: State.git-on ? State.git-name : "Sin configurar"; }
+                            summary-inner := VerticalLayout {
+                                SectionLabel { text: "CUENTA"; }
+                                SummaryRow {
+                                    k: "Usuario"; v: State.username; divider: false;
+                                    icon: "M8 8 A2.5 2.5 0 1 0 8 3 A2.5 2.5 0 1 0 8 8 Z M3 13.5 C3.8 11.3 5.7 10 8 10 C10.3 10 12.2 11.3 13 13.5";
+                                    tint: Theme.accent;
+                                }
+                                SummaryRow {
+                                    k: "Equipo"; v: State.machine-host;
+                                    icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
+                                    tint: Theme.accents[8].color;
+                                }
+                                SectionLabel { text: "REGIÓN"; }
+                                SummaryRow {
+                                    k: "Idioma"; v: State.lang-names[State.lang-index]; divider: false;
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M1.5 8 H14.5 M8 1.5 C9.8 3.3 10.6 5.5 10.6 8 C10.6 10.5 9.8 12.7 8 14.5 C6.2 12.7 5.4 10.5 5.4 8 C5.4 5.5 6.2 3.3 8 1.5";
+                                    tint: Tokens.warning;
+                                }
+                                SummaryRow {
+                                    k: "Teclado"; v: State.kb-names[State.kb-index];
+                                    icon: "M1.5 4 H14.5 V12 H1.5 Z M4 7 H5 M7 7 H9 M11 7 H12 M5 9.5 H11";
+                                    tint: Tokens.warning;
+                                }
+                                SummaryRow {
+                                    k: "Zona horaria";
+                                    v: State.city-tz[State.city-index] + (State.tz-auto ? " · automática" : "");
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M8 4.5 V8 L10.5 9.5";
+                                    tint: Theme.accent;
+                                }
+                                SectionLabel { text: "PREFERENCIAS"; }
+                                SummaryRow {
+                                    k: "Accesibilidad";
+                                    v: root.a11y-summary() == "" ? "Sin cambios" : root.a11y-summary();
+                                    divider: false;
+                                    icon: "M8 1.5 A1.2 1.2 0 1 0 8 3.9 A1.2 1.2 0 1 0 8 1.5 Z M2.5 5.5 C4.3 6 6.1 6.3 8 6.3 C9.9 6.3 11.7 6 13.5 5.5 M8 6.3 V9.5 M5.8 14.5 L8 9.5 L10.2 14.5";
+                                    tint: Theme.accents[0].color;
+                                }
+                                SummaryRow {
+                                    k: "Aspecto"; v: (Tokens.dark ? "Oscuro" : "Claro") + " · " + Theme.accent-name;
+                                    icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 Z M8 1.5 A6.5 6.5 0 0 1 8 14.5";
+                                    tint: Tokens.info;
+                                }
+                                SummaryRow {
+                                    k: "Git"; v: State.git-on ? State.git-name : "Sin configurar";
+                                    icon: "M4.5 2.5 V13.5 M11.5 4.5 A1.5 1.5 0 1 0 11.5 7.5 A1.5 1.5 0 1 0 11.5 4.5 Z M11.5 7.5 C11.5 9.5 9 9.8 4.5 11.1";
+                                    tint: Tokens.success;
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Puntos de progreso, centrados.
+            // Puntos de progreso (9), centrados.
             HorizontalLayout {
                 width: 100%;
                 height: 6px;
                 alignment: center;
                 spacing: 6px;
-                for di in 8 : Rectangle {
+                accessible-role: none;
+                accessible-label: "Paso " + State.step + " de 9";
+                for di in 9 : Rectangle {
                     height: 6px;
                     width: (di + 1) == State.step ? 18px : 6px;
                     border-radius: 3px;
@@ -1264,17 +1623,17 @@ export component AppWindow inherits Window {
                 width: 100%;
                 height: 38px;
                 alignment: space-between;
-                CapsuleButton {
+                Button {
                     label: "Atrás";
                     opacity: State.step > 1 ? 1 : 0;
-                    clicked => { if (State.step > 1) { State.step = State.step - 1; } }
+                    clicked => { if (State.step > 1) { State.step = root.prev-step(State.step); } }
                 }
-                CapsuleButton {
-                    label: State.step == 8 ? "Aplicar" : "Continuar";
+                Button {
+                    label: State.step == 9 ? "Aplicar" : "Continuar";
                     primary: true;
                     clicked => {
-                        if (State.step == 8) { root.apply(); }
-                        else { State.step = State.step + 1; }
+                        if (State.step == 9) { root.apply(); }
+                        else { State.step = root.next-step(State.step); }
                     }
                 }
             }
@@ -1297,9 +1656,9 @@ export component AppWindow inherits Window {
     prepare := Rectangle {
         width: parent.width;
         height: parent.height;
-        opacity: State.step == 9 ? 1 : 0;
-        transform-scale-x: Theme.reduced-motion ? 100% : (State.step == 9 ? 100% : 103%);
-        transform-scale-y: Theme.reduced-motion ? 100% : (State.step == 9 ? 100% : 103%);
+        opacity: State.step == 10 ? 1 : 0;
+        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
+        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
         visible: self.opacity > 0.001;
         animate opacity { duration: Tokens.durSlow; }
         animate transform-scale-x { duration: Tokens.durSlow; }
@@ -1308,7 +1667,7 @@ export component AppWindow inherits Window {
         property <float> spin: 0;
         Timer {
             interval: 16ms;
-            running: State.step == 9;
+            running: State.step == 10;
             triggered => { prepare.spin = Math.mod(prepare.spin + 6, 360); }
         }
 
@@ -1334,7 +1693,7 @@ export component AppWindow inherits Window {
                     horizontal-alignment: center;
                 }
                 Text {
-                    text: "Aplicando la configuración de nixdots. El equipo se reiniciará al terminar.";
+                    text: "Aplicando la configuración de nixdots.";
                     color: rgba(255, 255, 255, 0.84);
                     font-size: 15px;
                     horizontal-alignment: center;
@@ -1349,19 +1708,24 @@ export component AppWindow inherits Window {
                     background: rgba(255, 255, 255, 0.24);
                     clip: true;
                     Rectangle {
-                        width: State.step == 9 ? 100% : 4%;
+                        width: (State.prep-phase + 1) * (parent.width / 5);
                         height: 100%;
                         border-radius: Tokens.radiuspill;
                         background: #ffffff;
-                        animate width { duration: 7000ms; easing: linear; }
+                        animate width { duration: 1200ms; easing: ease-in-out; }
                     }
                 }
             }
             Text {
-                text: "Creando la cuenta de " + State.username + "…";
+                text: State.prep-phase == 0 ? "Creando tu cuenta…"
+                    : State.prep-phase == 1 ? "Aplicando idioma y región…"
+                    : State.prep-phase == 2 ? "Construyendo el sistema…"
+                    : State.prep-phase == 3 ? "Instalando la entrada de arranque…"
+                    : "Listo. Reiniciando…";
                 color: rgba(255, 255, 255, 0.9);
                 font-size: 13px;
                 horizontal-alignment: center;
+                animate opacity { duration: 250ms; }
             }
             HorizontalLayout {
                 alignment: center;
@@ -1399,149 +1763,34 @@ export component AppWindow inherits Window {
             }
             if State.apply-error != "" : HorizontalLayout {
                 alignment: center;
-                CapsuleButton {
-                    label: "Reintentar";
-                    w: 120px;
+                Button {
+                    label: "Volver a intentar";
+                    w: 160px;
                     clicked => { root.apply(); }
                 }
             }
         }
+
+        // Aviso de no apagar, a 56 px del pie.
+        Text {
+            x: 0;
+            y: parent.height - 56px - 18px;
+            width: parent.width;
+            text: "No apagues el equipo. Se reiniciará solo cuando termine.";
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 13px;
+            horizontal-alignment: center;
+        }
     }
 
-    // ---------------------------------------------------------- Bienvenida --
-    welcome := Rectangle {
+    // Fundido final a negro (reinicio).
+    Rectangle {
         width: parent.width;
         height: parent.height;
-        opacity: State.step == 10 ? 1 : 0;
-        transform-scale-x: Theme.reduced-motion ? 100% : (State.step == 10 ? 100% : 103%);
-        transform-scale-y: Theme.reduced-motion ? 100% : (State.step == 10 ? 100% : 103%);
+        background: #000000;
+        opacity: State.prep-black ? 1 : 0;
         visible: self.opacity > 0.001;
-        animate opacity { duration: Tokens.durSlow; }
-        animate transform-scale-x { duration: Tokens.durSlow; }
-        animate transform-scale-y { duration: Tokens.durSlow; }
-
-        VerticalLayout {
-            alignment: center;
-            spacing: 26px;
-            HorizontalLayout {
-                alignment: center;
-                Rectangle {
-                    width: 104px;
-                    height: 104px;
-                    border-radius: 52px;
-                    background: Theme.accent;
-                    drop-shadow-color: rgba(0, 0, 0, 0.3);
-                    drop-shadow-blur: 30px;
-                    drop-shadow-offset-y: 10px;
-                    Text {
-                        text: State.initials;
-                        color: Theme.accent-ink;
-                        font-size: 38px;
-                        font-weight: 650;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: parent.width;
-                        height: parent.height;
-                    }
-                }
-            }
-            VerticalLayout {
-                spacing: 10px;
-                Text {
-                    text: "Te damos la bienvenida, " + State.first-name;
-                    color: #ffffff;
-                    font-size: 34px;
-                    font-weight: 650;
-                    horizontal-alignment: center;
-                }
-                Text {
-                    text: "Al reiniciar entrarás directamente a tu escritorio GNOME.";
-                    color: rgba(255, 255, 255, 0.86);
-                    font-size: 15px;
-                    horizontal-alignment: center;
-                }
-            }
-            HorizontalLayout {
-                alignment: center;
-                spacing: 12px;
-                Rectangle {
-                    width: 200px;
-                    height: 62px;
-                    border-radius: Tokens.radiuslg;
-                    background: rgba(13, 18, 25, 0.36);
-                    border-width: 1px;
-                    border-color: rgba(255, 255, 255, 0.16);
-                    VerticalLayout {
-                        alignment: start;
-                        padding-left: 16px;
-                        padding-right: 16px;
-                        padding-top: 14px;
-                        padding-bottom: 14px;
-                        spacing: 4px;
-                        Text { text: "Usuario"; color: rgba(255, 255, 255, 0.72); font-size: 12px; font-weight: 500; }
-                        Text { text: State.username; color: #ffffff; font-size: 15px; font-weight: 600; }
-                    }
-                }
-                Rectangle {
-                    width: 200px;
-                    height: 62px;
-                    border-radius: Tokens.radiuslg;
-                    background: rgba(13, 18, 25, 0.36);
-                    border-width: 1px;
-                    border-color: rgba(255, 255, 255, 0.16);
-                    VerticalLayout {
-                        alignment: start;
-                        padding-left: 16px;
-                        padding-right: 16px;
-                        padding-top: 14px;
-                        padding-bottom: 14px;
-                        spacing: 4px;
-                        Text { text: "Equipo"; color: rgba(255, 255, 255, 0.72); font-size: 12px; font-weight: 500; }
-                        Text { text: State.machine-host; color: #ffffff; font-size: 15px; font-weight: 600; }
-                    }
-                }
-                Rectangle {
-                    width: 200px;
-                    height: 62px;
-                    border-radius: Tokens.radiuslg;
-                    background: rgba(13, 18, 25, 0.36);
-                    border-width: 1px;
-                    border-color: rgba(255, 255, 255, 0.16);
-                    VerticalLayout {
-                        alignment: start;
-                        padding-left: 16px;
-                        padding-right: 16px;
-                        padding-top: 14px;
-                        padding-bottom: 14px;
-                        spacing: 4px;
-                        Text { text: "Zona horaria"; color: rgba(255, 255, 255, 0.72); font-size: 12px; font-weight: 500; }
-                        Text { text: State.city-tz[State.city-index]; color: #ffffff; font-size: 15px; font-weight: 600; }
-                    }
-                }
-            }
-            HorizontalLayout {
-                alignment: center;
-                Rectangle {
-                    width: 200px;
-                    height: Tokens.controllg;
-                    border-radius: Tokens.radiusmd;
-                    background: #ffffff;
-                    Text {
-                        text: "Reiniciar y empezar";
-                        color: #0d1219;
-                        font-size: 13px;
-                        font-weight: 600;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: parent.width;
-                        height: parent.height;
-                    }
-                    TouchArea {
-                        clicked => { root.restart-and-start(); }
-                    }
-                }
-            }
-        }
+        animate opacity { duration: 600ms; }
     }
 
     }

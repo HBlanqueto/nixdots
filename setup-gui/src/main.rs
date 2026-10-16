@@ -1,8 +1,8 @@
 //! `nixdots-setup-gui` — asistente gráfico de primer arranque (Slint).
 //!
 //! No duplica lógica: recoge los datos del modelo de la UI, escribe un JSON
-//! temporal y ejecuta el CLI `nixdots-setup apply` (con `--dry-run` en esta
-//! fase), mostrando su salida.
+//! temporal y ejecuta el CLI `nixdots-setup apply` (con `--dry-run` en `--sim`),
+//! mostrando su salida y deduciendo la fase.
 
 slint::include_modules!();
 
@@ -29,7 +29,6 @@ fn main() -> Result<(), slint::PlatformError> {
             _ => {}
         }
     }
-    let _ = sim;
 
     let ui = AppWindow::new()?;
 
@@ -46,18 +45,8 @@ fn main() -> Result<(), slint::PlatformError> {
     // Preferencia del sistema para la reducción de movimiento (GNOME).
     ui.global::<Theme>().set_reduced_motion(reduced_motion());
 
-    // Esc cierra la ventana de prueba (fase 4a).
+    // Esc cierra la ventana de prueba.
     ui.on_quit_app({
-        let weak = ui.as_weak();
-        move || {
-            if let Some(ui) = weak.upgrade() {
-                let _ = ui.hide();
-            }
-        }
-    });
-
-    // «Reiniciar y empezar» cierra con 0.
-    ui.on_restart_and_start({
         let weak = ui.as_weak();
         move || {
             if let Some(ui) = weak.upgrade() {
@@ -99,7 +88,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // «Aplicar»: escribe el JSON y lanza el CLI.
+    // «Aplicar»: escribe el JSON y lanza el CLI, deduciendo la fase.
     ui.on_apply({
         let weak = ui.as_weak();
         let repo = repo.clone();
@@ -113,39 +102,110 @@ fn main() -> Result<(), slint::PlatformError> {
                 st.set_applying(true);
                 st.set_apply_error("".into());
                 st.set_show_details(false);
-                st.set_step(9);
+                st.set_log_text("".into());
+                st.set_prep_phase(0);
+                st.set_prep_black(false);
+                st.set_step(10);
                 let json = build_json(&st, &ui.global::<Theme>(), &ui.global::<Tokens>());
                 (json, st.get_password().to_string())
             };
             drop(ui);
 
-            let repo = repo.clone();
-            let weak = weak.clone();
-            std::thread::spawn(move || {
-                let result = apply::run(&json, &repo, true, &password);
+            let weak_line = weak.clone();
+            let on_line = move |line: String| {
+                let weak = weak_line.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak.upgrade() {
+                        let st = ui.global::<State>();
+                        let mut log = st.get_log_text().to_string();
+                        log.push_str(&line);
+                        log.push('\n');
+                        st.set_log_text(log.into());
+                        let phase = phase_for(&line);
+                        if phase > st.get_prep_phase() {
+                            st.set_prep_phase(phase);
+                        }
+                    }
+                });
+            };
+
+            let weak_done = weak.clone();
+            let on_done = move |ok: bool| {
+                let weak = weak_done.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     let Some(ui) = weak.upgrade() else { return };
                     let st = ui.global::<State>();
                     st.set_applying(false);
-                    match result {
-                        Ok((true, log)) => {
-                            st.set_log_text(log.into());
-                            st.set_step(10);
-                        }
-                        Ok((false, log)) => {
-                            st.set_log_text(log.into());
-                            st.set_apply_error(
-                                "Algo falló. Revisa los detalles e inténtalo de nuevo.".into(),
-                            );
-                        }
-                        Err(e) => st.set_apply_error(e.into()),
+                    if !ok {
+                        st.set_show_details(true);
+                        st.set_apply_error(
+                            "No se pudo aplicar la configuración. Revisa los detalles.".into(),
+                        );
+                        return;
                     }
+                    st.set_prep_phase(4);
+                    // Fundido a negro y reinicio (en sim se vuelve al saludo).
+                    let weak2 = weak.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        let _ = slint::invoke_from_event_loop({
+                            let w = weak2.clone();
+                            move || {
+                                if let Some(ui) = w.upgrade() {
+                                    ui.global::<State>().set_prep_black(true);
+                                }
+                            }
+                        });
+                        std::thread::sleep(std::time::Duration::from_millis(1600));
+                        let _ = slint::invoke_from_event_loop({
+                            let w = weak2.clone();
+                            move || {
+                                if let Some(ui) = w.upgrade() {
+                                    if sim {
+                                        let st = ui.global::<State>();
+                                        st.set_prep_black(false);
+                                        st.set_prep_phase(0);
+                                        st.set_step(0);
+                                    } else {
+                                        let _ = std::process::Command::new("systemctl")
+                                            .arg("reboot")
+                                            .status();
+                                    }
+                                }
+                            }
+                        });
+                    });
                 });
-            });
+            };
+
+            if let Err(e) = apply::start(&json, &repo, sim, &password, on_line, on_done) {
+                if let Some(ui) = weak.upgrade() {
+                    let st = ui.global::<State>();
+                    st.set_applying(false);
+                    st.set_show_details(true);
+                    st.set_apply_error(e.into());
+                }
+            }
         }
     });
 
     ui.run()
+}
+
+/// Deduce la fase de «Preparando» a partir de una línea del CLI.
+fn phase_for(line: &str) -> i32 {
+    let l = line.to_ascii_lowercase();
+    if l.contains("secrets") || l.contains(".hash") {
+        0
+    } else if l.contains("user.json") {
+        1
+    } else if l.contains("nixos-rebuild") {
+        2
+    } else if l.contains("boot entry") || l.contains("installing") {
+        3
+    } else {
+        0
+    }
 }
 
 /// Construye el JSON que espera `nixdots-setup apply`.
@@ -153,12 +213,39 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
     let mut map = serde_json::Map::new();
     map.insert("fullName".into(), st.get_full_name().to_string().into());
     map.insert("username".into(), st.get_username().to_string().into());
-    map.insert("locale".into(), pick(st.get_lang_codes(), st.get_lang_index()).into());
-    map.insert("keyboardLayout".into(), pick(st.get_kb_codes(), st.get_kb_index()).into());
+    map.insert(
+        "locale".into(),
+        pick(st.get_lang_codes(), st.get_lang_index()).into(),
+    );
+    map.insert(
+        "region".into(),
+        pick(st.get_region_codes(), st.get_region_index()).into(),
+    );
+    map.insert(
+        "keyboardLayout".into(),
+        pick(st.get_kb_codes(), st.get_kb_index()).into(),
+    );
     map.insert("keyboardVariant".into(), "".into());
-    map.insert("timeZone".into(), pick(st.get_city_tz(), st.get_city_index()).into());
+    map.insert(
+        "timeZone".into(),
+        pick(st.get_city_tz(), st.get_city_index()).into(),
+    );
+    map.insert("timeZoneAuto".into(), st.get_tz_auto().into());
     map.insert("theme".into(), tokens.get_theme().to_string().into());
-    map.insert("accentColor".into(), theme.get_accent_id().to_string().into());
+    map.insert(
+        "accentColor".into(),
+        theme.get_accent_id().to_string().into(),
+    );
+    map.insert(
+        "a11y".into(),
+        serde_json::json!({
+            "largeText": st.get_a11y_large_text(),
+            "highContrast": st.get_a11y_high_contrast(),
+            "screenReader": st.get_a11y_screen_reader(),
+            "reduceMotion": st.get_a11y_reduce_motion(),
+            "screenKeyboard": st.get_a11y_screen_keyboard(),
+        }),
+    );
     if st.get_git_on() {
         map.insert("gitName".into(), st.get_git_name().to_string().into());
         map.insert("gitEmail".into(), st.get_git_email().to_string().into());
@@ -166,16 +253,13 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
     serde_json::Value::Object(map).to_string()
 }
 
-/// Lee `org.gnome.desktop.interface enable-animations`; true si está desactivado
-/// (o si gsettings no está, lo dejamos en falso).
+/// Lee `org.gnome.desktop.interface enable-animations`; true si está desactivado.
 fn reduced_motion() -> bool {
     let out = std::process::Command::new("gsettings")
         .args(["get", "org.gnome.desktop.interface", "enable-animations"])
         .output();
     match out {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout).trim() == "false"
-        }
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim() == "false",
         _ => false,
     }
 }

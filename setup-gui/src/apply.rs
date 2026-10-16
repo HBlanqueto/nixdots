@@ -1,12 +1,12 @@
 //! Ejecuta el CLI `nixdots-setup apply`, con la contraseña por stdin.
 //!
-//! Fase 4a: siempre `--dry-run`. En 4b se quitará para aplicar de verdad. La
-//! salida se recoge completa y se muestra en «Mostrar detalles» (no se
-//! transmite en vivo; ver shortcut).
+//! Fase 4a: siempre `--dry-run`. Transmite la salida línea a línea (para el
+//! registro y para deducir la fase) y avisa al terminar.
 
-use std::io::Write;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 
 /// Escribe el JSON en un directorio temporal único (0700) con el archivo 0600.
 fn write_json(json: &str) -> std::io::Result<PathBuf> {
@@ -14,7 +14,8 @@ fn write_json(json: &str) -> std::io::Result<PathBuf> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!("nixdots-setup-gui-{}-{nanos}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("nixdots-setup-gui-{}-{nanos}", std::process::id()));
     std::fs::create_dir(&dir)?;
     set_mode(&dir, 0o700)?;
     let path = dir.join("datos.json");
@@ -42,16 +43,32 @@ fn cli() -> std::ffi::OsString {
     "nixdots-setup".into()
 }
 
-/// Lanza `nixdots-setup apply <json>` y devuelve `(éxito, salida)`.
-///
-/// shortcut: no transmite la salida línea a línea; en 4b, si hace falta el
-/// progreso en vivo, leer stdout/stderr en hilos mientras corre.
-pub fn run(
+fn pump<R: Read + Send + 'static>(
+    stream: R,
+    on_line: Arc<dyn Fn(String) + Send + Sync>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stream);
+        for line in reader.lines().map_while(Result::ok) {
+            on_line(line);
+        }
+    })
+}
+
+/// Lanza `nixdots-setup apply <json>`; llama a `on_line` por cada línea (desde
+/// hilos de lectura) y a `on_done` con el éxito al terminar.
+pub fn start<F, D>(
     json: &str,
     repo: &str,
     dry_run: bool,
     password: &str,
-) -> Result<(bool, String), String> {
+    on_line: F,
+    on_done: D,
+) -> Result<(), String>
+where
+    F: Fn(String) + Send + Sync + 'static,
+    D: Fn(bool) + Send + 'static,
+{
     let path = write_json(json).map_err(|e| format!("no se pudo escribir los datos: {e}"))?;
 
     let mut cmd = Command::new(cli());
@@ -77,8 +94,19 @@ pub fn run(
             .map_err(|e| e.to_string())?;
     }
 
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
-    let mut text = String::from_utf8_lossy(&out.stdout).into_owned();
-    text.push_str(&String::from_utf8_lossy(&out.stderr));
-    Ok((out.status.success(), text))
+    let on_line: Arc<dyn Fn(String) + Send + Sync> = Arc::new(on_line);
+    let out = child.stdout.take().map(|o| pump(o, on_line.clone()));
+    let err = child.stderr.take().map(|e| pump(e, on_line.clone()));
+
+    std::thread::spawn(move || {
+        let ok = child.wait().map(|s| s.success()).unwrap_or(false);
+        if let Some(t) = out {
+            let _ = t.join();
+        }
+        if let Some(t) = err {
+            let _ = t.join();
+        }
+        on_done(ok);
+    });
+    Ok(())
 }

@@ -11,6 +11,7 @@ export global Theme {
     // Preferencia del sistema: con reducción de movimiento, sólo fundidos.
     in-out property <bool> reduced-motion: false;
 
+
     out property <[Accent]> accents: Tokens.gnomeAccents;
     out property <int> gi: accent-index <= 0 ? 0 : min(accent-index, accents.length) - 1;
 
