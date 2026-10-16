@@ -6,3 +6,8 @@
 
 # Capturas de las pantallas del asistente (se regeneran).
 docs/first-boot/screens/
+
+# Discos y NVRAM de las VMs de prueba (run-firstboot-vm.sh).
+*.qcow2
+*.fd
+/firstboot-vm*
