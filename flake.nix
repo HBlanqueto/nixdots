@@ -252,7 +252,13 @@
 
             setups = nixpkgs.lib.genAttrs supportedSystems mkSetup;
 
-            # Asistente gráfico (GTK4 + libadwaita): llama al CLI nixdots-setup.
+            # Asistente gráfico (Slint): llama al CLI nixdots-setup.
+            #
+            # Licencia: Slint es GPL-3.0-only (o comercial/royalty-free). El
+            # flake declara gpl2Only y GPLv2-only es incompatible con GPLv3, así
+            # que mientras se use Slint hay que elegir la vía royalty-free/
+            # comercial de Slint o subir nixdots a algo compatible con GPLv3.
+            # Ver setup-gui/Cargo.toml.
             mkSetupGui = system:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
@@ -265,15 +271,15 @@
                     buildAndTestSubdir = "setup-gui";
                     cargoLock.lockFile = ./Cargo.lock;
 
-                    nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
-                    buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
-
-                    # Tablas de nixdots-lists y el CSS del tema (include_str!).
-                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
-                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
-                    NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+                    nativeBuildInputs = [ pkgs.pkg-config ];
+                    buildInputs = with pkgs; [
+                        fontconfig
+                        freetype
+                        libxkbcommon
+                        libglvnd
+                        wayland
+                        xorg.libX11
+                    ];
 
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-setup-gui \
@@ -281,7 +287,7 @@
                     '';
 
                     meta = {
-                        description = "Graphical first-boot assistant for the nixdots configuration";
+                        description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                         mainProgram = "nixdots-setup-gui";
                         license = pkgs.lib.licenses.gpl2Only;
                         platforms = supportedSystems;
@@ -371,6 +377,26 @@
                         NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                         NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
                         NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+                    };
+                    # Shell del asistente Slint: compila (winit + femtovg) y abre
+                    # la UI; slint-viewer/slint-lsp para editar .slint.
+                    setup-gui = pkgs.mkShell {
+                        packages = with pkgs; [
+                            cargo
+                            rustc
+                            rust-analyzer
+                            clippy
+                            watchexec
+                            pkg-config
+                            slint-viewer
+                            slint-lsp
+                            fontconfig
+                            freetype
+                            libxkbcommon
+                            libglvnd
+                            wayland
+                            xorg.libX11
+                        ];
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];
