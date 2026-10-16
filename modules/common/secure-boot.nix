@@ -36,10 +36,9 @@ in
             {
                 boot.loader.systemd-boot.enable = lib.mkForce false;
 
-                environment.persistence."/persist".directories = [
-                    "/var/lib/sbctl"
-                    "/var/lib/auto-cryptenroll"
-                ];
+                environment.persistence."/persist".directories =
+                    [ "/var/lib/sbctl" ]
+                    ++ lib.optional (m.encrypt && m.tpmUnlock) "/var/lib/auto-cryptenroll";
 
                 environment.systemPackages = with pkgs; [ sbctl efibootmgr ];
             }
