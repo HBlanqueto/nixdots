@@ -32,10 +32,6 @@
     nix = {
         settings = {
             experimental-features = [ "nix-command" "flakes" ];
-
-            # Kept off: some derivations here rely on pre-existing store paths
-            # and would not build in a sandbox.
-            sandbox = false;
         };
 
         optimise.automatic = true;
