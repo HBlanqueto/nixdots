@@ -281,6 +281,10 @@
                         libx11
                     ];
 
+                    # Acento de Neptunia para la UI, desde la única fuente de
+                    # verdad de la paleta (c4 = primary).
+                    NIXDOTS_NEPTUNIA_ACCENT = "#${(import ./share/themes/neptunia.nix).c4}";
+
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-setup-gui \
                             --prefix PATH : ${pkgs.lib.makeBinPath [ setups.${system} ]}
@@ -399,6 +403,14 @@
                             libx11
                             setups.${system}
                         ];
+                        # Acento de Neptunia para la UI.
+                        NIXDOTS_NEPTUNIA_ACCENT = "#${(import ./share/themes/neptunia.nix).c4}";
+                        # Tablas que `lists` embebe: así `cargo clippy --workspace`
+                        # compila el workspace entero también desde este shell.
+                        NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                        NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                        NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                        NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];

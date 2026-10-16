@@ -1,39 +1,48 @@
 // Paletas del asistente, copiadas de docs/first-boot/mockup-asistente.html
 // (objetos `light` y `dark`). El tema claro es el de por defecto; `dark`
 // cambia todo al instante porque los colores se derivan de él.
+//
+// El acento vive en una sola propiedad, `accent`, que alimenta botones, iconos,
+// puntos, avatar y pantalla final. Puede ser Neptunia (opción 0, la de por
+// defecto) o uno de los accent-color válidos de GNOME. El valor de Neptunia
+// sale de share/themes/neptunia.nix: el flake lo inyecta en tiempo de compilación
+// (NIXDOTS_NEPTUNIA_ACCENT) y Rust lo fija aquí; el valor de abajo es sólo el de
+// reserva para `slint-viewer` sin Rust.
 
 import "fonts/DancingScript-Regular.ttf";
 import "fonts/DancingScript-Bold.ttf";
 
 export struct Accent {
+    id: string,
     color: color,
     label: string,
 }
 
 export global Theme {
     in-out property <bool> dark: false;
-    // -1 = acento Neptunia (el de la paleta); >= 0 = color elegido.
-    in-out property <int> accent-index: -1;
+    // 0 = Neptunia; 1..9 = accent-color de GNOME.
+    in-out property <int> accent-index: 0;
+    in-out property <color> neptunia-accent: #809ad2;
 
+    // Los nueve accent-color válidos de GNOME.
     out property <[Accent]> accents: [
-        { color: #3584e4, label: "Azul" },
-        { color: #2190a4, label: "Verde azulado" },
-        { color: #3a944a, label: "Verde" },
-        { color: #c88800, label: "Amarillo" },
-        { color: #ed5b00, label: "Naranja" },
-        { color: #e62d42, label: "Rojo" },
-        { color: #d56199, label: "Rosa" },
-        { color: #9141ac, label: "Morado" },
-        { color: #6f8396, label: "Pizarra" },
+        { id: "blue", color: #3584e4, label: "Azul" },
+        { id: "teal", color: #2190a4, label: "Verde azulado" },
+        { id: "green", color: #3a944a, label: "Verde" },
+        { id: "yellow", color: #c88800, label: "Amarillo" },
+        { id: "orange", color: #ed5b00, label: "Naranja" },
+        { id: "red", color: #e62d42, label: "Rojo" },
+        { id: "pink", color: #d56199, label: "Rosa" },
+        { id: "purple", color: #9141ac, label: "Morado" },
+        { id: "slate", color: #6f8396, label: "Pizarra" },
     ];
+    // Índice dentro de `accents` para el acento de GNOME elegido.
+    out property <int> gi: accent-index <= 0 ? 0 : min(accent-index, accents.length) - 1;
 
-    out property <color> accent: accent-index < 0
-        ? (dark ? #809ad2 : #4f6fb3)
-        : accents[max(0, min(accent-index, accents.length - 1))].color;
-    out property <color> accent-ink: (accent-index < 0 && dark) ? #0d1219 : #ffffff;
-    out property <string> accent-name: accent-index < 0
-        ? "Neptunia (predeterminado)"
-        : accents[max(0, min(accent-index, accents.length - 1))].label;
+    out property <color> accent: accent-index == 0 ? neptunia-accent : accents[gi].color;
+    out property <string> accent-id: accent-index == 0 ? "neptunia" : accents[gi].id;
+    out property <string> accent-name: accent-index == 0 ? "Neptunia" : accents[gi].label;
+    out property <color> accent-ink: #ffffff;
 
     out property <color> card: dark ? rgba(24, 29, 37, 0.94) : rgba(250, 251, 253, 0.95);
     out property <color> card-border: dark ? rgba(238, 244, 250, 0.09) : rgba(20, 30, 45, 0.10);

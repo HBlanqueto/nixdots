@@ -952,39 +952,49 @@ export component AppWindow inherits Window {
                 animate x { duration: 300ms; }
                 animate opacity { duration: 250ms; }
                 VerticalLayout {
-                    spacing: 14px;
+                    alignment: start;
+                    spacing: 20px;
                     StepHeader {
                         title: "Elige tu aspecto";
                         subtitle: "Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.";
                         IconTile { ContrastIcon { ink: Theme.accent; } }
                     }
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 16px;
-                        ModeCard {
-                            selected: !Theme.dark;
-                            picked => { Theme.dark = false; }
-                        }
-                        ModeCard {
-                            preview-dark: true;
-                            selected: Theme.dark;
-                            picked => { Theme.dark = true; }
-                        }
-                    }
                     VerticalLayout {
-                        alignment: center;
-                        spacing: 10px;
-                        Text { text: "Color de acento"; color: Theme.sub; font-size: 13px; horizontal-alignment: center; }
+                        alignment: start;
+                        spacing: 14px;
                         HorizontalLayout {
                             alignment: center;
-                            spacing: 10px;
-                            for a[i] in Theme.accents : Swatch {
-                                c: a.color;
-                                selected: i == Theme.accent-index;
-                                picked => { Theme.accent-index = i; }
+                            spacing: 16px;
+                            ModeCard {
+                                selected: !Theme.dark;
+                                picked => { Theme.dark = false; }
+                            }
+                            ModeCard {
+                                preview-dark: true;
+                                selected: Theme.dark;
+                                picked => { Theme.dark = true; }
                             }
                         }
-                        Text { text: Theme.accent-name; color: Theme.faint; font-size: 12px; horizontal-alignment: center; }
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            Text { text: "Color de acento"; color: Theme.sub; font-size: 13px; horizontal-alignment: center; }
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 10px;
+                                Swatch {
+                                    c: Theme.neptunia-accent;
+                                    selected: Theme.accent-index == 0;
+                                    picked => { Theme.accent-index = 0; }
+                                }
+                                for a[i] in Theme.accents : Swatch {
+                                    c: a.color;
+                                    selected: Theme.accent-index == i + 1;
+                                    picked => { Theme.accent-index = i + 1; }
+                                }
+                            }
+                            Text { text: Theme.accent-name; color: Theme.faint; font-size: 12px; horizontal-alignment: center; }
+                        }
                     }
                 }
             }
