@@ -1,5 +1,14 @@
 { pkgs, theme, ... }:
 
+let
+    # Mismas claves que la tabla Lua esperaba: 4 nombres fijos + c0..c15.
+    themeKeys = [ "dbg" "lbg" "fg" "bg" ] ++ map (n: "c${toString n}") (pkgs.lib.range 0 15);
+    themeLua =
+        "return {\n"
+        + pkgs.lib.concatMapStrings (k: "    ${k} = \"#${theme.colors.${k}}\",\n") themeKeys
+        + "}\n";
+in
+
 {
     home = {
         pointerCursor = {
@@ -23,30 +32,7 @@
 
     xdg = {
         configFile = {
-            "lua-theme/theme.lua".text = ''
-                return {
-                    dbg = "#${theme.colors.dbg}",
-                    lbg = "#${theme.colors.lbg}",
-                    fg = "#${theme.colors.fg}",
-                    bg = "#${theme.colors.bg}",
-                    c0 = "#${theme.colors.c0}",
-                    c1 = "#${theme.colors.c1}",
-                    c2 = "#${theme.colors.c2}",
-                    c3 = "#${theme.colors.c3}",
-                    c4 = "#${theme.colors.c4}",
-                    c5 = "#${theme.colors.c5}",
-                    c6 = "#${theme.colors.c6}",
-                    c7 = "#${theme.colors.c7}",
-                    c8 = "#${theme.colors.c8}",
-                    c9 = "#${theme.colors.c9}",
-                    c10 = "#${theme.colors.c10}",
-                    c11 = "#${theme.colors.c11}",
-                    c12 = "#${theme.colors.c12}",
-                    c13 = "#${theme.colors.c13}",
-                    c14 = "#${theme.colors.c14}",
-                    c15 = "#${theme.colors.c15}",
-                }
-            '';
+            "lua-theme/theme.lua".text = themeLua;
         };
     };
 

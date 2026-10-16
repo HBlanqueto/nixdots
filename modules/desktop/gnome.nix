@@ -1,4 +1,4 @@
-{ pkgs, keyboardLayout, keyboardVariant, ... }:
+{ pkgs, ... }:
 
 {
     services = {
@@ -17,11 +17,6 @@
         xserver = {
             enable = true;
             excludePackages = [ pkgs.xterm ];
-
-            xkb = {
-                layout = keyboardLayout;
-                variant = keyboardVariant;
-            };
         };
 
         displayManager = {

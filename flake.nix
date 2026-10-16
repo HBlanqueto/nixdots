@@ -150,13 +150,66 @@
             # on; it only orchestrates other tools.
             supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
 
-            mkInstaller = system:
+            # Data tables embedded at compile time with `include_str!` so the
+            # binaries never shell out to `locale -a`, `localectl` or
+            # `timedatectl` for their choices. Shared by the installer, the
+            # setup GUI and the devShell.
+            tablesEnv = pkgs: {
+                NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                # Source locale files (country_name / lang_name) for the
+                # generated readable names; only the full glibc ships them.
+                NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+            };
+
+            # One rust package builder for the three binaries. `runtimeInputs`
+            # are put on PATH by makeWrapper; `extra` overrides or adds any
+            # buildRustPackage attribute (buildInputs, env vars, meta…).
+            mkRustTool = system: { pname, subdir, runtimeInputs ? [ ], extra ? { } }:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
+                    base = {
+                        inherit pname;
+                        version = "0.1.0";
 
-                    # Everything the installer shells out to. makeWrapper puts
-                    # these on its PATH so the binary works from a minimal ISO
-                    # without pulling them in by hand.
+                        src = ./.;
+                        # buildAndTestSubdir makes the hooks run cargo inside the
+                        # crate dir; the Cargo.lock lives at the workspace root.
+                        buildAndTestSubdir = subdir;
+                        cargoLock.lockFile = ./Cargo.lock;
+
+                        nativeBuildInputs = [ pkgs.makeWrapper ];
+
+                        postInstall = ''
+                            wrapProgram $out/bin/${pname} \
+                                --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
+                        '';
+
+                        meta = {
+                            mainProgram = pname;
+                            license = pkgs.lib.licenses.gpl2Only;
+                            platforms = supportedSystems;
+                        };
+                    };
+                in
+                pkgs.rustPlatform.buildRustPackage (
+                    base
+                    // extra
+                    // nixpkgs.lib.optionalAttrs (extra ? meta) {
+                        meta = base.meta // extra.meta;
+                    }
+                );
+
+            # Everything the installer shells out to; makeWrapper puts these on
+            # its PATH so the binary works from a minimal ISO.
+            installers = nixpkgs.lib.genAttrs supportedSystems (system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                in
+                mkRustTool system {
+                    pname = "nixdots-installer";
+                    subdir = "installer";
                     runtimeInputs = with pkgs; [
                         disko
                         btrfs-progs
@@ -170,52 +223,20 @@
                         git
                         nix
                     ];
-                in
-                pkgs.rustPlatform.buildRustPackage {
-                    pname = "nixdots-installer";
-                    version = "0.1.0";
-
-                    # Whole repo so the palette test can read
-                    # share/themes/neptunia.nix; the crate lives in installer/.
-                    src = ./.;
-                    # buildAndTestSubdir makes the hooks run cargo inside
-                    # installer/; the Cargo.lock lives at the workspace root.
-                    buildAndTestSubdir = "installer";
-                    cargoLock.lockFile = ./Cargo.lock;
-
-                    nativeBuildInputs = [ pkgs.makeWrapper ];
-
-                    # Data tables embedded at compile time with `include_str!`
-                    # so the installer never shells out to `locale -a`,
-                    # `localectl` or `timedatectl` for its choices.
-                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
-                    # Source locale files (country_name / lang_name) for the
-                    # generated readable names; only the full glibc ships them.
-                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
-
-                    postInstall = ''
-                        wrapProgram $out/bin/nixdots-installer \
-                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
-                    '';
-
-                    meta = {
-                        description = "Text-mode installer for the nixdots NixOS configuration";
-                        mainProgram = "nixdots-installer";
-                        license = pkgs.lib.licenses.gpl2Only;
-                        platforms = supportedSystems;
+                    extra = (tablesEnv pkgs) // {
+                        meta.description = "Text-mode installer for the nixdots NixOS configuration";
                     };
-                };
+                });
 
-            installers = nixpkgs.lib.genAttrs supportedSystems mkInstaller;
-
-            # El asistente de primer arranque: mismo patrón que el instalador,
-            # pero solo orquesta mkpasswd, git, nix y nixos-rebuild.
-            mkSetup = system:
+            # El asistente de primer arranque: solo orquesta mkpasswd, git, nix
+            # y nixos-rebuild.
+            setups = nixpkgs.lib.genAttrs supportedSystems (system:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
-
+                in
+                mkRustTool system {
+                    pname = "nixdots-setup";
+                    subdir = "setup";
                     runtimeInputs = with pkgs; [
                         git
                         nix
@@ -223,69 +244,25 @@
                         mkpasswd
                         coreutils
                     ];
-                in
-                pkgs.rustPlatform.buildRustPackage {
-                    pname = "nixdots-setup";
-                    version = "0.1.0";
-
-                    src = ./.;
-                    buildAndTestSubdir = "setup";
-                    cargoLock.lockFile = ./Cargo.lock;
-
-                    nativeBuildInputs = [ pkgs.makeWrapper ];
-
-                    postInstall = ''
-                        wrapProgram $out/bin/nixdots-setup \
-                            --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
-                    '';
-
-                    meta = {
-                        description = "First-boot assistant CLI for the nixdots configuration";
-                        mainProgram = "nixdots-setup";
-                        license = pkgs.lib.licenses.gpl2Only;
-                        platforms = supportedSystems;
-                    };
-                };
-
-            setups = nixpkgs.lib.genAttrs supportedSystems mkSetup;
+                    extra.meta.description = "First-boot assistant CLI for the nixdots configuration";
+                });
 
             # Asistente gráfico (GTK4 + libadwaita): llama al CLI nixdots-setup.
-            mkSetupGui = system:
+            setupsGui = nixpkgs.lib.genAttrs supportedSystems (system:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
                 in
-                pkgs.rustPlatform.buildRustPackage {
+                mkRustTool system {
                     pname = "nixdots-setup-gui";
-                    version = "0.1.0";
-
-                    src = ./.;
-                    buildAndTestSubdir = "setup-gui";
-                    cargoLock.lockFile = ./Cargo.lock;
-
-                    nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
-                    buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
-
-                    # Tablas de nixdots-lists y el CSS del tema (include_str!).
-                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
-                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
-                    NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
-
-                    postInstall = ''
-                        wrapProgram $out/bin/nixdots-setup-gui \
-                            --prefix PATH : ${pkgs.lib.makeBinPath [ setups.${system} ]}
-                    '';
-
-                    meta = {
-                        description = "Graphical first-boot assistant for the nixdots configuration";
-                        mainProgram = "nixdots-setup-gui";
-                        license = pkgs.lib.licenses.gpl2Only;
-                        platforms = supportedSystems;
+                    subdir = "setup-gui";
+                    runtimeInputs = [ setups.${system} ];
+                    extra = (tablesEnv pkgs) // {
+                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+                        nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
+                        buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
+                        meta.description = "Graphical first-boot assistant for the nixdots configuration";
                     };
-                };
-
-            setupsGui = nixpkgs.lib.genAttrs supportedSystems mkSetupGui;
+                });
 
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
             # neptunia palette) on a real VT, then runs the installer inside it.
@@ -343,7 +320,7 @@
                     pkgs = nixpkgs.legacyPackages.${system};
                 in
                 {
-                    installer = pkgs.mkShell {
+                    installer = pkgs.mkShell ((tablesEnv pkgs) // {
                         packages = with pkgs; [
                             cargo
                             rustc
@@ -360,15 +337,10 @@
                             libadwaita
                         ];
 
-                        # The installer embeds these tables at compile time with
-                        # `include_str!(env!(...))`, so a bare `cargo build` in
-                        # the dev shell needs the same variables as the package.
-                        NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
-                        NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                        NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                        NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                        # A bare `cargo build` in the dev shell needs the same
+                        # tables as the package (include_str!(env!(...))).
                         NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
-                    };
+                    });
                     default = pkgs.mkShell {
                         packages = with pkgs; [
                             cargo
