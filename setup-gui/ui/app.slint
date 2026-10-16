@@ -1712,30 +1712,48 @@ export component AppWindow inherits Window {
             spacing: 22px;
             HorizontalLayout {
                 alignment: center;
-                SpinIcon {
+                if State.apply-error == "" : SpinIcon {
                     size: 36px;
                     sw: 2.2px;
                     ink: #ffffff;
                     transform-rotation: prepare.spin * 1deg;
                 }
+                if State.apply-error != "" : Rectangle {
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 13px;
+                    background: Tokens.dangerFill;
+                    Text {
+                        text: "!";
+                        color: #ffffff;
+                        font-size: 28px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                }
             }
             VerticalLayout {
                 spacing: 8px;
                 Text {
-                    text: "Preparando tu escritorio";
+                    text: State.apply-error == "" ? "Preparando tu escritorio" : "No se pudo terminar la configuración";
                     color: #ffffff;
                     font-size: 28px;
                     font-weight: 650;
                     horizontal-alignment: center;
+                    wrap: word-wrap;
                 }
                 Text {
-                    text: "Aplicando la configuración de nixdots.";
+                    text: State.apply-error == "" ? "Aplicando la configuración de nixdots." : State.apply-error;
                     color: rgba(255, 255, 255, 0.84);
                     font-size: 15px;
                     horizontal-alignment: center;
+                    wrap: word-wrap;
                 }
             }
-            HorizontalLayout {
+            if State.apply-error == "" : HorizontalLayout {
                 alignment: center;
                 Rectangle {
                     width: 420px;
@@ -1787,22 +1805,24 @@ export component AppWindow inherits Window {
                     height: parent.height - 24px;
                     text: State.log-text;
                     color: rgba(255, 255, 255, 0.78);
+                    font-family: "DejaVu Sans Mono";
                     font-size: 12px;
                     wrap: word-wrap;
                     vertical-alignment: bottom;
                 }
             }
-            if State.apply-error != "" : Text {
-                text: State.apply-error;
-                color: #ff9a9a;
-                font-size: 13px;
-                horizontal-alignment: center;
-            }
             if State.apply-error != "" : HorizontalLayout {
                 alignment: center;
+                spacing: 10px;
+                Button {
+                    label: "Volver a la configuración";
+                    w: 210px;
+                    clicked => { State.step = State.error-step; }
+                }
                 Button {
                     label: "Volver a intentar";
-                    w: 160px;
+                    primary: true;
+                    w: 170px;
                     clicked => { root.apply(); }
                 }
             }
