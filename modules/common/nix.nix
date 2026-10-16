@@ -33,11 +33,6 @@
             # Kept off: some derivations here rely on pre-existing store paths
             # and would not build in a sandbox.
             sandbox = false;
-
-            # Conserva las dependencias de build de las generaciones vivas:
-            # sin esto el GC semanal borra los outputs de los inputs del flake
-            # y hay que volver a descargarlos.
-            keep-outputs = true;
         };
 
         optimise.automatic = true;
