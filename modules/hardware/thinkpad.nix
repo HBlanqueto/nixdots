@@ -11,6 +11,9 @@
     # modules/common/extras.nix.
     imports = [
         inputs.lanzaboote.nixosModules.lanzaboote
+        # ucodenix carga microcódigo extraído de imágenes de BIOS porque
+        # linux-firmware no lo trae para los Ryzen de portátil.
+        inputs.ucodenix.nixosModules.default
         ../common/luks-tpm.nix
         ../common/rollback.nix
     ];
@@ -28,18 +31,27 @@
         brightnessctl = true;
     };
 
+    boot = {
+        # amd_sha_check=off es necesario para ucodenix: esos parches no están
+        # en la lista de hashes que el kernel comprueba desde EntrySign.
+        # Reevaluar tras actualizar la BIOS con fwupd.
+        kernelParams = [ "microcode.amd_sha_check=off" ];
+    };
+
     hardware = {
         enableRedistributableFirmware = true;
 
-        # AMD GPU: early KMS. Microcode comes from linux-firmware
-        # (hardware.cpu.amd.updateMicrocode); ucodenix was dropped.
+        # AMD GPU: early KMS. The microcode comes from ucodenix (see imports).
         amdgpu.initrd.enable = true;
-        cpu.amd.updateMicrocode = true;
 
         bluetooth.enable = true;
     };
 
     services = {
+        ucodenix = {
+            enable = true;
+        };
+
         acpid.enable = true;
         blueman.enable = true;
         fwupd.enable = true;

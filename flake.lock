@@ -21,6 +21,22 @@
         "type": "github"
       }
     },
+    "cpu-microcodes": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788475946,
+        "narHash": "sha256-J1Pizu2O+ElNvYbFERZd3sKwAR3yqXwz828EDrNrFoM=",
+        "owner": "platomav",
+        "repo": "CPUMicrocodes",
+        "rev": "53e47114a0612cba145f9f4bbe882d1a74ab95b1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "platomav",
+        "repo": "CPUMicrocodes",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1790899423,
@@ -180,7 +196,8 @@
         "home": "home",
         "impermanence": "impermanence",
         "lanzaboote": "lanzaboote",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "ucodenix": "ucodenix"
       }
     },
     "rust-overlay": {
@@ -216,6 +233,24 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "ucodenix": {
+      "inputs": {
+        "cpu-microcodes": "cpu-microcodes"
+      },
+      "locked": {
+        "lastModified": 1788792915,
+        "narHash": "sha256-7L64yjvuFw56/RrcOvuRSIwu0/z3ANUIEOQ3njkSl0k=",
+        "owner": "e-tho",
+        "repo": "ucodenix",
+        "rev": "36933183e87c95361d5913fee3debe5e931c6e1c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "e-tho",
+        "repo": "ucodenix",
         "type": "github"
       }
     }

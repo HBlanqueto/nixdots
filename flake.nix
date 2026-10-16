@@ -11,6 +11,8 @@
         impermanence.inputs.nixpkgs.follows = "nixpkgs";
         impermanence.inputs.home-manager.follows = "home";
 
+        ucodenix.url = "github:e-tho/ucodenix";
+
         lanzaboote.url = "github:nix-community/lanzaboote";
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -74,6 +76,10 @@
                     ./modules/common/facter.nix
                     ./modules/common/filesystems-labels.nix
                     ./modules/common/rollback.nix
+                    # Igual que lanzaboote: el módulo se importa siempre y
+                    # hardware-detect.nix activa ucodenix solo si el informe de
+                    # facter ve una CPU AMD en bare-metal.
+                    inputs.ucodenix.nixosModules.default
                 ]
                 ++ nixpkgs.lib.optionals (machineData.secureBoot or false) [
                     inputs.lanzaboote.nixosModules.lanzaboote
