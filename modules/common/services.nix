@@ -55,11 +55,10 @@
         };
 
         avahi = {
+            # Solo para descubrir la impresora Epson; no anunciar servicios.
             enable = true;
-            publish = {
-                enable = true;
-                userServices = true;
-            };
+            nssmdns4 = true;
+            publish.enable = false;
         };
 
         pipewire = {
