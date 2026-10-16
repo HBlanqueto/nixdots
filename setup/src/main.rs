@@ -47,8 +47,16 @@ struct Data {
     git_email: Option<String>,
 }
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
+fn main() {
+    color_eyre::install().ok();
+    if let Err(err) = run() {
+        // Una sola línea legible para que la GUI muestre el motivo.
+        eprintln!("ERROR: {err}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("apply") => apply(&args[1..]),
@@ -83,8 +91,10 @@ fn apply(args: &[String]) -> Result<()> {
     let data = load_data(&data_path)?;
     validate(&data)?;
     let password = read_password()?;
+    let sim_fail = std::env::var_os("NIXDOTS_SIM_FAIL").is_some();
 
     // 1. Hash (0600) antes de user.json: user.nix exige que exista.
+    phase(0, dry_run);
     let hash = nixdots_core::crypto::hash_password(&password)?;
     let secrets = Path::new("/persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", data.username));
@@ -97,6 +107,10 @@ fn apply(args: &[String]) -> Result<()> {
     }
 
     // 2. user.json, fuera del repo (el flake lo mezcla con settings.nix).
+    phase(1, dry_run);
+    if sim_fail {
+        bail!("Fallo simulado al aplicar la configuración");
+    }
     let user = UserData {
         username: data.username.clone(),
         userdescription: Some(data.full_name),
@@ -120,6 +134,7 @@ fn apply(args: &[String]) -> Result<()> {
 
     // 3. boot, no switch: activar en caliente apagaría greetd y mataría esta
     //    misma sesión a mitad de la activación. El bucle de sesión reinicia.
+    phase(2, dry_run);
     let host = hostname()?;
     let rebuild = Cmd::new("nixos-rebuild")
         .args(["boot", "--impure", "--flake"])
@@ -128,6 +143,7 @@ fn apply(args: &[String]) -> Result<()> {
 
     // ~<usuario>/nixdots -> repo, y el repo en manos del usuario, solo cuando el
     // rebuild ha terminado bien: si falla no se tocan permisos.
+    phase(3, dry_run);
     let home_link = format!("/home/{}/nixdots", data.username);
     println!(
         "$ ln -sfn {} {home_link} && chown -R 1000:users {}",
@@ -137,7 +153,17 @@ fn apply(args: &[String]) -> Result<()> {
     if !dry_run {
         link_home(&data.username, &repo)?;
     }
+    phase(4, dry_run);
     Ok(())
+}
+
+/// Línea `PHASE n` que la GUI interpreta. En `--dry-run` (simulación) se toma
+/// un respiro antes de cada fase para que se vean todas.
+fn phase(n: u8, dry_run: bool) {
+    if dry_run && n > 0 {
+        std::thread::sleep(std::time::Duration::from_millis(1600));
+    }
+    println!("PHASE {n}");
 }
 
 fn load_data(path: &Path) -> Result<Data> {
