@@ -276,7 +276,7 @@
                     subdir = "setup-gui";
                     runtimeInputs = [ setups.${system} ];
                     extra = (tablesEnv pkgs) // {
-                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { inherit theme; }}";
                         nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
                         buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
                         meta.description = "Graphical first-boot assistant for the nixdots configuration";
@@ -288,6 +288,7 @@
             launchers = nixpkgs.lib.genAttrs supportedSystems (system:
                 nixpkgs.legacyPackages.${system}.callPackage ./packages/installer-launcher.nix {
                     installer = installers.${system};
+                    inherit theme;
                 });
         in
         {
@@ -336,7 +337,7 @@
                 # share/themes/kmscon-palette; regenerate it with
                 # `nix build .#kmscon-palette --print-out-paths`.
                 kmscon-palette =
-                    nixpkgs.legacyPackages.${system}.callPackage ./packages/kmscon-palette.nix { };
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/kmscon-palette.nix { inherit theme; };
 
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
@@ -384,7 +385,7 @@
 
                         # A bare `cargo build` in the dev shell needs the same
                         # tables as the package (include_str!(env!(...))).
-                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { inherit theme; }}";
                     });
                     default = pkgs.mkShell {
                         packages = with pkgs; [

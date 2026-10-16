@@ -3,10 +3,10 @@
 # of truth for the colors used by both the `nix run .#installer` launcher and
 # the standalone `install.sh` bootstrap (which reads the committed file
 # `share/themes/kmscon-palette`).
-{ pkgs }:
+{ pkgs, theme }:
 
 let
-    palette = import ../lib/kmscon-palette.nix;
+    palette = import ../lib/kmscon-palette.nix { inherit theme; };
 in
 pkgs.writeText "kmscon-palette"
     (pkgs.lib.concatMapStrings (e: "--${palette.name e.suffix}\n${e.value}\n") palette.entries)

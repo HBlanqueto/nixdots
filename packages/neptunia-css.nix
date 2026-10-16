@@ -1,10 +1,10 @@
 # Renders the neptunia palette as GTK/libadwaita CSS (`@define-color` over the
 # libadwaita named colors) plus a full-screen blurred background, generated from
 # `share/themes/neptunia.nix` — the same source of truth as `kmscon-palette`.
-{ pkgs }:
+{ pkgs, theme }:
 
 let
-    t = import ../share/themes/neptunia.nix;
+    t = theme.colors;
     hex = name: "#${t.${name}}";
 
     # Fondo a pantalla completa, generado en tiempo de build (gradiente de la

@@ -1,6 +1,6 @@
+{ theme }:
 let
-    theme = import ../../../../../share/themes;
-    icons = import ./icons.nix;
+    icons = import ./icons.nix { inherit theme; };
 in
 
 with theme.colors;

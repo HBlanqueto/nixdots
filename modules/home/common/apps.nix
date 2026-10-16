@@ -3,7 +3,7 @@
 let
     inherit (data.settings) gitName gitEmail stateVersion;
 
-    yaziConfig = import ./config/yazi;
+    yaziConfig = import ./config/yazi { inherit theme; };
 
     hexToRgb = hex:
         let

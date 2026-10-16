@@ -1,6 +1,4 @@
-let
-    theme = import ../../../../../share/themes;
-in
+{ theme }:
 
 rec {
     globs = [ ];

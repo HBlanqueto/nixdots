@@ -1,7 +1,7 @@
-{ pkgs, installer }:
+{ pkgs, installer, theme }:
 
 let
-    palette = import ../lib/kmscon-palette.nix;
+    palette = import ../lib/kmscon-palette.nix { inherit theme; };
     nerd = pkgs.nerd-fonts.jetbrains-mono;
     fontsConf = pkgs.makeFontsConf { fontDirectories = [ nerd ]; };
 

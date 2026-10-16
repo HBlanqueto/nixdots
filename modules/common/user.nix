@@ -1,8 +1,6 @@
-{ config, lib, pkgs, data, ... }:
+{ config, lib, pkgs, data, theme, ... }:
 
 let
-    theme = import ../../share/themes;
-
     # The installed system checks the final path; the installer evaluates from
     # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
     # where the file lives. On a normal system the variable is unset ("").
