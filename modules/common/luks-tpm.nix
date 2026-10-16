@@ -34,7 +34,7 @@ in
 
         # Ephemeral root: these must outlive the rollback or the unlock breaks on
         # the next boot. /var/lib/auto-cryptenroll (the enrollment marker) is
-        # already persisted by secure-boot.nix.
+        # persisted by secure-boot.nix whenever encrypt and tpmUnlock are set.
         environment.persistence."/persist" = {
             directories = [ "/var/lib/pcrlock.d" ];
             files = [ "/var/lib/systemd/pcrlock.json" ];
