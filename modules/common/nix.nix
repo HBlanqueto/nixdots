@@ -29,12 +29,6 @@
     nix = {
         settings = {
             experimental-features = [ "nix-command" "flakes" ];
-            substituters = [
-                "https://attic.xuyh0120.win/lantian"
-            ];
-            trusted-public-keys = [
-                "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc="
-            ];
 
             # Kept off: some derivations here rely on pre-existing store paths
             # and would not build in a sandbox.
