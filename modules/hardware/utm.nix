@@ -23,6 +23,9 @@
         initrd.kernelModules = [ "virtio_gpu" ];
     };
 
+    # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.
+    nixdots.console.hwRender = false;
+
     # Clipboard sharing and dynamic resolution with the UTM/SPICE console.
     services.spice-vdagentd.enable = true;
     services.qemuGuest.enable = true;

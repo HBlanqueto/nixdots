@@ -16,6 +16,7 @@
     ./machine-info.nix
     ./first-boot.nix
     ./services.nix
+    ./console.nix
     ./fonts.nix
     ./uutils.nix
     ./ai.nix
