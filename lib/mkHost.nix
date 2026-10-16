@@ -6,12 +6,12 @@
 # name and as networking.hostName, so `nixos-rebuild switch --flake ~/nixdots`
 # resolves the host automatically.
 { inputs, settings, firstBoot, impure }:
-{ hostName, system, modules ? [ ] }:
+{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     specialArgs = {
-        inherit inputs hostName firstBoot;
+        inherit inputs hostName firstBoot machineData;
     } // import ./specialArgs.nix { inherit settings; };
 
     # Common + desktop layers are shared; the host supplies its own
@@ -20,11 +20,13 @@ inputs.nixpkgs.lib.nixosSystem {
         ../modules/common
         ../modules/desktop
         # Sin evaluación impura no se puede leer user.json; abortar en vez de
-        # tratar el host como primer arranque (que borraría la cuenta).
+        # tratar el host como primer arranque (que borraría la cuenta). Las
+        # salidas puras de CI (requireImpure = false) se saltan la assertion: no
+        # activan la cuenta ni el cifrado, solo sirven para `nix flake check`.
         (_: {
             assertions = [
                 {
-                    assertion = impure;
+                    assertion = !requireImpure || impure;
                     message = "nixdots necesita evaluación impura para leer /persist/nixdots/user.json: usa nixdots-rebuild o añade --impure";
                 }
             ];
