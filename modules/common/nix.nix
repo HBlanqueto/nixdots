@@ -1,4 +1,4 @@
-{ pkgs, inputs, stateVersion, ... }:
+{ pkgs, lib, inputs, stateVersion, ... }:
 
 {
     # Impermanence roots common to both hosts. ThinkPad-only persistent dirs
@@ -33,6 +33,11 @@
             # Kept off: some derivations here rely on pre-existing store paths
             # and would not build in a sandbox.
             sandbox = false;
+
+            # Conserva las dependencias de build de las generaciones vivas:
+            # sin esto el GC semanal borra los outputs de los inputs del flake
+            # y hay que volver a descargarlos.
+            keep-outputs = true;
         };
 
         optimise.automatic = true;
@@ -45,6 +50,11 @@
             options = "--delete-older-than 14d";
         };
     };
+
+    # Mantén vivos los sources de los inputs del flake (fuentes, temas...),
+    # para que el GC semanal no obligue a re-descargarlos.
+    system.extraDependencies =
+        lib.mapAttrsToList (_: i: i.outPath) (lib.filterAttrs (n: _: n != "self") inputs);
 
     nixpkgs = {
         config = {
