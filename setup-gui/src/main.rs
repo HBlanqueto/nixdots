@@ -48,7 +48,8 @@ fn main() -> glib::ExitCode {
     app.connect_startup(|_| theme::install());
     let state = Rc::new(RefCell::new(Model::default()));
     app.connect_activate(move |app| build(app, state.clone(), Rc::new(repo.clone()), sim));
-    app.run()
+    // Mis propios argumentos ya están leídos; GApplication no debe ver --sim.
+    app.run_with_args::<&str>(&["nixdots-setup-gui"])
 }
 
 fn build(app: &adw::Application, state: Rc<RefCell<Model>>, repo: Rc<String>, sim: bool) {
