@@ -128,23 +128,21 @@
                             '';
                         };
 
-                        # Datos de prueba que el asistente aplica al arrancar.
-                        environment.etc."nixdots-setup.json".text = builtins.toJSON {
-                            fullName = "Prueba";
-                            username = "prueba";
-                            locale = "es_MX.UTF-8";
-                            keyboardLayout = "es";
-                            keyboardVariant = "";
-                            timeZone = "America/Merida";
-                        };
+                        # /run/user/0 para el bus de sesión del asistente (root).
+                        systemd.tmpfiles.rules = [ "d /run/user/0 0700 root root -" ];
 
-                        # El asistente corre solo (cage) con estos datos; la
-                        # contraseña de prueba llega por stdin. Los hosts reales
+                        # El asistente gráfico corre bajo cage, como root, con un
+                        # bus de sesión propio (sin él, libadwaita/portales
+                        # avisan y StyleManager no funciona). Los hosts reales
                         # conservan el placeholder de first-boot.nix.
                         nixdots.firstBoot.command =
-                            "${pkgs.writeShellScript "firstboot-vm-setup" ''
-                                printf 'test1234\n' | ${setups.${system}}/bin/nixdots-setup \
-                                    apply /etc/nixdots-setup.json --repo /persist/nixdots/repo
+                            "${pkgs.writeShellScript "firstboot-vm-gui" ''
+                                export XDG_RUNTIME_DIR=/run/user/0
+                                export GSETTINGS_BACKEND=memory
+                                export GDK_BACKEND=wayland
+                                export NO_AT_BRIDGE=1
+                                exec ${pkgs.dbus}/bin/dbus-run-session -- \
+                                    ${setupsGui.${system}}/bin/nixdots-setup-gui
                             ''}";
                     })
                 ];
@@ -253,6 +251,44 @@
 
             setups = nixpkgs.lib.genAttrs supportedSystems mkSetup;
 
+            # Asistente gráfico (GTK4 + libadwaita): llama al CLI nixdots-setup.
+            mkSetupGui = system:
+                let
+                    pkgs = nixpkgs.legacyPackages.${system};
+                in
+                pkgs.rustPlatform.buildRustPackage {
+                    pname = "nixdots-setup-gui";
+                    version = "0.1.0";
+
+                    src = ./.;
+                    buildAndTestSubdir = "setup-gui";
+                    cargoLock.lockFile = ./Cargo.lock;
+
+                    nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
+                    buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
+
+                    # Tablas de nixdots-lists y el CSS del tema (include_str!).
+                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                    NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
+
+                    postInstall = ''
+                        wrapProgram $out/bin/nixdots-setup-gui \
+                            --prefix PATH : ${pkgs.lib.makeBinPath [ setups.${system} ]}
+                    '';
+
+                    meta = {
+                        description = "Graphical first-boot assistant for the nixdots configuration";
+                        mainProgram = "nixdots-setup-gui";
+                        license = pkgs.lib.licenses.gpl2Only;
+                        platforms = supportedSystems;
+                    };
+                };
+
+            setupsGui = nixpkgs.lib.genAttrs supportedSystems mkSetupGui;
+
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
             # neptunia palette) on a real VT, then runs the installer inside it.
             launchers = nixpkgs.lib.genAttrs supportedSystems (system:
@@ -275,6 +311,7 @@
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
                 installer = installers.${system};
                 setup = setups.${system};
+                setup-gui = setupsGui.${system};
                 launcher = launchers.${system};
                 default = launchers.${system};
 
@@ -321,6 +358,8 @@
                             clang
                             lld
                             pkg-config
+                            gtk4
+                            libadwaita
                         ];
 
                         # The installer embeds these tables at compile time with
@@ -330,6 +369,7 @@
                         NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
                         NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
                         NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { }}";
                     };
                     default = pkgs.mkShell {
                         packages = with pkgs; [ cargo rustc gcc pkg-config ];
