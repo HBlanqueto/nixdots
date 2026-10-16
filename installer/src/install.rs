@@ -121,12 +121,9 @@ pub struct Plan {
 }
 
 impl Plan {
-    pub fn installed_repo(&self) -> Result<PathBuf> {
-        Ok(self
-            .root
-            .join("home")
-            .join(self.settings.username_required()?)
-            .join("nixdots"))
+    pub fn installed_repo(&self) -> PathBuf {
+        // El repo vive en /persist (persistente), no en el home del usuario.
+        self.root.join("persist/nixdots/repo")
     }
 
     pub fn log_path(&self) -> PathBuf {
@@ -231,12 +228,7 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         plan.settings.username.as_deref().unwrap_or("(ninguno)")
     ));
     report.raw(&format!("dispositivo: {}", plan.device));
-    report.raw(&format!(
-        "repo destino: {}",
-        plan.installed_repo()
-            .map(|repo| repo.display().to_string())
-            .unwrap_or_else(|_| "(sin usuario)".to_string())
-    ));
+    report.raw(&format!("repo destino: {}", plan.installed_repo().display()));
 
     match run_steps(&plan, &mut report) {
         Ok(()) => {
@@ -1218,7 +1210,7 @@ fn step_tpm_enroll(
 }
 
 fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let dest = plan.installed_repo()?;
+    let dest = plan.installed_repo();
     if plan.dry_run {
         report.log(format!("$ cp -a {} {}", plan.source.display(), dest.display()));
         fs::create_dir_all(&dest)?;
@@ -1252,7 +1244,7 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
 /// `safe.directory` are passed per-invocation (`-c`), so nothing is written to
 /// the user's git config; the Git screen's identity is used when provided.
 fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo()?;
+    let repo = plan.installed_repo();
 
     if plan.dry_run {
         report.log(format!(
@@ -1361,7 +1353,7 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
 const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo()?;
+    let repo = plan.installed_repo();
     report.log("escribiendo settings.nix, user.json, la contraseña y hardware-configuration");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.without_user().write(&repo)?;
@@ -1483,7 +1475,7 @@ fn write_host_files(
     hardware_config: &str,
     luks: Option<&detect::LuksPartition>,
 ) -> Result<()> {
-    let repo = plan.installed_repo()?;
+    let repo = plan.installed_repo();
     let host = &plan.settings.host_name;
     let dir = repo.join("hosts").join(host);
     let target = if repo.join("hosts").is_dir() {
@@ -1547,7 +1539,7 @@ fn write_host_files(
 /// secrets directory and (when NetworkManager connected) the saved Wi-Fi
 /// profile. Runs after the disk is mounted and before nixos-install.
 fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo()?;
+    let repo = plan.installed_repo();
     let persist = plan.root.join("persist");
 
     // The flake only sees git-tracked paths, so stage what the installer wrote
@@ -1787,7 +1779,7 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo()?;
+    let repo = plan.installed_repo();
     let flake = format!("{}#{}", repo.display(), plan.settings.host_name);
     let build = target_build_dir(plan);
 
