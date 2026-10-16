@@ -5,8 +5,8 @@
 # aarch64-linux configuration. `hostName` is used both as the flake output
 # name and as networking.hostName, so `nixos-rebuild switch --flake ~/nixdots`
 # resolves the host automatically.
-{ inputs, data, theme }:
-{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true }:
+{ inputs, baseData, theme }:
+{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true, data ? baseData }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 

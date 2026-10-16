@@ -26,21 +26,25 @@
             # evaluación pura (nix flake check sin --impure) no ve /persist y
             # todo cae a los valores seguros, por eso los hosts reales exigen
             # impure (ver mkHost).
-            data = import ./lib/data.nix;
+            data = import ./lib/data.nix { };
+
+            # Variante sin datos externos: las salidas de CI no deben leer
+            # /persist ni con --impure (no tienen user.json/machine.json/facter).
+            emptyData = import ./lib/data.nix { impure = false; };
 
             # El tema (colores, filecolors, vscode) se importa una sola vez y
             # baja por specialArgs/extraSpecialArgs a los módulos, y como
             # argumento a los paquetes que lo usan.
             theme = import ./share/themes;
 
-            mkHost = import ./lib/mkHost.nix { inherit inputs data theme; };
+            mkHost = import ./lib/mkHost.nix { inherit inputs theme; baseData = data; };
 
             # Módulos exclusivos del perfil único (asumen el layout de disko y/o
             # un informe de facter); no los importa ningún host con hardware
             # propio. lanzaboote y luks-tpm solo se importan si la máquina pide
             # Secure Boot (secure-boot.nix no puede importarlos condicionalmente,
             # y luks-tpm define boot.lanzaboote, que necesita ese módulo).
-            genericModules =
+            genericModules = machineData:
                 [
                     ./modules/common/facter.nix
                     ./modules/common/filesystems-labels.nix
@@ -50,7 +54,7 @@
                     # facter ve una CPU AMD en bare-metal.
                     inputs.ucodenix.nixosModules.default
                 ]
-                ++ nixpkgs.lib.optionals (data.machine.secureBoot or false) [
+                ++ nixpkgs.lib.optionals (machineData.secureBoot or false) [
                     inputs.lanzaboote.nixosModules.lanzaboote
                     ./modules/common/luks-tpm.nix
                 ];
@@ -59,18 +63,25 @@
             # que necesita impure (builtins.currentSystem + los .json en
             # /persist). En evaluación pura cae a x86_64-linux para que
             # `nix flake check` al menos liste la salida.
-            mkGeneric = { system, requireImpure ? true, ciOnly ? false }: mkHost {
-                hostName = data.machine.hostName or "nixdots";
-                inherit system requireImpure;
-                machineData = data.machine;
-                modules = genericModules
-                    ++ nixpkgs.lib.optional ciOnly {
-                        # Las salidas puras de CI no tienen cuenta (no hay
-                        # user.json), así que satisfacen la assertion de NixOS
-                        # "ningún usuario con contraseña". Nunca se arrancan.
-                        users.allowNoPasswordLogin = true;
-                    };
-            };
+            mkGeneric = { system, requireImpure ? true, ciOnly ? false }:
+                let
+                    # CI (ciOnly) usa un data vacío: sin user.json, sin
+                    # machine.json y sin facter, aunque se evalúe con --impure.
+                    hostData = if ciOnly then emptyData else data;
+                in
+                mkHost {
+                    hostName = hostData.machine.hostName or "nixdots";
+                    inherit system requireImpure;
+                    machineData = hostData.machine;
+                    data = hostData;
+                    modules = genericModules hostData.machine
+                        ++ nixpkgs.lib.optional ciOnly {
+                            # Las salidas puras de CI no tienen cuenta (no hay
+                            # user.json), así que satisfacen la assertion de NixOS
+                            # "ningún usuario con contraseña". Nunca se arrancan.
+                            users.allowNoPasswordLogin = true;
+                        };
+                };
 
             # Every directory under hosts/ with a host.nix is a configuration.
             # host.nix declares the per-host `profile` and `system`; the flake

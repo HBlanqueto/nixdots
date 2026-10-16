@@ -1,6 +1,6 @@
 { inputs, lib, data, theme, ... }:
 
-lib.mkIf (data.settings.username != null) {
+lib.mkIf ((data.settings.username or null) != null) {
     home-manager = {
         backupFileExtension = "backup";
 

@@ -8,8 +8,11 @@ let
     # where the file lives. On a normal system the variable is unset ("").
     inherit (data) root;
 
-    # Todo lo personal sale de data.settings (settings.nix + user.json).
-    inherit (data.settings) username userdescription timeZone defaultLocale keyboardLayout keyboardVariant;
+    # Todo lo personal sale de data.settings (settings.nix + user.json). En las
+    # variantes de CI no hay user.json, así que los campos personales caen a null.
+    inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;
+    username = data.settings.username or null;
+    userdescription = data.settings.userdescription or null;
 
     # Derivado del usuario: no se guarda en ningún archivo.
     hashedPasswordFile =

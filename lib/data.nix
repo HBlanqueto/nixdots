@@ -2,10 +2,12 @@
 # machine.json y la ruta del informe de facter, bajo ${NIXDOTS_ROOT}/persist/nixdots.
 # El flake y los módulos consumen este attrset; nadie más llama a getEnv,
 # pathExists ni readFile para leerlos.
+#
+# `impure` por defecto es `builtins ? currentSystem` (evaluación pura => valores
+# seguros). Las variantes de CI lo fuerzan a false para NO leer /persist ni
+# siquiera con --impure.
+{ impure ? (builtins ? currentSystem) }:
 let
-    # La evaluación pura (nix flake check sin --impure) no ve el entorno ni el
-    # sistema de archivos: todo cae a los valores seguros ({ } / null).
-    impure = builtins ? currentSystem;
     root = builtins.getEnv "NIXDOTS_ROOT";
 
     persist = "${root}/persist/nixdots";

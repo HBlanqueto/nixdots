@@ -1,7 +1,10 @@
 { pkgs, lib, inputs, data, theme, ... }:
 
 let
-    inherit (data.settings) gitName gitEmail stateVersion;
+    # Los campos personales no están en las variantes de CI (sin user.json).
+    stateVersion = data.settings.stateVersion;
+    gitName = data.settings.gitName or null;
+    gitEmail = data.settings.gitEmail or null;
 
     yaziConfig = import ./config/yazi { inherit theme; };
 
