@@ -14,9 +14,6 @@
         lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
 
         brave-previews.url = "github:drishal/brave-browser-flake";
-
-        disko.url = "github:nix-community/disko";
-        disko.inputs.nixpkgs.follows = "nixpkgs";
     };
 
     outputs = inputs@{ nixpkgs, ... }:
@@ -158,7 +155,7 @@
                     # these on its PATH so the binary works from a minimal ISO
                     # without pulling them in by hand.
                     runtimeInputs = with pkgs; [
-                        inputs.disko.packages.${system}.disko
+                        disko
                         btrfs-progs
                         dosfstools
                         util-linux
