@@ -37,7 +37,9 @@ impl DiskDecision {
     /// The freed space, in bytes, the shrink bar currently selects.
     pub fn clamp_shrink(&self, bytes: u64) -> u64 {
         match self {
-            DiskDecision::Shrink { min_free, max_free, .. } => bytes.clamp(*min_free, *max_free),
+            DiskDecision::Shrink {
+                min_free, max_free, ..
+            } => bytes.clamp(*min_free, *max_free),
             _ => bytes,
         }
     }
@@ -129,7 +131,10 @@ pub fn parse_size(size: &str, total: u64) -> u64 {
         let pct: f64 = percent.parse().unwrap_or(100.0);
         return ((total as f64) * pct / 100.0) as u64;
     }
-    let (digits, suffix) = size.split_at(size.find(|c: char| !c.is_ascii_digit()).unwrap_or(size.len()));
+    let (digits, suffix) = size.split_at(
+        size.find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(size.len()),
+    );
     let value: f64 = digits.parse().unwrap_or(0.0);
     let multiplier = match suffix.trim().to_ascii_uppercase().as_str() {
         "K" | "KB" | "KIB" => 1024_u64,

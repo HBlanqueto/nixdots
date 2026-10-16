@@ -82,7 +82,10 @@ fn strength_note(app: &App) -> Line<'static> {
     let (filled, label, color) = strength(app.password.p1.value(), &app.palette);
     Line::from(vec![
         Span::styled("█".repeat(filled), Style::default().fg(color)),
-        Span::styled("░".repeat(12 - filled), Style::default().fg(app.palette.rule)),
+        Span::styled(
+            "░".repeat(12 - filled),
+            Style::default().fg(app.palette.rule),
+        ),
         Span::styled(
             format!(" {label}"),
             Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -91,7 +94,10 @@ fn strength_note(app: &App) -> Line<'static> {
 }
 
 /// (filled cells out of 12, label, colour) for the strength bar.
-fn strength(pass: &str, palette: &crate::theme::Palette) -> (usize, &'static str, ratatui::style::Color) {
+fn strength(
+    pass: &str,
+    palette: &crate::theme::Palette,
+) -> (usize, &'static str, ratatui::style::Color) {
     let n = pass.chars().count();
     let mut classes = 0;
     if pass.chars().any(|c| c.is_ascii_lowercase()) {

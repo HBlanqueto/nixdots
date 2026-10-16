@@ -68,7 +68,13 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     );
     y += 2;
 
-    draw_carousel(f, app, Rect::new(area.x, y, area.width, CARD_H), visible, start);
+    draw_carousel(
+        f,
+        app,
+        Rect::new(area.x, y, area.width, CARD_H),
+        visible,
+        start,
+    );
     y += CARD_H;
     if carousel {
         draw_dots(f, app, Rect::new(area.x, y, area.width, 1), total_disks);
@@ -79,16 +85,24 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     // Decision sentence.
     let (text, color) = sentence(app);
     f.render_widget(
-        Paragraph::new(Span::styled(text, Style::default().fg(color)))
-            .alignment(Alignment::Center),
+        Paragraph::new(Span::styled(text, Style::default().fg(color))).alignment(Alignment::Center),
         Rect::new(area.x, y, area.width, 1),
     );
     y += 1;
 
     // Shrink distribution bar.
     if shrink_case {
-        if let DiskDecision::Shrink { volume, max_free, .. } = app.disks.decision {
-            draw_shrink(f, app, Rect::new(area.x, y, area.width, 1), volume, max_free);
+        if let DiskDecision::Shrink {
+            volume, max_free, ..
+        } = app.disks.decision
+        {
+            draw_shrink(
+                f,
+                app,
+                Rect::new(area.x, y, area.width, 1),
+                volume,
+                max_free,
+            );
             y += 1;
         }
     }
@@ -173,13 +187,7 @@ fn draw_carousel(f: &mut Frame, app: &App, area: Rect, visible: usize, start: us
     let arrow_y = cards.y + CARD_H / 2;
     let left_on = start > 0;
     let right_on = start + visible < total;
-    arrow(
-        f,
-        app,
-        Rect::new(left.x, arrow_y, ARROW_W, 1),
-        "‹",
-        left_on,
-    );
+    arrow(f, app, Rect::new(left.x, arrow_y, ARROW_W, 1), "‹", left_on);
     arrow(
         f,
         app,
@@ -272,8 +280,11 @@ fn draw_card(f: &mut Frame, app: &App, rect: Rect, i: usize) {
     let mut lines: Vec<Line> = icon
         .iter()
         .map(|line| {
-            Line::from(Span::styled(line.to_string(), Style::default().fg(name_color)))
-                .alignment(Alignment::Center)
+            Line::from(Span::styled(
+                line.to_string(),
+                Style::default().fg(name_color),
+            ))
+            .alignment(Alignment::Center)
         })
         .collect();
     lines.push(
@@ -393,7 +404,10 @@ fn sentence(app: &App) -> (String, ratatui::style::Color) {
 
 /// Whether at least one disk can be installed to.
 pub fn has_usable_disk(app: &App) -> bool {
-    app.disks.disks.iter().any(|d| d.unusable_reason().is_none())
+    app.disks
+        .disks
+        .iter()
+        .any(|d| d.unusable_reason().is_none())
 }
 
 /// `Windows ████ nixdots ████` with ‹ › steppers.
@@ -429,14 +443,18 @@ fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64)
     f.render_widget(
         Paragraph::new(Span::styled(
             "‹",
-            Style::default().fg(app.palette.primary).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.palette.primary)
+                .add_modifier(Modifier::BOLD),
         )),
         left,
     );
     f.render_widget(
-        Paragraph::new(        Span::styled(
+        Paragraph::new(Span::styled(
             "›",
-            Style::default().fg(app.palette.primary).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(app.palette.primary)
+                .add_modifier(Modifier::BOLD),
         )),
         right,
     );
@@ -446,10 +464,7 @@ fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64)
 fn details(app: &App) -> Vec<String> {
     let size = match app.disks.effective() {
         DiskDecision::Shrink { .. } => app.disks.shrink_bytes,
-        DiskDecision::FreeSpace { .. } => app
-            .selected_disk()
-            .map(|d| d.free)
-            .unwrap_or(0),
+        DiskDecision::FreeSpace { .. } => app.selected_disk().map(|d| d.free).unwrap_or(0),
         _ => app
             .selected_disk()
             .map(|d| d.size.saturating_sub(diskplan::GIB))
@@ -461,7 +476,10 @@ fn details(app: &App) -> Vec<String> {
         "sin cifrar"
     };
     vec![
-        format!("EFI 1 GB · System HD {} btrfs · {cifrado}", human_size(size)),
+        format!(
+            "EFI 1 GB · System HD {} btrfs · {cifrado}",
+            human_size(size)
+        ),
         "@ @home @nix @log @persist · zram".to_string(),
     ]
 }

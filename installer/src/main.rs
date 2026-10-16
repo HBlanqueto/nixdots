@@ -43,7 +43,11 @@ fn parse_args() -> Result<Args> {
             other => bail!("argumento desconocido: {other}\n\n{}", help_text()),
         }
     }
-    Ok(Args { dry_run, repo, help })
+    Ok(Args {
+        dry_run,
+        repo,
+        help,
+    })
 }
 
 fn help_text() -> String {

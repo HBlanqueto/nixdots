@@ -107,8 +107,7 @@ pub fn connection_up() -> bool {
         .stdin(Stdio::null())
         .output()
     {
-        if output.status.success()
-            && String::from_utf8_lossy(&output.stdout).trim() == "connected"
+        if output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == "connected"
         {
             return true;
         }
@@ -285,7 +284,14 @@ fn scan_nmcli() -> Vec<Wifi> {
         let signal = fields[1].trim().parse::<u8>().unwrap_or(0);
         let security = fields[2].trim();
         let secured = !security.is_empty() && security != "--";
-        push_unique(&mut networks, Wifi { ssid, signal, secured });
+        push_unique(
+            &mut networks,
+            Wifi {
+                ssid,
+                signal,
+                secured,
+            },
+        );
     }
     networks.sort_by_key(|n| std::cmp::Reverse(n.signal));
     networks
@@ -339,14 +345,21 @@ fn scan_iwctl() -> Vec<Wifi> {
         let secured = security == "psk" || security == "8021x";
         push_unique(
             &mut networks,
-            Wifi { ssid: ssid.to_string(), signal: 70, secured },
+            Wifi {
+                ssid: ssid.to_string(),
+                signal: 70,
+                secured,
+            },
         );
     }
     networks
 }
 
 fn scan_wpa_cli() -> Vec<Wifi> {
-    let _ = Command::new("wpa_cli").arg("scan").stdin(Stdio::null()).output();
+    let _ = Command::new("wpa_cli")
+        .arg("scan")
+        .stdin(Stdio::null())
+        .output();
     let Ok(output) = Command::new("wpa_cli")
         .arg("scan_results")
         .stdin(Stdio::null())
@@ -367,7 +380,14 @@ fn scan_wpa_cli() -> Vec<Wifi> {
         if ssid.is_empty() {
             continue;
         }
-        push_unique(&mut networks, Wifi { ssid, signal, secured });
+        push_unique(
+            &mut networks,
+            Wifi {
+                ssid,
+                signal,
+                secured,
+            },
+        );
     }
     networks.sort_by_key(|n| std::cmp::Reverse(n.signal));
     networks
@@ -407,9 +427,21 @@ fn run_connect(mut cmd: Command) -> Result<()> {
 /// Sample networks for the dry-run.
 pub fn sample_networks() -> Vec<Wifi> {
     vec![
-        Wifi { ssid: "nixdots-lab".into(), signal: 90, secured: true },
-        Wifi { ssid: "Casa-2.4G".into(), signal: 62, secured: true },
-        Wifi { ssid: "Cafe-Invitados".into(), signal: 34, secured: false },
+        Wifi {
+            ssid: "nixdots-lab".into(),
+            signal: 90,
+            secured: true,
+        },
+        Wifi {
+            ssid: "Casa-2.4G".into(),
+            signal: 62,
+            secured: true,
+        },
+        Wifi {
+            ssid: "Cafe-Invitados".into(),
+            signal: 34,
+            secured: false,
+        },
     ]
 }
 
@@ -419,8 +451,24 @@ mod tests {
 
     #[test]
     fn bars_reflect_signal() {
-        assert_eq!(Wifi { ssid: "x".into(), signal: 90, secured: false }.bars(), "▂▄▆█");
-        assert_eq!(Wifi { ssid: "x".into(), signal: 10, secured: false }.bars(), "▂   ");
+        assert_eq!(
+            Wifi {
+                ssid: "x".into(),
+                signal: 90,
+                secured: false
+            }
+            .bars(),
+            "▂▄▆█"
+        );
+        assert_eq!(
+            Wifi {
+                ssid: "x".into(),
+                signal: 10,
+                secured: false
+            }
+            .bars(),
+            "▂   "
+        );
     }
 
     #[test]

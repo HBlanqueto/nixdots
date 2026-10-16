@@ -5,9 +5,7 @@
 //! enrolled during the install; it is never written to the disk, the log or the
 //! command panel.
 
-use crate::app::{
-    Action, App, ENC_ACCOUNT, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM,
-};
+use crate::app::{Action, App, ENC_ACCOUNT, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM};
 use crate::runner::{self, Cmd};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -259,7 +257,10 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             },
             KeyCode::Down | KeyCode::Tab => {
                 let targets = app.enc.targets();
-                let pos = targets.iter().position(|&t| t == app.enc.focus).unwrap_or(0);
+                let pos = targets
+                    .iter()
+                    .position(|&t| t == app.enc.focus)
+                    .unwrap_or(0);
                 if pos + 1 < targets.len() {
                     app.enc.focus = targets[pos + 1];
                 } else {
@@ -269,7 +270,10 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
             }
             KeyCode::Up | KeyCode::BackTab => {
                 let targets = app.enc.targets();
-                let pos = targets.iter().position(|&t| t == app.enc.focus).unwrap_or(0);
+                let pos = targets
+                    .iter()
+                    .position(|&t| t == app.enc.focus)
+                    .unwrap_or(0);
                 if pos > 0 {
                     app.enc.focus = targets[pos - 1];
                 }
@@ -321,7 +325,9 @@ pub fn commands(app: &App) -> Vec<String> {
         format!(
             "cryptsetup luksAddKey --key-file /run/... <partición crypto_LUKS de {device}> /run/..."
         ),
-        format!("systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <partición LUKS de {device}>"),
+        format!(
+            "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <partición LUKS de {device}>"
+        ),
     ]
 }
 
@@ -377,7 +383,12 @@ pub fn draw_usb(f: &mut Frame, app: &App, area: Rect) {
                 ))
                 .alignment(Alignment::Center),
             ]),
-            Rect::new(inner.x, inner.y + 1, inner.width, inner.height.saturating_sub(2)),
+            Rect::new(
+                inner.x,
+                inner.y + 1,
+                inner.width,
+                inner.height.saturating_sub(2),
+            ),
         );
     } else {
         let mut lines = Vec::new();
@@ -395,7 +406,12 @@ pub fn draw_usb(f: &mut Frame, app: &App, area: Rect) {
         }
         f.render_widget(
             Paragraph::new(lines),
-            Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1)),
+            Rect::new(
+                inner.x,
+                inner.y,
+                inner.width,
+                inner.height.saturating_sub(1),
+            ),
         );
     }
 

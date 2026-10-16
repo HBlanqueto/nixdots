@@ -6,8 +6,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let w = area.width;
@@ -84,7 +84,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let pad = (w as usize)
         .saturating_sub("Este equipo se llamará".chars().count() + pretty.chars().count() + 1);
     lines.push(Line::from(vec![
-        Span::styled("Este equipo se llamará", Style::default().fg(app.palette.muted)),
+        Span::styled(
+            "Este equipo se llamará",
+            Style::default().fg(app.palette.muted),
+        ),
         Span::raw(" ".repeat(pad)),
         Span::styled(pretty, Style::default().fg(app.palette.highlight)),
     ]));
@@ -175,7 +178,10 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![
-        format!("settings.nix: userdescription = \"{}\";", app.user.name.value()),
+        format!(
+            "settings.nix: userdescription = \"{}\";",
+            app.user.name.value()
+        ),
         format!("settings.nix: username = \"{}\";", app.final_username()),
     ]
 }

@@ -60,7 +60,12 @@ pub fn generate_username(name: &str) -> String {
             out.push(base.to_ascii_lowercase());
         }
     }
-    if out.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+    if out
+        .chars()
+        .next()
+        .map(|c| c.is_ascii_digit())
+        .unwrap_or(false)
+    {
         out.insert(0, 'u');
     }
     out.truncate(32);

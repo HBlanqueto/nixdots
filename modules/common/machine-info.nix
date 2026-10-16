@@ -4,9 +4,9 @@
 { lib, settings, ... }:
 
 {
-    environment.etc."machine-info" = lib.mkIf (settings ? prettyHostName) {
-        text = ''
-            PRETTY_HOSTNAME="${settings.prettyHostName}"
-        '';
-    };
+  environment.etc."machine-info" = lib.mkIf (settings ? prettyHostName) {
+    text = ''
+      PRETTY_HOSTNAME="${settings.prettyHostName}"
+    '';
+  };
 }

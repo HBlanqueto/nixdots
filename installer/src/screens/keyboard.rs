@@ -109,6 +109,9 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 pub fn commands(app: &App) -> Vec<String> {
     vec![
         format!("loadkeys {}", app.keyboard_layout),
-        format!("settings.nix: keyboardLayout = \"{}\";", app.keyboard_layout),
+        format!(
+            "settings.nix: keyboardLayout = \"{}\";",
+            app.keyboard_layout
+        ),
     ]
 }

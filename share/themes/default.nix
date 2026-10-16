@@ -1,12 +1,9 @@
 rec {
-    colors =
-        import ./neptunia.nix;
+  colors = import ./neptunia.nix;
 
-    filecolors =
-        import ./filecolors.nix;
+  filecolors = import ./filecolors.nix;
 
-    vscode =
-        import ./vscode.nix {
-            inherit colors filecolors;
-        };
+  vscode = import ./vscode.nix {
+    inherit colors filecolors;
+  };
 }

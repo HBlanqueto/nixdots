@@ -2,9 +2,9 @@
 { pkgs, lib, ... }:
 
 let
-  paddedName = base: pkg:
-    base + builtins.concatStringsSep ""
-      (builtins.genList (_: "_") (builtins.stringLength pkg.version));
+  paddedName =
+    base: pkg:
+    base + builtins.concatStringsSep "" (builtins.genList (_: "_") (builtins.stringLength pkg.version));
 
   uutilsReplacement = base: old: new: {
     oldDependency = old;
@@ -20,11 +20,10 @@ in
   # That is fine on the ThinkPad, but the aarch64 VM cannot build aarch64
   # packages from an x86 host, so cross-arch evaluation (nix eval / flake
   # check) would fail. Only apply the replacement on x86_64.
-  system.replaceDependencies.replacements =
-    lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
-      (uutilsReplacement "coreuutils-full" pkgs.coreutils-full pkgs.uutils-coreutils-noprefix)
-      (uutilsReplacement "coreuutils" pkgs.coreutils pkgs.uutils-coreutils-noprefix)
-      (uutilsReplacement "finduutils" pkgs.findutils pkgs.uutils-findutils)
-      (uutilsReplacement "diffuutils" pkgs.diffutils pkgs.uutils-diffutils)
-    ];
+  system.replaceDependencies.replacements = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
+    (uutilsReplacement "coreuutils-full" pkgs.coreutils-full pkgs.uutils-coreutils-noprefix)
+    (uutilsReplacement "coreuutils" pkgs.coreutils pkgs.uutils-coreutils-noprefix)
+    (uutilsReplacement "finduutils" pkgs.findutils pkgs.uutils-findutils)
+    (uutilsReplacement "diffuutils" pkgs.diffutils pkgs.uutils-diffutils)
+  ];
 }

@@ -1,36 +1,45 @@
 { pkgs, ... }: {
 
-    fonts = {
-        fontDir = {
-            enable = true;
+  fonts = {
+    fontDir = {
+      enable = true;
     };
-    
-        enableGhostscriptFonts = true;
 
-        packages = with pkgs; [
-            inter
-            cantarell-fonts
-            noto-fonts-cjk-sans
-            noto-fonts-cjk-serif
-            noto-fonts-color-emoji
+    enableGhostscriptFonts = true;
 
-            nerd-fonts.ubuntu-mono
-            sf-mono-liga-bin
+    packages = with pkgs; [
+      inter
+      cantarell-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-cjk-serif
+      noto-fonts-color-emoji
 
-            victor-mono
+      nerd-fonts.ubuntu-mono
+      sf-mono-liga-bin
 
-            corefonts
-            vista-fonts 
-            twitter-color-emoji
+      victor-mono
+
+      corefonts
+      vista-fonts
+      twitter-color-emoji
+    ];
+
+    fontconfig = {
+      defaultFonts = {
+        monospace = [
+          "UbuntuMono Nerd Font"
+          "Victor Mono"
         ];
-
-        fontconfig = {
-            defaultFonts = {
-                monospace = [ "UbuntuMono Nerd Font" "Victor Mono" ];
-                sansSerif = [ "Inter" "Noto Sans CJK SC" ];
-                serif     = [ "Noto Serif CJK SC" ];
-                emoji     = [ "Twitter Color Emoji" "Noto Color Emoji" ];
-            };
-        };
+        sansSerif = [
+          "Inter"
+          "Noto Sans CJK SC"
+        ];
+        serif = [ "Noto Serif CJK SC" ];
+        emoji = [
+          "Twitter Color Emoji"
+          "Noto Color Emoji"
+        ];
+      };
     };
+  };
 }

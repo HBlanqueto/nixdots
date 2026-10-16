@@ -194,7 +194,9 @@ fn spawn_and_stream(
     match child.wait() {
         Ok(status) => status.code().unwrap_or(-1),
         Err(err) => {
-            sink(Stream::Stderr(format!("error esperando a {program}: {err}")));
+            sink(Stream::Stderr(format!(
+                "error esperando a {program}: {err}"
+            )));
             -1
         }
     }
@@ -243,7 +245,9 @@ mod tests {
     fn run_streams_and_returns_code() {
         let mut lines = Vec::new();
         let code = run(
-            &Cmd::new("sh").arg("-c").arg("echo uno; echo dos >&2; exit 3"),
+            &Cmd::new("sh")
+                .arg("-c")
+                .arg("echo uno; echo dos >&2; exit 3"),
             &mut |out| match out {
                 Stream::Stdout(l) => lines.push(format!("out:{l}")),
                 Stream::Stderr(l) => lines.push(format!("err:{l}")),

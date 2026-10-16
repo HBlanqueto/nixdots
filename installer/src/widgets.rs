@@ -257,7 +257,11 @@ impl Widget for ButtonRow<'_> {
             }
             let is_focus = self.focused && i == self.focus && button.enabled;
             if !button.enabled {
-                push_button(&mut flat, &button.label, Style::default().fg(self.palette.disabled));
+                push_button(
+                    &mut flat,
+                    &button.label,
+                    Style::default().fg(self.palette.disabled),
+                );
             } else if is_focus {
                 let text = Style::default()
                     .fg(self.palette.white)
@@ -327,14 +331,8 @@ pub fn text_field(
         palette.rule
     };
     let border = Style::default().fg(border_color);
-    let top = Line::from(Span::styled(
-        format!("╭{}╮", "─".repeat(w - 2)),
-        border,
-    ));
-    let bottom = Line::from(Span::styled(
-        format!("╰{}╯", "─".repeat(w - 2)),
-        border,
-    ));
+    let top = Line::from(Span::styled(format!("╭{}╮", "─".repeat(w - 2)), border));
+    let bottom = Line::from(Span::styled(format!("╰{}╯", "─".repeat(w - 2)), border));
 
     let inner_w = w.saturating_sub(4);
     let empty = value.is_empty();
@@ -373,12 +371,13 @@ pub fn text_field(
     if focused && cursor_on {
         value_spans.push(Span::styled(
             at.to_string(),
-            Style::default()
-                .fg(palette.on_primary)
-                .bg(palette.primary),
+            Style::default().fg(palette.on_primary).bg(palette.primary),
         ));
     } else {
-        value_spans.push(Span::styled(at.to_string(), Style::default().fg(value_color)));
+        value_spans.push(Span::styled(
+            at.to_string(),
+            Style::default().fg(value_color),
+        ));
     }
     value_spans.push(Span::styled(after, Style::default().fg(value_color)));
     value_spans.push(Span::styled(" │", border));
@@ -408,7 +407,12 @@ pub fn checkbox(palette: &Palette, checked: bool, label: &str, focused: bool) ->
 
 /// A selectable list row: an accent capsule with white bold text when selected,
 /// plain `#adbac7` otherwise. No focus marker. The trailing text is muted.
-pub fn list_row(palette: &Palette, selected: bool, text: String, trailing: Option<String>) -> Line<'static> {
+pub fn list_row(
+    palette: &Palette,
+    selected: bool,
+    text: String,
+    trailing: Option<String>,
+) -> Line<'static> {
     let style = if selected {
         Style::default()
             .fg(palette.white)
