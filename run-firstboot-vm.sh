@@ -30,15 +30,11 @@ esac
 NIXDOTS_ROOT="$(mktemp -d)"
 export NIXDOTS_ROOT
 
-nixos-rebuild build-vm --flake "$REPO#$host"
+nix build "$REPO#nixosConfigurations.$host.config.system.build.vm"
 
 cat <<EOF
 
-VM construida. Arráncala con:
-
-    ./result/bin/run-$host-vm
-
-Dentro, el asistente corre solo (cage) con datos de prueba en
+VM construida. Dentro, el asistente corre solo (cage) con datos de prueba en
 /etc/nixdots-setup.json: escribe /persist/nixdots/user.json, hace
 'nixos-rebuild boot' y reinicia. Tras el reinicio arranca GDM con el usuario
 "prueba" (contraseña de prueba: test1234).
@@ -46,3 +42,5 @@ Dentro, el asistente corre solo (cage) con datos de prueba en
 Si cambias la config del host, borra ./$host.qcow2 para partir de cero (las
 generaciones del rebuild viven ahí).
 EOF
+
+exec "./result/bin/run-$host-vm"
