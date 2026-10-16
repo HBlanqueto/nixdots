@@ -1367,9 +1367,12 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
         git_name: plan.settings.git_name.clone(),
         git_email: plan.settings.git_email.clone(),
         default_locale: None,
+        region: None,
         time_zone: None,
+        time_zone_auto: None,
         keyboard_layout: None,
         keyboard_variant: None,
+        a11y: None,
     };
     report.log(format!("$ escribir {}", nixdots_core::user_data::path().display()));
     user.write()?;

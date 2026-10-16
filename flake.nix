@@ -237,6 +237,13 @@
 
                     nativeBuildInputs = [ pkgs.makeWrapper ];
 
+                    # Tablas que `nixdots-lists` embebe para validar locale y
+                    # zona horaria (include_str!(env!(...))).
+                    NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                    NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                    NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                    NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+
                     postInstall = ''
                         wrapProgram $out/bin/nixdots-setup \
                             --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
@@ -410,6 +417,7 @@
                         packages = with pkgs; [
                             cargo
                             rustc
+                            rustfmt
                             rust-analyzer
                             clippy
                             watchexec

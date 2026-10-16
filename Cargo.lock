@@ -2962,6 +2962,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "nixdots-core",
+ "nixdots-lists",
  "serde",
  "serde_json",
  "zeroize",

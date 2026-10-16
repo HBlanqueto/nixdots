@@ -9,6 +9,22 @@ use color_eyre::eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Preferencias de accesibilidad (todas `false` por defecto).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct A11y {
+    #[serde(default)]
+    pub large_text: bool,
+    #[serde(default)]
+    pub high_contrast: bool,
+    #[serde(default)]
+    pub screen_reader: bool,
+    #[serde(default)]
+    pub reduce_motion: bool,
+    #[serde(default)]
+    pub screen_keyboard: bool,
+}
+
 /// Lo que se escribe en `user.json` (camelCase, como lo lee el flake). Los
 /// campos opcionales se omiten si son `None`, para que el `//` del flake deje
 /// el valor de `settings.nix`.
@@ -24,12 +40,20 @@ pub struct UserData {
     pub git_email: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_locale: Option<String>,
+    /// Locale de región y formatos (p. ej. `es_MX.UTF-8`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_zone: Option<String>,
+    /// Zona horaria automática (geoclue); si es `true`, `timeZone` es respaldo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_zone_auto: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard_layout: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard_variant: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub a11y: Option<A11y>,
 }
 
 /// `${NIXDOTS_ROOT}/persist/nixdots/user.json`. Construido como cadena: sin
