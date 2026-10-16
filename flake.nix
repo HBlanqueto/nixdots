@@ -70,7 +70,10 @@
                     hostData = if ciOnly then emptyData else data;
                 in
                 mkHost {
-                    hostName = hostData.machine.hostName or "nixdots";
+                    # Nombre del equipo por defecto según la arquitectura detectada.
+                    hostName = hostData.machine.hostName or (
+                        if system == "aarch64-linux" then "UTM-aarch64" else "ThinkPad-L14-Gen2"
+                    );
                     inherit system requireImpure;
                     machineData = hostData.machine;
                     data = hostData;
@@ -259,10 +262,17 @@
                         mkpasswd
                         coreutils
                     ];
-                    extra.meta.description = "First-boot assistant CLI for the nixdots configuration";
+                    # Tablas que `nixdots-lists` embebe para validar locale y zona.
+                    extra = (tablesEnv pkgs) // {
+                        meta.description = "First-boot assistant CLI for the nixdots configuration";
+                    };
                 });
 
-            # Asistente gráfico (GTK4 + libadwaita): llama al CLI nixdots-setup.
+            # Asistente gráfico (Slint): llama al CLI nixdots-setup.
+            #
+            # Licencia: Slint es GPL-3.0-only (o comercial/royalty-free). El
+            # flake declara gpl2Only y GPLv2-only es incompatible con GPLv3.
+            # Ver setup-gui/Cargo.toml.
             setupsGui = nixpkgs.lib.genAttrs supportedSystems (system:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
@@ -271,11 +281,17 @@
                     pname = "nixdots-setup-gui";
                     subdir = "setup-gui";
                     runtimeInputs = [ setups.${system} ];
-                    extra = (tablesEnv pkgs) // {
-                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { inherit theme; }}";
-                        nativeBuildInputs = [ pkgs.pkg-config pkgs.wrapGAppsHook4 ];
-                        buildInputs = [ pkgs.gtk4 pkgs.libadwaita ];
-                        meta.description = "Graphical first-boot assistant for the nixdots configuration";
+                    extra = {
+                        nativeBuildInputs = [ pkgs.pkg-config pkgs.makeWrapper ];
+                        buildInputs = with pkgs; [
+                            fontconfig
+                            freetype
+                            libxkbcommon
+                            libglvnd
+                            wayland
+                            libx11
+                        ];
+                        meta.description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                     };
                 });
 
@@ -347,6 +363,18 @@
                         fi
                         ${pkgs.coreutils}/bin/touch $out
                     '';
+
+                    # El archivo versionado setup-gui/ui/neptunia-tokens.slint
+                    # debe coincidir con lo que genera share/themes/neptunia.nix.
+                    neptunia-slint = pkgs.runCommand "check-neptunia-slint" { } ''
+                        if ! ${pkgs.diffutils}/bin/diff -u ${./setup-gui/ui/neptunia-tokens.slint} ${pkgs.callPackage ./packages/neptunia-slint.nix { }}; then
+                            echo "" >&2
+                            echo "setup-gui/ui/neptunia-tokens.slint está desactualizado. Regéneralo con:" >&2
+                            echo "  cp \$(nix build .#neptunia-slint --print-out-paths) setup-gui/ui/neptunia-tokens.slint" >&2
+                            exit 1
+                        fi
+                        ${pkgs.coreutils}/bin/touch $out
+                    '';
                 });
 
             packages = nixpkgs.lib.genAttrs supportedSystems (system: {
@@ -370,6 +398,12 @@
                 # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
                 xnu-console-font =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/xnu-console-font.nix { };
+
+                # Tokens de Neptunia para Slint, generados desde share/themes.
+                # El archivo vive versionado en setup-gui/ui/neptunia-tokens.slint;
+                # regenéralo con `nix build .#neptunia-slint --print-out-paths`.
+                neptunia-slint =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/neptunia-slint.nix { };
             });
 
             apps = nixpkgs.lib.genAttrs supportedSystems (system: {
@@ -411,6 +445,44 @@
                         # tables as the package (include_str!(env!(...))).
                         NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { inherit theme; }}";
                     });
+                    # Shell del asistente Slint: compila (winit + femtovg) y abre
+                    # la UI; slint-viewer/slint-lsp para editar .slint. Incluye el
+                    # CLI nixdots-setup para que «Aplicar» (--dry-run) funcione.
+                    setup-gui = pkgs.mkShell {
+                        packages = with pkgs; [
+                            cargo
+                            rustc
+                            rustfmt
+                            rust-analyzer
+                            clippy
+                            watchexec
+                            pkg-config
+                            slint-viewer
+                            slint-lsp
+                            fontconfig
+                            freetype
+                            libxkbcommon
+                            libglvnd
+                            wayland
+                            libx11
+                            setups.${system}
+                        ];
+                        # Tablas que `lists` embebe (para `cargo clippy --workspace`).
+                        NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                        NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                        NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                        NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                        # winit/femtovg cargan libwayland, libEGL… con dlopen, que
+                        # no mira el PATH: hacen falta en el loader path.
+                        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
+                            wayland
+                            libxkbcommon
+                            libglvnd
+                            fontconfig
+                            freetype
+                            libx11
+                        ]);
+                    };
                     default = pkgs.mkShell {
                         packages = with pkgs; [
                             cargo
