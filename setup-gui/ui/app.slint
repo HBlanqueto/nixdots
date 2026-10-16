@@ -447,12 +447,14 @@ component IconRow inherits Rectangle {
 component Button inherits Rectangle {
     in property <string> label;
     in property <bool> primary: false;
+    in property <bool> enabled: true;
     in property <length> w: 112px;
     callback clicked();
     width: w;
     height: Tokens.controllg;
     border-radius: Tokens.radiusmd;
     background: primary ? Theme.accent : Tokens.bgControl;
+    opacity: root.enabled ? 1 : 0.4;
     Text {
         text: root.label;
         color: primary ? Theme.accent-ink : Tokens.inkStrong;
@@ -465,7 +467,7 @@ component Button inherits Rectangle {
         wrap: no-wrap;
     }
     TouchArea {
-        clicked => { root.clicked(); }
+        clicked => { if (root.enabled) { root.clicked(); } }
     }
 }
 
@@ -820,6 +822,14 @@ export component AppWindow inherits Window {
                     State.a11y-screen-reader, "Lector de pantalla"),
                 State.a11y-reduce-motion, "Reducir animaciones"),
             State.a11y-screen-keyboard, "Teclado en pantalla");
+    }
+    // «Continuar» del paso Cuenta sólo con nombre, usuario válido y contraseñas.
+    function cuenta-valid() -> bool {
+        return State.full-name != ""
+            && State.username != ""
+            && State.username-error == ""
+            && State.password != ""
+            && State.password2 == State.password;
     }
 
     // Todo el contenido va bajo este FocusScope: así Esc e Intro se oyen aunque
@@ -1248,8 +1258,20 @@ export component AppWindow inherits Window {
                             }
                             HorizontalLayout {
                                 spacing: 12px;
-                                Field { label: "Contraseña"; password: true; text <=> State.password; }
-                                Field { label: "Repetir"; password: true; text <=> State.password2; }
+                                Field {
+                                    label: "Contraseña";
+                                    password: true;
+                                    text <=> State.password;
+                                    help: State.password == "" ? "Escribe una contraseña" : "";
+                                    error: State.password == "";
+                                }
+                                Field {
+                                    label: "Repetir";
+                                    password: true;
+                                    text <=> State.password2;
+                                    help: State.password2 != "" && State.password2 != State.password ? "Las contraseñas no coinciden" : "";
+                                    error: State.password2 != "" && State.password2 != State.password;
+                                }
                             }
                             HorizontalLayout {
                                 spacing: 8px;
@@ -1631,6 +1653,7 @@ export component AppWindow inherits Window {
                 Button {
                     label: State.step == 9 ? "Aplicar" : "Continuar";
                     primary: true;
+                    enabled: State.step != 4 || root.cuenta-valid();
                     clicked => {
                         if (State.step == 9) { root.apply(); }
                         else { State.step = root.next-step(State.step); }
