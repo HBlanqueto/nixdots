@@ -1,6 +1,9 @@
-{ config, pkgs, username, ... }:
+{ config, pkgs, lib, username, ... }:
 
 {
+    options.nixdots.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
+
+    config = {
     networking = {
         networkmanager.enable = true;
     };
@@ -33,8 +36,23 @@
         fstrim.enable = true;
         gnome.gnome-keyring.enable = true;
         gvfs.enable = true;
-        openssh.enable = true;
         seatd.enable = true;
+
+        openssh = lib.mkIf config.nixdots.ssh.enable {
+            enable = true;
+            settings = {
+                PasswordAuthentication = false;
+                KbdInteractiveAuthentication = false;
+                PermitRootLogin = "no";
+            };
+            # Solo ed25519, en /persist para que no se regenere en cada arranque.
+            hostKeys = [
+                {
+                    path = "/persist/etc/ssh/ssh_host_ed25519_key";
+                    type = "ed25519";
+                }
+            ];
+        };
 
         avahi = {
             enable = true;
@@ -76,5 +94,6 @@
         enable = true;
         algorithm = "zstd";
         memoryPercent = 50;
+    };
     };
 }
