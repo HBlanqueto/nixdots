@@ -7,6 +7,8 @@
     # the aarch64 VM, so it stays out of modules/common.
     imports = [
         inputs.lanzaboote.nixosModules.lanzaboote
+        # ucodenix carga microcódigo extraído de imágenes de BIOS porque
+        # linux-firmware no lo trae para los Ryzen de portátil.
         inputs.ucodenix.nixosModules.default
         ./luks-tpm.nix
     ];
@@ -56,6 +58,9 @@
             };
         };
 
+        # amd_sha_check=off es necesario para ucodenix: esos parches no están
+        # en la lista de hashes que el kernel comprueba desde EntrySign.
+        # Reevaluar tras actualizar la BIOS con fwupd.
         kernelParams = [ "microcode.amd_sha_check=off" ];
     };
 
@@ -65,6 +70,7 @@
         "/var/lib/auto-cryptenroll"
         "/var/lib/cups"
         "/var/lib/libvirt"
+        "/var/lib/fwupd"
     ];
 
     virtualisation.libvirtd = {
@@ -88,6 +94,7 @@
 
         acpid.enable = true;
         blueman.enable = true;
+        fwupd.enable = true;
         upower.enable = true;
         trezord.enable = true;
 

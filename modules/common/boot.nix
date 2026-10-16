@@ -22,8 +22,8 @@
             theme = "spinner";
         };
 
-        # Generic kernel parameters shared by both hosts; the ThinkPad adds
-        # microcode.amd_sha_check=off on top of these.
+        # Generic kernel parameters shared by both hosts; modules/hardware/thinkpad.nix
+        # adds microcode.amd_sha_check=off on top of these, for ucodenix.
         kernelParams = [ "quiet" "rd.udev.log_level=3" "rd.systemd.show_status=auto" ];
 
         kernel.sysctl = {
