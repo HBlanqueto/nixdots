@@ -298,19 +298,19 @@ component OptionRow inherits Rectangle {
     }
 }
 
-// Interruptor Neptunia (np-switch).
+// Interruptor Neptunia (np-switch): 36 × 20, perilla de 16.
 component Toggle inherits Rectangle {
     in-out property <bool> checked;
-    width: 38px;
-    height: 22px;
+    width: 36px;
+    height: 20px;
     border-radius: Tokens.radiuspill;
     background: checked ? Theme.accent : Tokens.bgControl;
     border-width: checked ? 0px : 1px;
     border-color: Tokens.line;
     knob := Rectangle {
-        width: 18px;
-        height: 18px;
-        border-radius: 9px;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
         background: #ffffff;
         drop-shadow-color: rgba(13, 18, 25, 0.3);
         drop-shadow-blur: 3px;
@@ -324,7 +324,7 @@ component Toggle inherits Rectangle {
     }
 }
 
-// Botón cápsula Neptunia (np-btn--lg).
+// Botón Neptunia (np-btn--lg): 38 px, radius-md, no cápsula.
 component CapsuleButton inherits Rectangle {
     in property <string> label;
     in property <bool> primary: false;
@@ -332,7 +332,7 @@ component CapsuleButton inherits Rectangle {
     callback clicked();
     width: w;
     height: Tokens.controllg;
-    border-radius: Tokens.radiuspill;
+    border-radius: Tokens.radiusmd;
     background: primary ? Theme.accent : Tokens.bgControl;
     Text {
         text: root.label;
@@ -1524,7 +1524,7 @@ export component AppWindow inherits Window {
                 Rectangle {
                     width: 200px;
                     height: Tokens.controllg;
-                    border-radius: Tokens.radiuspill;
+                    border-radius: Tokens.radiusmd;
                     background: #ffffff;
                     Text {
                         text: "Reiniciar y empezar";
