@@ -42,8 +42,8 @@ export global State {
 
     // Este equipo (sólo lectura). Rust las rellena al arrancar.
     in-out property <string> machine-model: "ThinkPad L14 Gen 2a";
-    in-out property <string> machine-cpu: "Ryzen 5 Pro 5650U";
-    in-out property <string> machine-ram: "16 GiB";
+    in-out property <string> machine-cpu: "AMD Ryzen 5 PRO 5650U with Radeon Graphics";
+    in-out property <string> machine-ram: "16 GB";
     in-out property <string> machine-disk: "System HD · 256 GB";
     in-out property <string> machine-host: "ThinkPad-L14-Gen2";
 
@@ -287,22 +287,22 @@ component LinkText inherits Rectangle {
     }
 }
 
-// Azulejo de dato (Este equipo / Bienvenida).
+// Azulejo de dato (Este equipo / Bienvenida). Se estira en su fila.
 component InfoTile inherits Rectangle {
     in property <string> caption;
     in property <string> value;
-    in property <length> w: 190px;
-    width: w;
     height: 58px;
+    horizontal-stretch: 1;
     border-radius: 10px;
     background: Theme.tile;
     border-width: 1px;
     border-color: Theme.list-border;
     VerticalLayout {
+        alignment: start;
         padding-left: 14px;
         padding-right: 14px;
-        padding-top: 12px;
-        padding-bottom: 12px;
+        padding-top: 11px;
+        padding-bottom: 11px;
         spacing: 3px;
         Text {
             text: root.caption;
@@ -892,42 +892,51 @@ export component AppWindow inherits Window {
                 animate x { duration: 300ms; }
                 animate opacity { duration: 250ms; }
                 VerticalLayout {
-                    spacing: 14px;
+                    alignment: start;
+                    spacing: 20px;
                     StepHeader {
                         title: "Este equipo";
                         subtitle: "Esto es lo que se instaló. No hay nada que cambiar.";
                         IconTile { MonitorIcon { ink: Theme.accent; } }
                     }
-                    GridLayout {
+                    VerticalLayout {
+                        alignment: start;
                         spacing: 8px;
-                        InfoTile { col: 0; row: 0; caption: "Modelo"; value: State.machine-model; }
-                        InfoTile { col: 1; row: 0; caption: "Procesador"; value: State.machine-cpu; }
-                        InfoTile { col: 0; row: 1; caption: "Memoria"; value: State.machine-ram; }
-                        InfoTile { col: 1; row: 1; caption: "Disco"; value: State.machine-disk; }
-                    }
-                    Rectangle {
-                        width: 100%;
-                        height: 42px;
-                        border-radius: 10px;
-                        background: Theme.list;
-                        border-width: 1px;
-                        border-color: Theme.list-border;
-                        Text {
-                            x: 14px;
-                            text: "Nombre del equipo";
-                            color: Theme.sub;
-                            font-size: 13px;
-                            vertical-alignment: center;
-                            height: parent.height;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            InfoTile { caption: "Modelo"; value: State.machine-model; }
+                            InfoTile { caption: "Procesador"; value: State.machine-cpu; }
                         }
-                        Text {
-                            x: parent.width - self.width - 14px;
-                            text: State.machine-host;
-                            color: Theme.text;
-                            font-size: 13px;
-                            font-weight: 600;
-                            vertical-alignment: center;
-                            height: parent.height;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            InfoTile { caption: "Memoria"; value: State.machine-ram; }
+                            InfoTile { caption: "Disco"; value: State.machine-disk; }
+                        }
+                        Rectangle {
+                            height: 42px;
+                            border-radius: 10px;
+                            background: Theme.list;
+                            border-width: 1px;
+                            border-color: Theme.list-border;
+                            Text {
+                                x: 14px;
+                                text: "Nombre del equipo";
+                                color: Theme.sub;
+                                font-size: 13px;
+                                vertical-alignment: center;
+                                height: parent.height;
+                            }
+                            Text {
+                                x: parent.width - self.width - 14px;
+                                text: State.machine-host;
+                                color: Theme.text;
+                                font-size: 13px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                                height: parent.height;
+                                wrap: no-wrap;
+                                overflow: elide;
+                            }
                         }
                     }
                 }
