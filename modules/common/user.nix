@@ -64,7 +64,13 @@ in
         earlySetup = true;
         # Fondo negro puro en la consola del kernel (no el bg neptunia).
         colors = with theme.colors; [ "000000" c1 c2 c3 c4 c5 c6 c7 ] ++ [ lbg c9 c10 c11 c12 c13 c14 c15 ];
-        font = "Lat2-Terminus16";
+        # "xnu" usa la fuente bitmap que incrusta xnu (el kernel de macOS) en
+        # initrd, consola de emergencia y arranque de Plymouth. La VM de primer
+        # arranque no importa console.nix y cae a "sfmono".
+        font =
+            if (config.nixdots.console.font or "sfmono") == "xnu"
+            then "${pkgs.xnu-console-font}/share/consolefonts/xnu-console.psf"
+            else "Lat2-Terminus16";
         # The console uses the same xkb layout as the desktop.
         useXkbConfig = true;
     };
