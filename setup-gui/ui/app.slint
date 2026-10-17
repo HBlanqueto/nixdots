@@ -797,6 +797,16 @@ export component AppWindow inherits Window {
 
     out property <bool> in-dlg: State.step >= 1 && State.step <= 9;
 
+    // Fondo: Rust lo sustituye por el PNG desenfocado en caché; el zoom lento
+    // (1.00→1.04 en 30 s, ida y vuelta) sólo corre en el saludo y sin reduce.
+    in-out property <image> wallpaper: @image-url("firstboot-blur.jpg");
+    out property <float> bg-scale: (Motion.reduce || State.step != 0)
+        ? 1.0
+        : (1.0 + 0.04 * root.bg-tri(animation-tick()));
+    function bg-tri(t: duration) -> float {
+        return mod(t, 60s) / 30s <= 1 ? mod(t, 60s) / 30s : 2 - mod(t, 60s) / 30s;
+    }
+
     function off(i: int) -> length {
         return Motion.reduce ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
     }
@@ -866,12 +876,15 @@ export component AppWindow inherits Window {
         activated => { if (State.step == 0) { State.step = 1; } }
     }
 
-    // Fondo ya desenfocado (docs/first-boot/firstboot-blur.jpg) + velo.
+    // Fondo desenfocado en Rust (ver `wallpaper` en main.rs) + velo. Zoom muy
+    // lento 1.00→1.04 en 30 s, ida y vuelta; sólo mientras dura el saludo.
     Image {
-        source: @image-url("firstboot-blur.jpg");
+        source: root.wallpaper;
         width: parent.width;
         height: parent.height;
         image-fit: cover;
+        transform-scale-x: root.bg-scale;
+        transform-scale-y: root.bg-scale;
     }
     Rectangle {
         width: parent.width;
@@ -904,7 +917,7 @@ export component AppWindow inherits Window {
                 width: 100%;
                 height: 200px;
                 opacity: State.g-shown ? 1 : 0;
-                animate opacity { duration: 450ms; }
+                animate opacity { duration: Motion.reduce ? 0ms : 450ms; }
                 Text {
                     width: 100%;
                     height: 100%;
@@ -958,7 +971,7 @@ export component AppWindow inherits Window {
                                 height: 100%;
                                 vertical-alignment: center;
                                 opacity: State.g-shown ? 1 : 0;
-                                animate opacity { duration: 450ms; }
+                                animate opacity { duration: Motion.reduce ? 0ms : 450ms; }
                             }
                             VerticalLayout {
                                 alignment: center;
@@ -983,7 +996,7 @@ export component AppWindow inherits Window {
                     font-size: 14px;
                     horizontal-alignment: center;
                     opacity: State.g-shown ? 1 : 0;
-                    animate opacity { duration: 450ms; }
+                    animate opacity { duration: Motion.reduce ? 0ms : 450ms; }
                 }
             }
         }
