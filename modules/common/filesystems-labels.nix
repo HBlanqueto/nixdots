@@ -43,9 +43,17 @@ in
     };
 
     # Only a host that was actually encrypted gets a cryptroot; the passphrase
-    # prompt is skipped entirely otherwise.
+    # prompt is skipped entirely otherwise. boot.initrd.systemd.enable lo activa
+    # siempre rollback.nix, así que no se duplica aquí.
     boot.initrd.luks.devices.cryptroot = lib.mkIf m.encrypt {
         device = "/dev/disk/by-uuid/${m.luksUuid}";
         allowDiscards = true;
     };
+
+    assertions = [
+        {
+            assertion = !m.encrypt || config.boot.initrd.luks.devices ? "cryptroot";
+            message = "nixdots.machine.encrypt está activo pero no hay boot.initrd.luks.devices.cryptroot";
+        }
+    ];
 }

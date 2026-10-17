@@ -42,24 +42,19 @@
             mkHost = import ./lib/mkHost.nix { inherit inputs theme; };
 
             # Módulos exclusivos del perfil único (asumen el layout de disko y/o
-            # un informe de facter). lanzaboote y luks-tpm solo se importan si la
-            # máquina pide Secure Boot (secure-boot.nix no puede importarlos
-            # condicionalmente, y luks-tpm define boot.lanzaboote, que necesita
-            # ese módulo).
-            genericModules = machineData:
-                [
-                    ./modules/common/facter.nix
-                    ./modules/common/filesystems-labels.nix
-                    ./modules/common/rollback.nix
-                    # Igual que lanzaboote: el módulo se importa siempre y
-                    # hardware-detect.nix activa ucodenix solo si el informe de
-                    # facter ve una CPU AMD en bare-metal.
-                    inputs.ucodenix.nixosModules.default
-                ]
-                ++ nixpkgs.lib.optionals (machineData.secureBoot or false) [
-                    inputs.lanzaboote.nixosModules.lanzaboote
-                    ./modules/common/luks-tpm.nix
-                ];
+            # un informe de facter). lanzaboote y luks-tpm se importan siempre:
+            # secure-boot.nix decide con mkIf y luks-tpm define boot.lanzaboote.
+            genericModules = [
+                ./modules/common/facter.nix
+                ./modules/common/filesystems-labels.nix
+                ./modules/common/rollback.nix
+                # Igual que lanzaboote: el módulo se importa siempre y
+                # hardware-detect.nix activa ucodenix solo si el informe de
+                # facter ve una CPU AMD en bare-metal.
+                inputs.ucodenix.nixosModules.default
+                inputs.lanzaboote.nixosModules.lanzaboote
+                ./modules/common/luks-tpm.nix
+            ];
 
             # El perfil único detecta el hardware en tiempo de evaluación, así
             # que necesita impure (builtins.currentSystem + los .json en
@@ -78,7 +73,7 @@
                     inherit system requireImpure;
                     machineData = hostData.machine;
                     data = hostData;
-                    modules = genericModules hostData.machine
+                    modules = genericModules
                         ++ nixpkgs.lib.optional ciOnly {
                             # Las salidas puras de CI no tienen cuenta (no hay
                             # user.json), así que satisfacen la assertion de NixOS

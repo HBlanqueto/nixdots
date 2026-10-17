@@ -1,7 +1,7 @@
 # TPM2 auto-unlock of the LUKS2 root, via Lanzaboote's Measured Boot
 # (systemd-pcrlock). It needs a TPM2 chip and Secure Boot, so it is inert unless
-# `nixdots.machine.secureBoot` and `nixdots.encryption.tpmUnlock` are both set;
-# on the UTM VM (no lanzaboote) the encryption assertion rejects it.
+# `nixdots.machine.secureBoot` and `nixdots.machine.tpmUnlock` are both set (the
+# latter requires the former; machine.nix asserts it).
 #
 # lanzaboote's autoCryptenroll is the only TPM enrol when this is on: the
 # installer no longer runs `systemd-cryptenroll --tpm2-pcrs=7`, because a static
@@ -9,17 +9,13 @@
 # (PCR7 changes). autoCryptenroll unlocks with `--unlock-tpm2-device=auto`,
 # wipes the (possible) old TPM2 slot and re-enrolls the pcrlock policy, which
 # systemd-pcrlock keeps up to date on every boot and update.
-#
-# The generic encrypted-root bits live in modules/common/encryption.nix; this
-# module only adds the TPM-specific pieces, so it contributes nothing unless
-# `nixdots.encryption.tpmUnlock` is set.
 { config, lib, ... }:
 
 let
-    cfg = config.nixdots.encryption;
+    m = config.nixdots.machine;
 in
 {
-    config = lib.mkIf (cfg.enable && cfg.tpmUnlock) {
+    config = lib.mkIf (m.encrypt && m.tpmUnlock) {
         boot.lanzaboote = {
             measuredBoot = {
                 enable = true;

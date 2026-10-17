@@ -11,7 +11,6 @@
     ./persistence.nix
     ./filesystems.nix
     ./kernel.nix
-    ./encryption.nix
     ./machine.nix
     ./secure-boot.nix
     ./extras.nix

@@ -51,11 +51,13 @@
             tpmUnlock = lib.mkDefault (data.machine.tpmUnlock or false);
         };
 
-        # The generic encryption module (modules/common/encryption.nix) owns the
-        # cryptroot assertions; here we only feed it the machine's choice.
-        nixdots.encryption = {
-            enable = lib.mkDefault config.nixdots.machine.encrypt;
-            tpmUnlock = lib.mkDefault config.nixdots.machine.tpmUnlock;
-        };
+        assertions = [
+            {
+                # El desbloqueo por TPM2 lo inscribe lanzaboote (measured boot),
+                # que solo existe con Secure Boot.
+                assertion = !config.nixdots.machine.tpmUnlock || config.nixdots.machine.secureBoot;
+                message = "nixdots.machine.tpmUnlock requiere nixdots.machine.secureBoot";
+            }
+        ];
     };
 }
