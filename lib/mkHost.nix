@@ -2,19 +2,18 @@
 #
 # `system` comes from the caller (builtins.currentSystem with --impure, a fixed
 # value in pure evaluation), never hardcoded, so the flake can emit both an
-# x86_64-linux and an aarch64-linux configuration. `hostName` is used as
-# networking.hostName; `data` carries user.json/machine.json/facter.json and
-# `machineData` is data.machine ({} in CI/pure evaluation).
+# x86_64-linux and an aarch64-linux configuration. `data` carries
+# user.json/machine.json/facter.json; hostName sale de data.machine.
 { inputs, theme }:
-{ hostName, system, modules ? [ ], machineData ? { }, requireImpure ? true, data }:
+{ system, modules ? [ ], requireImpure ? true, data }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
-    # Todo llega por `data` (más inputs/theme); no hay argumentos sueltos.
-    # hostName es per-config y machineData lo elige el perfil.
+    # Todo llega por `data` (más inputs/theme); no hay argumentos sueltos. El
+    # hostName por defecto cubre CI y evaluación pura (sin machine.json).
     specialArgs = {
         inherit inputs theme;
-        data = data // { inherit hostName; machine = machineData; };
+        data = data // { hostName = data.machine.hostName or "nixdots"; };
     };
 
     modules = [

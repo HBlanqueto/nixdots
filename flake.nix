@@ -60,27 +60,16 @@
             # que necesita impure (builtins.currentSystem + los .json en
             # /persist). En evaluación pura cae a x86_64-linux para que
             # `nix flake check` al menos liste la salida.
-            mkGeneric = { system, requireImpure ? true, ciOnly ? false }:
-                let
-                    # CI (ciOnly) usa un data vacío: sin user.json, sin
-                    # machine.json y sin facter, aunque se evalúe con --impure.
-                    hostData = if ciOnly then emptyData else data;
-                in
-                mkHost {
-                    # Nombre del equipo por defecto cuando no hay machine.json
-                    # (p. ej. evaluación de CI).
-                    hostName = hostData.machine.hostName or "nixdots";
-                    inherit system requireImpure;
-                    machineData = hostData.machine;
-                    data = hostData;
-                    modules = genericModules
-                        ++ nixpkgs.lib.optional ciOnly {
-                            # Las salidas puras de CI no tienen cuenta (no hay
-                            # user.json), así que satisfacen la assertion de NixOS
-                            # "ningún usuario con contraseña". Nunca se arrancan.
-                            users.allowNoPasswordLogin = true;
-                        };
-                };
+            mkGeneric = { system, requireImpure ? true, data }: mkHost {
+                inherit system requireImpure data;
+                modules = genericModules
+                    ++ nixpkgs.lib.optional (data.username == null) {
+                        # Las salidas sin cuenta (CI, o un equipo sin user.json)
+                        # satisfacen la assertion de NixOS "ningún usuario con
+                        # contraseña". Las de CI nunca se arrancan.
+                        users.allowNoPasswordLogin = true;
+                    };
+            };
 
             # VM de prueba del primer arranque, en ambas arquitecturas. Vive
             # solo en el flake, no en la config real. Solo desktop + first-boot
@@ -181,9 +170,9 @@
             };
 
             # One rust package builder for the three binaries. `runtimeInputs`
-            # are put on PATH by makeWrapper; `extra` overrides or adds any
-            # buildRustPackage attribute (buildInputs, env vars, meta…).
-            mkRustTool = system: { pname, subdir, runtimeInputs ? [ ], extra ? { } }:
+            # are put on PATH by makeWrapper; `description` goes into meta and
+            # `extra` overrides or adds any buildRustPackage attribute.
+            mkRustTool = system: { pname, subdir, description, runtimeInputs ? [ ], extra ? { } }:
                 let
                     pkgs = nixpkgs.legacyPackages.${system};
                     base = {
@@ -204,19 +193,14 @@
                         '';
 
                         meta = {
+                            inherit description;
                             mainProgram = pname;
                             license = pkgs.lib.licenses.gpl2Only;
                             platforms = supportedSystems;
                         };
                     };
                 in
-                pkgs.rustPlatform.buildRustPackage (
-                    base
-                    // extra
-                    // nixpkgs.lib.optionalAttrs (extra ? meta) {
-                        meta = base.meta // extra.meta;
-                    }
-                );
+                pkgs.rustPlatform.buildRustPackage (base // extra);
 
             # Everything the installer shells out to; makeWrapper puts these on
             # its PATH so the binary works from a minimal ISO.
@@ -238,9 +222,8 @@
                         git
                         nix
                     ];
-                    extra = (tablesEnv pkgs) // {
-                        meta.description = "Text-mode installer for the nixdots NixOS configuration";
-                    };
+                    description = "Text-mode installer for the nixdots NixOS configuration";
+                    extra = tablesEnv pkgs;
                 });
 
             # El asistente de primer arranque: solo orquesta mkpasswd, git, nix
@@ -256,10 +239,9 @@
                         mkpasswd
                         coreutils
                     ];
+                    description = "First-boot assistant CLI for the nixdots configuration";
                     # Tablas que `nixdots-lists` embebe para validar locale y zona.
-                    extra = (tablesEnv pkgs) // {
-                        meta.description = "First-boot assistant CLI for the nixdots configuration";
-                    };
+                    extra = tablesEnv pkgs;
                 });
 
             # Asistente gráfico (Slint): llama al CLI nixdots-setup.
@@ -271,6 +253,7 @@
                 mkRustTool system {
                     pname = "nixdots-setup-gui";
                     subdir = "setup-gui";
+                    description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                     runtimeInputs = [ setups.${system} ];
                     extra = {
                         nativeBuildInputs = [ pkgs.pkg-config pkgs.makeWrapper ];
@@ -282,7 +265,6 @@
                             wayland
                             libx11
                         ];
-                        meta.description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                     };
                 });
 
@@ -299,6 +281,7 @@
             nixdots = mkGeneric {
                 system = if data.impure then builtins.currentSystem else "x86_64-linux";
                 requireImpure = true;
+                inherit data;
             };
         in
         {
@@ -312,12 +295,12 @@
                 nixdots-x86_64-linux = mkGeneric {
                     system = "x86_64-linux";
                     requireImpure = false;
-                    ciOnly = true;
+                    data = emptyData;
                 };
                 nixdots-aarch64-linux = mkGeneric {
                     system = "aarch64-linux";
                     requireImpure = false;
-                    ciOnly = true;
+                    data = emptyData;
                 };
 
                 firstboot-vm = mkFirstBootVm {
