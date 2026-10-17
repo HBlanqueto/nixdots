@@ -16,15 +16,17 @@ let
     readable = data.facterReport != null;
 in
 {
-    # nixpkgs reads and parses reportPath itself (report defaults to it).
-    hardware.facter.reportPath = lib.mkIf readable data.facterReport;
+    hardware.facter = {
+        # nixpkgs reads and parses reportPath itself (report defaults to it).
+        reportPath = lib.mkIf readable data.facterReport;
 
-    # facter would hand the network to DHCP when it sees a wired/wireless NIC,
-    # but NetworkManager already manages every interface here; two managers on
-    # the same link fight over the address.
-    hardware.facter.detected.dhcp.enable = lib.mkIf readable false;
+        # facter would hand the network to DHCP when it sees a wired/wireless
+        # NIC, but NetworkManager already manages every interface here; two
+        # managers on the same link fight over the address.
+        detected.dhcp.enable = lib.mkIf readable false;
 
-    # El lector de huellas de esta máquina no funciona bien en Linux, así que no
-    # se usa: fprintd/libfprint fuera aunque el informe de facter lo detecte.
-    hardware.facter.detected.fingerprint.enable = false;
+        # El lector de huellas de esta máquina no funciona bien en Linux, así
+        # que no se usa: fprintd/libfprint fuera aunque el informe lo detecte.
+        detected.fingerprint.enable = false;
+    };
 }

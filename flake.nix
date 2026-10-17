@@ -7,9 +7,11 @@
         home.url = "github:nix-community/home-manager";
         home.inputs.nixpkgs.follows = "nixpkgs";
 
-        impermanence.url = "github:nix-community/impermanence";
-        impermanence.inputs.nixpkgs.follows = "nixpkgs";
-        impermanence.inputs.home-manager.follows = "home";
+        impermanence = {
+            url = "github:nix-community/impermanence";
+            inputs.nixpkgs.follows = "nixpkgs";
+            inputs.home-manager.follows = "home";
+        };
 
         ucodenix.url = "github:e-tho/ucodenix";
 
@@ -297,8 +299,7 @@
                     installer = installers.${system};
                     inherit theme;
                 });
-        in
-        let
+
             # Perfil único: hardware detectado por facter + machine.json. La
             # forma impura resuelve la arquitectura con builtins.currentSystem.
             nixdots = mkGeneric {

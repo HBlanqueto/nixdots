@@ -1,6 +1,6 @@
 { lib, stdenv, fetchurl, python3, fonttosfnt }:
 
-stdenv.mkDerivation (finalAttrs: {
+stdenv.mkDerivation (_finalAttrs: {
     pname = "xnu-console-font";
     version = "12377.121.6";
 

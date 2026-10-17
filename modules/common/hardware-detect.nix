@@ -38,19 +38,22 @@ in
                 qemuGuest.enable = lib.mkIf isQemu true;
             };
 
-            # fwupd state must survive the impermanence rollback.
-            environment.persistence."/persist".directories = lib.optional isBaremetal "/var/lib/fwupd";
+            environment = {
+                # fwupd state must survive the impermanence rollback.
+                persistence."/persist".directories = lib.optional isBaremetal "/var/lib/fwupd";
+
+                systemPackages = lib.optional hasAmdGpu pkgs.radeontop;
+
+                sessionVariables = lib.mkIf isQemu {
+                    # Software cursor avoids a missing/hardware cursor artefact
+                    # under virtio-gpu.
+                    WLR_NO_HARDWARE_CURSORS = "1";
+                };
+            };
 
             # AMD: early KMS (facter already loads amdgpu in the initrd) plus the
             # monitoring tool.
             hardware.amdgpu.initrd.enable = lib.mkIf hasAmdGpu true;
-            environment.systemPackages = lib.optional hasAmdGpu pkgs.radeontop;
-
-            environment.sessionVariables = lib.mkIf isQemu {
-                # Software cursor avoids a missing/hardware cursor artefact under
-                # virtio-gpu.
-                WLR_NO_HARDWARE_CURSORS = "1";
-            };
 
             # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.
             nixdots.console.hwRender = lib.mkIf isQemu false;

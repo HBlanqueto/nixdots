@@ -742,8 +742,8 @@ rec {
 
     filetypeRules =
         [ { url = "*"; } ]
-        ++ map (e: { url = e.name; fg = e.fg; }) files
-        ++ map (e: { url = "*.${e.name}"; fg = e.fg; }) exts
+        ++ map (e: { url = e.name; inherit (e) fg; }) files
+        ++ map (e: { url = "*.${e.name}"; inherit (e) fg; }) exts
         ++ [
             { url = "*/"; fg = theme.filecolors.directory; }
             { url = "*"; is = "exec"; fg = theme.filecolors.executable; }

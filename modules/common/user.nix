@@ -71,7 +71,7 @@ in
     programs.dconf.enable = true;
 
     networking = {
-        hostName = data.hostName;
+        inherit (data) hostName;
     };
 
     users = {

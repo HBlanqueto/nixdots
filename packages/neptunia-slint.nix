@@ -6,8 +6,8 @@
 { pkgs }:
 
 let
-  lib = pkgs.lib;
-  ui = (import ../share/themes/neptunia.nix).ui;
+  inherit (pkgs) lib;
+  inherit ((import ../share/themes/neptunia.nix)) ui;
 
   hex = s: if lib.hasPrefix "rgba" s then s else "#${s}";
   pick = theme: name: hex ui.${theme}.${name};

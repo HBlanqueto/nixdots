@@ -31,16 +31,19 @@ in
 
         # Epson L3250: printing plus the in-tree sane backend. State under
         # /var/lib/cups survives the impermanence rollback.
-        services.printing = lib.mkIf cfg.epson {
-            enable = true;
-            drivers = [ pkgs.epson-escpr ];
+        services = {
+            printing = lib.mkIf cfg.epson {
+                enable = true;
+                drivers = [ pkgs.epson-escpr ];
+            };
+            trezord.enable = cfg.trezor;
+            # udev rule (brightnessctl) for the panel backlight hotkeys.
+            udev.packages = lib.mkIf cfg.brightnessctl [ pkgs.brightnessctl ];
         };
         hardware.sane = lib.mkIf cfg.epson {
             enable = true;
             extraBackends = [ pkgs.epsonscan2 ];
         };
-
-        services.trezord.enable = cfg.trezor;
 
         # The chime plays in the user session, so it needs an account.
         systemd.services.chime = lib.mkIf (cfg.chime && username != null) {
@@ -68,8 +71,6 @@ in
             ${username}.extraGroups = [ "libvirtd" ];
         };
 
-        # udev rule (brightnessctl) for the panel backlight hotkeys, plus the CLI.
-        services.udev.packages = lib.mkIf cfg.brightnessctl [ pkgs.brightnessctl ];
         environment.systemPackages = lib.mkIf cfg.brightnessctl [ pkgs.brightnessctl ];
 
         environment.persistence."/persist".directories =

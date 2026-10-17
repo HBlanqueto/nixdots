@@ -42,7 +42,7 @@
             # alias deprecado para no emitir el aviso.
             inputs.brave-previews.overlays.default
             (_final: prev: {
-                xorg = prev.xorg // { libxcb = prev.libxcb; };
+                xorg = prev.xorg // { inherit (prev) libxcb; };
             })
         ];
     };
