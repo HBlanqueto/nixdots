@@ -248,13 +248,21 @@ pub mod console {
         }
     }
 
-    /// Installs a panic hook that restores the palette before the default hook
-    /// prints the backtrace.
+    /// Installs a panic hook that restores the terminal before the default hook
+    /// prints the backtrace. With `panic = "abort"` a panic skips the normal
+    /// cleanup (`main`'s `restore_terminal`), so without this the shell would be
+    /// left in raw mode / the alternate screen.
     pub fn install_panic_hook() {
         let default = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
+            let _ = ratatui::crossterm::terminal::disable_raw_mode();
+            let mut stdout = std::io::stdout();
+            let _ = ratatui::crossterm::execute!(
+                stdout,
+                ratatui::crossterm::terminal::LeaveAlternateScreen,
+                ratatui::crossterm::cursor::Show
+            );
             if is_linux_console() {
-                let mut stdout = std::io::stdout();
                 let _ = write_restore(&mut stdout);
             }
             default(info);
