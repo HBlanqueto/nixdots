@@ -9,7 +9,7 @@ let
     # Todo lo personal sale de data.settings (settings.nix + user.json). En las
     # variantes de CI no hay user.json, así que los campos personales caen a null.
     inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;
-    username = data.username;
+    inherit (data) username;
     userdescription = data.settings.userdescription or null;
     # Región y formatos, zona horaria automática y accesibilidad.
     region = data.settings.region or null;
