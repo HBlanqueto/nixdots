@@ -5,6 +5,7 @@
 pub mod disk;
 pub mod done;
 pub mod encryption;
+pub mod host;
 pub mod installing;
 pub mod keyboard;
 pub mod license;

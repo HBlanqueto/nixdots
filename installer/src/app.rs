@@ -35,6 +35,7 @@ pub enum Screen {
     Locale,
     Keyboard,
     Timezone,
+    Host,
     Disk,
     Encryption,
     Summary,
@@ -51,6 +52,7 @@ impl Screen {
             Screen::Locale,
             Screen::Keyboard,
             Screen::Timezone,
+            Screen::Host,
             Screen::Disk,
             Screen::Encryption,
             Screen::Summary,
@@ -69,6 +71,7 @@ impl Screen {
             Screen::Locale => "Lenguaje",
             Screen::Keyboard => "Teclado",
             Screen::Timezone => "Zona horaria",
+            Screen::Host => "Equipo",
             Screen::Disk => "Disco",
             Screen::Encryption => "Cifrado",
             Screen::Summary => "Resumen",
@@ -88,7 +91,8 @@ impl Screen {
             Screen::Network => Some(Screen::Locale),
             Screen::Locale => Some(Screen::Keyboard),
             Screen::Keyboard => Some(Screen::Timezone),
-            Screen::Timezone => Some(Screen::Disk),
+            Screen::Timezone => Some(Screen::Host),
+            Screen::Host => Some(Screen::Disk),
             Screen::Disk => Some(Screen::Encryption),
             Screen::Encryption => Some(Screen::Summary),
             Screen::Summary => Some(Screen::Installing),
@@ -108,7 +112,8 @@ impl Screen {
             }),
             Screen::Keyboard => Some(Screen::Locale),
             Screen::Timezone => Some(Screen::Keyboard),
-            Screen::Disk => Some(Screen::Timezone),
+            Screen::Host => Some(Screen::Timezone),
+            Screen::Disk => Some(Screen::Host),
             Screen::Encryption => Some(Screen::Disk),
             Screen::Summary => Some(Screen::Encryption),
         }
@@ -144,6 +149,10 @@ impl App {
             return FocusKind::Buttons;
         }
         match self.screen {
+            Screen::Host => match self.host.focus {
+                0 => FocusKind::Checkbox,
+                _ => FocusKind::Field { last: true },
+            },
             Screen::Encryption => match self.enc.focus {
                 ENC_ACCOUNT | ENC_TPM | ENC_NOTED => FocusKind::Checkbox,
                 _ => FocusKind::Field {
@@ -348,6 +357,17 @@ pub struct NetState {
     pub selected: usize,
     /// When the current connection attempt started (for the 30 s timeout).
     pub connecting_since: Option<Instant>,
+}
+
+/// The Equipo screen: the detected model plus an optional hand-written network
+/// name (the hostname is otherwise generated from the model).
+pub struct HostState {
+    /// "Usar un nombre de red diferente" (unchecked by default).
+    pub custom: bool,
+    /// The hand-written network name, used only while `custom` is set.
+    pub name: Input,
+    /// 0 = casilla, 1 = nombre manual (when `custom`).
+    pub focus: usize,
 }
 
 pub struct DiskState {
@@ -670,6 +690,7 @@ pub struct App {
     pub keyboard_variant: String,
 
     // disk / summary
+    pub host: HostState,
     pub disks: DiskState,
     pub enc: EncState,
 
@@ -767,6 +788,11 @@ impl App {
             source_check_rx: None,
             settings_ok,
             secure_boot,
+            host: HostState {
+                custom: false,
+                name: Input::default(),
+                focus: 0,
+            },
             disks: DiskState {
                 disks,
                 index: disk_index,
@@ -1035,8 +1061,35 @@ impl App {
         }
     }
 
+    /// The network name that will be used: the hand-written one, or the one
+    /// generated from the detected model.
+    pub fn final_host_name(&self) -> String {
+        if self.host.custom && !self.host.name.value().is_empty() {
+            self.host.name.value().to_string()
+        } else {
+            nixdots_core::user::host_name_from_pretty(&self.model)
+        }
+    }
+
+    /// Why the hand-written network name is rejected, if it is. An empty field
+    /// is valid (the generated hostname is used).
+    pub fn host_name_error(&self) -> Option<&'static str> {
+        if !self.host.custom || self.host.name.value().is_empty() {
+            return None;
+        }
+        nixdots_core::user::host_name_error(self.host.name.value())
+    }
+
+    pub fn host_name_valid(&self) -> bool {
+        self.host_name_error().is_none()
+    }
+
     fn apply_current(&mut self) {
         match self.screen {
+            Screen::Host => {
+                self.settings.host_name = self.final_host_name();
+                self.settings.pretty_host_name = self.model.clone();
+            }
             Screen::Timezone => {
                 if let Some(p) = &self.timezones {
                     if let Some(item) = p.current() {
@@ -1341,6 +1394,9 @@ impl App {
     /// Moves the focus to the first field that is not yet valid.
     fn focus_first_incomplete(&mut self) {
         match self.screen {
+            Screen::Host => {
+                self.host.focus = if self.host_name_valid() { 0 } else { 1 };
+            }
             Screen::Encryption => {
                 self.enc.focus = if !self.enc.noted {
                     ENC_NOTED
@@ -1391,6 +1447,7 @@ impl App {
             Screen::Timezone => crate::screens::timezone::key(self, key),
             Screen::Locale => crate::screens::locale::key(self, key),
             Screen::Keyboard => crate::screens::keyboard::key(self, key),
+            Screen::Host => crate::screens::host::key(self, key),
             Screen::Disk => crate::screens::disk::key(self, key),
             Screen::Encryption => crate::screens::encryption::key(self, key),
             Screen::Summary => crate::screens::summary::key(self, key),
@@ -1476,6 +1533,7 @@ impl App {
             Screen::Timezone => crate::screens::timezone::buttons(self),
             Screen::Locale => crate::screens::locale::buttons(self),
             Screen::Keyboard => crate::screens::keyboard::buttons(self),
+            Screen::Host => crate::screens::host::buttons(self),
             Screen::Disk => crate::screens::disk::buttons(self),
             Screen::Encryption => crate::screens::encryption::buttons(self),
             Screen::Summary => crate::screens::summary::buttons(self),
@@ -1641,6 +1699,9 @@ impl App {
             Screen::Locale | Screen::Keyboard | Screen::Timezone | Screen::Network
         );
         self.focus_buttons = self.primary_enabled() && !self.list_focus;
+        if self.screen == Screen::Host {
+            self.host.focus = 0;
+        }
         if self.screen == Screen::Keyboard {
             self.key_test_focus = false;
             self.keyboard_suggested = self.suggested_keyboard();
@@ -1845,6 +1906,13 @@ impl App {
                 .as_ref()
                 .filter(|p| p.selected.is_none())
                 .map(|_| "falta: elegir una zona horaria".to_string()),
+            Screen::Host => {
+                if self.host_name_valid() {
+                    None
+                } else {
+                    Some("nombre de red no válido".into())
+                }
+            }
             Screen::Disk => {
                 if !crate::screens::disk::has_usable_disk(self) {
                     Some("falta: un disco donde instalar".into())
@@ -1889,6 +1957,7 @@ impl App {
                 .as_ref()
                 .map(|p| p.selected.is_some())
                 .unwrap_or(false),
+            Screen::Host => self.host_name_valid(),
             // Install is refused if the repo evaluation already failed.
             Screen::Summary => !matches!(self.source_check, CheckState::Failed(_)),
             Screen::Disk => self.disk_ready(),
@@ -2047,6 +2116,7 @@ impl App {
             Screen::Timezone => crate::screens::timezone::draw(f, self, layout.content),
             Screen::Locale => crate::screens::locale::draw(f, self, layout.content),
             Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.content),
+            Screen::Host => crate::screens::host::draw(f, self, layout.content),
             Screen::Encryption => crate::screens::encryption::draw(f, self, layout.content),
             Screen::Summary => crate::screens::summary::draw(f, self, layout.content),
         }
@@ -2911,6 +2981,7 @@ impl App {
             Screen::Timezone => crate::screens::timezone::commands(self),
             Screen::Locale => crate::screens::locale::commands(self),
             Screen::Keyboard => crate::screens::keyboard::commands(self),
+            Screen::Host => crate::screens::host::commands(self),
             Screen::Disk => crate::screens::disk::commands(self),
             Screen::Encryption => crate::screens::encryption::commands(self),
             Screen::Summary => crate::screens::summary::commands(self),
