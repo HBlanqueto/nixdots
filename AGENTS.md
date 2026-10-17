@@ -29,10 +29,13 @@ actualiza este archivo en el mismo cambio.
   arranque: `firstboot-vm` y `firstboot-vm-aarch64` (`run-firstboot-vm.sh`).
 - **Datos fuera del repo**, en `/persist/nixdots/`:
   - `machine.json` — lo escribe el instalador (hostName, encrypt, luksUuid,
-    secureBoot, tpmUnlock, extras).
+    espUuid, secureBoot, tpmUnlock, extras). `espUuid` es el UUID de la ESP de
+    Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
+    en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
   - `user.json` — lo escribe el asistente de primer arranque (usuario, nombre,
-    prettyHostName localizado, locale, región, teclado, zona, a11y, git).
+    prettyHostName localizado, locale, región, teclado, zona, a11y, git,
+    colorScheme, accentColor y autoLogin).
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
@@ -45,7 +48,9 @@ actualiza este archivo en el mismo cambio.
   en initrd; portátil → acpid/upower; QEMU/UTM → spice-vdagent, qemu-guest).
   No uses condicionales por nombre de host.
 - Opciones propias bajo `options.nixdots.*` (`machine`, `encryption`,
-  `console`, `firstBoot`…).
+  `console`, `firstBoot`…). El TPM2 no lo inscribe el instalador: lo hace
+  lanzaboote (`measuredBoot.autoCryptenroll`, con `systemd-pcrlock`) en el
+  primer arranque, de modo que la política se actualiza sola.
 - Impermanence: la raíz se restaura en cada arranque (Btrfs `@rootfs` desde
   `@rootfs-blank`). Todo estado que deba sobrevivir se declara en
   `environment.persistence."/persist"`.
@@ -61,7 +66,7 @@ actualiza este archivo en el mismo cambio.
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
   256 glifos Latin-1, así que en la TTY el prompt de fish (starship) y `eza` van
   sin iconos Nerd Font, y los caracteres fuera de Latin-1 salen como «?». El
-  lanzador del instalador sí abre kmscon con Liga SFMono Nerd Font 14 y la
+  lanzador del instalador sí abre kmscon con JetBrainsMono Nerd Font Mono 14 y la
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
 - Workspace Rust (`Cargo.toml` raíz):
