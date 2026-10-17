@@ -13,9 +13,9 @@
 { config, lib, ... }:
 
 let
-    # Must match mountOptions in disko.nix (space_cache=v2 es el extra del
-    # sistema instalado; en disko es inocuo no ponerlo).
-    btrfsOptions = [ "noatime" "compress=zstd" "space_cache=v2" ];
+    # Base compartida con disko.nix; space_cache=v2 es el extra del sistema
+    # instalado (en disko es inocuo no ponerlo).
+    btrfsOptions = import ../../lib/btrfs-mount-options.nix ++ [ "space_cache=v2" ];
 
     btrfs = {
         device = "/dev/disk/by-label/nixos";

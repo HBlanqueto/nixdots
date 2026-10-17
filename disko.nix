@@ -35,8 +35,8 @@
 let
     doEncrypt = encrypt == "true";
 
-    # Debe coincidir con btrfsBase en modules/common/filesystems.nix.
-    mountOptions = [ "noatime" "compress=zstd" ];
+    # Base compartida con modules/common/filesystems.nix.
+    mountOptions = import ./lib/btrfs-mount-options.nix;
 
     # The btrfs filesystem itself, shared by the encrypted and plain layouts.
     # `$device` is the device btrfs is created on, i.e. /dev/mapper/cryptroot

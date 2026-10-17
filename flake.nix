@@ -432,7 +432,7 @@
                     # Shell del asistente Slint: compila (winit + femtovg) y abre
                     # la UI; slint-viewer/slint-lsp para editar .slint. Incluye el
                     # CLI nixdots-setup para que «Aplicar» (--dry-run) funcione.
-                    setup-gui = pkgs.mkShell {
+                    setup-gui = pkgs.mkShell ((tablesEnv pkgs) // {
                         packages = with pkgs; [
                             cargo
                             rustc
@@ -451,11 +451,6 @@
                             libx11
                             setups.${system}
                         ];
-                        # Tablas que `lists` embebe (para `cargo clippy --workspace`).
-                        NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
-                        NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                        NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                        NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
                         # winit/femtovg cargan libwayland, libEGL… con dlopen, que
                         # no mira el PATH: hacen falta en el loader path.
                         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
@@ -466,7 +461,7 @@
                             freetype
                             libx11
                         ]);
-                    };
+                    });
                     default = pkgs.mkShell {
                         packages = with pkgs; [
                             cargo

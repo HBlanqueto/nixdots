@@ -6,7 +6,7 @@
 
 let
     cfg = config.nixdots.extras;
-    username = data.settings.username or null;
+    username = data.username;
     extraData = data.machine.extras or { };
 in
 {

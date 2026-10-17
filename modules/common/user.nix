@@ -1,8 +1,6 @@
-{ config, lib, pkgs, data, theme, ... }:
+{ config, lib, pkgs, data, ... }:
 
 let
-    palette = import ../../lib/palette.nix { inherit theme; };
-
     # The installed system checks the final path; the installer evaluates from
     # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
     # where the file lives. On a normal system the variable is unset ("").
@@ -11,7 +9,7 @@ let
     # Todo lo personal sale de data.settings (settings.nix + user.json). En las
     # variantes de CI no hay user.json, así que los campos personales caen a null.
     inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;
-    username = data.settings.username or null;
+    username = data.username;
     userdescription = data.settings.userdescription or null;
     # Región y formatos, zona horaria automática y accesibilidad.
     region = data.settings.region or null;
@@ -100,17 +98,6 @@ in
             createHome = true;
             inherit hashedPasswordFile;
         };
-    };
-
-    console = {
-        earlySetup = true;
-        # Los 16 colores ANSI (con el fondo negro puro) salen de lib/palette.nix.
-        colors = palette.consoleColors;
-        # La fuente bitmap que incrusta xnu (el kernel de macOS) en initrd, la
-        # consola de emergencia y el arranque de Plymouth.
-        font = "${pkgs.xnu-console-font}/share/consolefonts/xnu-console.psf";
-        # The console uses the same xkb layout as the desktop.
-        useXkbConfig = true;
     };
 
     services.xserver.xkb = {

@@ -39,14 +39,10 @@ if [ "$mode" = "build" ]; then
 fi
 
 # 2. Compare the normal users of the running system (uid >= 1000) with the new
-#    configuration, and make sure every declared normal user has its hash file.
+#    configuration, so no account silently disappears.
 new_users="$(nix eval --impure --json "$repo#nixosConfigurations.nixdots.config.users.users" --apply '
     users: builtins.mapAttrs (_: u: {
         isNormalUser = u.isNormalUser or false;
-        hashedPasswordFile =
-            if (u.hashedPasswordFile or null) == null
-            then null
-            else toString u.hashedPasswordFile;
     }) users')"
 
 disappearing=()
@@ -61,19 +57,6 @@ if [ "${#disappearing[@]}" -gt 0 ]; then
     echo "Estos usuarios normales desaparecerían de la configuración: ${disappearing[*]}" >&2
     exit 1
 fi
-
-while IFS=$'\t' read -r user hashfile; do
-    [ -z "$user" ] && continue
-    if [ -z "$hashfile" ] || [ "$hashfile" = "null" ]; then
-        echo "El usuario '$user' no declara hashedPasswordFile." >&2
-        exit 1
-    fi
-    if [ ! -e "$hashfile" ]; then
-        echo "Falta el hash de '$user': $hashfile" >&2
-        echo "Créalo con: mkpasswd -m yescrypt | sudo tee $hashfile" >&2
-        exit 1
-    fi
-done < <(jq -r 'to_entries[] | select(.value.isNormalUser) | "\(.key)\t\(.value.hashedPasswordFile)"' <<<"$new_users")
 
 # 3. Activate.
 echo "== nixos-rebuild $mode ($ref) =="

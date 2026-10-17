@@ -17,6 +17,7 @@ on:
       - "Cargo.lock"
       - ".cargo/**"
       - "disko.nix"
+      - "lib/**"
       - "install.sh"
       - ".github/workflows/installer-release.yml"
 

@@ -1,6 +1,6 @@
 { inputs, lib, data, theme, ... }:
 
-lib.mkIf ((data.settings.username or null) != null) {
+lib.mkIf (data.username != null) {
     home-manager = {
         backupFileExtension = "backup";
 
@@ -13,7 +13,7 @@ lib.mkIf ((data.settings.username or null) != null) {
             inherit inputs theme data;
         };
 
-        users.${data.settings.username} = {
+        users.${data.username} = {
             imports = [
                 ../home/common
                 ../home/desktop

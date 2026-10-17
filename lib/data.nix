@@ -24,15 +24,21 @@ let
     facterFile = "${persist}/facter.json";
 
     hasUser = user ? username;
+
+    # settings.nix del repo más los datos personales que escribe el asistente.
+    settings = import ../settings.nix // user;
+
+    # Usuario normal, o null en evaluación pura / primer arranque.
+    username = settings.username or null;
 in
 {
-    inherit impure root user machine;
+    inherit impure root user machine settings;
 
     # Ruta del informe de facter, o null si no hay (evaluación pura, o máquina
     # sin informe). nixpkgs lo lee y lo parsea él mismo.
     facterReport = if impure && builtins.pathExists facterFile then facterFile else null;
 
-    inherit hasUser;
+    inherit hasUser username;
 
     # Primer arranque en un host real: impuro y sin user.json. En la VM de
     # prueba el flake fuerza firstBoot = !hasUser.
@@ -41,7 +47,4 @@ in
     # Existencia de un archivo bajo root (p. ej. el hash de contraseña), para
     # no repetir pathExists fuera de aquí.
     exists = path: impure && builtins.pathExists (root + path);
-
-    # settings.nix del repo más los datos personales que escribe el asistente.
-    settings = import ../settings.nix // user;
 }

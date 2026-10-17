@@ -8,29 +8,15 @@ let
 
     yaziConfig = import ./config/yazi { inherit theme; };
 
+    # rgba() a partir del rgb de la paleta (misma fuente que la consola).
+    palette = import ../../../lib/palette.nix { inherit theme; };
+    rgba = hex: alpha: "rgba(${palette.rgb hex},${alpha})";
+
     # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
     # fuente XNU solo tiene los 256 glifos Latin-1.
     starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
         ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
     '';
-
-    hexToRgb = hex:
-        let
-            digit = {
-                "0" = 0; "1" = 1; "2" = 2; "3" = 3; "4" = 4;
-                "5" = 5; "6" = 6; "7" = 7; "8" = 8; "9" = 9;
-                "a" = 10; "b" = 11; "c" = 12; "d" = 13; "e" = 14; "f" = 15;
-            };
-            value = s: lib.foldl' (acc: ch: acc * 16 + digit.${ch}) 0 (lib.stringToCharacters s);
-        in
-        map value [
-            (lib.substring 0 2 hex)
-            (lib.substring 2 2 hex)
-            (lib.substring 4 2 hex)
-        ];
-
-    rgba = hex: alpha:
-        "rgba(${lib.concatStringsSep "," ((map toString (hexToRgb hex)) ++ [ alpha ])})";
 
     vscodeSettings = {
         "editor.fontFamily" = "'Liga SFMono Nerd Font', 'Twitter Color Emoji', monospace";
