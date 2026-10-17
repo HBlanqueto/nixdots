@@ -67,8 +67,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // «Reducir animaciones» en vivo: el saludo cambia el ritmo (palabra completa
     // cada 2,5 s en lugar de máquina de escribir).
     let reduce = Arc::new(AtomicBool::new(
-        ui.global::<Theme>().get_reduced_motion()
-            || ui.global::<State>().get_a11y_reduce_motion(),
+        ui.global::<Theme>().get_reduced_motion() || ui.global::<State>().get_a11y_reduce_motion(),
     ));
     ui.on_reduce_changed({
         let reduce = reduce.clone();
