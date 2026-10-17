@@ -3,10 +3,17 @@
 # prettyHostName, in which case /etc/machine-info is left unwritten.
 { lib, data, ... }:
 
+let
+    # El nombre visible puede traer `\` o `"`; hay que escaparlos antes de
+    # escribirlo entre comillas en /etc/machine-info.
+    pretty = data.settings.prettyHostName;
+    escaped = lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] pretty;
+in
+
 {
     environment.etc."machine-info" = lib.mkIf (data.settings ? prettyHostName) {
         text = ''
-            PRETTY_HOSTNAME="${data.settings.prettyHostName}"
+            PRETTY_HOSTNAME="${escaped}"
         '';
     };
 }
