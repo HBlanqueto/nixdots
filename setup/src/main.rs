@@ -101,8 +101,23 @@ fn apply(args: &[String]) -> Result<()> {
     println!("$ escribir {} (0600)", hash_path.display());
     if !dry_run {
         std::fs::create_dir_all(secrets)?;
+        // 0711, igual que el instalador: el archivo sigue ilegible, pero la
+        // evaluación de nix sin privilegios (nixdots-rebuild) puede hacerle
+        // stat; con 0700 la assertion de user.nix lo daría por inexistente.
         set_mode(secrets, 0o711)?;
-        std::fs::write(&hash_path, hash.as_bytes())?;
+        // Creado ya con 0600: nunca existe, ni un instante, con el umask.
+        {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&hash_path)?;
+            file.write_all(hash.as_bytes())?;
+            file.sync_all()?;
+        }
         set_mode(&hash_path, 0o600)?;
     }
 
