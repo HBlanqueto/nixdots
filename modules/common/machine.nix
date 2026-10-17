@@ -7,12 +7,6 @@
 
 {
     options.nixdots.machine = {
-        hostName = lib.mkOption {
-            type = lib.types.str;
-            default = "nixdots";
-            description = "networking.hostName, and the flake output name.";
-        };
-
         encrypt = lib.mkOption {
             type = lib.types.bool;
             default = false;
@@ -40,7 +34,6 @@
 
     config = {
         nixdots.machine = {
-            hostName = lib.mkDefault (data.machine.hostName or "nixdots");
             encrypt = lib.mkDefault (data.machine.encrypt or false);
             luksUuid = lib.mkDefault (data.machine.luksUuid or "");
             secureBoot = lib.mkDefault (data.machine.secureBoot or false);
