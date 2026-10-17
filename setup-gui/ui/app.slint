@@ -206,6 +206,21 @@ component Field inherits VerticalLayout {
         background: Tokens.bgSurface;
         border-width: 1px;
         border-color: root.error ? Tokens.danger : (ti.has-focus ? Theme.accent : Tokens.line);
+        animate border-color { duration: Motion.fast; }
+        animate background { duration: Motion.base; }
+        // Halo de foco: borde accent + 3 px de accent-soft, con fundido.
+        Rectangle {
+            x: -4px;
+            y: -4px;
+            width: parent.width + 8px;
+            height: parent.height + 8px;
+            border-radius: Tokens.radiussm + 4px;
+            background: transparent;
+            border-width: 3px;
+            border-color: Tokens.accentSoft;
+            opacity: (ti.has-focus && !root.error) ? 1 : 0;
+            animate opacity { duration: Motion.fast; }
+        }
         Text {
             x: 12px;
             width: parent.width - 24px;
@@ -325,9 +340,12 @@ component OptionRow inherits Rectangle {
     in property <bool> selected: false;
     in property <bool> divider: true;
     in property <bool> wifi: false;
+    // Marca de elegido (idiomas): aparece con fundido y escala 0.6→1.0.
+    in property <bool> check: false;
     callback picked();
     height: 44px;
-    background: selected ? Theme.accent : transparent;
+    background: selected ? Theme.accent : (ta.has-hover ? Tokens.bgHover : transparent);
+    animate background { duration: Motion.fast; }
     Rectangle {
         y: 0;
         width: 100%;
@@ -362,7 +380,27 @@ component OptionRow inherits Rectangle {
         height: parent.height;
         wrap: no-wrap;
     }
-    TouchArea {
+    if root.check : Rectangle {
+        x: parent.width - self.width - 14px;
+        y: (parent.height - self.height) / 2;
+        width: 14px;
+        height: 14px;
+        opacity: root.selected ? 1 : 0;
+        transform-scale-x: root.selected ? 100% : 60%;
+        transform-scale-y: root.selected ? 100% : 60%;
+        animate opacity { duration: Motion.fast; }
+        animate transform-scale-x { duration: Motion.fast; }
+        animate transform-scale-y { duration: Motion.fast; }
+        MiniIcon {
+            x: 0;
+            y: 0;
+            size: 14px;
+            sw: 2.2px;
+            ink: Theme.accent-ink;
+            commands: "M1 6.5 L5 10.5 L13 2.5";
+        }
+    }
+    ta := TouchArea {
         clicked => { root.picked(); }
     }
 }
@@ -376,6 +414,8 @@ component Toggle inherits Rectangle {
     background: checked ? Theme.accent : Tokens.bgControl;
     border-width: checked ? 0px : 1px;
     border-color: Tokens.line;
+    animate background { duration: Motion.fast; }
+    animate border-color { duration: Motion.fast; }
     Rectangle {
         width: 16px;
         height: 16px;
@@ -458,8 +498,11 @@ component Button inherits Rectangle {
     width: w;
     height: Tokens.controllg;
     border-radius: Tokens.radiusmd;
-    background: primary ? Theme.accent : Tokens.bgControl;
+    background: primary
+        ? (ta.pressed ? Theme.accent-strong : (ta.has-hover ? Tokens.accentHover : Theme.accent))
+        : (ta.has-hover || ta.pressed ? Tokens.bgHover : Tokens.bgControl);
     opacity: root.enabled ? 1 : 0.4;
+    animate background { duration: Motion.fast; }
     Text {
         text: root.label;
         color: primary ? Theme.accent-ink : Tokens.inkStrong;
@@ -471,7 +514,7 @@ component Button inherits Rectangle {
         height: parent.height;
         wrap: no-wrap;
     }
-    TouchArea {
+    ta := TouchArea {
         clicked => { if (root.enabled) { root.clicked(); } }
     }
 }
@@ -667,6 +710,7 @@ component Swatch inherits Rectangle {
         background: transparent;
         border-width: 2px;
         border-color: root.selected ? root.c : transparent;
+        animate border-color { duration: Motion.fast; }
     }
     Rectangle {
         x: (parent.width - self.width) / 2;
@@ -675,6 +719,7 @@ component Swatch inherits Rectangle {
         height: 28px;
         border-radius: 14px;
         background: root.selected ? (Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow) : transparent;
+        animate background { duration: Motion.fast; }
     }
     Rectangle {
         x: (parent.width - self.width) / 2;
@@ -751,6 +796,7 @@ component StepHeader inherits VerticalLayout {
             font-weight: 650;
             color: Tokens.inkStrong;
             horizontal-alignment: center;
+            animate color { duration: Motion.base; }
         }
         Text {
             text: root.subtitle;
@@ -758,6 +804,7 @@ component StepHeader inherits VerticalLayout {
             color: Tokens.inkMuted;
             horizontal-alignment: center;
             wrap: word-wrap;
+            animate color { duration: Motion.base; }
         }
     }
 }
@@ -960,7 +1007,7 @@ export component AppWindow inherits Window {
                         width: 180px;
                         height: Tokens.controllg;
                         border-radius: Tokens.radiusmd;
-                        background: ta.pressed ? Theme.accent : (ta.has-hover ? Theme.accent-strong : Theme.accent);
+                        background: ta.pressed ? Theme.accent-strong : (ta.has-hover ? Tokens.accentHover : Theme.accent);
                         transform-scale-x: ta.pressed ? 97% : 100%;
                         transform-scale-y: ta.pressed ? 97% : 100%;
                         drop-shadow-color: rgba(13, 18, 25, 0.25);
@@ -1082,8 +1129,7 @@ export component AppWindow inherits Window {
                                 lang-inner := VerticalLayout {
                                     for name[i] in State.lang-names : OptionRow {
                                         label: name;
-                                        trailing: i == State.lang-index ? "✓" : "";
-                                        trailing-accent: i == State.lang-index;
+                                        check: true;
                                         selected: i == State.lang-index;
                                         divider: i > 0;
                                         picked => { State.lang-index = i; State.region-index = i; }

@@ -356,11 +356,18 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
         pick(st.get_city_tz(), st.get_city_index()).into(),
     );
     map.insert("timeZoneAuto".into(), st.get_tz_auto().into());
-    map.insert("theme".into(), tokens.get_theme().to_string().into());
+    // GNOME solo distingue claro/oscuro; «dark-tint» del asistente es oscuro.
+    let scheme = if tokens.get_theme() == "light" {
+        "light"
+    } else {
+        "dark"
+    };
+    map.insert("colorScheme".into(), scheme.into());
     map.insert(
         "accentColor".into(),
         theme.get_accent_id().to_string().into(),
     );
+    map.insert("autoLogin".into(), st.get_auto_login().into());
     map.insert(
         "a11y".into(),
         serde_json::json!({

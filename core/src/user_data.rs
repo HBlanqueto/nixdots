@@ -56,6 +56,16 @@ pub struct UserData {
     pub keyboard_layout: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyboard_variant: Option<String>,
+    /// `"light"` o `"dark"`: preferencia de tema elegida en el asistente.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_scheme: Option<String>,
+    /// Acento elegido (`"neptunia"` o un id de GNOME); `"neptunia"` no se
+    /// escribe en dconf.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_color: Option<String>,
+    /// Entrar directamente al escritorio sin pasar por GDM.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_login: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub a11y: Option<A11y>,
 }

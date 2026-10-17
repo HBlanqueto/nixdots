@@ -17,8 +17,8 @@ use zeroize::Zeroizing;
 const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
 
   datos.json  fullName, username, locale, region, keyboardLayout,
-              keyboardVariant, timeZone, timeZoneAuto, a11y y, opcionalmente,
-              gitName y gitEmail.
+              keyboardVariant, timeZone, timeZoneAuto, a11y, colorScheme,
+              accentColor, autoLogin y, opcionalmente, gitName y gitEmail.
   --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
@@ -39,6 +39,14 @@ struct Data {
     time_zone: String,
     #[serde(default)]
     time_zone_auto: Option<bool>,
+    /// `"light"` o `"dark"` (el asistente manda `colorScheme`).
+    #[serde(default)]
+    color_scheme: Option<String>,
+    /// Acento (`"neptunia"` o un id de GNOME).
+    #[serde(default)]
+    accent_color: Option<String>,
+    #[serde(default)]
+    auto_login: Option<bool>,
     #[serde(default)]
     a11y: Option<nixdots_core::user_data::A11y>,
     #[serde(default)]
@@ -142,6 +150,9 @@ fn apply(args: &[String]) -> Result<()> {
         time_zone_auto: data.time_zone_auto,
         keyboard_layout: non_empty(data.keyboard_layout),
         keyboard_variant: non_empty(data.keyboard_variant),
+        color_scheme: data.color_scheme.and_then(non_empty),
+        accent_color: data.accent_color.and_then(non_empty),
+        auto_login: data.auto_login,
         a11y: data.a11y,
     };
     println!(

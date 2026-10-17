@@ -16,6 +16,7 @@ let
     # Región y formatos, zona horaria automática y accesibilidad.
     region = data.settings.region or null;
     timeZoneAuto = data.settings.timeZoneAuto or false;
+    autoLogin = data.settings.autoLogin or false;
     a11y = data.settings.a11y or { };
 
     # Derivado del usuario: no se guarda en ningún archivo.
@@ -69,6 +70,12 @@ in
 
     # dconf para los ajustes de accesibilidad de GNOME (home-manager los escribe).
     programs.dconf.enable = true;
+
+    # Entrada automática al escritorio si el asistente la pidió.
+    services.displayManager.autoLogin = lib.mkIf (autoLogin && username != null) {
+        enable = true;
+        user = username;
+    };
 
     networking = {
         inherit (data) hostName;
