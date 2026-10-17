@@ -58,11 +58,12 @@ actualiza este archivo en el mismo cambio.
   reintroduzcas sin que se pida.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
-  = `xnu-console.psf` en el kernel: initrd, consola de emergencia y Plymouth).
-  Solo tiene 256 glifos Latin-1, así que en la TTY el prompt de fish (starship)
-  y `eza` van sin iconos Nerd Font, y los caracteres fuera de Latin-1 salen como
-  «?». El lanzador del instalador sí abre kmscon con Liga SFMono Nerd Font 14 y
-  la paleta neptunia. Plymouth usa el tema integrado `spinner`.
+  = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
+  256 glifos Latin-1, así que en la TTY el prompt de fish (starship) y `eza` van
+  sin iconos Nerd Font, y los caracteres fuera de Latin-1 salen como «?». El
+  lanzador del instalador sí abre kmscon con Liga SFMono Nerd Font 14 y la
+  paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
+  Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
 - Workspace Rust (`Cargo.toml` raíz):
   - `core` — settings, user.json, hash, ejecución de comandos.
   - `lists` — locales, zonas y teclados embebidos al compilar.
