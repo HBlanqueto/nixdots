@@ -13,9 +13,7 @@ use crate::settings::Settings;
 use crate::theme::{self, Palette};
 use crate::widgets::{self, Btn, ButtonRow};
 use color_eyre::eyre::Result;
-use ratatui::crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -137,7 +135,9 @@ impl Screen {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusKind {
     /// A text field; `last` when it is the last one on the screen.
-    Field { last: bool },
+    Field {
+        last: bool,
+    },
     List,
     Checkbox,
     Buttons,
@@ -161,7 +161,8 @@ impl App {
         match self.screen {
             Screen::User => match self.user.focus {
                 0 => FocusKind::Field { last: false },
-                1 => FocusKind::Checkbox,
+                1 | 3 => FocusKind::Checkbox,
+                2 => FocusKind::Field { last: false },
                 _ => FocusKind::Field { last: true },
             },
             Screen::Password => FocusKind::Field {
@@ -290,10 +291,7 @@ impl Picker {
         }
         // Typing picks the first match automatically (nothing is selected until
         // then), so Enter works right after a search.
-        if self.selected.is_none()
-            && !self.query.value().is_empty()
-            && !self.filtered.is_empty()
-        {
+        if self.selected.is_none() && !self.query.value().is_empty() && !self.filtered.is_empty() {
             self.selected = Some(0);
         }
     }
@@ -391,7 +389,12 @@ pub struct UserState {
     pub custom: bool,
     /// The hand-written username, used only while `custom` is set.
     pub username: Input,
-    /// 0 = nombre, 1 = casilla, 2 = usuario manual.
+    /// "Usar un nombre de red diferente" (unchecked by default).
+    pub host_custom: bool,
+    /// The hand-written network name, used only while `host_custom` is set.
+    pub host_name: Input,
+    /// 0 = nombre, 1 = casilla de usuario, 2 = usuario manual,
+    /// 3 = casilla de red, 4 = nombre de red manual.
     pub focus: usize,
 }
 
@@ -687,8 +690,7 @@ pub struct App {
     /// Lanzaboote Secure Boot (x86_64 bare metal, never the aarch64 VM).
     pub secure_boot: bool,
 
-    // machine detection (only used for the default hostname)
-    pub arch: Option<String>,
+    // machine detection
     pub virt: Option<String>,
     /// The commercial model, detected in the background at startup.
     pub model: String,
@@ -783,11 +785,10 @@ impl App {
             Ok(settings) => (settings, true),
             Err(_) => (Settings::fallback(), false),
         };
-        let arch = detect::arch();
         let secure_boot = detect::secure_boot();
-        // Hostname defaults per architecture; everything else starts empty
-        // (only stateVersion is kept from the repo).
-        settings.host_name = detect::default_hostname(arch.as_deref().unwrap_or_default());
+        // Everything else starts empty (only stateVersion is kept from the
+        // repo); the hostname is filled in when leaving the Usuario screen.
+        settings.host_name = String::new();
         settings.username = None;
         settings.userdescription = None;
         settings.git_name = None;
@@ -839,6 +840,8 @@ impl App {
                 name: Input::default(),
                 custom: false,
                 username: Input::default(),
+                host_custom: false,
+                host_name: Input::default(),
                 focus: 0,
             },
             password: PasswordState {
@@ -913,7 +916,6 @@ impl App {
             should_quit: false,
             force_clear: false,
             tick: 0,
-            arch,
             virt: detect::environment(),
             model: String::new(),
             model_rx: Some(model_rx),
@@ -993,7 +995,10 @@ impl App {
 
     /// Moves the shrink bar by `delta_gb` (10 GB steps), clamped to the bounds.
     pub fn adjust_shrink(&mut self, delta_gb: i64) {
-        let DiskDecision::Shrink { min_free, max_free, .. } = self.disks.decision else {
+        let DiskDecision::Shrink {
+            min_free, max_free, ..
+        } = self.disks.decision
+        else {
             return;
         };
         let step = 10 * disk::GIB;
@@ -1142,9 +1147,31 @@ impl App {
         self.username_error().is_none()
     }
 
+    /// The network name that will be used: the hand-written one, or the
+    /// macOS-style one generated from the visible name.
+    pub fn final_host_name(&self) -> String {
+        if self.user.host_custom && !self.user.host_name.value().is_empty() {
+            self.user.host_name.value().to_string()
+        } else {
+            nixdots_core::user::host_name_from_pretty(&self.pretty_host_name())
+        }
+    }
+
+    /// Why the hand-written network name is rejected, if it is. An empty field
+    /// is valid (the generated hostname is used).
+    pub fn host_name_error(&self) -> Option<&'static str> {
+        if !self.user.host_custom || self.user.host_name.value().is_empty() {
+            return None;
+        }
+        nixdots_core::user::host_name_error(self.user.host_name.value())
+    }
+
+    pub fn host_name_valid(&self) -> bool {
+        self.host_name_error().is_none()
+    }
+
     pub fn passwords_match(&self) -> bool {
-        !self.password.p1.value().is_empty()
-            && self.password.p1.value() == self.password.p2.value()
+        !self.password.p1.value().is_empty() && self.password.p1.value() == self.password.p2.value()
     }
 
     fn apply_current(&mut self) {
@@ -1153,6 +1180,7 @@ impl App {
                 self.settings.username = Some(self.final_username());
                 self.settings.userdescription = Some(self.user.name.value().to_string());
                 self.settings.pretty_host_name = self.pretty_host_name();
+                self.settings.host_name = self.final_host_name();
             }
             Screen::Git => {
                 if self.git.enabled {
@@ -1267,7 +1295,9 @@ impl App {
                 },
                 shrink: None,
             },
-            DiskDecision::Shrink { ntfs, reuse_efi, .. } => install::DiskMode::Alongside {
+            DiskDecision::Shrink {
+                ntfs, reuse_efi, ..
+            } => install::DiskMode::Alongside {
                 reuse_efi: if reuse_efi {
                     disk.efi().map(|e| e.path())
                 } else {
@@ -1327,7 +1357,11 @@ impl App {
                     self.install.total = total;
                     self.install.record(built);
                 }
-                InstallMsg::Finished { ok, error, log_path } => {
+                InstallMsg::Finished {
+                    ok,
+                    error,
+                    log_path,
+                } => {
                     if let Some(step) = self.install.current.take() {
                         let dur = Instant::now().duration_since(self.install.step_started);
                         self.install.durations.push((step, dur));
@@ -1413,7 +1447,10 @@ impl App {
 
         // F2 opens it on any screen except Inicio / Instalando / Listo.
         if key.code == KeyCode::F(2)
-            && !matches!(self.screen, Screen::Splash | Screen::Installing | Screen::Done)
+            && !matches!(
+                self.screen,
+                Screen::Splash | Screen::Installing | Screen::Done
+            )
         {
             self.open_key_modal();
             return;
@@ -1490,15 +1527,25 @@ impl App {
                     0
                 } else if !self.username_valid() {
                     2
+                } else if !self.host_name_valid() {
+                    4
                 } else {
                     1
                 };
             }
             Screen::Password => {
-                self.password.focus = if self.password.p1.value().is_empty() { 0 } else { 1 };
+                self.password.focus = if self.password.p1.value().is_empty() {
+                    0
+                } else {
+                    1
+                };
             }
             Screen::Git if self.git.enabled => {
-                self.git.focus = if self.git.email.value().is_empty() { 2 } else { 1 };
+                self.git.focus = if self.git.email.value().is_empty() {
+                    2
+                } else {
+                    1
+                };
             }
             Screen::Encryption => {
                 self.enc.focus = if !self.enc.noted {
@@ -1840,10 +1887,7 @@ impl App {
 
     /// Opens the "guardar en USB" media list on the Cifrado screen.
     pub fn open_usb_modal(&mut self) {
-        let target = self
-            .selected_disk()
-            .map(|d| d.path())
-            .unwrap_or_default();
+        let target = self.selected_disk().map(|d| d.path()).unwrap_or_default();
         self.enc.usb = detect::removable_media(&target);
         self.enc.usb_index = 0;
         self.enc.usb_open = true;
@@ -2027,6 +2071,8 @@ impl App {
                     Some("falta: nombre completo".into())
                 } else if !self.username_valid() {
                     Some("usuario no válido".into())
+                } else if !self.host_name_valid() {
+                    Some("nombre de red no válido".into())
                 } else {
                     None
                 }
@@ -2082,14 +2128,22 @@ impl App {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
             Screen::License => true,
-            Screen::User => !self.user.name.value().is_empty() && self.username_valid(),
+            Screen::User => {
+                !self.user.name.value().is_empty()
+                    && self.username_valid()
+                    && self.host_name_valid()
+            }
             Screen::Password => self.passwords_match(),
             Screen::Timezone => self
                 .timezones
                 .as_ref()
                 .map(|p| p.selected.is_some())
                 .unwrap_or(false),
-            Screen::Locale => self.loc.as_ref().map(|p| p.selected.is_some()).unwrap_or(false),
+            Screen::Locale => self
+                .loc
+                .as_ref()
+                .map(|p| p.selected.is_some())
+                .unwrap_or(false),
             Screen::Keyboard => self
                 .keyboards
                 .as_ref()
@@ -2268,7 +2322,8 @@ impl App {
         self.draw_heading(f, layout.title);
         self.draw_body(f, layout.body);
         match self.screen {
-            Screen::Splash | Screen::License | Screen::Installing | Screen::Done | Screen::Disk => {}
+            Screen::Splash | Screen::License | Screen::Installing | Screen::Done | Screen::Disk => {
+            }
             Screen::Network => crate::screens::network::draw(f, self, layout.content),
             Screen::Timezone => crate::screens::timezone::draw(f, self, layout.content),
             Screen::Locale => crate::screens::locale::draw(f, self, layout.content),
@@ -2375,12 +2430,20 @@ impl App {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.palette.primary))
-            .title(Span::styled(" Teclado ", Style::default().fg(self.palette.primary)));
+            .title(Span::styled(
+                " Teclado ",
+                Style::default().fg(self.palette.primary),
+            ));
         let inner = block.inner(rect);
         f.render_widget(block, rect);
 
         if let Some(picker) = &self.key_modal {
-            let content = Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(1));
+            let content = Rect::new(
+                inner.x,
+                inner.y,
+                inner.width,
+                inner.height.saturating_sub(1),
+            );
             crate::screens::picker::draw(f, &self.palette, content, picker, true);
         }
         f.render_widget(
@@ -2409,7 +2472,12 @@ impl App {
         };
         let logo_w = logo
             .iter()
-            .map(|l| l.spans.iter().map(|s| s.content.chars().count()).sum::<usize>())
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.content.chars().count())
+                    .sum::<usize>()
+            })
             .max()
             .unwrap_or(0) as u16;
         let logo_h = logo.len() as u16;
@@ -2552,7 +2620,10 @@ impl App {
         let filled = (pct as usize * width as usize / 100).min(width as usize);
         f.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
+                Span::styled(
+                    "━".repeat(filled),
+                    Style::default().fg(self.palette.primary),
+                ),
                 Span::styled(
                     "─".repeat(width as usize - filled),
                     Style::default().fg(self.palette.row_bg),
@@ -2661,7 +2732,10 @@ impl App {
             let pad = avail.saturating_sub(summary.chars().count());
             rows.push(Line::from(vec![
                 Span::styled(format!("{mark:<3}"), Style::default().fg(color)),
-                Span::styled(format!("{name:<12}"), Style::default().fg(self.palette.text)),
+                Span::styled(
+                    format!("{name:<12}"),
+                    Style::default().fg(self.palette.text),
+                ),
                 Span::styled(summary, Style::default().fg(self.palette.muted)),
                 Span::raw(" ".repeat(pad + 1)),
                 Span::styled(dur, Style::default().fg(self.palette.muted)),
@@ -2795,9 +2869,7 @@ impl App {
                 };
                 format!("{action} · EFI + System HD (btrfs, {cif})")
             }
-            Step::Settings => {
-                "settings.nix · user.json · machine.json".to_string()
-            }
+            Step::Settings => "settings.nix · user.json · machine.json".to_string(),
             Step::System => {
                 if self.install.total > 0 {
                     format!(
@@ -2825,7 +2897,8 @@ impl App {
                 return None;
             }
             let line = line.trim();
-            if line.is_empty() || is_command(line) || line.starts_with('(') || line.starts_with('=') {
+            if line.is_empty() || is_command(line) || line.starts_with('(') || line.starts_with('=')
+            {
                 return None;
             }
             Some(line.to_string())
@@ -2869,7 +2942,10 @@ impl App {
         let bar_w = (area.width as usize).saturating_sub(count.chars().count() + 1);
         let filled = step * bar_w / total;
         let line = Line::from(vec![
-            Span::styled("━".repeat(filled), Style::default().fg(self.palette.primary)),
+            Span::styled(
+                "━".repeat(filled),
+                Style::default().fg(self.palette.primary),
+            ),
             Span::styled(
                 "─".repeat(bar_w - filled),
                 // LBG, not muted.
@@ -3158,10 +3234,7 @@ fn human_duration(d: Duration) -> String {
 
 /// The language of a locale code (`es_MX.UTF-8` → `es`).
 fn language_code(locale: &str) -> &str {
-    locale
-        .split(['_', '.'])
-        .next()
-        .unwrap_or("")
+    locale.split(['_', '.']).next().unwrap_or("")
 }
 
 /// Lowercases and strips the common Latin accents, so a search for «espanol»
@@ -3213,5 +3286,3 @@ fn hard_wrap(s: &str, width: usize) -> Vec<String> {
     }
     chars.chunks(width).map(|c| c.iter().collect()).collect()
 }
-
-

@@ -1,4 +1,5 @@
-//! Environment detection used for the default hostname and the disk chooser.
+//! Environment detection used by the installer (machine model, disks, the
+//! network backends).
 
 use serde::Deserialize;
 use std::net::{TcpStream, ToSocketAddrs};
@@ -37,16 +38,6 @@ pub fn nix_system() -> Option<String> {
         other => other,
     };
     Some(format!("{arch}-linux"))
-}
-
-/// Default hostname (also the `nixosConfigurations` attribute) for an
-/// architecture. aarch64 is assumed to be the UTM VM, x86_64 the ThinkPad.
-pub fn default_hostname(arch: &str) -> String {
-    match arch {
-        "aarch64" | "arm64" => "UTM-aarch64".to_string(),
-        "x86_64" | "amd64" => "ThinkPad-L14-Gen2".to_string(),
-        other => other.to_string(),
-    }
 }
 
 /// Whether this machine is expected to use Lanzaboote Secure Boot: an x86_64
@@ -149,9 +140,9 @@ fn is_placeholder(value: &str) -> bool {
 fn battery_present() -> bool {
     std::fs::read_dir("/sys/class/power_supply")
         .map(|entries| {
-            entries.flatten().any(|entry| {
-                entry.file_name().to_string_lossy().starts_with("BAT")
-            })
+            entries
+                .flatten()
+                .any(|entry| entry.file_name().to_string_lossy().starts_with("BAT"))
         })
         .unwrap_or(false)
 }
@@ -180,9 +171,9 @@ pub fn network_online() -> bool {
     let Ok(addrs) = ("cache.nixos.org", 443).to_socket_addrs() else {
         return false;
     };
-    addrs.into_iter().any(|addr| {
-        TcpStream::connect_timeout(&addr, Duration::from_secs(4)).is_ok()
-    })
+    addrs
+        .into_iter()
+        .any(|addr| TcpStream::connect_timeout(&addr, Duration::from_secs(4)).is_ok())
 }
 
 /// The NixOS ISO drops `/etc/NIXOS`; a normal install does not have it.
@@ -227,7 +218,8 @@ impl Partition {
 
     /// The EFI System Partition (GPT type GUID).
     pub fn is_efi(&self) -> bool {
-        self.parttype.eq_ignore_ascii_case("c12a7328-f81f-11d2-ba4b-00a0c93ec93b")
+        self.parttype
+            .eq_ignore_ascii_case("c12a7328-f81f-11d2-ba4b-00a0c93ec93b")
     }
 
     pub fn is_ntfs(&self) -> bool {
@@ -434,8 +426,7 @@ fn parse_disks(json: &str) -> Vec<Disk> {
             let note = disk_note(&partitions);
             Disk {
                 note,
-                available: !holds_live_medium(&d)
-                    && !partitions.iter().any(partition_in_use),
+                available: !holds_live_medium(&d) && !partitions.iter().any(partition_in_use),
                 windows,
                 // GPT reserves ~1 MiB; ignore it in the estimate.
                 free: size.saturating_sub(used).saturating_sub(1024 * 1024),
@@ -519,8 +510,8 @@ pub struct NtfsInfo {
 
 /// Probes an NTFS partition with `blkid` and `ntfsresize --info --force`.
 pub fn ntfs_info(path: &str) -> NtfsInfo {
-    let bitlocker = run_trim("blkid", &["-o", "value", "-s", "TYPE", path]).as_deref()
-        == Some("BitLocker");
+    let bitlocker =
+        run_trim("blkid", &["-o", "value", "-s", "TYPE", path]).as_deref() == Some("BitLocker");
     let output = Command::new("ntfsresize")
         .args(["--info", "--force", path])
         .stdin(Stdio::null())
@@ -584,7 +575,10 @@ pub fn efi_free(efi: &Partition) -> Option<u64> {
         return None;
     }
     let free = df_free(&dir.to_string_lossy());
-    let _ = Command::new("umount").arg(&dir).stdin(Stdio::null()).status();
+    let _ = Command::new("umount")
+        .arg(&dir)
+        .stdin(Stdio::null())
+        .status();
     free
 }
 
@@ -662,7 +656,11 @@ pub fn removable_media(target: &str) -> Vec<RemovableMedium> {
     let target_name = target.rsplit('/').next().unwrap_or("").to_string();
     let Some(json) = run_trim(
         "lsblk",
-        &["-J", "-o", "NAME,PATH,RM,TRAN,TYPE,FSTYPE,LABEL,SIZE,PKNAME"],
+        &[
+            "-J",
+            "-o",
+            "NAME,PATH,RM,TRAN,TYPE,FSTYPE,LABEL,SIZE,PKNAME",
+        ],
     ) else {
         return Vec::new();
     };
@@ -671,7 +669,9 @@ pub fn removable_media(target: &str) -> Vec<RemovableMedium> {
     };
 
     let truthy = |value: &serde_json::Value| {
-        value.as_bool().unwrap_or_else(|| value.as_str() == Some("1"))
+        value
+            .as_bool()
+            .unwrap_or_else(|| value.as_str() == Some("1"))
     };
 
     let mut out = Vec::new();
@@ -683,10 +683,7 @@ pub fn removable_media(target: &str) -> Vec<RemovableMedium> {
         if disk_name == target_name {
             continue;
         }
-        let removable = disk
-            .get("rm")
-            .map(&truthy)
-            .unwrap_or(false)
+        let removable = disk.get("rm").map(&truthy).unwrap_or(false)
             || disk.get("tran").and_then(|v| v.as_str()) == Some("usb");
         if !removable {
             continue;
@@ -735,7 +732,8 @@ pub fn nominal_gb(bytes: u64) -> u64 {
 }
 
 /// Human-readable size, matching `lsblk`'s style closely enough.
-pub fn human_size(bytes: u64) -> String {    const UNITS: [&str; 6] = ["B", "K", "M", "G", "T", "P"];
+pub fn human_size(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "K", "M", "G", "T", "P"];
     let mut value = bytes as f64;
     let mut unit = 0;
     while value >= 1024.0 && unit < UNITS.len() - 1 {
@@ -758,15 +756,6 @@ mod tests {
         assert_eq!(human_size(0), "0 B");
         assert_eq!(human_size(1024), "1.0 K");
         assert_eq!(human_size(1024 * 1024 * 1024), "1.0 G");
-    }
-
-    #[test]
-    fn hostname_defaults_per_arch() {
-        assert_eq!(default_hostname("aarch64"), "UTM-aarch64");
-        assert_eq!(default_hostname("arm64"), "UTM-aarch64");
-        assert_eq!(default_hostname("x86_64"), "ThinkPad-L14-Gen2");
-        assert_eq!(default_hostname("amd64"), "ThinkPad-L14-Gen2");
-        assert_eq!(default_hostname("riscv64"), "riscv64");
     }
 
     #[test]
