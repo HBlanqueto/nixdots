@@ -101,7 +101,7 @@ fn apply(args: &[String]) -> Result<()> {
     println!("$ escribir {} (0600)", hash_path.display());
     if !dry_run {
         std::fs::create_dir_all(secrets)?;
-        set_mode(secrets, 0o700)?;
+        set_mode(secrets, 0o711)?;
         std::fs::write(&hash_path, hash.as_bytes())?;
         set_mode(&hash_path, 0o600)?;
     }
@@ -113,8 +113,12 @@ fn apply(args: &[String]) -> Result<()> {
     }
     let user = UserData {
         username: data.username.clone(),
-        userdescription: Some(data.full_name),
-        pretty_host_name: None,
+        userdescription: Some(data.full_name.clone()),
+        pretty_host_name: Some(localized_pretty_host_name(
+            &current_pretty_hostname(),
+            &data.full_name,
+            &data.locale,
+        )),
         git_name: data.git_name,
         git_email: data.git_email,
         default_locale: Some(data.locale),
@@ -247,6 +251,63 @@ fn hostname() -> Result<String> {
         bail!("el hostname está vacío");
     }
     Ok(name)
+}
+
+/// El nombre visible actual (`/etc/machine-info` o `hostnamectl --pretty`), que
+/// el instalador dejó con el modelo del equipo; vacío si no hay.
+fn current_pretty_hostname() -> String {
+    if let Ok(text) = std::fs::read_to_string("/etc/machine-info") {
+        for line in text.lines() {
+            if let Some(rest) = line.trim().strip_prefix("PRETTY_HOSTNAME=") {
+                let value = rest.trim().trim_matches('"');
+                if !value.is_empty() {
+                    return value.to_string();
+                }
+            }
+        }
+    }
+    if let Ok(out) = std::process::Command::new("hostnamectl")
+        .arg("--pretty")
+        .output()
+    {
+        if out.status.success() {
+            let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !value.is_empty() {
+                return value;
+            }
+        }
+    }
+    String::new()
+}
+
+/// Nombre visible estilo macOS: «<modelo> de <Nombre>» (es), «<Nombre>'s
+/// <modelo>» (en), «<modelo> von <Nombre>» (de), «<modelo> di <Nombre>» (it).
+/// `<Nombre>` es la primera palabra del nombre completo; sin modelo, se usa
+/// solo el nombre del equipo.
+fn localized_pretty_host_name(model: &str, full_name: &str, locale: &str) -> String {
+    let first = full_name.split_whitespace().next().unwrap_or("");
+    let model = if model.trim().is_empty() {
+        hostname().unwrap_or_default()
+    } else {
+        model.trim().to_string()
+    };
+    if model.is_empty() {
+        return first.to_string();
+    }
+    if first.is_empty() {
+        return model;
+    }
+    match language_code(locale) {
+        "en" => format!("{first}'s {model}"),
+        "de" => format!("{model} von {first}"),
+        "it" => format!("{model} di {first}"),
+        _ => format!("{model} de {first}"),
+    }
+}
+
+/// El idioma de un código de locale (`es_MX.UTF-8` → `es`).
+fn language_code(locale: &str) -> &str {
+    locale.split(['_', '.']).next().unwrap_or("")
 }
 
 /// Imprime el comando; en real lo ejecuta y transmite el registro.
