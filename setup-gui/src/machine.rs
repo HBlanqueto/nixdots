@@ -6,21 +6,29 @@
 //! no la instalada.
 
 use serde_json::Value;
+use std::process::Command;
 
 /// Datos de la máquina; «—» si no se pudo leer algo.
 pub struct Info {
     pub model: String,
     pub cpu: String,
     pub ram: String,
+    pub disk: String,
+    pub disk_used: String,
+    pub disk_fill: f32,
     pub host: String,
 }
 
 pub fn info() -> Info {
     let facter = facter();
+    let (disk, disk_used, disk_fill) = disk();
     Info {
         model: model(),
         cpu: cpu(facter.as_ref()),
         ram: ram(facter.as_ref()),
+        disk,
+        disk_used,
+        disk_fill,
         host: hostname(),
     }
 }
@@ -122,6 +130,34 @@ fn mem_total_bytes() -> Option<u64> {
 fn even_gb(bytes: u64) -> u64 {
     let gb = bytes as f64 / 1_073_741_824.0;
     (((gb / 2.0).round() as u64) * 2).max(2)
+}
+
+/// Tamaño y uso de la raíz (`df -B1 /`): («—», «—», 0.0) si no se puede leer.
+fn disk() -> (String, String, f32) {
+    let Ok(out) = Command::new("df")
+        .args(["-B1", "--output=size,used", "/"])
+        .output()
+    else {
+        return ("—".to_string(), "—".to_string(), 0.0);
+    };
+    if !out.status.success() {
+        return ("—".to_string(), "—".to_string(), 0.0);
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let Some(line) = text.lines().nth(1) else {
+        return ("—".to_string(), "—".to_string(), 0.0);
+    };
+    let mut fields = line.split_whitespace();
+    let total: f64 = fields.next().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let used: f64 = fields.next().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    if total <= 0.0 {
+        return ("—".to_string(), "—".to_string(), 0.0);
+    }
+    (
+        format!("Sistema · {} GB", (total / 1e9).round()),
+        format!("{} GB usados", (used / 1e9).round()),
+        (used / total).clamp(0.0, 1.0) as f32,
+    )
 }
 
 fn hostname() -> String {

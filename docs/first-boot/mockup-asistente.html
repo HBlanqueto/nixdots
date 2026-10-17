@@ -87,12 +87,12 @@ body{margin:0}
 </div>
 
 <div class="fb-layer" style="flex-direction: column; align-items: center; opacity: {{p4.op}}; transform: {{p4.tf}}; pointer-events: {{p4.pe}}">
-<span class="np-avatar np-avatar--lg" style="width: 76px; height: 76px; font-size: 26px">HB</span>
+<span class="np-avatar np-avatar--lg" style="width: 76px; height: 76px; font-size: 26px">AG</span>
 <h1 class="fb-title" style="margin-top: 12px">Crea tu cuenta</h1>
 <p class="fb-sub">Se usará para iniciar sesión y para tus archivos.</p>
 <div style="width: 100%; margin-top: 20px; display: flex; flex-direction: column; gap: 12px">
-<div class="np-field"><label for="fn">Nombre completo</label><div class="np-input" style="height: 36px"><input id="fn" value="Humberto Blanqueto"></div></div>
-<div class="np-field"><label for="un">Nombre de usuario</label><div class="np-input" style="height: 36px"><input id="un" value="humbertoblanqueto"></div><span class="np-help">Se genera a partir de tu nombre; puedes cambiarlo.</span></div>
+<div class="np-field"><label for="fn">Nombre completo</label><div class="np-input" style="height: 36px"><input id="fn" value="Ana García"></div></div>
+<div class="np-field"><label for="un">Nombre de usuario</label><div class="np-input" style="height: 36px"><input id="un" value="anagarcia"></div><span class="np-help">Se genera a partir de tu nombre; puedes cambiarlo.</span></div>
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
 <div class="np-field" style="min-width: 0"><label for="p1">Contraseña</label><div class="np-input" style="height: 36px"><input id="p1" type="password" value="••••••••••"></div></div>
 <div class="np-field" style="min-width: 0"><label for="p2">Repetir</label><div class="np-input" style="height: 36px"><input id="p2" type="password" value="••••••••••"></div></div>
@@ -151,7 +151,7 @@ body{margin:0}
 <div class="np-group"><button class="np-listrow" style="width: 100%; border: 0; background: transparent; font: inherit; color: var(--ink); text-align: left; cursor: default" onClick="{{toggleGit}}"><span class="np-text"><b>Configurar Git ahora</b><small>Nombre y correo para tus commits</small></span><span class="{{gitCls}}" style="background: {{gitBg}}"></span></button></div>
 <sc-if value="{{gitOn}}" hint-placeholder-val="{{ false }}">
 <div style="display: flex; flex-direction: column; gap: 12px">
-<div class="np-field"><label for="gn">Nombre</label><div class="np-input" style="height: 36px"><input id="gn" value="Humberto Blanqueto"></div></div>
+<div class="np-field"><label for="gn">Nombre</label><div class="np-input" style="height: 36px"><input id="gn" value="Ana García"></div></div>
 <div class="np-field"><label for="ge">Correo</label><div class="np-input" style="height: 36px"><input id="ge" type="email" placeholder="tu@correo"></div></div>
 </div>
 </sc-if>
@@ -189,12 +189,12 @@ body{margin:0}
 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" style="animation: fb-spin 0.9s linear infinite" aria-hidden="true"><path d="M12 3a9 9 0 0 1 9 9"></path></svg>
 <div style="text-align: center"><h1 style="margin: 0; font-size: 28px; line-height: 34px; font-weight: 650; letter-spacing: -0.01em; text-shadow: 0 2px 16px rgba(0,0,0,0.3)">Preparando tu escritorio</h1><p style="margin: 8px 0 0; font-size: 15px; line-height: 20px; color: rgba(255,255,255,0.84)">Aplicando la configuración de nixdots. El equipo se reiniciará al terminar.</p></div>
 <div style="width: 420px; height: 6px; border-radius: var(--radius-pill); background: rgba(255,255,255,0.24); overflow: hidden"><span style="display: block; height: 6px; border-radius: var(--radius-pill); background: #ffffff; width: 62%; animation: {{barAnim}}"></span></div>
-<div style="font-size: 13px; color: rgba(255,255,255,0.9)">Creando la cuenta de humbertoblanqueto…</div>
+<div style="font-size: 13px; color: rgba(255,255,255,0.9)">Creando la cuenta de anagarcia…</div>
 <button class="fb-link" style="color: rgba(255,255,255,0.8)" onClick="{{toggleLog}}">{{logLabel}}</button>
 <sc-if value="{{logOpen}}" hint-placeholder-val="{{ false }}">
 <div class="fb-glass" style="width: 680px; height: 170px; padding: 12px 16px; font-family: var(--font-mono); font-size: 12px; line-height: 20px; color: rgba(255,255,255,0.78); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end">
 <div>escribiendo /persist/nixdots/user.json</div>
-<div>escribiendo /persist/secrets/humbertoblanqueto.hash (0600)</div>
+<div>escribiendo /persist/secrets/anagarcia.hash (0600)</div>
 <div><span style="color: #97b7ff">$</span> nixos-rebuild boot --impure --flake /persist/nixdots/repo#ThinkPad-L14-Gen2</div>
 <div>building the system configuration...</div>
 <div style="color: #ffffff">installing boot entry</div>
@@ -203,10 +203,10 @@ body{margin:0}
 </div>
 
 <div class="fb-layer fb-screen" style="flex-direction: column; align-items: center; justify-content: center; gap: 26px; color: #ffffff; opacity: {{listo.op}}; transform: {{listo.tf}}; pointer-events: {{listo.pe}}">
-<span style="width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; background: {{accent}}; color: #ffffff; font-size: 38px; font-weight: 650; box-shadow: 0 10px 40px rgba(0,0,0,0.3)">HB</span>
-<div style="text-align: center"><h1 style="margin: 0; font-size: 34px; line-height: 40px; font-weight: 650; letter-spacing: -0.02em; text-shadow: 0 2px 16px rgba(0,0,0,0.3)">Te damos la bienvenida, Humberto</h1><p style="margin: 10px 0 0; font-size: 15px; line-height: 20px; color: rgba(255,255,255,0.86)">Al reiniciar entrarás directamente a tu escritorio GNOME.</p></div>
+<span style="width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; background: {{accent}}; color: #ffffff; font-size: 38px; font-weight: 650; box-shadow: 0 10px 40px rgba(0,0,0,0.3)">AG</span>
+<div style="text-align: center"><h1 style="margin: 0; font-size: 34px; line-height: 40px; font-weight: 650; letter-spacing: -0.02em; text-shadow: 0 2px 16px rgba(0,0,0,0.3)">Te damos la bienvenida, Ana</h1><p style="margin: 10px 0 0; font-size: 15px; line-height: 20px; color: rgba(255,255,255,0.86)">Al reiniciar entrarás directamente a tu escritorio GNOME.</p></div>
 <div style="display: flex; gap: 12px">
-<div class="fb-glass" style="width: 200px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.72)">Usuario</span><span style="font-size: 15px; font-weight: 600">humbertoblanqueto</span></div>
+<div class="fb-glass" style="width: 200px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.72)">Usuario</span><span style="font-size: 15px; font-weight: 600">anagarcia</span></div>
 <div class="fb-glass" style="width: 200px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.72)">Equipo</span><span style="font-size: 15px; font-weight: 600">ThinkPad-L14-Gen2</span></div>
 <div class="fb-glass" style="width: 200px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.72)">Zona horaria</span><span style="font-size: 15px; font-weight: 600">{{tz}}</span></div>
 </div>
@@ -281,10 +281,10 @@ const summaryRows = [
 { k: 'Idioma', v: langs.find((l) => l.id === lang).name },
 { k: 'Teclado', v: 'Español (Latinoamérica)' },
 { k: 'Zona horaria', v: cities[city].tz },
-{ k: 'Cuenta', v: 'humbertoblanqueto' },
+{ k: 'Cuenta', v: 'anagarcia' },
 { k: 'Equipo', v: 'ThinkPad-L14-Gen2' },
 { k: 'Aspecto', v: modeName + ' · ' + acc.label },
-{ k: 'Git', v: gitOn ? 'Humberto Blanqueto' : 'Sin configurar' }
+{ k: 'Git', v: gitOn ? 'Ana García' : 'Sin configurar' }
 ];
 const greets = [
 { word: 'hola', cta: 'Continuar', hint: 'Pulsa Intro para empezar', size: 150 },

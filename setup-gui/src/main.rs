@@ -41,6 +41,9 @@ fn main() -> Result<(), slint::PlatformError> {
         st.set_machine_model(info.model.into());
         st.set_machine_cpu(info.cpu.into());
         st.set_machine_ram(info.ram.into());
+        st.set_machine_disk(info.disk.into());
+        st.set_machine_disk_used(info.disk_used.into());
+        st.set_machine_disk_fill(info.disk_fill);
         st.set_machine_host(info.host.into());
     }
 

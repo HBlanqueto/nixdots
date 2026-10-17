@@ -60,23 +60,23 @@ export global State {
     in-out property <bool> a11y-reduce-motion: false;
     in-out property <bool> a11y-screen-keyboard: false;
 
-    in-out property <string> full-name: "Humberto Blanqueto";
-    in-out property <string> username: "humbertoblanqueto";
-    in-out property <string> initials: "HB";
-    in-out property <string> first-name: "Humberto";
+    in-out property <string> full-name: "";
+    in-out property <string> username: "";
+    in-out property <string> initials: "";
+    in-out property <string> first-name: "";
     in-out property <string> password: "";
     in-out property <string> password2: "";
     in-out property <string> username-error: "";
-    in-out property <string> git-name: "Humberto Blanqueto";
+    in-out property <string> git-name: "";
     in-out property <string> git-email: "";
 
-    in-out property <string> machine-model: "ThinkPad L14 Gen 2a";
-    in-out property <string> machine-cpu: "AMD Ryzen 5 PRO 5650U with Radeon Graphics";
-    in-out property <string> machine-ram: "16 GB";
-    in-out property <string> machine-disk: "System HD · 256 GB";
-    in-out property <string> machine-disk-used: "38 GB usados";
-    in-out property <float> machine-disk-fill: 0.15;
-    in-out property <string> machine-host: "ThinkPad-L14-Gen2";
+    in-out property <string> machine-model: "—";
+    in-out property <string> machine-cpu: "—";
+    in-out property <string> machine-ram: "—";
+    in-out property <string> machine-disk: "—";
+    in-out property <string> machine-disk-used: "—";
+    in-out property <float> machine-disk-fill: 0.0;
+    in-out property <string> machine-host: "—";
 
     // Saludo (paso 0): 13 idiomas.
     in-out property <[Greet]> greets: [
@@ -813,6 +813,18 @@ export component AppWindow inherits Window {
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
     }
+    // Altura real del contenido de cada paso (el diálogo se ajusta a ella).
+    function step-height(i: int) -> length {
+        return i == 1 ? p1.preferred-height
+            : i == 2 ? p2.preferred-height
+            : i == 3 ? p3.preferred-height
+            : i == 4 ? p4.preferred-height
+            : i == 5 ? p5.preferred-height
+            : i == 6 ? p6.preferred-height
+            : i == 7 ? p7.preferred-height
+            : i == 8 ? p8.preferred-height
+            : p9.preferred-height;
+    }
     function next-step(s: int) -> int {
         return (s + 1 == 3 && State.has-network) ? 4 : s + 1;
     }
@@ -900,9 +912,9 @@ export component AppWindow inherits Window {
         transform-scale-x: Motion.reduce ? 100% : (State.step == 0 ? 100% : 104%);
         transform-scale-y: Motion.reduce ? 100% : (State.step == 0 ? 100% : 104%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Motion.slow; }
-        animate transform-scale-x { duration: Motion.slow; }
-        animate transform-scale-y { duration: Motion.slow; }
+        animate opacity { duration: Motion.slow; easing: ease-out; }
+        animate transform-scale-x { duration: Motion.slow; easing: ease-out; }
+        animate transform-scale-y { duration: Motion.slow; easing: ease-out; }
 
         // El saludo lo escribe Rust letra a letra (State.greet-typed) y luego lo
         // funde; `greet-animate` es falso en slint-viewer (muestra la palabra).
@@ -1005,7 +1017,8 @@ export component AppWindow inherits Window {
     // -------------------------------------------------------------- Diálogo --
     dialog := Rectangle {
         width: 560px;
-        height: 668px;
+        // La altura sale del paso activo: crece o mengua con su contenido real.
+        height: dlg-body.preferred-height;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
@@ -1019,32 +1032,34 @@ export component AppWindow inherits Window {
         transform-scale-x: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         transform-scale-y: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Motion.slow; delay: 180ms; }
-        animate transform-scale-x { duration: Motion.slow; delay: 180ms; }
-        animate transform-scale-y { duration: Motion.slow; delay: 180ms; }
+        animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+        animate background { duration: Motion.base; }
+        animate opacity { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
+        animate transform-scale-x { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
+        animate transform-scale-y { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
 
-        VerticalLayout {
+        dlg-body := VerticalLayout {
             padding-left: 48px;
             padding-right: 48px;
             padding-top: 36px;
             padding-bottom: 28px;
             spacing: 20px;
 
-            // Contenido entre pasos (520 px, recortado).
+            // Contenido entre pasos: la altura sigue al paso activo, recortado.
             Rectangle {
                 width: 100%;
-                height: 520px;
+                height: root.step-height(State.step);
                 clip: true;
+                animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
 
                 // --- Paso 1 · Idioma y región ---
-                Rectangle {
+                p1 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(1);
                     opacity: root.op(1);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1103,14 +1118,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 2 · Accesibilidad ---
-                Rectangle {
+                p2 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(2);
                     opacity: root.op(2);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1184,14 +1198,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 3 · Wi-Fi ---
-                Rectangle {
+                p3 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(3);
                     opacity: root.op(3);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1239,14 +1252,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 4 · Tu cuenta ---
-                Rectangle {
+                p4 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(4);
                     opacity: root.op(4);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1319,14 +1331,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 5 · Zona horaria ---
-                Rectangle {
+                p5 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(5);
                     opacity: root.op(5);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1387,14 +1398,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 6 · Este equipo ---
-                Rectangle {
+                p6 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(6);
                     opacity: root.op(6);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1468,14 +1478,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 7 · Apariencia ---
-                Rectangle {
+                p7 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(7);
                     opacity: root.op(7);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1525,14 +1534,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 8 · Git ---
-                Rectangle {
+                p8 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(8);
                     opacity: root.op(8);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1578,14 +1586,13 @@ export component AppWindow inherits Window {
                 }
 
                 // --- Paso 9 · Todo listo ---
-                Rectangle {
+                p9 := Rectangle {
                     width: 100%;
-                    height: 100%;
                     x: root.off(9);
                     opacity: root.op(9);
                     visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 16px;
@@ -1715,9 +1722,9 @@ export component AppWindow inherits Window {
         transform-scale-x: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
         transform-scale-y: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Motion.slow; }
-        animate transform-scale-x { duration: Motion.slow; }
-        animate transform-scale-y { duration: Motion.slow; }
+        animate opacity { duration: Motion.slow; easing: ease-out; }
+        animate transform-scale-x { duration: Motion.slow; easing: ease-out; }
+        animate transform-scale-y { duration: Motion.slow; easing: ease-out; }
 
         property <float> spin: 0;
         Timer {
