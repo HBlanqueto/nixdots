@@ -38,7 +38,7 @@ This NixOS system features the following core components:
 * **`flake.nix`:** emits the generic `nixdots` configuration (plus pure CI variants and the first-boot test VMs); also packages the installer for `x86_64-linux` and `aarch64-linux`.
 * **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
 * **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.json` and `facter.json`, the first-boot assistant writes `user.json` (plus the password hash), and `lib/data.nix` merges them.
-* **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `core` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
+* **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `cryptroot` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
@@ -110,24 +110,27 @@ nixos-install --root /mnt --flake ~/nixdots#nixdots --impure --show-trace
 
 ### Disk encryption (LUKS + TPM)
 
-`disko.nix` formats the root as a **LUKS2** container (`core`) holding the btrfs
-subvolumes; only the ESP stays unencrypted (Lanzaboote must read the kernel and
-initrd before unlocking). The installer asks for a dedicated LUKS passphrase on
-the **Cifrado** screen (separate from the account password, which does not exist
-yet) and early boots ask for it.
+`disko.nix` formats the root as a **LUKS2** container (`cryptroot`) holding the
+btrfs subvolumes; only the ESP stays unencrypted (Lanzaboote must read the
+kernel and initrd before unlocking). The installer asks for a dedicated LUKS
+passphrase on the **Cifrado** screen (separate from the account password, which
+does not exist yet) and early boots ask for it.
 
-On the **ThinkPad**, once reinstalled with encryption, `modules/common/luks-tpm.nix`
-enables Lanzaboote's **Measured Boot** (`systemd-pcrlock`): the passphrase is
-enrolled into the TPM2 chip, bound to the firmware, bootloader and Secure Boot
-PCRs (`0 4 7`), so boots unlock without typing. The `pcrlock` policy and
-directory are persisted (`/var/lib/systemd/pcrlock.json`, `/var/lib/pcrlock.d`)
-because the root is ephemeral. The UTM VM has no TPM and keeps asking for the
-passphrase.
+`modules/common/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
+(`systemd-pcrlock`) on machines that ask for it: Lanzaboote's `autoCryptenroll`
+enrolls the TPM2 chip on the first boot, bound to the firmware, bootloader and
+Secure Boot PCRs (`0 4 7`), and `systemd-pcrlock` keeps the policy up to date
+across Secure Boot and firmware changes, so boots unlock without typing. The
+installer no longer enrolls the TPM itself: a static `--tpm2-pcrs=7` slot would
+stop working as soon as Lanzaboote enrolls the Secure Boot keys. The `pcrlock`
+policy and directory are persisted (`/var/lib/systemd/pcrlock.json`,
+`/var/lib/pcrlock.d`) because the root is ephemeral. A machine without a TPM or
+without Secure Boot (e.g. a VM) keeps asking for the passphrase.
 
 > [!NOTE]
 > Verify support with
 > `/run/current-system/systemd/lib/systemd/systemd-pcrlock is-supported`
-> (must print `yes`). If it does not, leave `nixdots.tpmUnlock.enable = false;`.
+> (must print `yes`). If it does not, leave `nixdots.encryption.tpmUnlock = false;`.
 
 > [!NOTE]
 > The password hash is written by the first-boot assistant to

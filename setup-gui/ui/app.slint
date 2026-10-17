@@ -860,6 +860,14 @@ export component AppWindow inherits Window {
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
     }
+    // Texto de la fase real del CLI que muestra «Preparando».
+    function status-label(p: int) -> string {
+        return p == 0 ? "Creando tu cuenta…"
+            : p == 1 ? "Aplicando idioma y región…"
+            : p == 2 ? "Construyendo el sistema…"
+            : p == 3 ? "Instalando la entrada de arranque…"
+            : "Listo. Reiniciando…";
+    }
     // Altura real del contenido de cada paso (el diálogo se ajusta a ella).
     function step-height(i: int) -> length {
         return i == 1 ? p1.preferred-height
@@ -1772,11 +1780,31 @@ export component AppWindow inherits Window {
         animate transform-scale-x { duration: Motion.slow; easing: ease-out; }
         animate transform-scale-y { duration: Motion.slow; easing: ease-out; }
 
-        property <float> spin: 0;
-        Timer {
-            interval: 16ms;
-            running: State.step == 10;
-            triggered => { prepare.spin = Math.mod(prepare.spin + 6, 360); }
+        // 0 mientras prepara; 1 al aparecer el error (funde spinner ↔ «!»).
+        property <float> err: State.apply-error == "" ? 0.0 : 1.0;
+        // Texto de fase con fundido: sale, cambia y vuelve a entrar.
+        property <string> status-text: "";
+        property <float> status-op: 1.0;
+        // Alias local para poder usar `changed` (no admite nombres cualificados).
+        property <int> phase: State.prep-phase;
+        init => { prepare.status-text = root.status-label(prepare.phase); }
+        status-timer := Timer {
+            interval: Motion.reduce ? 1ms : 250ms;
+            running: false;
+            triggered => {
+                prepare.status-text = root.status-label(prepare.phase);
+                prepare.status-op = 1.0;
+                self.running = false;
+            }
+        }
+        changed phase => {
+            if (Motion.reduce) {
+                prepare.status-text = root.status-label(prepare.phase);
+                prepare.status-op = 1.0;
+            } else {
+                prepare.status-op = 0.0;
+                status-timer.start();
+            }
         }
 
         VerticalLayout {
@@ -1784,26 +1812,60 @@ export component AppWindow inherits Window {
             spacing: 22px;
             HorizontalLayout {
                 alignment: center;
-                if State.apply-error == "" : SpinIcon {
-                    size: 36px;
-                    sw: 2.2px;
-                    ink: #ffffff;
-                    transform-rotation: prepare.spin * 1deg;
-                }
-                if State.apply-error != "" : Rectangle {
+                Rectangle {
                     width: 48px;
                     height: 48px;
-                    border-radius: 13px;
-                    background: Tokens.dangerFill;
-                    Text {
-                        text: "!";
-                        color: #ffffff;
-                        font-size: 28px;
-                        font-weight: 700;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: parent.width;
-                        height: parent.height;
+                    background: transparent;
+                    // Spinner: 0,9 s por vuelta, sólo si la pantalla está visible.
+                    SpinIcon {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        size: 36px;
+                        sw: 2.2px;
+                        ink: #ffffff;
+                        opacity: (!Motion.reduce && prepare.err == 0) ? 1 : 0;
+                        transform-rotation: (State.step == 10 && State.apply-error == "")
+                            ? mod(animation-tick(), 900ms) / 900ms * 360deg
+                            : 0deg;
+                        animate opacity { duration: Motion.base; }
+                    }
+                    // Con «Reducir animaciones», tres puntos estáticos.
+                    if Motion.reduce : HorizontalLayout {
+                        alignment: center;
+                        spacing: 6px;
+                        for _d in 3 : Rectangle {
+                            width: 6px;
+                            height: 6px;
+                            border-radius: 3px;
+                            background: #ffffff;
+                            opacity: prepare.err == 0 ? 1 : 0;
+                            animate opacity { duration: Motion.base; }
+                        }
+                    }
+                    // Error: «!» con fundido y escala 0.8→1.0.
+                    Rectangle {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 13px;
+                        background: Tokens.dangerFill;
+                        opacity: prepare.err;
+                        transform-scale-x: 80% + 20% * prepare.err;
+                        transform-scale-y: 80% + 20% * prepare.err;
+                        animate opacity { duration: Motion.base; }
+                        animate transform-scale-x { duration: Motion.base; }
+                        animate transform-scale-y { duration: Motion.base; }
+                        Text {
+                            text: "!";
+                            color: #ffffff;
+                            font-size: 28px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            width: parent.width;
+                            height: parent.height;
+                        }
                     }
                 }
             }
@@ -1839,20 +1901,17 @@ export component AppWindow inherits Window {
                         height: 100%;
                         border-radius: Tokens.radiuspill;
                         background: #ffffff;
-                        animate width { duration: 1200ms; easing: ease-in-out; }
+                        animate width { duration: Motion.reduce ? 0ms : 1200ms; easing: ease-out; }
                     }
                 }
             }
             if State.apply-error == "" : Text {
-                text: State.prep-phase == 0 ? "Creando tu cuenta…"
-                    : State.prep-phase == 1 ? "Aplicando idioma y región…"
-                    : State.prep-phase == 2 ? "Construyendo el sistema…"
-                    : State.prep-phase == 3 ? "Instalando la entrada de arranque…"
-                    : "Listo. Reiniciando…";
+                text: prepare.status-text;
                 color: rgba(255, 255, 255, 0.9);
                 font-size: 13px;
                 horizontal-alignment: center;
-                animate opacity { duration: 250ms; }
+                opacity: prepare.status-op;
+                animate opacity { duration: Motion.reduce ? 0ms : 250ms; }
             }
             HorizontalLayout {
                 alignment: center;
@@ -1863,13 +1922,17 @@ export component AppWindow inherits Window {
                     clicked => { State.show-details = !State.show-details; }
                 }
             }
-            if State.show-details : Rectangle {
+            Rectangle {
                 width: 680px;
-                height: 170px;
+                height: State.show-details ? 170px : 0px;
+                clip: true;
+                opacity: State.show-details ? 1 : 0;
                 border-radius: Tokens.radiuslg;
                 background: rgba(13, 18, 25, 0.36);
                 border-width: 1px;
                 border-color: rgba(255, 255, 255, 0.16);
+                animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+                animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                 Text {
                     x: 16px;
                     y: 12px;
@@ -1920,7 +1983,7 @@ export component AppWindow inherits Window {
         background: #000000;
         opacity: State.prep-black ? 1 : 0;
         visible: self.opacity > 0.001;
-        animate opacity { duration: 600ms; }
+        animate opacity { duration: Motion.reduce ? 0ms : 600ms; }
     }
 
     }
