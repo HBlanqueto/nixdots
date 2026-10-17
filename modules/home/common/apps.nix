@@ -8,6 +8,12 @@ let
 
     yaziConfig = import ./config/yazi { inherit theme; };
 
+    # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
+    # fuente XNU solo tiene los 256 glifos Latin-1.
+    starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
+        ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
+    '';
+
     hexToRgb = hex:
         let
             digit = {
@@ -256,8 +262,23 @@ in
         fish = {
             enable = true;
             interactiveShellInit = ''
-                set -g fish_greeting 
+                set -g fish_greeting
                 set -g fish_color_command --bold green
+
+                # La TTY del sistema instalado usa la XNU (solo Latin-1): ni el
+                # prompt ni eza llevan iconos Nerd Font. En la terminal gráfica
+                # todo sigue igual.
+                if test "$XDG_SESSION_TYPE" = tty
+                    set -gx STARSHIP_CONFIG ${starshipPlain}
+                    set -g eza_icons
+                else
+                    set -g eza_icons --icons
+                end
+                alias ls "eza --color=auto $eza_icons"
+                alias l "ls -l"
+                alias la "ls -a"
+                alias lla "ls -la"
+                alias lt "ls --tree"
             '';
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
@@ -267,11 +288,6 @@ in
 
                 g = "git";
                 c = "clear";
-                ls = "eza --color=auto --icons";
-                l = "ls -l";
-                la = "ls -a";
-                lla = "ls -la";
-                lt = "ls --tree";
             };
         };
 
