@@ -21,7 +21,12 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let logo_h = logo.len() as u16;
     let logo_w = logo
         .iter()
-        .map(|l| l.spans.iter().map(|s| s.content.chars().count()).sum::<usize>())
+        .map(|l| {
+            l.spans
+                .iter()
+                .map(|s| s.content.chars().count())
+                .sum::<usize>()
+        })
         .max()
         .unwrap_or(0) as u16;
 
@@ -80,8 +85,11 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
         app.license_total
     );
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(gray, Style::default().fg(app.palette.muted))))
-            .alignment(Alignment::Center),
+        Paragraph::new(Line::from(Span::styled(
+            gray,
+            Style::default().fg(app.palette.muted),
+        )))
+        .alignment(Alignment::Center),
         Rect::new(area.x, y, area.width, 1),
     );
     y += 2;

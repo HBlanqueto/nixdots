@@ -6,8 +6,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
-use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 const SPINNER: [&str; 8] = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"];
 
@@ -19,7 +19,11 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             let lines = list_lines(app, inner.width, inner.height as usize, focused);
             f.render_widget(Paragraph::new(lines), inner);
         }
-        RedFase::Contrasena { ssid, input, visible } => {
+        RedFase::Contrasena {
+            ssid,
+            input,
+            visible,
+        } => {
             let chunks = Layout::vertical([
                 Constraint::Min(0),
                 Constraint::Length(1),
@@ -58,7 +62,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         RedFase::Conectando { ssid } => {
             let spinner = SPINNER[(app.tick as usize / 2) % SPINNER.len()];
             let line = Line::from(vec![
-                Span::styled(format!("{spinner} "), Style::default().fg(app.palette.focus)),
+                Span::styled(
+                    format!("{spinner} "),
+                    Style::default().fg(app.palette.focus),
+                ),
                 Span::styled(
                     format!("conectando a {ssid}…"),
                     Style::default().fg(app.palette.text),
@@ -178,7 +185,11 @@ fn wifi_row(app: &App, i: usize, width: u16, focused: bool) -> Line<'static> {
         Span::styled(format!("{:<10}", wifi.security()), sec_style),
     ];
     for (k, ch) in ["▂", "▄", "▆", "█"].iter().enumerate() {
-        let color = if k < level { bright } else { app.palette.disabled };
+        let color = if k < level {
+            bright
+        } else {
+            app.palette.disabled
+        };
         spans.push(Span::styled((*ch).to_string(), Style::default().fg(color)));
     }
     let line = Line::from(spans);
@@ -385,8 +396,16 @@ mod tests {
         app.screen = Screen::Network;
         app.net.phase = RedFase::Lista;
         app.net.wifi = vec![
-            Wifi { ssid: "WPA-Net".into(), signal: 80, secured: true },
-            Wifi { ssid: "Abierta".into(), signal: 40, secured: false },
+            Wifi {
+                ssid: "WPA-Net".into(),
+                signal: 80,
+                secured: true,
+            },
+            Wifi {
+                ssid: "Abierta".into(),
+                signal: 40,
+                secured: false,
+            },
         ];
         app.net.selected = 0;
         app
@@ -480,7 +499,9 @@ mod tests {
     fn only_connected_allows_advance() {
         let mut app = app();
         assert!(!app.primary_enabled(), "Lista no debe permitir avanzar");
-        app.net.phase = RedFase::Conectado { ssid: "WPA-Net".into() };
+        app.net.phase = RedFase::Conectado {
+            ssid: "WPA-Net".into(),
+        };
         assert!(app.primary_enabled(), "Conectado debe permitir avanzar");
     }
 }

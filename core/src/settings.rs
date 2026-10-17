@@ -123,7 +123,10 @@ impl Settings {
         let pretty = if self.pretty_host_name.is_empty() {
             String::new()
         } else {
-            format!("    prettyHostName = {};\n", nix_str(&self.pretty_host_name))
+            format!(
+                "    prettyHostName = {};\n",
+                nix_str(&self.pretty_host_name)
+            )
         };
         let user = match (&self.username, self.password_file()) {
             (Some(username), Some(password_file)) => format!(
@@ -217,7 +220,10 @@ mod tests {
     fn password_file_follows_username() {
         let mut s = sample();
         s.username = Some("ana".into());
-        assert_eq!(s.password_file().as_deref(), Some("/persist/secrets/ana.hash"));
+        assert_eq!(
+            s.password_file().as_deref(),
+            Some("/persist/secrets/ana.hash")
+        );
     }
 
     #[test]

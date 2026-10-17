@@ -83,10 +83,17 @@ pub enum Msg {
     Log(String),
     /// A level-0 nix message line; shown in red.
     Error(String),
-    Progress { built: u64, total: u64 },
+    Progress {
+        built: u64,
+        total: u64,
+    },
     /// A child process finished; the UI should wipe and fully redraw.
     Repaint,
-    Finished { ok: bool, error: Option<String>, log_path: PathBuf },
+    Finished {
+        ok: bool,
+        error: Option<String>,
+        log_path: PathBuf,
+    },
 }
 
 /// Everything the installer needs to run.
@@ -200,7 +207,11 @@ impl Reporter {
 
     /// Sends a filtered display line to the UI, without touching the file.
     fn emit(&mut self, line: String, is_error: bool) {
-        let msg = if is_error { Msg::Error(line) } else { Msg::Log(line) };
+        let msg = if is_error {
+            Msg::Error(line)
+        } else {
+            Msg::Log(line)
+        };
         let _ = self.tx.send(msg);
     }
 
@@ -230,7 +241,10 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         .truncate(true)
         .open(plan.log_path())
         .ok();
-    let mut report = Reporter { tx: tx.clone(), file };
+    let mut report = Reporter {
+        tx: tx.clone(),
+        file,
+    };
 
     // Kept in the on-disk log only; the UI log starts with the steps.
     report.raw("== nixdots installer ==");
@@ -240,7 +254,10 @@ fn run(plan: Plan, tx: Sender<Msg>) {
     ));
     report.raw(&format!("host: {}", plan.settings.host_name));
     report.raw(&format!("dispositivo: {}", plan.device));
-    report.raw(&format!("repo destino: {}", plan.installed_repo().display()));
+    report.raw(&format!(
+        "repo destino: {}",
+        plan.installed_repo().display()
+    ));
 
     match run_steps(&plan, &mut report) {
         Ok(()) => {
@@ -290,19 +307,20 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
     // Disk is only formatted when it is the (re)starting point. When resuming
     // from a later step the prepared disk is reattached, never reformatted.
-    let luks = if resume <= Step::Disk {
-        report.step(Step::Disk);
-        step_disk(plan, report)?
-    } else {
-        ensure_disk_ready(plan, report)?;
-        if plan.encrypt {
-            Some(detect::luks_partition(&plan.device).ok_or_else(|| {
-                eyre!("no se encontró la partición cifrada en {}", plan.device)
-            })?)
+    let luks =
+        if resume <= Step::Disk {
+            report.step(Step::Disk);
+            step_disk(plan, report)?
         } else {
-            None
-        }
-    };
+            ensure_disk_ready(plan, report)?;
+            if plan.encrypt {
+                Some(detect::luks_partition(&plan.device).ok_or_else(|| {
+                    eyre!("no se encontró la partición cifrada en {}", plan.device)
+                })?)
+            } else {
+                None
+            }
+        };
 
     // Scratch space on the target disk (not the ISO's RAM store) for the build.
     prepare_target_tmp(plan, report)?;
@@ -553,7 +571,10 @@ fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
         None
     };
     if let Some(pass) = &pass {
-        cmd = cmd.arg("--argstr").arg("luksPasswordFile").arg_path(pass.path());
+        cmd = cmd
+            .arg("--argstr")
+            .arg("luksPasswordFile")
+            .arg_path(pass.path());
     }
 
     ensure_ok(
@@ -657,7 +678,10 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
     if plan.encrypt {
         cmd = cmd.arg("--argstr").arg("encrypt").arg("true");
         if let Some(pass) = &pass {
-            cmd = cmd.arg("--argstr").arg("luksPasswordFile").arg_path(pass.path());
+            cmd = cmd
+                .arg("--argstr")
+                .arg("luksPasswordFile")
+                .arg_path(pass.path());
         }
         cmd = cmd.with_display(format!(
             "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr encrypt true",
@@ -770,7 +794,12 @@ fn step_disk_alongside(
 
     // 3. Format.
     if reuse_efi.is_none() {
-        run_ok(plan, report, &Cmd::new("mkfs.vfat").arg("-n").arg("BOOT").arg(&esp), "no se pudo formatear la EFI")?;
+        run_ok(
+            plan,
+            report,
+            &Cmd::new("mkfs.vfat").arg("-n").arg("BOOT").arg(&esp),
+            "no se pudo formatear la EFI",
+        )?;
     }
     let (data, luks) = if plan.encrypt {
         let pass_path = pass.as_ref().map(SecretFile::path).unwrap_or(Path::new(""));
@@ -797,9 +826,16 @@ fn step_disk_alongside(
                 .arg("cryptroot"),
             "no se pudo abrir el contenedor cifrado",
         )?;
-        let uuid = runner::capture(&Cmd::new("blkid").arg("-s").arg("UUID").arg("-o").arg("value").arg(&system))
-            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-            .unwrap_or_default();
+        let uuid = runner::capture(
+            &Cmd::new("blkid")
+                .arg("-s")
+                .arg("UUID")
+                .arg("-o")
+                .arg("value")
+                .arg(&system),
+        )
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default();
         (
             "/dev/mapper/cryptroot".to_string(),
             Some(detect::LuksPartition {
@@ -811,7 +847,12 @@ fn step_disk_alongside(
         (system.clone(), None)
     };
 
-    run_ok(plan, report, &Cmd::new("mkfs.btrfs").arg("-L").arg("nixos").arg(&data), "no se pudo crear el btrfs")?;
+    run_ok(
+        plan,
+        report,
+        &Cmd::new("mkfs.btrfs").arg("-L").arg("nixos").arg(&data),
+        "no se pudo crear el btrfs",
+    )?;
     setup_subvolumes(plan, report, &data)?;
     mount_alongside(plan, report, &data, &esp)?;
 
@@ -838,7 +879,12 @@ fn shrink_ntfs(plan: &Plan, report: &mut Reporter, spec: &ShrinkSpec) -> Result<
         .arg("--size")
         .arg(target.to_string())
         .arg(&spec.ntfs);
-    run_ok(plan, report, &check, "ntfsresize rechazó el tamaño propuesto")?;
+    run_ok(
+        plan,
+        report,
+        &check,
+        "ntfsresize rechazó el tamaño propuesto",
+    )?;
     let real = Cmd::new("ntfsresize")
         .arg("--force")
         .arg("--size")
@@ -847,19 +893,30 @@ fn shrink_ntfs(plan: &Plan, report: &mut Reporter, spec: &ShrinkSpec) -> Result<
     run_ok(plan, report, &real, "no se pudo reducir Windows")?;
 
     // Resize the GPT entry: keep the start sector, set the new end.
-    let index = partition_index(&spec.ntfs).ok_or_else(|| eyre!("no se pudo leer el número de partición de {}", spec.ntfs))?;
+    let index = partition_index(&spec.ntfs)
+        .ok_or_else(|| eyre!("no se pudo leer el número de partición de {}", spec.ntfs))?;
     let start = partition_start(plan, report, &plan.device, index)?;
     let end = format!("+{}", target / 512);
     let cmd = Cmd::new("sgdisk")
         .arg(format!("--delete={index}"))
         .arg(&plan.device);
-    run_ok(plan, report, &cmd, "no se pudo reescribir la partición de Windows")?;
+    run_ok(
+        plan,
+        report,
+        &cmd,
+        "no se pudo reescribir la partición de Windows",
+    )?;
     let cmd = Cmd::new("sgdisk")
         .arg(format!("--new={index}:{start}:{end}"))
         .arg(format!("--typecode={index}:0700"))
         .arg(format!("--change-name={index}:Basic data partition"))
         .arg(&plan.device);
-    run_ok(plan, report, &cmd, "no se pudo reescribir la partición de Windows")?;
+    run_ok(
+        plan,
+        report,
+        &cmd,
+        "no se pudo reescribir la partición de Windows",
+    )?;
     rescan(plan, report);
     Ok(())
 }
@@ -868,7 +925,12 @@ fn shrink_ntfs(plan: &Plan, report: &mut Reporter, spec: &ShrinkSpec) -> Result<
 fn current_ntfs_size(ntfs: &str) -> u64 {
     runner::capture(&Cmd::new("blockdev").arg("--getsize64").arg(ntfs))
         .ok()
-        .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().parse::<u64>().ok())
+        .and_then(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .trim()
+                .parse::<u64>()
+                .ok()
+        })
         .unwrap_or(0)
 }
 
@@ -880,7 +942,11 @@ fn create_partition(
     type_code: &str,
     label: &str,
 ) -> Result<String> {
-    let end = if size == "0" { "0".to_string() } else { format!("+{size}") };
+    let end = if size == "0" {
+        "0".to_string()
+    } else {
+        format!("+{size}")
+    };
     let cmd = Cmd::new("sgdisk")
         .arg(format!("--new=0:0:{end}"))
         .arg(format!("--typecode=0:{type_code}"))
@@ -903,7 +969,11 @@ fn find_partition(device: &str, label: &str) -> Option<String> {
     )
     .ok()?;
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    let children = json.get("blockdevices")?.get(0)?.get("children")?.as_array()?;
+    let children = json
+        .get("blockdevices")?
+        .get(0)?
+        .get("children")?
+        .as_array()?;
     for part in children {
         if part.get("partlabel").and_then(|v| v.as_str()) == Some(label) {
             return Some(format!("/dev/{}", part.get("name")?.as_str()?));
@@ -925,9 +995,7 @@ fn partition_index(device: &str) -> Option<u32> {
 
 /// The first sector of partition `index` (`sgdisk -i`).
 fn partition_start(plan: &Plan, report: &mut Reporter, device: &str, index: u32) -> Result<String> {
-    let out = runner::capture(
-        &Cmd::new("sgdisk").arg(format!("-i={index}")).arg(device),
-    )?;
+    let out = runner::capture(&Cmd::new("sgdisk").arg(format!("-i={index}")).arg(device))?;
     let text = String::from_utf8_lossy(&out.stdout);
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("First sector:") {
@@ -938,14 +1006,19 @@ fn partition_start(plan: &Plan, report: &mut Reporter, device: &str, index: u32)
         }
     }
     let _ = (plan, report);
-    Err(eyre!("no se pudo leer el primer sector de la partición {index}"))
+    Err(eyre!(
+        "no se pudo leer el primer sector de la partición {index}"
+    ))
 }
 
 fn rescan(plan: &Plan, report: &mut Reporter) {
     let mut sink = |_: Stream| {};
     let _ = runner::run(&Cmd::new("partprobe").arg(&plan.device), &mut sink);
     let _ = runner::run(
-        &Cmd::new("udevadm").arg("settle").arg("--timeout").arg("120"),
+        &Cmd::new("udevadm")
+            .arg("settle")
+            .arg("--timeout")
+            .arg("120"),
         &mut sink,
     );
     report.repaint();
@@ -953,15 +1026,43 @@ fn rescan(plan: &Plan, report: &mut Reporter) {
 
 /// Creates the btrfs subvolumes and the read-only `@rootfs-blank` template.
 fn setup_subvolumes(plan: &Plan, report: &mut Reporter, data: &str) -> Result<()> {
-    run_ok(plan, report, &Cmd::new("mount").arg(data).arg_path(&plan.root), "no se pudo montar el btrfs")?;
+    run_ok(
+        plan,
+        report,
+        &Cmd::new("mount").arg(data).arg_path(&plan.root),
+        "no se pudo montar el btrfs",
+    )?;
     for sub in ["@rootfs", "@nix", "@home", "@persist", "@log"] {
         let path = plan.root.join(sub);
-        run_ok(plan, report, &Cmd::new("btrfs").arg("subvolume").arg("create").arg_path(&path), "no se pudo crear el subvolumen")?;
+        run_ok(
+            plan,
+            report,
+            &Cmd::new("btrfs")
+                .arg("subvolume")
+                .arg("create")
+                .arg_path(&path),
+            "no se pudo crear el subvolumen",
+        )?;
     }
     let src = plan.root.join("@rootfs");
     let dst = plan.root.join("@rootfs-blank");
-    run_ok(plan, report, &Cmd::new("btrfs").arg("subvolume").arg("snapshot").arg("-r").arg_path(&src).arg_path(&dst), "no se pudo crear la plantilla")?;
-    run_ok(plan, report, &Cmd::new("umount").arg_path(&plan.root), "no se pudo desmontar el btrfs")?;
+    run_ok(
+        plan,
+        report,
+        &Cmd::new("btrfs")
+            .arg("subvolume")
+            .arg("snapshot")
+            .arg("-r")
+            .arg_path(&src)
+            .arg_path(&dst),
+        "no se pudo crear la plantilla",
+    )?;
+    run_ok(
+        plan,
+        report,
+        &Cmd::new("umount").arg_path(&plan.root),
+        "no se pudo desmontar el btrfs",
+    )?;
     Ok(())
 }
 
@@ -976,7 +1077,11 @@ fn mount_alongside(plan: &Plan, report: &mut Reporter, data: &str, esp: &str) ->
         ("@log", "var/log"),
     ];
     for (sub, rel) in mounts {
-        let target = if rel.is_empty() { plan.root.clone() } else { plan.root.join(rel) };
+        let target = if rel.is_empty() {
+            plan.root.clone()
+        } else {
+            plan.root.join(rel)
+        };
         if !rel.is_empty() {
             fs::create_dir_all(&target)?;
         }
@@ -989,7 +1094,12 @@ fn mount_alongside(plan: &Plan, report: &mut Reporter, data: &str, esp: &str) ->
     }
     let boot = plan.root.join("boot");
     fs::create_dir_all(&boot)?;
-    run_ok(plan, report, &Cmd::new("mount").arg(esp).arg_path(&boot), "no se pudo montar la EFI")?;
+    run_ok(
+        plan,
+        report,
+        &Cmd::new("mount").arg(esp).arg_path(&boot),
+        "no se pudo montar la EFI",
+    )?;
     Ok(())
 }
 
@@ -1010,7 +1120,10 @@ fn clean_target(plan: &Plan, report: &mut Reporter) {
     );
     let mut sink = |_: Stream| {};
     let _ = runner::run(&Cmd::new("umount").arg("-R").arg("/mnt"), &mut sink);
-    let _ = runner::run(&Cmd::new("cryptsetup").arg("close").arg("cryptroot"), &mut sink);
+    let _ = runner::run(
+        &Cmd::new("cryptsetup").arg("close").arg("cryptroot"),
+        &mut sink,
+    );
     if let Some(luks) = detect::luks_partition(&plan.device) {
         let _ = runner::run(&Cmd::new("wipefs").arg("-a").arg(&luks.path), &mut sink);
     }
@@ -1021,12 +1134,7 @@ fn clean_target(plan: &Plan, report: &mut Reporter) {
 /// Runs `cryptsetup open --test-passphrase` with `key_file`, so a key that does
 /// not match the header is caught before any slot is touched. `what` is the
 /// failure message.
-fn verify_key(
-    report: &mut Reporter,
-    device: &str,
-    key_file: &Path,
-    what: &str,
-) -> Result<()> {
+fn verify_key(report: &mut Reporter, device: &str, key_file: &Path, what: &str) -> Result<()> {
     let cmd = Cmd::new("cryptsetup")
         .arg("open")
         .arg("--test-passphrase")
@@ -1093,17 +1201,19 @@ impl Drop for SecretFile {
 /// Whether this cryptsetup supports `--new-keyfile` for `luksAddKey` (2.7+).
 fn cryptsetup_has_new_keyfile() -> bool {
     static CACHE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *CACHE.get_or_init(|| match std::process::Command::new("cryptsetup")
-        .arg("luksAddKey")
-        .arg("--help")
-        .stdin(std::process::Stdio::null())
-        .output()
-    {
-        Ok(out) => {
-            String::from_utf8_lossy(&out.stdout).contains("--new-keyfile")
-                || String::from_utf8_lossy(&out.stderr).contains("--new-keyfile")
+    *CACHE.get_or_init(|| {
+        match std::process::Command::new("cryptsetup")
+            .arg("luksAddKey")
+            .arg("--help")
+            .stdin(std::process::Stdio::null())
+            .output()
+        {
+            Ok(out) => {
+                String::from_utf8_lossy(&out.stdout).contains("--new-keyfile")
+                    || String::from_utf8_lossy(&out.stderr).contains("--new-keyfile")
+            }
+            Err(_) => false,
         }
-        Err(_) => false,
     })
 }
 
@@ -1236,7 +1346,11 @@ fn step_tpm_enroll(
 fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let dest = plan.installed_repo();
     if plan.dry_run {
-        report.log(format!("$ cp -a {} {}", plan.source.display(), dest.display()));
+        report.log(format!(
+            "$ cp -a {} {}",
+            plan.source.display(),
+            dest.display()
+        ));
         fs::create_dir_all(&dest)?;
         write_minimum_repo(plan, &dest)?;
         report.log("(simulación) repositorio copiado");
@@ -1255,8 +1369,17 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
         .arg("-a")
         .arg_path(&plan.source)
         .arg_path(&dest)
-        .with_display(format!("cp -a {} {}", plan.source.display(), dest.display()));
-    let code = exec_in(plan, report, &cmd, plan.source.parent().unwrap_or(&plan.root))?;
+        .with_display(format!(
+            "cp -a {} {}",
+            plan.source.display(),
+            dest.display()
+        ));
+    let code = exec_in(
+        plan,
+        report,
+        &cmd,
+        plan.source.parent().unwrap_or(&plan.root),
+    )?;
     ensure_ok(code, "no se pudo copiar el repositorio")?;
     ensure_repo_ready(plan, report, &dest)?;
     Ok(())
@@ -1289,8 +1412,8 @@ fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let email_arg = format!("user.email={email}");
     let message = format!("machine: {}", plan.settings.host_name);
 
-    let add = git_cmd(&repo, &["add", "-A"])
-        .with_display(format!("git -C {} add -A", repo.display()));
+    let add =
+        git_cmd(&repo, &["add", "-A"]).with_display(format!("git -C {} add -A", repo.display()));
     ensure_ok(exec(plan, report, &add, &plan.source)?, "git add falló")?;
 
     // Nothing staged (e.g. a retry): HEAD already holds what the flake needs.
@@ -1313,11 +1436,11 @@ fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
             message.as_str(),
         ],
     )
-    .with_display(format!(
-        "git -C {} commit -m \"{message}\"",
-        repo.display()
-    ));
-    ensure_ok(exec(plan, report, &commit, &plan.source)?, "git commit falló")
+    .with_display(format!("git -C {} commit -m \"{message}\"", repo.display()));
+    ensure_ok(
+        exec(plan, report, &commit, &plan.source)?,
+        "git commit falló",
+    )
 }
 
 /// Makes the repo copied into `/mnt` usable by the flake. A snapshot copied from
@@ -1356,18 +1479,25 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
             "nixdots: initial import",
         ],
     );
-    ensure_ok(exec(plan, report, &commit, &plan.source)?, "git commit falló")
+    ensure_ok(
+        exec(plan, report, &commit, &plan.source)?,
+        "git commit falló",
+    )
 }
 
 fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     // Enough of a repo for the later (simulated) steps to operate on.
     fs::create_dir_all(dest.join("modules/hardware"))?;
-    fs::write(dest.join("settings.nix"), plan.settings.without_user().render())?;
+    fs::write(
+        dest.join("settings.nix"),
+        plan.settings.without_user().render(),
+    )?;
     fs::write(dest.join("modules/hardware/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
     Ok(())
 }
 
-const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
+const SNAPSHOT_TEMPLATE: &str =
+    "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
@@ -1378,7 +1508,11 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // Keep a copy of the license in the installed system.
     let lic_dst = plan.root.join("etc/nixdots");
     let lic_src = repo.join("LICENSE");
-    report.log(format!("$ cp {} {}/LICENSE", lic_src.display(), lic_dst.display()));
+    report.log(format!(
+        "$ cp {} {}/LICENSE",
+        lic_src.display(),
+        lic_dst.display()
+    ));
     if !plan.dry_run && lic_src.exists() {
         fs::create_dir_all(&lic_dst)?;
         fs::copy(&lic_src, lic_dst.join("LICENSE"))?;
@@ -1565,7 +1699,10 @@ fn create_persist_dir(
         let group = entry.get("group").and_then(|g| g.as_str()).unwrap_or(user);
         let owner = format!("{user}:{group}");
         if chown(&target, &owner).is_err() {
-            report.log(format!("aviso: no se pudo fijar el dueño {owner} en {}", target.display()));
+            report.log(format!(
+                "aviso: no se pudo fijar el dueño {owner} en {}",
+                target.display()
+            ));
         }
     }
     report.log(format!("$ mkdir -p {}", target.display()));
@@ -1628,7 +1765,9 @@ fn persist_wifi(plan: &Plan, report: &mut Reporter) -> Result<()> {
         "/etc/NetworkManager/system-connections/{}.nmconnection",
         wifi.ssid
     ));
-    let dst_dir = plan.root.join("persist/etc/NetworkManager/system-connections");
+    let dst_dir = plan
+        .root
+        .join("persist/etc/NetworkManager/system-connections");
     fs::create_dir_all(&dst_dir)?;
     set_mode_dir(&dst_dir, 0o700)?;
     let dst = dst_dir.join(format!("{}.nmconnection", wifi.ssid));
@@ -1729,7 +1868,8 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
             .arg("--option")
             .arg("http-connections")
             .arg("8");
-        display.push_str(" --max-jobs 2 --option max-substitution-jobs 4 --option http-connections 8");
+        display
+            .push_str(" --max-jobs 2 --option max-substitution-jobs 4 --option http-connections 8");
     }
     let cmd = cmd.with_display(display);
 
@@ -1834,9 +1974,11 @@ fn exec_capture(
         report.log("(simulación) comando no ejecutado");
         return Ok(0);
     }
-    let wrapped = Cmd::new("sh")
-        .arg("-c")
-        .arg(format!("cd {} && exec {}", shell_quote(cwd), shell_command(cmd)));
+    let wrapped = Cmd::new("sh").arg("-c").arg(format!(
+        "cd {} && exec {}",
+        shell_quote(cwd),
+        shell_command(cmd)
+    ));
     let mut nixlog = NixLog::default();
     let mut sink = |out: Stream| match out {
         Stream::Stdout(l) => {
@@ -1989,10 +2131,7 @@ impl NixLog {
                     return (Vec::new(), None);
                 };
                 let is_error = level == 0;
-                let lines = text
-                    .lines()
-                    .map(|l| (is_error, strip_ansi(l)))
-                    .collect();
+                let lines = text.lines().map(|l| (is_error, strip_ansi(l))).collect();
                 (lines, None)
             }
             _ => (Vec::new(), None),
@@ -2201,11 +2340,7 @@ fn replace_by_uuid_with_label(text: &str) -> String {
     if uuid.is_empty() {
         return text.to_string();
     }
-    format!(
-        "{}/dev/disk/by-label/nixos{}",
-        &text[..start],
-        &text[end..]
-    )
+    format!("{}/dev/disk/by-label/nixos{}", &text[..start], &text[end..])
 }
 
 fn simulate_build(report: &mut Reporter) {
@@ -2233,7 +2368,6 @@ fn simulate_build(report: &mut Reporter) {
     report.log("(simulación) sistema construido");
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2252,7 +2386,6 @@ mod tests {
         let input = "echo hola\n";
         assert_eq!(replace_by_uuid_with_label(input), input);
     }
-
 
     #[test]
     fn steps_have_labels() {

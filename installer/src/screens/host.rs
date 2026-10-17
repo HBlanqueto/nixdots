@@ -15,12 +15,7 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let focus = app.host.focus;
     let has_focus = !app.focus_buttons && !app.no_focus();
 
-    let mut lines = vec![readonly_row(
-        app,
-        "Modelo",
-        app.model.clone(),
-        w,
-    )];
+    let mut lines = vec![readonly_row(app, "Modelo", app.model.clone(), w)];
     lines.push(Line::from(""));
 
     // Network name: the generated one (read-only) or a hand-written one.
@@ -92,10 +87,7 @@ fn readonly_row(app: &App, label: &str, value: String, width: u16) -> Line<'stat
     };
     let pad = (width as usize).saturating_sub(label.chars().count() + value.chars().count() + 1);
     Line::from(vec![
-        Span::styled(
-            label.to_string(),
-            Style::default().fg(app.palette.muted),
-        ),
+        Span::styled(label.to_string(), Style::default().fg(app.palette.muted)),
         Span::raw(" ".repeat(pad)),
         Span::styled(value, Style::default().fg(app.palette.highlight)),
     ])
@@ -168,9 +160,6 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 pub fn commands(app: &App) -> Vec<String> {
     vec![
         format!("machine.json: hostName = \"{}\";", app.final_host_name()),
-        format!(
-            "settings.nix: prettyHostName = \"{}\";",
-            app.model
-        ),
+        format!("settings.nix: prettyHostName = \"{}\";", app.model),
     ]
 }

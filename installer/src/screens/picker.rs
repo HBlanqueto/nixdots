@@ -68,7 +68,9 @@ pub fn draw_centered(
         let style = if selected {
             Style::default().fg(accent).add_modifier(Modifier::BOLD)
         } else if is_suggested {
-            Style::default().fg(palette.focus).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(palette.focus)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.text)
         };
@@ -152,13 +154,25 @@ pub fn draw(f: &mut Frame, palette: &Palette, area: Rect, picker: &Picker, focus
         }
         lines.push(line);
     }
-    let content = Rect::new(inner.x, inner.y, inner.width.saturating_sub(1), inner.height);
+    let content = Rect::new(
+        inner.x,
+        inner.y,
+        inner.width.saturating_sub(1),
+        inner.height,
+    );
     f.render_widget(Paragraph::new(lines), content);
     scrollbar(f, palette, inner, start, rows, total);
 }
 
 /// A `█`/`│` scrollbar on the last column of `area`, full height.
-fn scrollbar(f: &mut Frame, palette: &Palette, area: Rect, start: usize, rows: usize, total: usize) {
+fn scrollbar(
+    f: &mut Frame,
+    palette: &Palette,
+    area: Rect,
+    start: usize,
+    rows: usize,
+    total: usize,
+) {
     if total <= rows || area.width == 0 {
         return;
     }

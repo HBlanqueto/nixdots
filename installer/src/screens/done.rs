@@ -54,7 +54,11 @@ fn copy_log(app: &App) {
 }
 
 fn umount() {
-    let _ = Command::new("umount").arg("-R").arg("/mnt").stdin(Stdio::null()).status();
+    let _ = Command::new("umount")
+        .arg("-R")
+        .arg("/mnt")
+        .stdin(Stdio::null())
+        .status();
 }
 
 /// Reiniciar: copy the log, unmount and reboot (simulation just closes).

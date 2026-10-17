@@ -48,7 +48,10 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 }
 
 pub fn commands(app: &App) -> Vec<String> {
-    vec![format!("settings.nix: timeZone = \"{}\";", app.settings.time_zone)]
+    vec![format!(
+        "settings.nix: timeZone = \"{}\";",
+        app.settings.time_zone
+    )]
 }
 
 /// Builds the timezone list with each zone's current local time; las zonas

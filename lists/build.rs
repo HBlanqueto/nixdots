@@ -32,9 +32,8 @@ fn main() {
     }
     entries.sort();
 
-    let mut src = String::from(
-        "/// (locale code, language name, country name), generated from glibc.\n",
-    );
+    let mut src =
+        String::from("/// (locale code, language name, country name), generated from glibc.\n");
     src.push_str("pub static LOCALE_NAMES: &[(&str, &str, &str)] = &[\n");
     for (code, lang, country) in &entries {
         let _ = writeln!(src, "    ({code:?}, {lang:?}, {country:?}),");

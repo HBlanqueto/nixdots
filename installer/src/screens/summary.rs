@@ -13,7 +13,10 @@ fn gb(bytes: u64) -> String {
 
 fn row(app: &App, label: &str, value: String) -> Line<'static> {
     Line::from(vec![
-        Span::styled(format!("{label:<15}"), Style::default().fg(app.palette.muted)),
+        Span::styled(
+            format!("{label:<15}"),
+            Style::default().fg(app.palette.muted),
+        ),
         Span::styled(value, Style::default().fg(app.palette.text)),
     ])
 }
@@ -57,11 +60,18 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(app.palette.muted),
             ),
         ]),
-        row(app, "Lenguaje", crate::screens::locale::display(&app.settings.default_locale)),
+        row(
+            app,
+            "Lenguaje",
+            crate::screens::locale::display(&app.settings.default_locale),
+        ),
         row(
             app,
             "Teclado",
-            crate::keyboard::display(&app.settings.keyboard_layout, &app.settings.keyboard_variant),
+            crate::keyboard::display(
+                &app.settings.keyboard_layout,
+                &app.settings.keyboard_variant,
+            ),
         ),
         row(app, "Zona horaria", app.settings.time_zone.clone()),
         row(app, "Disco", disk),
@@ -74,9 +84,17 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
 
     // The background repo evaluation, launched when the license was accepted.
     let (mark, text, color) = match &app.source_check {
-        CheckState::Ok => ("✓ ", "configuración evalúa sin errores".to_string(), app.palette.success),
+        CheckState::Ok => (
+            "✓ ",
+            "configuración evalúa sin errores".to_string(),
+            app.palette.success,
+        ),
         CheckState::Failed(err) => ("✗ ", err.clone(), app.palette.error),
-        CheckState::Running => ("… ", "evaluando configuración".to_string(), app.palette.muted),
+        CheckState::Running => (
+            "… ",
+            "evaluando configuración".to_string(),
+            app.palette.muted,
+        ),
         CheckState::Idle => ("", String::new(), app.palette.muted),
     };
     lines.push(Line::from(vec![
