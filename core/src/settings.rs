@@ -68,6 +68,10 @@ impl Settings {
 
     /// Values used when `settings.nix` cannot be evaluated (e.g. the simulation
     /// run on a machine without nix). Mirrors the repo's defaults.
+    ///
+    /// Personal fields stay empty: the installer and the first-boot assistant
+    /// start every user field blank, and the public repo must not carry anyone's
+    /// name or e-mail.
     pub fn fallback() -> Self {
         Self {
             state_version: "26.05".into(),
@@ -77,10 +81,10 @@ impl Settings {
             username: None,
             userdescription: None,
             pretty_host_name: String::new(),
-            keyboard_layout: "us".into(),
+            keyboard_layout: "es".into(),
             keyboard_variant: String::new(),
-            git_name: Some("H. Blanqueto".into()),
-            git_email: Some("mc4w6wmkrv@privaterelay.appleid.com".into()),
+            git_name: None,
+            git_email: None,
         }
     }
 
@@ -143,15 +147,33 @@ impl Settings {
         )
     }
 
+    /// Writes `settings.nix` atomically: a sibling temporary file is fully
+    /// written and synced, then renamed over the original, so an interrupted
+    /// install never leaves a truncated file the flake cannot evaluate.
     pub fn write(&self, repo: &Path) -> Result<()> {
-        std::fs::write(repo.join("settings.nix"), self.render())
-            .wrap_err("no se pudo escribir settings.nix")?;
+        let target = repo.join("settings.nix");
+        let tmp = repo.join(".settings.nix.tmp");
+        {
+            use std::io::Write;
+            let mut file = std::fs::File::create(&tmp)
+                .wrap_err("no se pudo crear el temporal de settings.nix")?;
+            file.write_all(self.render().as_bytes())
+                .and_then(|()| file.sync_all())
+                .wrap_err("no se pudo escribir settings.nix")?;
+        }
+        std::fs::rename(&tmp, &target).wrap_err("no se pudo reemplazar settings.nix")?;
         Ok(())
     }
 }
 
+/// A Nix double-quoted string literal. Besides `\` and `"`, `${` must be
+/// escaped: unescaped it starts an interpolation, so a value like
+/// `${builtins.readFile /etc/shadow}` would be evaluated as Nix code.
 fn nix_str(value: &str) -> String {
-    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace("${", "\\${");
     format!("\"{escaped}\"")
 }
 
