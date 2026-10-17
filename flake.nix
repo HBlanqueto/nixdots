@@ -107,6 +107,9 @@
 
                 modules = [
                     ./modules/desktop
+                    # nix.nix aporta el overlay (pkgs.xnu-console-font), que
+                    # console.nix y user.nix usan directamente: la XNU es la
+                    # única fuente de la TTY.
                     ./modules/common/nix.nix
                     ./modules/common/console.nix
                     ./modules/common/first-boot.nix
@@ -391,6 +394,10 @@
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
                     nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };
+
+                # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
+                xnu-console-font =
+                    nixpkgs.legacyPackages.${system}.callPackage ./packages/xnu-console-font.nix { };
 
                 # Tokens de Neptunia para Slint, generados desde share/themes.
                 # El archivo vive versionado en setup-gui/ui/neptunia-tokens.slint;
