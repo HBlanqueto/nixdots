@@ -19,9 +19,6 @@ in
             # Firmware updates on physical hardware.
             fwupd.enable = lib.mkIf isBaremetal true;
 
-            # facter enables the bluetooth stack; blueman is the GNOME applet.
-            blueman.enable = lib.mkIf detected.bluetooth.enable true;
-
             # QEMU guests (UTM included): clipboard / dynamic resolution agent.
             spice-vdagentd.enable = lib.mkIf isQemu true;
             qemuGuest.enable = lib.mkIf isQemu true;
@@ -41,12 +38,6 @@ in
 
             # facter ya carga amdgpu en el initrd; aquí solo el monitor.
             systemPackages = lib.optional hasAmdGpu pkgs.radeontop;
-
-            sessionVariables = lib.mkIf isQemu {
-                # Software cursor avoids a missing/hardware cursor artefact under
-                # virtio-gpu.
-                WLR_NO_HARDWARE_CURSORS = "1";
-            };
         };
 
         # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.

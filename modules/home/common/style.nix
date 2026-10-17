@@ -10,26 +10,6 @@ let
 in
 
 {
-    home = {
-        pointerCursor = {
-            enable = true;
-            name = "Adwaita";
-            package = pkgs.adwaita-icon-theme;
-            size = 24;
-            gtk.enable = false;
-            x11.enable = true;
-        };
-
-        sessionVariables = {
-            QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
-            QT_QPA_PLATFORMTHEME = "xdgdesktopportal";
-        };
-    };
-
-    gtk = {
-        enable = false;
-    };
-
     xdg = {
         configFile = {
             "lua-theme/theme.lua".text = themeLua;

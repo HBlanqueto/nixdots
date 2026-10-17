@@ -62,7 +62,8 @@ local config = {
     window_close_confirmation = 'NeverPrompt',
 
     -- No frame line at the top edge. RESIZE (not NONE) keeps the resizable
-    -- flag under SomeWM while dropping the TITLE bar that draws the line.
+    -- flag while dropping the TITLE bar that draws the line. En GNOME no hay
+    -- barra de título para arrastrar la ventana.
     window_decorations = "RESIZE",
 
     -- Belt-and-suspenders: explicitly zero the frame border and paint it

@@ -16,9 +16,6 @@
                 else "${pkgs.firefox}/bin/firefox";
             TERMINAL = "wezterm";
             EDITOR = "nvim";
-            SDL_VIDEODRIVER = "wayland";
-            QT_QPA_PLATFORM = "wayland;xcb";
-            CLUTTER_BACKEND = "wayland";
             NO_AT_BRIDGE = "1";
             NIXOS_OZONE_WL = "1";
         };
