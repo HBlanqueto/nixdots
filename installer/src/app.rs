@@ -1049,7 +1049,12 @@ impl App {
         if self.host.custom && !self.host.name.value().is_empty() {
             self.host.name.value().to_string()
         } else {
-            nixdots_core::user::host_name_from_pretty(&self.model)
+            let model = if self.model.is_empty() {
+                "PC"
+            } else {
+                self.model.as_str()
+            };
+            nixdots_core::user::host_name_from_pretty(model)
         }
     }
 
