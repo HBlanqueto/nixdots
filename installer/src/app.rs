@@ -388,6 +388,9 @@ pub struct DiskState {
     /// The shrink bar holds the focus (Tab).
     pub bar_focus: bool,
     /// Wrap the System HD partition in LUKS2 (the whole Cifrado screen).
+    /// Always `true` and not togglable from the UI: the "sin cifrar" branches
+    /// in install.rs and the screen keep working, but there is no way to reach
+    /// them until a toggle is added.
     pub encrypt: bool,
 }
 

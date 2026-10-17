@@ -104,10 +104,11 @@ pub fn commands(app: &App) -> Vec<String> {
         .map(|d| d.path())
         .unwrap_or_else(|| "/dev/xxx".into());
     let mut commands = vec![
-        format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
-        "nix build --impure /mnt/persist/nixdots/repo#nixosConfigurations.nixdots... --store /mnt"
+        format!(
+            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {device}"
+        ),
+        "nixos-install --flake /mnt/persist/nixdots/repo#nixdots --root /mnt --no-root-passwd --impure"
             .into(),
-        "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
     ];
     if app.secure_boot {
         commands.push("sbctl create-keys --directory /mnt/persist/var/lib/sbctl".into());
