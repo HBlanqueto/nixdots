@@ -7,8 +7,8 @@
 import "fonts/DancingScript-Regular.ttf";
 import "fonts/DancingScript-Bold.ttf";
 
-import { Tokens, Theme, Metrics } from "theme.slint";
-export { Tokens, Theme } from "theme.slint";
+import { Tokens, Theme, Metrics, Motion } from "theme.slint";
+export { Tokens, Theme, Motion } from "theme.slint";
 import { Theme as Design, NeptuniaMode } from "../../share/design/neptunia/generated/neptunia.slint";
 import {
     Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
@@ -386,7 +386,7 @@ component Toggle inherits Rectangle {
         drop-shadow-offset-y: 1px;
         x: root.checked ? parent.width - self.width - 2px : 2px;
         y: 2px;
-        animate x { duration: Tokens.durFast; }
+        animate x { duration: Motion.fast; }
     }
     TouchArea {
         clicked => { root.checked = !root.checked; }
@@ -787,11 +787,18 @@ export component AppWindow inherits Window {
     callback apply();
     callback name-edited(string);
     callback username-edited(string);
+    // Avisa a Rust de «Reducir animaciones» (el saludo cambia de ritmo).
+    callback reduce-changed(bool);
+
+    // Reducción de movimiento: preferencia del sistema o del paso Accesibilidad.
+    property <bool> reduce: Theme.reduced-motion || State.a11y-reduce-motion;
+    init => { Motion.reduce = root.reduce; root.reduce-changed(root.reduce); }
+    changed reduce => { Motion.reduce = root.reduce; root.reduce-changed(root.reduce); }
 
     out property <bool> in-dlg: State.step >= 1 && State.step <= 9;
 
     function off(i: int) -> length {
-        return (Theme.reduced-motion || State.a11y-reduce-motion) ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
+        return Motion.reduce ? 0px : (State.step == i ? 0px : (State.step > i ? -32px : 32px));
     }
     function op(i: int) -> float {
         return State.step == i ? 1.0 : 0.0;
@@ -877,12 +884,12 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         opacity: State.step == 0 ? 1 : 0;
-        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
-        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 0 ? 100% : 104%);
+        transform-scale-x: Motion.reduce ? 100% : (State.step == 0 ? 100% : 104%);
+        transform-scale-y: Motion.reduce ? 100% : (State.step == 0 ? 100% : 104%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Tokens.durSlow; }
-        animate transform-scale-x { duration: Tokens.durSlow; }
-        animate transform-scale-y { duration: Tokens.durSlow; }
+        animate opacity { duration: Motion.slow; }
+        animate transform-scale-x { duration: Motion.slow; }
+        animate transform-scale-y { duration: Motion.slow; }
 
         // El saludo lo escribe Rust letra a letra (State.greet-typed) y luego lo
         // funde; `greet-animate` es falso en slint-viewer (muestra la palabra).
@@ -934,7 +941,7 @@ export component AppWindow inherits Window {
                         drop-shadow-color: rgba(13, 18, 25, 0.25);
                         drop-shadow-blur: 16px;
                         drop-shadow-offset-y: 4px;
-                        animate background { duration: Tokens.durFast; }
+                        animate background { duration: Motion.fast; }
                         HorizontalLayout {
                             y: 0;
                             width: 100%;
@@ -996,12 +1003,12 @@ export component AppWindow inherits Window {
         drop-shadow-blur: 40px;
         drop-shadow-offset-y: 18px;
         opacity: root.in-dlg ? 1 : 0;
-        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
-        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (root.in-dlg ? 100% : 97%);
+        transform-scale-x: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
+        transform-scale-y: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Tokens.durSlow; delay: 180ms; }
-        animate transform-scale-x { duration: Tokens.durSlow; delay: 180ms; }
-        animate transform-scale-y { duration: Tokens.durSlow; delay: 180ms; }
+        animate opacity { duration: Motion.slow; delay: 180ms; }
+        animate transform-scale-x { duration: Motion.slow; delay: 180ms; }
+        animate transform-scale-y { duration: Motion.slow; delay: 180ms; }
 
         VerticalLayout {
             padding-left: 48px;
@@ -1023,8 +1030,8 @@ export component AppWindow inherits Window {
                     x: root.off(1);
                     opacity: root.op(1);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1089,8 +1096,8 @@ export component AppWindow inherits Window {
                     x: root.off(2);
                     opacity: root.op(2);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1170,8 +1177,8 @@ export component AppWindow inherits Window {
                     x: root.off(3);
                     opacity: root.op(3);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1225,8 +1232,8 @@ export component AppWindow inherits Window {
                     x: root.off(4);
                     opacity: root.op(4);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1305,8 +1312,8 @@ export component AppWindow inherits Window {
                     x: root.off(5);
                     opacity: root.op(5);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1341,7 +1348,7 @@ export component AppWindow inherits Window {
                                 alignment: start;
                                 spacing: 12px;
                                 opacity: State.tz-auto ? 0.45 : 1.0;
-                                animate opacity { duration: Tokens.durBase; }
+                                animate opacity { duration: Motion.base; }
                                 SearchField { placeholder: "Buscar ciudad"; }
                                 Rectangle {
                                     width: 100%;
@@ -1373,8 +1380,8 @@ export component AppWindow inherits Window {
                     x: root.off(6);
                     opacity: root.op(6);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1454,8 +1461,8 @@ export component AppWindow inherits Window {
                     x: root.off(7);
                     opacity: root.op(7);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1511,8 +1518,8 @@ export component AppWindow inherits Window {
                     x: root.off(8);
                     opacity: root.op(8);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 20px;
@@ -1564,8 +1571,8 @@ export component AppWindow inherits Window {
                     x: root.off(9);
                     opacity: root.op(9);
                     visible: self.opacity > 0.001;
-                    animate x { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
-                    animate opacity { duration: (Theme.reduced-motion || State.a11y-reduce-motion) ? 0ms : Tokens.durBase; }
+                    animate x { duration: Motion.reduce ? 0ms : Motion.base; }
+                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                     VerticalLayout {
                         alignment: start;
                         spacing: 16px;
@@ -1647,8 +1654,8 @@ export component AppWindow inherits Window {
                     width: (di + 1) == State.step ? 18px : 6px;
                     border-radius: 3px;
                     background: (di + 1) == State.step ? Theme.accent : Tokens.lineStrong;
-                    animate width { duration: Tokens.durBase; }
-                    animate background { duration: Tokens.durBase; }
+                    animate width { duration: Motion.base; }
+                    animate background { duration: Motion.base; }
                 }
             }
 
@@ -1692,12 +1699,12 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         opacity: State.step == 10 ? 1 : 0;
-        transform-scale-x: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
-        transform-scale-y: (Theme.reduced-motion || State.a11y-reduce-motion) ? 100% : (State.step == 10 ? 100% : 103%);
+        transform-scale-x: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
+        transform-scale-y: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
         visible: self.opacity > 0.001;
-        animate opacity { duration: Tokens.durSlow; }
-        animate transform-scale-x { duration: Tokens.durSlow; }
-        animate transform-scale-y { duration: Tokens.durSlow; }
+        animate opacity { duration: Motion.slow; }
+        animate transform-scale-x { duration: Motion.slow; }
+        animate transform-scale-y { duration: Motion.slow; }
 
         property <float> spin: 0;
         Timer {

@@ -24,6 +24,7 @@ export global Tokens {
     out property <color> inkMuted: Design.ink-muted;
     out property <color> inkFaint: Design.ink-faint;
     out property <color> accent: Design.accent;
+    out property <color> accentHover: Design.accent-hover;
     out property <color> accentStrong: Design.accent-strong;
     out property <color> onAccent: Design.on-accent;
     out property <color> accentSoft: Design.accent-soft;
@@ -79,4 +80,13 @@ export global Theme {
     out property <color> accent-ink: Tokens.onAccent;
     out property <string> accent-id: accent-index == 0 ? "neptunia" : accents[gi].id;
     out property <string> accent-name: accent-index == 0 ? "Neptunia" : accents[gi].label;
+}
+
+// Tokens de movimiento: única fuente de las duraciones de la interfaz. Con
+// `reduce` (interruptor «Reducir animaciones») todas valen 0; AppWindow lo fija.
+export global Motion {
+    in-out property <bool> reduce: false;
+    out property <duration> fast: reduce ? 0ms : Design.dur-fast;
+    out property <duration> base: reduce ? 0ms : Design.dur-base;
+    out property <duration> slow: reduce ? 0ms : Design.dur-slow;
 }

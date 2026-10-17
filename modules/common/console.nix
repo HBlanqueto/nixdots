@@ -24,7 +24,7 @@ in
             hwaccel = config.nixdots.console.hwRender;
             font-engine = "psf";
             font-name = "${pkgs.xnu-console-font}/share/consolefonts/xnu-console.psf";
-            font-size = 32;
+            font-size = 16;
         } // builtins.listToAttrs (
             map (e: { name = palette.name e.suffix; inherit (e) value; }) palette.entries
         );
