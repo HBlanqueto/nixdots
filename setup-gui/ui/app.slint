@@ -128,12 +128,12 @@ component StepIcon inherits Rectangle {
     border-radius: 13px;
     background: tint;
     border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.14);
-    drop-shadow-color: rgba(13, 18, 25, 0.18);
+    border-color: Design.highlight-border;
+    drop-shadow-color: Design.shadow-soft;
     drop-shadow-blur: 12px;
     drop-shadow-offset-y: 4px;
     Rectangle {
-        background: @linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%);
+        background: @linear-gradient(180deg, Design.highlight-gloss 0%, #ffffff00 60%);
         border-radius: 13px;
     }
     HorizontalLayout {
@@ -420,8 +420,8 @@ component Toggle inherits Rectangle {
         width: 16px;
         height: 16px;
         border-radius: 8px;
-        background: #ffffff;
-        drop-shadow-color: rgba(13, 18, 25, 0.3);
+        background: Tokens.onAccent;
+        drop-shadow-color: Design.knob-shadow;
         drop-shadow-blur: 3px;
         drop-shadow-offset-y: 1px;
         x: root.checked ? parent.width - self.width - 2px : 2px;
@@ -652,14 +652,14 @@ component ModeCard inherits Rectangle {
                     height: parent.height - 4px;
                     border-radius: Tokens.radiusmd;
                     clip: true;
-                    background: root.preview-dark ? #161616 : #e7ebf1;
+                    background: root.preview-dark ? Design.preview-dark-sunken : Design.preview-light-sunken;
                     Rectangle {
                         x: 22px;
                         y: 18px;
                         width: 106px;
                         height: 62px;
                         border-radius: 7px;
-                        background: root.preview-dark ? #1e1e1e : #f2f4f7;
+                        background: root.preview-dark ? Design.preview-dark-window : Design.preview-light-window;
                         border-width: root.preview-dark ? 1px : 0px;
                         border-color: #000000;
                         Rectangle {
@@ -676,7 +676,7 @@ component ModeCard inherits Rectangle {
                             width: 70px;
                             height: 5px;
                             border-radius: 3px;
-                            background: root.preview-dark ? #3a3a3a : #d6dce5;
+                            background: root.preview-dark ? Design.preview-dark-control : Design.preview-light-control;
                         }
                     }
                 }
@@ -813,7 +813,7 @@ export component AppWindow inherits Window {
     title: "nixdots";
     width: 1280px;
     height: 800px;
-    background: #2b3038;
+    background: Design.wallpaper-fallback;
     default-font-family: "Inter";
     forward-focus: key-handler;
 
@@ -956,7 +956,7 @@ export component AppWindow inherits Window {
     Rectangle {
         width: parent.width;
         height: parent.height;
-        background: rgba(13, 18, 25, 0.26);
+        background: Design.wallpaper-veil;
     }
 
     // ----------------------------------------------------------------- Hola --
@@ -989,7 +989,7 @@ export component AppWindow inherits Window {
                     width: 100%;
                     height: 100%;
                     text: State.greet-animate ? State.greet-typed : State.greets[State.gi].word;
-                    color: #f4f6fa;
+                    color: Design.wallpaper-ink-soft;
                     font-family: root.greet-family(State.gi);
                     font-weight: root.greet-weight(State.gi);
                     font-size: State.greets[State.gi].size;
@@ -1018,7 +1018,7 @@ export component AppWindow inherits Window {
                         background: ta.pressed ? Theme.accent-strong : (ta.has-hover ? Tokens.accentHover : Theme.accent);
                         transform-scale-x: ta.pressed ? 97% : 100%;
                         transform-scale-y: ta.pressed ? 97% : 100%;
-                        drop-shadow-color: rgba(13, 18, 25, 0.25);
+                        drop-shadow-color: Design.wallpaper-shadow;
                         drop-shadow-blur: 16px;
                         drop-shadow-offset-y: 4px;
                         animate background { duration: Motion.fast; }
@@ -1059,7 +1059,7 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: State.greets[State.gi].hint;
-                    color: #d7dce6;
+                    color: Design.wallpaper-ink-hint;
                     font-size: 14px;
                     horizontal-alignment: center;
                     opacity: State.g-shown ? 1 : 0;
@@ -1873,7 +1873,7 @@ export component AppWindow inherits Window {
                 spacing: 8px;
                 Text {
                     text: State.apply-error == "" ? "Preparando tu escritorio" : "No se pudo terminar la configuración";
-                    color: #ffffff;
+                    color: Design.wallpaper-ink;
                     font-size: 28px;
                     font-weight: 650;
                     horizontal-alignment: center;
@@ -1881,7 +1881,7 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: State.apply-error == "" ? "Aplicando la configuración de nixdots." : State.apply-error;
-                    color: rgba(255, 255, 255, 0.84);
+                    color: Design.wallpaper-ink-muted;
                     font-size: 15px;
                     horizontal-alignment: center;
                     wrap: word-wrap;
@@ -1893,21 +1893,21 @@ export component AppWindow inherits Window {
                     width: 420px;
                     height: 6px;
                     border-radius: Tokens.radiuspill;
-                    background: rgba(255, 255, 255, 0.24);
+                    background: Design.wallpaper-glass;
                     clip: true;
                     Rectangle {
                         x: 0;
                         width: (State.prep-phase + 1) * (parent.width / 5);
                         height: 100%;
                         border-radius: Tokens.radiuspill;
-                        background: #ffffff;
+                        background: Design.wallpaper-ink;
                         animate width { duration: Motion.reduce ? 0ms : 1200ms; easing: ease-out; }
                     }
                 }
             }
             if State.apply-error == "" : Text {
                 text: prepare.status-text;
-                color: rgba(255, 255, 255, 0.9);
+                color: Design.wallpaper-ink-muted;
                 font-size: 13px;
                 horizontal-alignment: center;
                 opacity: prepare.status-op;
@@ -1917,7 +1917,7 @@ export component AppWindow inherits Window {
                 alignment: center;
                 LinkText {
                     label: State.show-details ? "Ocultar detalles" : "Mostrar detalles";
-                    fg: rgba(255, 255, 255, 0.8);
+                    fg: Design.wallpaper-ink-faint;
                     w: 150px;
                     clicked => { State.show-details = !State.show-details; }
                 }
@@ -1928,9 +1928,9 @@ export component AppWindow inherits Window {
                 clip: true;
                 opacity: State.show-details ? 1 : 0;
                 border-radius: Tokens.radiuslg;
-                background: rgba(13, 18, 25, 0.36);
+                background: Design.wallpaper-panel;
                 border-width: 1px;
-                border-color: rgba(255, 255, 255, 0.16);
+                border-color: Design.wallpaper-glass-border;
                 animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                 animate opacity { duration: Motion.reduce ? 0ms : Motion.base; }
                 Text {
@@ -1939,7 +1939,7 @@ export component AppWindow inherits Window {
                     width: parent.width - 32px;
                     height: parent.height - 24px;
                     text: State.log-text;
-                    color: rgba(255, 255, 255, 0.78);
+                    color: Design.wallpaper-ink-faint;
                     font-family: "DejaVu Sans Mono";
                     font-size: 12px;
                     wrap: word-wrap;
@@ -1969,7 +1969,7 @@ export component AppWindow inherits Window {
             y: parent.height - 56px - 18px;
             width: parent.width;
             text: "No apagues el equipo. Se reiniciará solo cuando termine.";
-            color: rgba(255, 255, 255, 0.72);
+            color: Design.wallpaper-ink-faint;
             font-size: 13px;
             horizontal-alignment: center;
             visible: State.apply-error == "";
