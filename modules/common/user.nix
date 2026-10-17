@@ -94,12 +94,9 @@ in
         earlySetup = true;
         # Los 16 colores ANSI (con el fondo negro puro) salen de lib/palette.nix.
         colors = palette.consoleColors;
-        # "xnu" usa la fuente bitmap que incrusta xnu (el kernel de macOS) en
-        # initrd, consola de emergencia y arranque de Plymouth.
-        font =
-            if config.nixdots.console.font == "xnu"
-            then "${pkgs.xnu-console-font}/share/consolefonts/xnu-console.psf"
-            else "Lat2-Terminus16";
+        # Lat2-Terminus16 cubre Latin-1/2 y trae los bordes de caja y glifos que
+        # la TTY (initrd, consola de emergencia y Plymouth) necesita.
+        font = "Lat2-Terminus16";
         # The console uses the same xkb layout as the desktop.
         useXkbConfig = true;
     };
