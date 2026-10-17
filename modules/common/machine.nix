@@ -19,6 +19,16 @@
             description = "UUID of the LUKS partition (only meaningful with encrypt).";
         };
 
+        espUuid = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = ''
+                UUID of the reused Windows ESP. When set, /boot mounts it by
+                UUID (a reused ESP keeps its own label, so by-label/BOOT would
+                be wrong); when empty, the freshly created ESP is used.
+            '';
+        };
+
         secureBoot = lib.mkOption {
             type = lib.types.bool;
             default = false;
@@ -36,6 +46,7 @@
         nixdots.machine = {
             encrypt = lib.mkDefault (data.machine.encrypt or false);
             luksUuid = lib.mkDefault (data.machine.luksUuid or "");
+            espUuid = lib.mkDefault (data.machine.espUuid or "");
             secureBoot = lib.mkDefault (data.machine.secureBoot or false);
             tpmUnlock = lib.mkDefault (data.machine.tpmUnlock or false);
         };

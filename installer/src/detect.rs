@@ -595,6 +595,11 @@ fn df_free(path: &str) -> Option<u64> {
         .and_then(|line| line.trim().parse::<u64>().ok())
 }
 
+/// The filesystem UUID of `path` (`blkid -s UUID -o value`), or `None`.
+pub fn partition_uuid(path: &str) -> Option<String> {
+    run_trim("blkid", &["-s", "UUID", "-o", "value", path])
+}
+
 /// The LUKS2 partition disko created inside the target disk, with its UUID.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LuksPartition {

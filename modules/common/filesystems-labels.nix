@@ -31,7 +31,12 @@ in
         "/var/log" = btrfs // subvol "@log";
 
         "/boot" = {
-            device = "/dev/disk/by-label/BOOT";
+            # Una ESP reutilizada de Windows conserva su etiqueta, así que se
+            # monta por UUID; una creada por disko lleva la etiqueta BOOT.
+            device =
+                if m.espUuid != ""
+                then "/dev/disk/by-uuid/${m.espUuid}"
+                else "/dev/disk/by-label/BOOT";
             fsType = "vfat";
             options = [ "fmask=0077" "dmask=0077" ];
         };

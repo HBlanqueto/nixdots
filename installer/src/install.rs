@@ -130,6 +130,20 @@ impl Plan {
         PathBuf::from("/tmp/nixdots-install.log")
     }
 
+    /// UUID of the reused Windows ESP, or empty when a new one is created. The
+    /// installed system mounts /boot by this UUID: a reused ESP keeps whatever
+    /// label it already had (it is never relabelled), so by-label/BOOT would
+    /// point at the wrong filesystem.
+    fn esp_uuid(&self) -> String {
+        match &self.disk_mode {
+            DiskMode::Alongside {
+                reuse_efi: Some(path),
+                ..
+            } => detect::partition_uuid(path).unwrap_or_default(),
+            _ => String::new(),
+        }
+    }
+
     /// Git identity for the installer's commits: the Git screen's when set,
     /// else a throwaway one.
     fn git_identity(&self) -> (String, String) {
@@ -1398,6 +1412,7 @@ fn step_hardware(
         "hostName": plan.settings.host_name,
         "encrypt": plan.encrypt,
         "luksUuid": luks.map(|l| l.uuid.clone()).unwrap_or_default(),
+        "espUuid": plan.esp_uuid(),
         "secureBoot": plan.secure_boot,
         "tpmUnlock": plan.luks_tpm,
         "extras": {},
