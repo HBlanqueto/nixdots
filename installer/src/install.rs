@@ -1358,6 +1358,7 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let user = nixdots_core::user_data::UserData {
         username: plan.settings.username_required()?.to_string(),
         userdescription: plan.settings.userdescription.clone(),
+        pretty_host_name: None,
         git_name: plan.settings.git_name.clone(),
         git_email: plan.settings.git_email.clone(),
         default_locale: None,

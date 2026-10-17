@@ -34,6 +34,10 @@ pub struct UserData {
     pub username: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub userdescription: Option<String>,
+    /// Nombre visible estilo macOS («ThinkPad L14 de Humberto»). Sustituye, vía
+    /// el `//` de lib/data.nix, al que escribió el instalador en settings.nix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pretty_host_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

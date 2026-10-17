@@ -114,6 +114,7 @@ fn apply(args: &[String]) -> Result<()> {
     let user = UserData {
         username: data.username.clone(),
         userdescription: Some(data.full_name),
+        pretty_host_name: None,
         git_name: data.git_name,
         git_email: data.git_email,
         default_locale: Some(data.locale),
