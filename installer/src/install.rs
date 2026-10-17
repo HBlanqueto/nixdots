@@ -273,6 +273,11 @@ fn run(plan: Plan, tx: Sender<Msg>) {
     if !plan.dry_run {
         let _ = fs::remove_dir_all(plan.root.join("tmp"));
         let _ = fs::remove_dir_all(target_build_dir(&plan));
+        // The LUKS passphrase and recovery key live in /run/nixdots (the live
+        // ISO's tmpfs) and each SecretFile shreds its own file on drop; drop the
+        // whole directory too in case a run was interrupted. They are never
+        // written under /mnt, so they never reach /persist.
+        let _ = fs::remove_dir_all("/run/nixdots");
     }
 
     if let Some(file) = report.file.as_mut() {
