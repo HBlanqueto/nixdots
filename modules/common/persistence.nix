@@ -25,6 +25,11 @@ _: {
 
             files = [
                 "/etc/machine-id"
+                # libvirt 12 cifra su clave con systemd-creds, que usa la clave
+                # del equipo; con la raíz efímera se perdería en cada arranque y
+                # libvirtd no arrancaría. Cualquier servicio con credenciales
+                # cifradas la necesita.
+                "/var/lib/systemd/credential.secret"
             ];
         };
     };
