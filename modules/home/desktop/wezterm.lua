@@ -18,7 +18,7 @@ local function make_colors(bg)
         foreground = theme.fg,
         background = bg,
         cursor_bg = theme.fg,
-        cursor_fg = theme.fg,
+        cursor_fg = theme.dbg,
         cursor_border = theme.fg,
         selection_fg = theme.fg,
         selection_bg = theme.lbg,
@@ -66,16 +66,17 @@ local config = {
     window_decorations = "RESIZE",
 
     -- Belt-and-suspenders: explicitly zero the frame border and paint it
-    -- black, so no border is ever drawn regardless of decoration mode.
+    -- the background color, so no border is ever drawn regardless of
+    -- decoration mode.
     window_frame = {
         border_left_width = "0px",
         border_right_width = "0px",
         border_top_height = "0px",
         border_bottom_height = "0px",
-        border_left_color = "#000000",
-        border_right_color = "#000000",
-        border_top_color = "#000000",
-        border_bottom_color = "#000000",
+        border_left_color = theme.dbg,
+        border_right_color = theme.dbg,
+        border_top_color = theme.dbg,
+        border_bottom_color = theme.dbg,
     },
 
     inactive_pane_hsb = {

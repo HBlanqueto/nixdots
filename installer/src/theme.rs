@@ -46,13 +46,13 @@ pub mod hex {
     pub const C14: &str = "cee8ff";
     pub const C15: &str = "eef4fa";
 
-    /// UI-only tone (not in neptunia.nix): a disabled control.
+    /// `uiDisabled`: a disabled control.
     pub const DISABLED: &str = "2f3a49";
-    /// UI-only tone (not in neptunia.nix): the underline of a text field.
+    /// `uiRule`: the underline of a text field.
     pub const RULE: &str = "2a3442";
-    /// UI-only tone (not in neptunia.nix): a non-base background while dimmed.
+    /// `uiDim`: a non-base background while dimmed.
     pub const DIM: &str = "1c2430";
-    /// The NixOS logo's light blue, used for the `~/*` accent on Inicio.
+    /// `logoLight`: the NixOS logo's light blue, the `~/*` accent on Inicio.
     pub const LOGO_LIGHT: &str = "7fb7ff";
 }
 
@@ -128,11 +128,11 @@ pub struct Palette {
     pub on_primary: Color,
     /// `lbg`, background of the focused row
     pub row_bg: Color,
-    /// UI-only: a disabled control.
+    /// `uiDisabled`, a disabled control.
     pub disabled: Color,
-    /// UI-only: the underline under a text field.
+    /// `uiRule`, the underline under a text field.
     pub rule: Color,
-    /// UI-only: a non-base background while the screen is dimmed.
+    /// `uiDim`, a non-base background while the screen is dimmed.
     pub dim_bg: Color,
     /// The NixOS logo's light blue.
     pub logo_light: Color,
@@ -315,6 +315,10 @@ mod tests {
             ("c13", hex::C13),
             ("c14", hex::C14),
             ("c15", hex::C15),
+            ("uiDisabled", hex::DISABLED),
+            ("uiRule", hex::RULE),
+            ("uiDim", hex::DIM),
+            ("logoLight", hex::LOGO_LIGHT),
         ];
 
         for (key, ours) in checks {

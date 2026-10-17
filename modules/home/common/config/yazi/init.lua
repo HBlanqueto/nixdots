@@ -4,7 +4,7 @@ require("full-border"):setup({ type = ui.Border.ROUNDED })
 
 for name, _ in pairs(colors) do
     if name ~= "bg" and name ~= "dbg" and name ~= "lbg" then
-        colors[name] = "#ffffff"
+        colors[name] = colors.c15
     end
 end
 
