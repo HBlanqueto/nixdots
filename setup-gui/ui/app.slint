@@ -1842,7 +1842,7 @@ export component AppWindow inherits Window {
                         sw: 2.2px;
                         ink: #ffffff;
                         opacity: (!Motion.reduce && prepare.err == 0) ? 1 : 0;
-                        transform-rotation: (State.step == 10 && State.apply-error == "")
+                        transform-rotation: (State.step == 10 && State.apply-error == "" && !Motion.reduce)
                             ? mod(animation-tick(), 900ms) / 900ms * 360deg
                             : 0deg;
                         animate opacity { duration: Motion.base; }
