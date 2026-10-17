@@ -63,6 +63,12 @@ pub struct UserData {
     /// escribe en dconf.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Color del avatar elegido en el asistente (id de acento).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar_color: Option<String>,
+    /// Ruta de la foto del avatar (variante con foto).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar_path: Option<String>,
     /// Entrar directamente al escritorio sin pasar por GDM.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_login: Option<bool>,

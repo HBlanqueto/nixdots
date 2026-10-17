@@ -18,7 +18,8 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
 
   datos.json  fullName, username, locale, region, keyboardLayout,
               keyboardVariant, timeZone, timeZoneAuto, a11y, colorScheme,
-              accentColor, autoLogin y, opcionalmente, gitName y gitEmail.
+              accentColor, avatarColor, autoLogin y, opcionalmente, gitName,
+              gitEmail y avatarPath.
   --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
@@ -45,6 +46,11 @@ struct Data {
     /// Acento (`"neptunia"` o un id de GNOME).
     #[serde(default)]
     accent_color: Option<String>,
+    /// Color del avatar (id de acento) y, si hay foto, su ruta.
+    #[serde(default)]
+    avatar_color: Option<String>,
+    #[serde(default)]
+    avatar_path: Option<String>,
     #[serde(default)]
     auto_login: Option<bool>,
     #[serde(default)]
@@ -152,6 +158,8 @@ fn apply(args: &[String]) -> Result<()> {
         keyboard_variant: non_empty(data.keyboard_variant),
         color_scheme: data.color_scheme.and_then(non_empty),
         accent_color: data.accent_color.and_then(non_empty),
+        avatar_color: data.avatar_color.and_then(non_empty),
+        avatar_path: data.avatar_path.and_then(non_empty),
         auto_login: data.auto_login,
         a11y: data.a11y,
     };
