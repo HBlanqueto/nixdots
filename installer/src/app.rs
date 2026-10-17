@@ -154,7 +154,7 @@ impl App {
                 _ => FocusKind::Field { last: true },
             },
             Screen::Encryption => match self.enc.focus {
-                ENC_ACCOUNT | ENC_TPM | ENC_NOTED => FocusKind::Checkbox,
+                ENC_TPM | ENC_NOTED => FocusKind::Checkbox,
                 _ => FocusKind::Field {
                     last: self.enc.focus == ENC_CONFIRM,
                 },
@@ -424,16 +424,13 @@ impl DiskState {
 }
 
 /// Focus targets inside the Cifrado screen (skipped when not applicable).
-pub const ENC_ACCOUNT: usize = 0;
-pub const ENC_PASS: usize = 1;
-pub const ENC_CONFIRM: usize = 2;
-pub const ENC_TPM: usize = 3;
-pub const ENC_NOTED: usize = 4;
+pub const ENC_PASS: usize = 0;
+pub const ENC_CONFIRM: usize = 1;
+pub const ENC_TPM: usize = 2;
+pub const ENC_NOTED: usize = 3;
 
 pub struct EncState {
-    /// Reuse the account password as the LUKS passphrase.
-    pub use_account: bool,
-    /// Custom LUKS passphrase (when `use_account` is off).
+    /// The LUKS passphrase typed by the user.
     pub pass: Input,
     pub confirm: Input,
     /// One of the `ENC_*` targets.
@@ -456,10 +453,9 @@ pub struct EncState {
 impl EncState {
     pub fn new(tpm_present: bool) -> Self {
         Self {
-            use_account: true,
             pass: Input::default(),
             confirm: Input::default(),
-            focus: ENC_ACCOUNT,
+            focus: ENC_PASS,
             tpm: tpm_present,
             tpm_present,
             noted: false,
@@ -478,11 +474,7 @@ impl EncState {
 
     /// Logical targets in display order, minus the ones that do not apply.
     pub fn targets(&self) -> Vec<usize> {
-        let mut targets = vec![ENC_ACCOUNT];
-        if !self.use_account {
-            targets.push(ENC_PASS);
-            targets.push(ENC_CONFIRM);
-        }
+        let mut targets = vec![ENC_PASS, ENC_CONFIRM];
         if self.tpm_present {
             targets.push(ENC_TPM);
         }
@@ -490,20 +482,10 @@ impl EncState {
         targets
     }
 
-    /// Whether the "switching the account checkbox" should send focus to the
-    /// phrase field (it becomes visible) or back to the checkbox list.
-    pub fn set_use_account(&mut self, reuse: bool) {
-        self.use_account = reuse;
-        self.focus = if reuse { ENC_ACCOUNT } else { ENC_PASS };
-    }
-
     /// The Cifrado screen can advance only once the key was acknowledged and
     /// the chosen passphrase is usable.
     pub fn ready(&self) -> bool {
-        if !self.noted {
-            return false;
-        }
-        self.use_account || self.passphrase_matches()
+        self.noted && self.passphrase_matches()
     }
 }
 
@@ -1398,12 +1380,12 @@ impl App {
                 self.host.focus = if self.host_name_valid() { 0 } else { 1 };
             }
             Screen::Encryption => {
-                self.enc.focus = if !self.enc.noted {
-                    ENC_NOTED
-                } else if !self.enc.use_account {
+                self.enc.focus = if self.enc.pass.value().is_empty() {
                     ENC_PASS
+                } else if !self.enc.passphrase_matches() {
+                    ENC_CONFIRM
                 } else {
-                    ENC_ACCOUNT
+                    ENC_NOTED
                 };
             }
             _ => self.focus_buttons_on_primary(),
@@ -1716,11 +1698,7 @@ impl App {
             self.disks.refresh_decision();
         }
         if self.screen == Screen::Encryption {
-            self.enc.focus = if self.enc.use_account {
-                ENC_ACCOUNT
-            } else {
-                ENC_PASS
-            };
+            self.enc.focus = ENC_PASS;
             self.enc.usb_open = false;
         }
     }
@@ -1923,10 +1901,10 @@ impl App {
                 }
             }
             Screen::Encryption => {
-                if !self.enc.noted {
-                    Some("falta: marcar que anotaste la clave de recuperación".into())
-                } else if !self.enc.use_account && !self.enc.passphrase_matches() {
+                if !self.enc.passphrase_matches() {
                     Some("falta: confirmar la frase de desbloqueo".into())
+                } else if !self.enc.noted {
+                    Some("falta: marcar que anotaste la clave de recuperación".into())
                 } else {
                     None
                 }

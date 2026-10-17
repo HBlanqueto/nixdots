@@ -37,10 +37,8 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
         "No".to_string()
     } else if app.enc.tpm && app.enc.tpm_present {
         "Sí · TPM".to_string()
-    } else if app.enc.use_account {
-        "Sí · contraseña de la cuenta".to_string()
     } else {
-        "Sí · frase propia".to_string()
+        "Sí".to_string()
     };
 
     let mut lines = vec![

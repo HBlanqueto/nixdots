@@ -5,9 +5,7 @@
 //! enrolled during the install; it is never written to the disk, the log or the
 //! command panel.
 
-use crate::app::{
-    Action, App, ENC_ACCOUNT, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM,
-};
+use crate::app::{Action, App, ENC_CONFIRM, ENC_NOTED, ENC_PASS, ENC_TPM};
 use crate::runner::{self, Cmd};
 use crate::widgets::{self, Btn};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
@@ -25,88 +23,76 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = Vec::new();
     let mut slots: Vec<(usize, u16)> = Vec::new();
 
-    // 1. Reuse the account password as the LUKS passphrase.
-    slots.push((ENC_ACCOUNT, lines.len() as u16));
-    lines.push(widgets::checkbox(
+    // 1. The LUKS passphrase (always required).
+    slots.push((ENC_PASS, lines.len() as u16));
+    lines.extend(widgets::text_field(
         &app.palette,
-        app.enc.use_account,
-        "Usar la contraseña de la cuenta",
-        has_focus && app.enc.focus == ENC_ACCOUNT,
+        "Frase de desbloqueo",
+        app.enc.pass.value(),
+        app.enc.pass.visual_cursor(),
+        has_focus && app.enc.focus == ENC_PASS,
+        blink,
+        true,
+        "",
+        w,
+        if app.enc.pass.value().is_empty() {
+            None
+        } else {
+            Some(strength_note(app))
+        },
+        false,
     ));
     lines.push(Line::from(""));
 
-    // 2. A custom passphrase.
-    if !app.enc.use_account {
-        slots.push((ENC_PASS, lines.len() as u16));
-        lines.extend(widgets::text_field(
-            &app.palette,
-            "Frase de desbloqueo",
-            app.enc.pass.value(),
-            app.enc.pass.visual_cursor(),
-            has_focus && app.enc.focus == ENC_PASS,
-            blink,
-            true,
-            "",
-            w,
-            if app.enc.pass.value().is_empty() {
-                None
-            } else {
-                Some(strength_note(app))
-            },
-            false,
-        ));
-        lines.push(Line::from(""));
+    slots.push((ENC_CONFIRM, lines.len() as u16));
+    let note = if app.enc.confirm.value().is_empty() {
+        None
+    } else if app.enc.passphrase_matches() {
+        Some(Line::from(Span::styled(
+            "✓ coinciden",
+            Style::default().fg(app.palette.success),
+        )))
+    } else {
+        Some(Line::from(Span::styled(
+            "no coinciden",
+            Style::default().fg(app.palette.error),
+        )))
+    };
+    lines.extend(widgets::text_field(
+        &app.palette,
+        "Confirmar",
+        app.enc.confirm.value(),
+        app.enc.confirm.visual_cursor(),
+        has_focus && app.enc.focus == ENC_CONFIRM,
+        blink,
+        true,
+        "",
+        w,
+        note,
+        !app.enc.confirm.value().is_empty() && !app.enc.passphrase_matches(),
+    ));
+    lines.push(Line::from(""));
 
-        slots.push((ENC_CONFIRM, lines.len() as u16));
-        let note = if app.enc.confirm.value().is_empty() {
-            None
-        } else if app.enc.passphrase_matches() {
-            Some(Line::from(Span::styled(
-                "✓ coinciden",
-                Style::default().fg(app.palette.success),
-            )))
-        } else {
-            Some(Line::from(Span::styled(
-                "no coinciden",
-                Style::default().fg(app.palette.error),
-            )))
-        };
-        lines.extend(widgets::text_field(
-            &app.palette,
-            "Confirmar",
-            app.enc.confirm.value(),
-            app.enc.confirm.visual_cursor(),
-            has_focus && app.enc.focus == ENC_CONFIRM,
-            blink,
-            true,
-            "",
-            w,
-            note,
-            !app.enc.confirm.value().is_empty() && !app.enc.passphrase_matches(),
-        ));
-        lines.push(Line::from(""));
-
-        // It is typed at boot, with the selected keyboard layout.
-        let id = crate::keyboard::display(
-            &app.settings.keyboard_layout,
-            &app.settings.keyboard_variant,
-        );
+    // It is typed at boot, with the selected keyboard layout.
+    let id = crate::keyboard::display(
+        &app.settings.keyboard_layout,
+        &app.settings.keyboard_variant,
+    );
+    lines.push(Line::from(Span::styled(
+        format!("Se escribe al encender, con teclado {id}."),
+        Style::default().fg(app.palette.warning),
+    )));
+    if pass_has_non_ascii(app) {
         lines.push(Line::from(Span::styled(
-            format!("Se escribe al encender, con teclado {id}."),
+            format!(
+                "! contiene caracteres especiales: asegúrate de que el teclado al arrancar sea {id}"
+            ),
             Style::default().fg(app.palette.warning),
         )));
-        if pass_has_non_ascii(app) {
-            lines.push(Line::from(Span::styled(
-                format!(
-                    "! contiene caracteres especiales: asegúrate de que el teclado al arrancar sea {id}"
-                ),
-                Style::default().fg(app.palette.warning),
-            )));
-        }
-        lines.push(Line::from(""));
     }
+    lines.push(Line::from(""));
 
-    // 3. TPM auto-unlock (only when a TPM 2.0 is present).
+    // 2. TPM auto-unlock (only when a TPM 2.0 is present).
     if app.enc.tpm_present {
         slots.push((ENC_TPM, lines.len() as u16));
         lines.push(widgets::checkbox(
@@ -242,11 +228,6 @@ pub fn key(app: &mut App, key: KeyEvent) -> bool {
     if !app.focus_buttons {
         match key.code {
             KeyCode::Char(' ') => match app.enc.focus {
-                ENC_ACCOUNT => {
-                    let reuse = !app.enc.use_account;
-                    app.enc.set_use_account(reuse);
-                    return true;
-                }
                 ENC_TPM => {
                     app.enc.tpm = !app.enc.tpm;
                     return true;
