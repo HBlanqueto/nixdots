@@ -30,18 +30,14 @@
         kernelParams = [ "quiet" "rd.udev.log_level=3" "rd.systemd.show_status=auto" ];
 
         kernel.sysctl = {
+            # Silencia el watchdog de la NMI (no aporta en este hardware).
             "kernel.nmi_watchdog" = 0;
-            "kernel.sched_cfs_bandwidth_slice_us" = 3000;
-            "net.core.rmem_max" = 2500000;
-            "vm.max_map_count" = 16777216;
+            # Para zram: swap agresivo y sin page-cluster.
             "vm.swappiness" = 100;
             "vm.page-cluster" = 0;
-            "net.ipv4.tcp_mtu_probing" = 1;
-            "net.ipv4.tcp_fastopen" = 3;
-            "net.ipv4.tcp_fin_timeout" = 10;
+            # Cola de red y control de congestión; bpftune ajusta el resto en caliente.
             "net.core.default_qdisc" = "cake";
             "net.ipv4.tcp_congestion_control" = "bbr";
-            "net.ipv4.tcp_slow_start_after_idle" = 0;
         };
     };
 }
