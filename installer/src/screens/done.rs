@@ -1,14 +1,27 @@
 use crate::app::{Action, App};
 use crate::widgets::Btn;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Style;
+use ratatui::text::Span;
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// The Salir / Reiniciar capsule row, centered.
+/// The Salir / Reiniciar capsule row, centered, with the first-boot notice.
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let y = area.y + area.height / 2;
+    if y > area.y {
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                "Al reiniciar se configurará tu cuenta.",
+                Style::default().fg(app.palette.muted),
+            ))
+            .alignment(Alignment::Center),
+            Rect::new(area.x, y.saturating_sub(2), area.width, 1),
+        );
+    }
     app.draw_buttons(f, Rect::new(area.x, y, area.width, 1));
 }
 
