@@ -40,19 +40,19 @@ pub fn nix_system() -> Option<String> {
     Some(format!("{arch}-linux"))
 }
 
-/// Whether this machine is expected to use Lanzaboote Secure Boot: an x86_64
-/// bare-metal machine (never the aarch64/UTM VM). Drives the sbctl step and the
+/// Whether this machine is expected to use Lanzaboote Secure Boot: a bare-metal
+/// machine (never a VM, not even an x86_64 one, which has no firmware keys to
+/// enroll into; never the aarch64/UTM VM). Drives the sbctl step and the
 /// `secureBoot` field of machine.json.
 pub fn secure_boot() -> bool {
-    match arch().as_deref() {
-        Some("aarch64") | Some("arm64") => false,
-        Some("x86_64") | Some("amd64") => true,
-        // Unknown arch: a qemu/utm guest has no Secure Boot, anything else does.
-        _ => !matches!(
-            run_trim("systemd-detect-virt", &[]).as_deref(),
-            Some("qemu") | Some("kvm")
-        ),
+    // Any virtualization means no Secure Boot, on every architecture.
+    if run_trim("systemd-detect-virt", &[])
+        .as_deref()
+        .is_some_and(|virt| virt != "none")
+    {
+        return false;
     }
+    !matches!(arch().as_deref(), Some("aarch64") | Some("arm64"))
 }
 
 /// `systemd-detect-virt`. Maps `qemu` to the friendlier «UTM (qemu)» label the
