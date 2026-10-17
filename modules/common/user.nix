@@ -19,6 +19,11 @@ let
     autoLogin = data.settings.autoLogin or false;
     a11y = data.settings.a11y or { };
 
+    # El nombre visible puede traer `\` o `"`; hay que escaparlos antes de
+    # escribirlo entre comillas en /etc/machine-info.
+    escapedPretty =
+        lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] (data.settings.prettyHostName or "");
+
     # Derivado del usuario: no se guarda en ningún archivo.
     hashedPasswordFile =
         if username == null then null else "/persist/secrets/${username}.hash";
@@ -121,6 +126,16 @@ in
 
     environment = {
         binsh = "${pkgs.dash}/bin/dash";
+
+        # El nombre visible de `hostnamectl` (/etc/machine-info). Se declara en
+        # la config para que sobreviva al rollback de impermanence. Los
+        # settings.nix antiguos no tienen prettyHostName, y entonces no se
+        # escribe el archivo.
+        etc."machine-info" = lib.mkIf (data.settings ? prettyHostName) {
+            text = ''
+                PRETTY_HOSTNAME="${escapedPretty}"
+            '';
+        };
 
         # Cross-platform CLI tools only. Desktop/GPU tools live in
         # modules/desktop, laptop-only tools in modules/common/hardware-detect.nix.

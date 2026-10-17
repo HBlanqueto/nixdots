@@ -8,7 +8,7 @@ red local.
   con **Remmina** como cliente en la ThinkPad.
 - **RustDesk**: alternativa más cómoda para el día a día.
 
-Lado NixOS: `modules/common/remote-access.nix` (`nixdots.extras.remoteAccess`) sólo
+Lado NixOS: `modules/common/extras.nix` (`nixdots.extras.remoteAccess`) sólo
 instala los paquetes `remmina` y `rustdesk-flutter`. Se activa por máquina en
 `machine.json` (`"extras": { "remoteAccess": true }`), así que en el ThinkPad
 está activo y en la VM queda desactivado.

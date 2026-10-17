@@ -46,7 +46,7 @@
             # secure-boot.nix decide con mkIf y luks-tpm define boot.lanzaboote.
             genericModules = [
                 ./modules/common/facter.nix
-                ./modules/common/filesystems-labels.nix
+                ./modules/common/filesystems.nix
                 ./modules/common/rollback.nix
                 # Igual que lanzaboote: el módulo se importa siempre y
                 # hardware-detect.nix activa ucodenix solo si el informe de

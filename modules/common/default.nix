@@ -9,22 +9,17 @@
 
     ./nix.nix
     ./persistence.nix
-    ./filesystems.nix
-    ./kernel.nix
     ./machine.nix
     ./secure-boot.nix
     ./extras.nix
     ./hardware-detect.nix
     ./boot.nix
     ./user.nix
-    ./machine-info.nix
     ./first-boot.nix
     ./services.nix
     ./console.nix
     ./fonts.nix
-    ./ai.nix
     ./iphone-tethering.nix
-    ./remote-access.nix
     ./home.nix
   ];
 }

@@ -4,6 +4,7 @@
     imports = [
         ./apps.nix
         ./style.nix
+        ./ai.nix
     ];
 
     home = {

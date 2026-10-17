@@ -71,7 +71,15 @@ in
             ${username}.extraGroups = [ "libvirtd" ];
         };
 
-        environment.systemPackages = lib.mkIf cfg.brightnessctl [ pkgs.brightnessctl ];
+        environment.systemPackages =
+            lib.optionals cfg.brightnessctl [ pkgs.brightnessctl ]
+            ++ lib.optionals cfg.remoteAccess [
+                # Clientes de escritorio: Remmina (VNC) y RustDesk. El otro
+                # extremo (un Mac mini sin Nix) se configura a mano, ver
+                # docs/remote-access.md.
+                pkgs.remmina
+                pkgs.rustdesk-flutter
+            ];
 
         environment.persistence."/persist".directories =
             lib.optionals cfg.epson [ "/var/lib/cups" ]
