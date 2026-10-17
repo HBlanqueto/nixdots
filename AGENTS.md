@@ -47,10 +47,13 @@ actualiza este archivo en el mismo cambio.
   `config.hardware.facter.detected/report` (bare-metal AMD → ucodenix y amdgpu
   en initrd; portátil → acpid/upower; QEMU/UTM → spice-vdagent, qemu-guest).
   No uses condicionales por nombre de host.
-- Opciones propias bajo `options.nixdots.*` (`machine`, `encryption`,
-  `console`, `firstBoot`…). El TPM2 no lo inscribe el instalador: lo hace
+- Opciones propias bajo `options.nixdots.*` (`machine`, `console`,
+  `firstBoot`…). `nixdots.machine` (machine.json) es la única capa de cifrado y
+  Secure Boot. El TPM2 no lo inscribe el instalador: lo hace
   lanzaboote (`measuredBoot.autoCryptenroll`, con `systemd-pcrlock`) en el
   primer arranque, de modo que la política se actualiza sola.
+- Kernel: es el de nixpkgs por defecto (LTS). Para cambiarlo, `boot.kernelPackages`
+  en un módulo (no hay `nixdots.kernel`).
 - Impermanence: la raíz se restaura en cada arranque (Btrfs `@rootfs` desde
   `@rootfs-blank`). Todo estado que deba sobrevivir se declara en
   `environment.persistence."/persist"`.
@@ -58,7 +61,7 @@ actualiza este archivo en el mismo cambio.
 ## Componentes
 
 - `modules/common/` — capa NixOS común; `modules/desktop/` — GNOME/GDM;
-  `modules/home/` — home-manager (fish, wezterm, starship, yazi…).
+  `modules/home/` — home-manager (fish, wezterm, starship, yazi, opencode…).
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor

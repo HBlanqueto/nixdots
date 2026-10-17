@@ -1,6 +1,6 @@
-# Optional peripherals and roles, one switch per feature. Defaults come from the
-# machine's machineData.extras (machine.json); a host may still override any of
-# them. Everything is off when the data is missing (CI, pure evaluation), so the
+# Optional peripherals and roles, one switch per feature. Defaults come from
+# data.machine.extras (machine.json); a host may still override any of them.
+# Everything is off when the data is missing (CI, pure evaluation), so the
 # existing hosts are unaffected.
 { config, lib, pkgs, data, ... }:
 

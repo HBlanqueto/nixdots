@@ -9,9 +9,9 @@
     boot.initrd.systemd = {
         # systemd in stage 1 is what runs the service below: with the classic
         # initrd a `boot.initrd.systemd.services.*` unit is ignored and the root
-        # is never restored. It was only being enabled, transitively, by
-        # modules/common/encryption.nix when the root was encrypted; enabling it
-        # here makes the rollback work on unencrypted machines too.
+        # is never restored. Before it was only enabled, transitively, when the
+        # root was encrypted; enabling it here makes the rollback work on
+        # unencrypted machines too.
         enable = true;
 
         # Tools snapshot.sh needs inside the initrd.

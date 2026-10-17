@@ -23,7 +23,7 @@ This NixOS system features the following core components:
 ```text
 .
 ├── installer/               # Rust text-mode installer (see installer/README.md)
-├── lib/mkHost.nix           # helper: mkHost { hostName, system, modules, data }
+├── lib/mkHost.nix           # helper: mkHost { system, modules, data }
 ├── modules/                 # shared NixOS + home-manager configuration
 │   ├── common/              # users, fish, locale, nix, services, hardware-detect, boot
 │   ├── desktop/             # GNOME/GDM
@@ -130,7 +130,7 @@ without Secure Boot (e.g. a VM) keeps asking for the passphrase.
 > [!NOTE]
 > Verify support with
 > `/run/current-system/systemd/lib/systemd/systemd-pcrlock is-supported`
-> (must print `yes`). If it does not, leave `nixdots.encryption.tpmUnlock = false;`.
+> (must print `yes`). If it does not, leave `"tpmUnlock": false` in `machine.json`.
 
 > [!NOTE]
 > The password hash is written by the first-boot assistant to
