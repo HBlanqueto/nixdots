@@ -359,13 +359,20 @@
                         ${pkgs.coreutils}/bin/touch $out
                     '';
 
-                    # El archivo versionado setup-gui/ui/neptunia-tokens.slint
-                    # debe coincidir con lo que genera share/themes/neptunia.nix.
-                    neptunia-slint = pkgs.runCommand "check-neptunia-slint" { } ''
-                        if ! ${pkgs.diffutils}/bin/diff -u ${./setup-gui/ui/neptunia-tokens.slint} ${pkgs.callPackage ./packages/neptunia-slint.nix { }}; then
+                    # Las salidas versionadas de share/design/neptunia/generated
+                    # deben coincidir con lo que genera default.nix (solo
+                    # builtins, sin nixpkgs).
+                    neptunia-design = pkgs.runCommand "check-neptunia-design" { } ''
+                        ok=1
+                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" (import ./share/design/neptunia).slint} || ok=0
+                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" (import ./share/design/neptunia).css} || ok=0
+                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/Neptunia.qml} ${pkgs.writeText "g.qml" (import ./share/design/neptunia).qml} || ok=0
+                        if [ "$ok" = 0 ]; then
                             echo "" >&2
-                            echo "setup-gui/ui/neptunia-tokens.slint está desactualizado. Regéneralo con:" >&2
-                            echo "  cp \$(nix build .#neptunia-slint --print-out-paths) setup-gui/ui/neptunia-tokens.slint" >&2
+                            echo "share/design/neptunia/generated está desactualizado. Regéneralo con:" >&2
+                            echo "  nix eval --raw -f share/design/neptunia slint > share/design/neptunia/generated/neptunia.slint" >&2
+                            echo "  nix eval --raw -f share/design/neptunia css   > share/design/neptunia/generated/neptunia.css" >&2
+                            echo "  nix eval --raw -f share/design/neptunia qml   > share/design/neptunia/generated/Neptunia.qml" >&2
                             exit 1
                         fi
                         ${pkgs.coreutils}/bin/touch $out
@@ -393,12 +400,6 @@
                 # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
                 xnu-console-font =
                     pkgs.callPackage ./packages/xnu-console-font.nix { };
-
-                # Tokens de Neptunia para Slint, generados desde share/themes.
-                # El archivo vive versionado en setup-gui/ui/neptunia-tokens.slint;
-                # regenéralo con `nix build .#neptunia-slint --print-out-paths`.
-                neptunia-slint =
-                    pkgs.callPackage ./packages/neptunia-slint.nix { };
             });
 
             apps = forAllSystems ({ system, ... }: {

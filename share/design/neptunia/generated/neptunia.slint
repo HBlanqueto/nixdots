@@ -2,6 +2,12 @@
 // cambia los JSON y regenera con `nix eval --raw -f share/design/neptunia slint`.
 export enum NeptuniaMode { light, dark, dark-tint }
 
+export struct NeptuniaAccent {
+    id: string,
+    color: color,
+    label: string,
+}
+
 export global Theme {
     in-out property <NeptuniaMode> mode: NeptuniaMode.light;
 
@@ -100,6 +106,19 @@ export global Theme {
     out property <length> shadow-knob-offset-y: 1px;
     out property <length> shadow-knob-blur: 3px;
     out property <color> shadow-knob-color: #0d12194d;
+
+    // Acentos de sistema (GNOME), seleccionables junto al de Neptunia.
+    out property <[NeptuniaAccent]> accents: [
+        { id: "blue", color: #3584e4, label: "Azul" },
+        { id: "teal", color: #2190a4, label: "Verde azulado" },
+        { id: "green", color: #3a944a, label: "Verde" },
+        { id: "yellow", color: #c88800, label: "Amarillo" },
+        { id: "orange", color: #ed5b00, label: "Naranja" },
+        { id: "red", color: #e62d42, label: "Rojo" },
+        { id: "pink", color: #d56199, label: "Rosa" },
+        { id: "purple", color: #9141ac, label: "Morado" },
+        { id: "slate", color: #6f8396, label: "Pizarra" },
+    ];
 }
 
 // Medidas de components.json (switch-width, segmented-segment-radius, toolbar-tabs-tab-min-width…)

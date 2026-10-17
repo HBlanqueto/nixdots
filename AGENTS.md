@@ -79,12 +79,18 @@ actualiza este archivo en el mismo cambio.
 
 ## Tema
 
-- Única fuente: `share/themes/neptunia.nix` (vía `share/themes/default.nix`).
-  Nada de colores hardcodeados en Nix, Lua, Rust ni Slint.
-- Copias generadas y versionadas (hay checks en el flake que fallan si se
+- Dos fuentes, cada una para lo suyo; nada de colores hardcodeados en Nix, Lua,
+  Rust ni Slint:
+  - `share/themes/neptunia.nix` (vía `share/themes/default.nix`) — paleta de
+    **terminal** (kmscon, wezterm, instalador y yazi).
+  - `share/design/neptunia` (`tokens.json` + `components.json` → `generated/`) —
+    **interfaz gráfica** (Slint, CSS, QML). El asistente importa `Theme` y
+    `Metrics` de `generated/neptunia.slint`.
+- Copias generadas y versionadas (checks del flake que fallan si se
   desincronizan):
   - `share/themes/kmscon-palette` ← `nix build .#kmscon-palette`
-  - `setup-gui/ui/neptunia-tokens.slint` ← `nix build .#neptunia-slint`
+  - `share/design/neptunia/generated/*` ←
+    `nix eval --raw -f share/design/neptunia {slint,css,qml}`
 
 ## Estilo
 

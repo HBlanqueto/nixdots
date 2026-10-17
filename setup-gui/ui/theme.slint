@@ -1,18 +1,77 @@
-// Estado de tema del asistente. Los tokens (colores, medidas, duraciones) viven
-// en neptunia-tokens.slint, generado desde share/themes/neptunia.nix; aquí sólo
-// va lo que el usuario elige (tema y acento) y la preferencia de movimiento.
+// Estado de tema del asistente y tokens de interfaz. Los valores vienen del
+// sistema de diseño share/design/neptunia (generated/neptunia.slint); aquí solo
+// se exponen con los nombres que ya usa la UI y se resuelve el acento elegido.
 
-import { Tokens, Accent } from "neptunia-tokens.slint";
-export { Tokens } from "neptunia-tokens.slint";
+import { Theme as Design, Metrics, NeptuniaAccent } from "../../share/design/neptunia/generated/neptunia.slint";
+export { Metrics } from "../../share/design/neptunia/generated/neptunia.slint";
+
+export global Tokens {
+    // Tema: "light" | "dark" | "dark-tint". Quien lo cambie debe sincronizar
+    // Design.mode (ver app.slint); dark es solo un atajo para la UI.
+    in-out property <string> theme: "light";
+    out property <bool> dark: theme != "light";
+
+    out property <color> bgWindow: Design.bg-window;
+    out property <color> bgSunken: Design.bg-sunken;
+    out property <color> bgSurface: Design.bg-surface;
+    out property <color> bgRaised: Design.bg-raised;
+    out property <color> bgControl: Design.bg-control;
+    out property <color> bgHover: Design.bg-hover;
+    out property <color> line: Design.line;
+    out property <color> lineStrong: Design.line-strong;
+    out property <color> ink: Design.ink;
+    out property <color> inkStrong: Design.ink-strong;
+    out property <color> inkMuted: Design.ink-muted;
+    out property <color> inkFaint: Design.ink-faint;
+    out property <color> accent: Design.accent;
+    out property <color> accentStrong: Design.accent-strong;
+    out property <color> onAccent: Design.on-accent;
+    out property <color> accentSoft: Design.accent-soft;
+    out property <color> danger: Design.danger;
+    out property <color> dangerFill: Design.danger-fill;
+    out property <color> onDanger: Design.on-danger;
+    out property <color> success: Design.success;
+    out property <color> warning: Design.warning;
+    out property <color> info: Design.info;
+    out property <color> cyan: Design.cyan;
+    out property <color> windowOuter: Design.window-outer;
+    out property <color> windowInner: Design.window-inner;
+    out property <color> scrim: Design.scrim;
+
+    out property <length> space1: Design.space-1;
+    out property <length> space2: Design.space-2;
+    out property <length> space3: Design.space-3;
+    out property <length> space4: Design.space-4;
+    out property <length> space6: Design.space-6;
+    out property <length> space8: Design.space-8;
+
+    out property <length> radiusxs: Design.radius-xs;
+    out property <length> radiussm: Design.radius-sm;
+    out property <length> radiusButton: Design.radius-button;
+    out property <length> radiusmd: Design.radius-md;
+    out property <length> radiuslg: Design.radius-lg;
+    out property <length> radiusxl: Design.radius-xl;
+    out property <length> radiuspill: Design.radius-pill;
+
+    out property <length> controlsm: Design.control-sm;
+    out property <length> controlmd: Design.control-md;
+    out property <length> controllg: Design.control-lg;
+
+    out property <duration> durFast: Design.dur-fast;
+    out property <duration> durBase: Design.dur-base;
+    out property <duration> durSlow: Design.dur-slow;
+
+    // Acento de Neptunia (0) + accents de GNOME (1..n), elegidos en Theme.
+    out property <[NeptuniaAccent]> gnomeAccents: Design.accents;
+}
 
 export global Theme {
-    // Acento elegido: 0 = Neptunia (Tokens.accent), 1..9 = accent-color de GNOME.
+    // Acento elegido: 0 = Neptunia (Tokens.accent), 1..n = accent-color de GNOME.
     in-out property <int> accent-index: 0;
     // Preferencia del sistema: con reducción de movimiento, sólo fundidos.
     in-out property <bool> reduced-motion: false;
 
-
-    out property <[Accent]> accents: Tokens.gnomeAccents;
+    out property <[NeptuniaAccent]> accents: Tokens.gnomeAccents;
     out property <int> gi: accent-index <= 0 ? 0 : min(accent-index, accents.length) - 1;
 
     out property <color> accent: accent-index == 0 ? Tokens.accent : accents[gi].color;

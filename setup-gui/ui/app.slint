@@ -1,16 +1,15 @@
 // Asistente de primer arranque (fase 4a, sólo UI) sobre el sistema Neptunia.
 //
 // Referencias: ~/Descargas/first-boot/mockup-asistente.html + firstboot.css + los
-// tokens/componentes Neptunia. Los colores y medidas salen de Tokens
-// (neptunia-tokens.slint, generado desde share/themes/neptunia.nix).
+// tokens/componentes Neptunia. Los colores y medidas salen del sistema de diseño
+// (share/design/neptunia), expuesto por theme.slint.
 
 import "fonts/DancingScript-Regular.ttf";
 import "fonts/DancingScript-Bold.ttf";
 
-import { Tokens } from "neptunia-tokens.slint";
-export { Tokens } from "neptunia-tokens.slint";
-import { Theme } from "theme.slint";
-export { Theme } from "theme.slint";
+import { Tokens, Theme, Metrics } from "theme.slint";
+export { Tokens, Theme } from "theme.slint";
+import { Theme as Design, NeptuniaMode } from "../../share/design/neptunia/generated/neptunia.slint";
 import {
     Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
     GitIcon, CheckIcon, SpinIcon,
@@ -774,6 +773,11 @@ export component AppWindow inherits Window {
     // Alias para `slint-viewer --load-data` (capturas por pantalla/tema).
     in-out property <int> step <=> State.step;
     in-out property <string> theme <=> Tokens.theme;
+    // El sistema de diseño resuelve los colores según Design.mode; se sincroniza
+    // aquí (no en el global) porque los componentes sí pueden fijar globales.
+    changed theme => {
+        Design.mode = theme == "dark" ? NeptuniaMode.dark : theme == "dark-tint" ? NeptuniaMode.dark-tint : NeptuniaMode.light;
+    }
     in-out property <int> greet <=> State.gi;
     in-out property <bool> tz-auto <=> State.tz-auto;
     in-out property <int> prep-phase <=> State.prep-phase;
