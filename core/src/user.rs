@@ -50,6 +50,51 @@ pub fn username_error(name: &str) -> Option<&'static str> {
     None
 }
 
+/// Por qué `name` no es un nombre de equipo válido (RFC 1123), si no lo es.
+/// Un `name` vacío es inválido (el instalador decide antes si usa el generado).
+pub fn host_name_error(name: &str) -> Option<&'static str> {
+    if name.is_empty() {
+        return Some("no puede estar vacío");
+    }
+    if name.chars().count() > 63 {
+        return Some("máximo 63 caracteres");
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Some("solo letras, números y -");
+    }
+    if name.starts_with('-') || name.ends_with('-') {
+        return Some("no puede empezar ni terminar por -");
+    }
+    None
+}
+
+/// Derives a macOS-style hostname from a display name: transliterate accents
+/// and ñ to ASCII, drop apostrophes without leaving a gap, turn every other
+/// non-alphanumeric character into a `-` (runs collapse, edges trimmed), keep
+/// the case, cap at 63 chars, and fall back to `nixdots` when nothing is left.
+pub fn host_name_from_pretty(pretty: &str) -> String {
+    let mut out = String::new();
+    for ch in pretty.chars() {
+        let c = deaccent(ch);
+        if c == '\'' || c == '’' || c == '‘' || c == '`' || c == '´' {
+            continue;
+        }
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    let mut name = out.trim_matches('-').to_string();
+    name.truncate(63);
+    let name = name.trim_end_matches('-');
+    if name.is_empty() {
+        "nixdots".to_string()
+    } else {
+        name.to_string()
+    }
+}
+
 /// Derives a username from a display name: strip accents, lowercase, keep
 /// `a-z0-9`, prefix `u` when it would start with a digit, cap at 32 chars.
 pub fn generate_username(name: &str) -> String {
@@ -60,7 +105,12 @@ pub fn generate_username(name: &str) -> String {
             out.push(base.to_ascii_lowercase());
         }
     }
-    if out.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+    if out
+        .chars()
+        .next()
+        .map(|c| c.is_ascii_digit())
+        .unwrap_or(false)
+    {
         out.insert(0, 'u');
     }
     out.truncate(32);
