@@ -72,10 +72,9 @@
                     hostData = if ciOnly then emptyData else data;
                 in
                 mkHost {
-                    # Nombre del equipo por defecto según la arquitectura detectada.
-                    hostName = hostData.machine.hostName or (
-                        if system == "aarch64-linux" then "UTM-aarch64" else "ThinkPad-L14-Gen2"
-                    );
+                    # Nombre del equipo por defecto cuando no hay machine.json
+                    # (p. ej. evaluación de CI).
+                    hostName = hostData.machine.hostName or "nixdots";
                     inherit system requireImpure;
                     machineData = hostData.machine;
                     data = hostData;
