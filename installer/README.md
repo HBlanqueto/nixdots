@@ -2,9 +2,8 @@
 
 Un instalador de terminal («siguiente, siguiente, aceptar») para la
 configuración NixOS de este repositorio. Es un ejecutable Rust que **orquesta**
-herramientas existentes — `disko`, `nixos-facter`, `mkpasswd`, `sbctl`,
-`nix`, `nixos-install`, `nmcli`… — y nunca reimplementa el particionado ni el
-hashing.
+herramientas existentes — `disko`, `nixos-facter`, `sbctl`, `nix`,
+`nixos-install`, `nmcli`… — y nunca reimplementa el particionado.
 
 ## Simulación
 
@@ -41,8 +40,11 @@ nix --extra-experimental-features 'nix-command flakes' \
 (`/etc/NIXOS`). El log completo queda en `/tmp/nixdots-install.log` y se copia a
 `/mnt/persist/` si ese montaje existe.
 
-Pantallas: Inicio · Bienvenido · Licencia · Red · Idioma y teclado · Zona horaria
-· Equipo · Usuario · Contraseña · Git · Disco · Resumen · Instalando · Listo.
+Pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria · Equipo
+· Disco · Cifrado · Resumen · Instalando · Listo.
+
+La cuenta (usuario, contraseña y git) **no** se pide aquí: la crea el asistente
+de primer arranque la primera vez que se reinicia el equipo.
 
 ### Opciones
 
@@ -78,15 +80,19 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
 
 ## Notas
 
-- `disko` formatea la raíz como un contenedor **LUKS2** (`core`); la contraseña
-  de la cuenta se usa como passphrase y se pasa a `disko` mediante un archivo
-  temporal `0600` (`--argstr passwordFile`), eliminado en cuanto termina. El
-  primer arranque la pide; en el ThinkPad el TPM la desbloquea (Measured Boot).
+- `disko` formatea la raíz como un contenedor **LUKS2** (`core`); la frase de
+  desbloqueo se escribe en la pantalla **Cifrado** y se pasa a `disko` mediante
+  un archivo temporal `0600` (`--argstr passwordFile`), eliminado en cuanto
+  termina. El primer arranque la pide; en el ThinkPad el TPM la desbloquea
+  (Measured Boot).
 - La paleta proviene de `share/themes/neptunia.nix`; un test (`cargo test`) falla
   si las constantes de `src/theme.rs` se desincronizan.
 - En la consola Linux (`TERM=linux`, la tty de la ISO) no hay truecolor: al
   arrancar se programan los 16 slots con OSC P y se restauran con OSC R al salir,
   también ante un pánico o Ctrl+C.
-- Si se omite el paso **Git**, `settings.nix` lleva `gitName = null;` y
-  `gitEmail = null;`, y el módulo de home-manager solo configura git cuando no
-  son `null`.
+- Si se omite el paso **Equipo** se usa el hostname generado del modelo; el
+  instalador lo escribe en `machine.json` y deja `prettyHostName` en
+  `settings.nix`.
+- El instalador **no crea la cuenta**: al reiniciar, el asistente de primer
+  arranque pide usuario, contraseña y git, escribe `user.json` y el hash, y
+  reconstruye el sistema.

@@ -37,14 +37,14 @@ This NixOS system features the following core components:
 
 * **`flake.nix`:** emits the generic `nixdots` configuration (plus pure CI variants and the first-boot test VMs); also packages the installer for `x86_64-linux` and `aarch64-linux`.
 * **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
-* **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`, written by the installer and merged by `lib/data.nix`.
+* **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.json` and `facter.json`, the first-boot assistant writes `user.json` (plus the password hash), and `lib/data.nix` merges them.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `core` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
 ## Installer
 
-`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `mkpasswd`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning or hashing.
+`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
 
 There are two ways to run it:
 
@@ -96,7 +96,9 @@ sudo ./nixdots/install.sh
 
 (development: `sudo nix run .#installer -- --install`). It partitions with
 `disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
-`machine.json` and runs `nixos-install --flake <repo>#nixdots` for you.
+`machine.json` and runs `nixos-install --flake <repo>#nixdots` for you. The
+account is **not** created here: on the first reboot a Slint assistant asks for
+the user, the password and git, writes `user.json` and the hash, and rebuilds.
 
 To install manually, the flake provides the single `nixdots` configuration:
 
@@ -108,8 +110,9 @@ nixos-install --root /mnt --flake ~/nixdots#nixdots --impure --show-trace
 
 `disko.nix` formats the root as a **LUKS2** container (`core`) holding the btrfs
 subvolumes; only the ESP stays unencrypted (Lanzaboote must read the kernel and
-initrd before unlocking). The installer uses the account password as the LUKS
-passphrase, so early boots ask for it.
+initrd before unlocking). The installer asks for a dedicated LUKS passphrase on
+the **Cifrado** screen (separate from the account password, which does not exist
+yet) and early boots ask for it.
 
 On the **ThinkPad**, once reinstalled with encryption, `modules/common/luks-tpm.nix`
 enables Lanzaboote's **Measured Boot** (`systemd-pcrlock`): the passphrase is
@@ -125,12 +128,10 @@ passphrase.
 > (must print `yes`). If it does not, leave `nixdots.tpmUnlock.enable = false;`.
 
 > [!NOTE]
-> `settings.nix` points `hashedPasswordFile` at `/persist/secrets/humbe.hash`.
-> Create that file from the live ISO (e.g.
-> `mkpasswd -m sha-512 > /mnt/persist/secrets/humbe.hash`) before the first rebuild.
-> Keep the directory traversable (`chmod 0711 /persist/secrets`): the file is
-> `0600` root-owned, but the unprivileged `nix` evaluation must still be able to
-> stat it (`nixdots-rebuild` builds without sudo).
+> The password hash is written by the first-boot assistant to
+> `/persist/secrets/<user>.hash` (`0600`, root-owned), creating the directory
+> with `0711` so the unprivileged `nix` evaluation can still stat the file
+> (`nixdots-rebuild` builds without sudo). It is never committed to the repo.
 
 ### Impermanence
 
