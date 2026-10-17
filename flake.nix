@@ -167,6 +167,10 @@
             # on; it only orchestrates other tools.
             supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
 
+            # Una salida por arquitectura: f recibe { system, pkgs }.
+            forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system:
+                f { inherit system; pkgs = nixpkgs.legacyPackages.${system}; });
+
             # Data tables embedded at compile time with `include_str!` so the
             # binaries never shell out to `locale -a`, `localectl` or
             # `timedatectl` for their choices. Shared by the installer, the
@@ -220,10 +224,7 @@
 
             # Everything the installer shells out to; makeWrapper puts these on
             # its PATH so the binary works from a minimal ISO.
-            installers = nixpkgs.lib.genAttrs supportedSystems (system:
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                in
+            installers = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-installer";
                     subdir = "installer";
@@ -248,10 +249,7 @@
 
             # El asistente de primer arranque: solo orquesta mkpasswd, git, nix
             # y nixos-rebuild.
-            setups = nixpkgs.lib.genAttrs supportedSystems (system:
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                in
+            setups = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-setup";
                     subdir = "setup";
@@ -273,10 +271,7 @@
             # Licencia: Slint es GPL-3.0-only (o comercial/royalty-free). El
             # flake declara gpl2Only y GPLv2-only es incompatible con GPLv3.
             # Ver setup-gui/Cargo.toml.
-            setupsGui = nixpkgs.lib.genAttrs supportedSystems (system:
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                in
+            setupsGui = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-setup-gui";
                     subdir = "setup-gui";
@@ -297,8 +292,8 @@
 
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
             # neptunia palette) on a real VT, then runs the installer inside it.
-            launchers = nixpkgs.lib.genAttrs supportedSystems (system:
-                nixpkgs.legacyPackages.${system}.callPackage ./packages/installer-launcher.nix {
+            launchers = forAllSystems ({ system, pkgs }:
+                pkgs.callPackage ./packages/installer-launcher.nix {
                     installer = installers.${system};
                     inherit theme;
                 });
@@ -348,9 +343,8 @@
             # install.sh lee la copia versionada de la paleta sin pasar por
             # Nix; este check falla si dejó de coincidir con lo que genera
             # packages/kmscon-palette.nix.
-            checks = nixpkgs.lib.genAttrs supportedSystems (system:
+            checks = forAllSystems ({ pkgs, ... }:
                 let
-                    pkgs = nixpkgs.legacyPackages.${system};
                     generated = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
                 in
                 {
@@ -377,7 +371,7 @@
                     '';
                 });
 
-            packages = nixpkgs.lib.genAttrs supportedSystems (system: {
+            packages = forAllSystems ({ system, pkgs }: {
                 installer = installers.${system};
                 setup = setups.${system};
                 setup-gui = setupsGui.${system};
@@ -389,24 +383,24 @@
                 # share/themes/kmscon-palette; regenerate it with
                 # `nix build .#kmscon-palette --print-out-paths`.
                 kmscon-palette =
-                    nixpkgs.legacyPackages.${system}.callPackage ./packages/kmscon-palette.nix { inherit theme; };
+                    pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
 
                 # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
                 nixdots-rebuild =
-                    nixpkgs.legacyPackages.${system}.callPackage ./packages/nixdots-rebuild.nix { };
+                    pkgs.callPackage ./packages/nixdots-rebuild.nix { };
 
                 # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
                 xnu-console-font =
-                    nixpkgs.legacyPackages.${system}.callPackage ./packages/xnu-console-font.nix { };
+                    pkgs.callPackage ./packages/xnu-console-font.nix { };
 
                 # Tokens de Neptunia para Slint, generados desde share/themes.
                 # El archivo vive versionado en setup-gui/ui/neptunia-tokens.slint;
                 # regenéralo con `nix build .#neptunia-slint --print-out-paths`.
                 neptunia-slint =
-                    nixpkgs.legacyPackages.${system}.callPackage ./packages/neptunia-slint.nix { };
+                    pkgs.callPackage ./packages/neptunia-slint.nix { };
             });
 
-            apps = nixpkgs.lib.genAttrs supportedSystems (system: {
+            apps = forAllSystems ({ system, ... }: {
                 installer = {
                     type = "app";
                     program = "${launchers.${system}}/bin/nixdots-installer";
@@ -419,10 +413,10 @@
 
             # Development shell for the live WezTerm window: cargo + rehearse
             # on every save with watchexec.
-            devShells = nixpkgs.lib.genAttrs supportedSystems (system:
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                in
+            # `nix fmt`: el formateador oficial (RFC 166).
+            formatter = forAllSystems ({ pkgs, ... }: pkgs.nixfmt);
+
+            devShells = forAllSystems ({ pkgs, ... }:
                 {
                     installer = pkgs.mkShell ((tablesEnv pkgs) // {
                         packages = with pkgs; [
@@ -481,9 +475,12 @@
                         packages = with pkgs; [
                             cargo
                             rustc
+                            clippy
+                            rustfmt
+                            rust-analyzer
                             gcc
                             pkg-config
-                            nixfmt-rfc-style
+                            nixfmt
                             statix
                             deadnix
                             nil
