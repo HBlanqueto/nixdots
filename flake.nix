@@ -396,7 +396,7 @@
                 nixdots-rebuild =
                     pkgs.callPackage ./packages/nixdots-rebuild.nix { };
 
-                # The macOS XNU console font, as PSF2 (kernel) and OTB (kmscon).
+                # The macOS XNU console font, as PSF2 (kernel and kmscon).
                 xnu-console-font =
                     pkgs.callPackage ./packages/xnu-console-font.nix { };
             });

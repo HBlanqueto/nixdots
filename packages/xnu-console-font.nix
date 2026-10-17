@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchurl, python3, fonttosfnt }:
+{ lib, stdenv, fetchurl, python3 }:
 
 stdenv.mkDerivation (_finalAttrs: {
     pname = "xnu-console-font";
@@ -10,7 +10,7 @@ stdenv.mkDerivation (_finalAttrs: {
         hash = "sha256-SOY0BIXq6ywqKDkn83SlEdXgFt5p5u+HN381+rc3BQA=";
     };
 
-    nativeBuildInputs = [ python3 fonttosfnt ];
+    nativeBuildInputs = [ python3 ];
 
     dontUnpack = true;
 
@@ -27,14 +27,11 @@ stdenv.mkDerivation (_finalAttrs: {
 
         install -Dm644 xnu-console.psf $out/share/consolefonts/xnu-console.psf
 
-        fonttosfnt -b -c -g 2 -m 2 -o xnu-console.otb xnu-console.bdf
-        install -Dm644 xnu-console.otb $out/share/fonts/misc/xnu-console.otb
-
         runHook postInstall
     '';
 
     meta = {
-        description = "8x16 console font embedded in XNU, the macOS kernel (osfmk/console/iso_font.c), as PSF2 and OTB";
+        description = "8x16 console font embedded in XNU, the macOS kernel (osfmk/console/iso_font.c), as PSF2";
         homepage = "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/console/iso_font.c";
         license = lib.licenses.apple-psl20;
         platforms = lib.platforms.all;
