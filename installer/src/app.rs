@@ -35,9 +35,6 @@ pub enum Screen {
     Locale,
     Keyboard,
     Timezone,
-    User,
-    Password,
-    Git,
     Disk,
     Encryption,
     Summary,
@@ -54,9 +51,6 @@ impl Screen {
             Screen::Locale,
             Screen::Keyboard,
             Screen::Timezone,
-            Screen::User,
-            Screen::Password,
-            Screen::Git,
             Screen::Disk,
             Screen::Encryption,
             Screen::Summary,
@@ -75,9 +69,6 @@ impl Screen {
             Screen::Locale => "Lenguaje",
             Screen::Keyboard => "Teclado",
             Screen::Timezone => "Zona horaria",
-            Screen::User => "Usuario",
-            Screen::Password => "Contraseña",
-            Screen::Git => "Git",
             Screen::Disk => "Disco",
             Screen::Encryption => "Cifrado",
             Screen::Summary => "Resumen",
@@ -97,10 +88,7 @@ impl Screen {
             Screen::Network => Some(Screen::Locale),
             Screen::Locale => Some(Screen::Keyboard),
             Screen::Keyboard => Some(Screen::Timezone),
-            Screen::Timezone => Some(Screen::User),
-            Screen::User => Some(Screen::Password),
-            Screen::Password => Some(Screen::Git),
-            Screen::Git => Some(Screen::Disk),
+            Screen::Timezone => Some(Screen::Disk),
             Screen::Disk => Some(Screen::Encryption),
             Screen::Encryption => Some(Screen::Summary),
             Screen::Summary => Some(Screen::Installing),
@@ -120,10 +108,7 @@ impl Screen {
             }),
             Screen::Keyboard => Some(Screen::Locale),
             Screen::Timezone => Some(Screen::Keyboard),
-            Screen::User => Some(Screen::Timezone),
-            Screen::Password => Some(Screen::User),
-            Screen::Git => Some(Screen::Password),
-            Screen::Disk => Some(Screen::Git),
+            Screen::Disk => Some(Screen::Timezone),
             Screen::Encryption => Some(Screen::Disk),
             Screen::Summary => Some(Screen::Encryption),
         }
@@ -159,24 +144,6 @@ impl App {
             return FocusKind::Buttons;
         }
         match self.screen {
-            Screen::User => match self.user.focus {
-                0 => FocusKind::Field { last: false },
-                1 | 3 => FocusKind::Checkbox,
-                2 => FocusKind::Field { last: false },
-                _ => FocusKind::Field { last: true },
-            },
-            Screen::Password => FocusKind::Field {
-                last: self.password.focus >= 1,
-            },
-            Screen::Git => {
-                if self.git.focus == 0 {
-                    FocusKind::Checkbox
-                } else {
-                    FocusKind::Field {
-                        last: self.git.focus >= 2,
-                    }
-                }
-            }
             Screen::Encryption => match self.enc.focus {
                 ENC_ACCOUNT | ENC_TPM | ENC_NOTED => FocusKind::Checkbox,
                 _ => FocusKind::Field {
@@ -381,34 +348,6 @@ pub struct NetState {
     pub selected: usize,
     /// When the current connection attempt started (for the 30 s timeout).
     pub connecting_since: Option<Instant>,
-}
-
-pub struct UserState {
-    pub name: Input,
-    /// "Usar un nombre de usuario diferente" (unchecked by default).
-    pub custom: bool,
-    /// The hand-written username, used only while `custom` is set.
-    pub username: Input,
-    /// "Usar un nombre de red diferente" (unchecked by default).
-    pub host_custom: bool,
-    /// The hand-written network name, used only while `host_custom` is set.
-    pub host_name: Input,
-    /// 0 = nombre, 1 = casilla de usuario, 2 = usuario manual,
-    /// 3 = casilla de red, 4 = nombre de red manual.
-    pub focus: usize,
-}
-
-pub struct PasswordState {
-    pub p1: Input,
-    pub p2: Input,
-    pub focus: usize,
-}
-
-pub struct GitState {
-    pub enabled: bool,
-    pub name: Input,
-    pub email: Input,
-    pub focus: usize,
 }
 
 pub struct DiskState {
@@ -730,11 +669,6 @@ pub struct App {
     pub keyboard_layout: String,
     pub keyboard_variant: String,
 
-    // user / password / git
-    pub user: UserState,
-    pub password: PasswordState,
-    pub git: GitState,
-
     // disk / summary
     pub disks: DiskState,
     pub enc: EncState,
@@ -754,9 +688,6 @@ pub struct App {
     /// Box scroll offset (rows) and its maximum, recomputed on every draw.
     pub install_log_scroll: usize,
     pub install_max_scroll: usize,
-
-    /// Password hash, kept in memory only (never logged or written to temp).
-    pub password_hash: Option<String>,
 
     /// Button selection index. `focus_buttons` is false while the content
     /// (a field or the list) holds the focus.
@@ -787,7 +718,7 @@ impl App {
         };
         let secure_boot = detect::secure_boot();
         // Everything else starts empty (only stateVersion is kept from the
-        // repo); the hostname is filled in when leaving the Usuario screen.
+        // repo); the hostname is set on the Equipo screen.
         settings.host_name = String::new();
         settings.username = None;
         settings.userdescription = None;
@@ -836,25 +767,6 @@ impl App {
             source_check_rx: None,
             settings_ok,
             secure_boot,
-            user: UserState {
-                name: Input::default(),
-                custom: false,
-                username: Input::default(),
-                host_custom: false,
-                host_name: Input::default(),
-                focus: 0,
-            },
-            password: PasswordState {
-                p1: Input::default(),
-                p2: Input::default(),
-                focus: 0,
-            },
-            git: GitState {
-                enabled: false,
-                name: Input::default(),
-                email: Input::default(),
-                focus: 0,
-            },
             disks: DiskState {
                 disks,
                 index: disk_index,
@@ -905,7 +817,6 @@ impl App {
             install_follow: true,
             install_log_scroll: 0,
             install_max_scroll: 0,
-            password_hash: None,
             button_focus: 0,
             // Inicio has no content, so the buttons start focused.
             focus_buttons: true,
@@ -1116,16 +1027,6 @@ impl App {
         }
     }
 
-    /// The username that will be used: the generated one, or the hand-written
-    /// one when the checkbox is set and the field is not empty.
-    pub fn final_username(&self) -> String {
-        if self.user.custom && !self.user.username.value().is_empty() {
-            self.user.username.value().to_string()
-        } else {
-            nixdots_core::user::generate_username(self.user.name.value())
-        }
-    }
-
     /// The panel title, which for Contraseña names the resulting user.
     pub fn screen_title(&self) -> String {
         match self.screen {
@@ -1134,63 +1035,8 @@ impl App {
         }
     }
 
-    /// Why the hand-written username is rejected, if it is. An empty field is
-    /// valid (the generated username is used).
-    pub fn username_error(&self) -> Option<&'static str> {
-        if !self.user.custom || self.user.username.value().is_empty() {
-            return None;
-        }
-        nixdots_core::user::username_error(self.user.username.value())
-    }
-
-    pub fn username_valid(&self) -> bool {
-        self.username_error().is_none()
-    }
-
-    /// The network name that will be used: the hand-written one, or the
-    /// macOS-style one generated from the visible name.
-    pub fn final_host_name(&self) -> String {
-        if self.user.host_custom && !self.user.host_name.value().is_empty() {
-            self.user.host_name.value().to_string()
-        } else {
-            nixdots_core::user::host_name_from_pretty(&self.pretty_host_name())
-        }
-    }
-
-    /// Why the hand-written network name is rejected, if it is. An empty field
-    /// is valid (the generated hostname is used).
-    pub fn host_name_error(&self) -> Option<&'static str> {
-        if !self.user.host_custom || self.user.host_name.value().is_empty() {
-            return None;
-        }
-        nixdots_core::user::host_name_error(self.user.host_name.value())
-    }
-
-    pub fn host_name_valid(&self) -> bool {
-        self.host_name_error().is_none()
-    }
-
-    pub fn passwords_match(&self) -> bool {
-        !self.password.p1.value().is_empty() && self.password.p1.value() == self.password.p2.value()
-    }
-
     fn apply_current(&mut self) {
         match self.screen {
-            Screen::User => {
-                self.settings.username = Some(self.final_username());
-                self.settings.userdescription = Some(self.user.name.value().to_string());
-                self.settings.pretty_host_name = self.pretty_host_name();
-                self.settings.host_name = self.final_host_name();
-            }
-            Screen::Git => {
-                if self.git.enabled {
-                    self.settings.git_name = Some(self.git.name.value().to_string());
-                    self.settings.git_email = Some(self.git.email.value().to_string());
-                } else {
-                    self.settings.git_name = None;
-                    self.settings.git_email = None;
-                }
-            }
             Screen::Timezone => {
                 if let Some(p) = &self.timezones {
                     if let Some(item) = p.current() {
@@ -1227,29 +1073,6 @@ impl App {
             self.status = Some("no hay disco seleccionado".into());
             return;
         };
-        if self.settings.username.is_none() {
-            self.status = Some("no hay usuario: completa la pantalla Usuario".into());
-            return;
-        }
-        let hash = if let Some(hash) = self.password_hash.clone() {
-            hash
-        } else {
-            let password = self.password.p1.value().to_string();
-            let hash = if self.dry_run {
-                "$y$j9T$SIMULATED".to_string()
-            } else {
-                match crate::crypto::hash_password(&password) {
-                    Ok(hash) => hash,
-                    Err(err) => {
-                        self.status = Some(format!("mkpasswd: {err}"));
-                        return;
-                    }
-                }
-            };
-            self.password_hash = Some(hash.clone());
-            hash
-        };
-
         let (tx, rx) = mpsc::channel();
         self.install_rx = Some(rx);
         self.install.resume_from(resume);
@@ -1270,14 +1093,10 @@ impl App {
             _ => None,
         };
 
-        // The LUKS2 passphrase is either the account password (default) or the
-        // one typed on the Cifrado screen; both travel over stdin, never argv.
+        // The LUKS2 passphrase typed on the Cifrado screen travels over stdin,
+        // never argv.
         let encrypt = self.disks.encrypt;
-        let luks_passphrase = Zeroizing::new(if self.enc.use_account {
-            self.password.p1.value().to_string()
-        } else {
-            self.enc.pass.value().to_string()
-        });
+        let luks_passphrase = Zeroizing::new(self.enc.pass.value().to_string());
         let recovery_key = Zeroizing::new(if encrypt {
             self.enc.recovery.to_string()
         } else {
@@ -1315,7 +1134,7 @@ impl App {
             source: self.repo_dir.clone(),
             root,
             settings: self.settings.clone(),
-            password_hash: hash,
+            password_hash: String::new(),
             encrypt,
             luks_passphrase,
             recovery_key,
@@ -1522,31 +1341,6 @@ impl App {
     /// Moves the focus to the first field that is not yet valid.
     fn focus_first_incomplete(&mut self) {
         match self.screen {
-            Screen::User => {
-                self.user.focus = if self.user.name.value().is_empty() {
-                    0
-                } else if !self.username_valid() {
-                    2
-                } else if !self.host_name_valid() {
-                    4
-                } else {
-                    1
-                };
-            }
-            Screen::Password => {
-                self.password.focus = if self.password.p1.value().is_empty() {
-                    0
-                } else {
-                    1
-                };
-            }
-            Screen::Git if self.git.enabled => {
-                self.git.focus = if self.git.email.value().is_empty() {
-                    2
-                } else {
-                    1
-                };
-            }
             Screen::Encryption => {
                 self.enc.focus = if !self.enc.noted {
                     ENC_NOTED
@@ -1597,9 +1391,6 @@ impl App {
             Screen::Timezone => crate::screens::timezone::key(self, key),
             Screen::Locale => crate::screens::locale::key(self, key),
             Screen::Keyboard => crate::screens::keyboard::key(self, key),
-            Screen::User => crate::screens::user::key(self, key),
-            Screen::Password => crate::screens::password::key(self, key),
-            Screen::Git => crate::screens::git::key(self, key),
             Screen::Disk => crate::screens::disk::key(self, key),
             Screen::Encryption => crate::screens::encryption::key(self, key),
             Screen::Summary => crate::screens::summary::key(self, key),
@@ -1685,9 +1476,6 @@ impl App {
             Screen::Timezone => crate::screens::timezone::buttons(self),
             Screen::Locale => crate::screens::locale::buttons(self),
             Screen::Keyboard => crate::screens::keyboard::buttons(self),
-            Screen::User => crate::screens::user::buttons(self),
-            Screen::Password => crate::screens::password::buttons(self),
-            Screen::Git => crate::screens::git::buttons(self),
             Screen::Disk => crate::screens::disk::buttons(self),
             Screen::Encryption => crate::screens::encryption::buttons(self),
             Screen::Summary => crate::screens::summary::buttons(self),
@@ -1853,15 +1641,6 @@ impl App {
             Screen::Locale | Screen::Keyboard | Screen::Timezone | Screen::Network
         );
         self.focus_buttons = self.primary_enabled() && !self.list_focus;
-        if self.screen == Screen::User {
-            self.user.focus = 0;
-        }
-        if self.screen == Screen::Password {
-            self.password.focus = 0;
-        }
-        if self.screen == Screen::Git {
-            self.git.focus = 0;
-        }
         if self.screen == Screen::Keyboard {
             self.key_test_focus = false;
             self.keyboard_suggested = self.suggested_keyboard();
@@ -2066,39 +1845,6 @@ impl App {
                 .as_ref()
                 .filter(|p| p.selected.is_none())
                 .map(|_| "falta: elegir una zona horaria".to_string()),
-            Screen::User => {
-                if self.user.name.value().is_empty() {
-                    Some("falta: nombre completo".into())
-                } else if !self.username_valid() {
-                    Some("usuario no válido".into())
-                } else if !self.host_name_valid() {
-                    Some("nombre de red no válido".into())
-                } else {
-                    None
-                }
-            }
-            Screen::Password => {
-                if self.password.p1.value().is_empty() {
-                    Some("falta: escribir la contraseña".into())
-                } else if self.password.p2.value().is_empty() {
-                    Some("falta: confirmar contraseña".into())
-                } else if !self.passwords_match() {
-                    Some("las contraseñas no coinciden".into())
-                } else {
-                    None
-                }
-            }
-            Screen::Git => {
-                if !self.git.enabled {
-                    None
-                } else if self.git.name.value().is_empty() {
-                    Some("falta: nombre de git".into())
-                } else if !crate::screens::git::email_valid(self.git.email.value()) {
-                    Some("falta: correo de git".into())
-                } else {
-                    None
-                }
-            }
             Screen::Disk => {
                 if !crate::screens::disk::has_usable_disk(self) {
                     Some("falta: un disco donde instalar".into())
@@ -2128,12 +1874,6 @@ impl App {
         match self.screen {
             Screen::Network => self.net.phase.is_connected(),
             Screen::License => true,
-            Screen::User => {
-                !self.user.name.value().is_empty()
-                    && self.username_valid()
-                    && self.host_name_valid()
-            }
-            Screen::Password => self.passwords_match(),
             Screen::Timezone => self
                 .timezones
                 .as_ref()
@@ -2211,27 +1951,6 @@ impl App {
             Ok(model) => self.model = model,
             Err(std::sync::mpsc::TryRecvError::Empty) => self.model_rx = Some(rx),
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
-        }
-    }
-
-    /// The macOS-style visible name: the model plus the user's first name, in
-    /// the chosen language («ThinkPad L14 de Humberto», «Humberto's ThinkPad
-    /// L14»). Falls back to the bare model.
-    pub fn pretty_host_name(&self) -> String {
-        let model = if self.model.is_empty() {
-            "PC"
-        } else {
-            self.model.as_str()
-        };
-        let first = first_name(self.user.name.value());
-        if first.is_empty() {
-            return model.to_string();
-        }
-        match language_code(&self.settings.default_locale) {
-            "en" => format!("{first}'s {model}"),
-            "de" => format!("{model} von {first}"),
-            "it" => format!("{model} di {first}"),
-            _ => format!("{model} de {first}"),
         }
     }
 
@@ -2328,9 +2047,6 @@ impl App {
             Screen::Timezone => crate::screens::timezone::draw(f, self, layout.content),
             Screen::Locale => crate::screens::locale::draw(f, self, layout.content),
             Screen::Keyboard => crate::screens::keyboard::draw(f, self, layout.content),
-            Screen::User => crate::screens::user::draw(f, self, layout.content),
-            Screen::Password => crate::screens::password::draw(f, self, layout.content),
-            Screen::Git => crate::screens::git::draw(f, self, layout.content),
             Screen::Encryption => crate::screens::encryption::draw(f, self, layout.content),
             Screen::Summary => crate::screens::summary::draw(f, self, layout.content),
         }
@@ -2829,7 +2545,6 @@ impl App {
         let root = std::env::temp_dir().join("nixdots-mnt");
         let mut s = line.replace(&root.to_string_lossy().to_string(), "/mnt");
         for secret in [
-            self.password.p1.value().to_string(),
             self.enc.pass.value().to_string(),
             self.enc.recovery.to_string(),
         ] {
@@ -2869,7 +2584,7 @@ impl App {
                 };
                 format!("{action} · EFI + System HD (btrfs, {cif})")
             }
-            Step::Settings => "settings.nix · user.json · machine.json".to_string(),
+            Step::Settings => "settings.nix · machine.json".to_string(),
             Step::System => {
                 if self.install.total > 0 {
                     format!(
@@ -3196,9 +2911,6 @@ impl App {
             Screen::Timezone => crate::screens::timezone::commands(self),
             Screen::Locale => crate::screens::locale::commands(self),
             Screen::Keyboard => crate::screens::keyboard::commands(self),
-            Screen::User => crate::screens::user::commands(self),
-            Screen::Password => crate::screens::password::commands(self),
-            Screen::Git => crate::screens::git::commands(self),
             Screen::Disk => crate::screens::disk::commands(self),
             Screen::Encryption => crate::screens::encryption::commands(self),
             Screen::Summary => crate::screens::summary::commands(self),
@@ -3206,11 +2918,6 @@ impl App {
             Screen::Done => crate::screens::done::commands(self),
         }
     }
-}
-
-/// The first whitespace-separated token of a full name.
-fn first_name(full: &str) -> &str {
-    full.split_whitespace().next().unwrap_or("")
 }
 
 /// Uppercases the first letter of a step label.
@@ -3230,11 +2937,6 @@ fn human_duration(d: Duration) -> String {
     } else {
         format!("{}m {}s", secs / 60, secs % 60)
     }
-}
-
-/// The language of a locale code (`es_MX.UTF-8` → `es`).
-fn language_code(locale: &str) -> &str {
-    locale.split(['_', '.']).next().unwrap_or("")
 }
 
 /// Lowercases and strips the common Latin accents, so a search for «espanol»

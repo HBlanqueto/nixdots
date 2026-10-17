@@ -33,10 +33,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             format!("{} · {}", d.short_name(), action)
         })
         .unwrap_or_default();
-    let git = match &app.settings.git_name {
-        Some(name) if app.git.enabled => name.clone(),
-        _ => "no configurado".into(),
-    };
     let cifrado = if !app.disks.encrypt {
         "No".to_string()
     } else if app.enc.tpm && app.enc.tpm_present {
@@ -53,7 +49,10 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
                 format!("{:<15}", "Equipo"),
                 Style::default().fg(app.palette.muted),
             ),
-            Span::styled(app.pretty_host_name(), Style::default().fg(app.palette.text)),
+            Span::styled(
+                app.settings.pretty_host_name.clone(),
+                Style::default().fg(app.palette.text),
+            ),
             Span::styled(" · ", Style::default().fg(app.palette.muted)),
             Span::styled(
                 app.settings.host_name.clone(),
@@ -67,8 +66,6 @@ pub fn draw(f: &mut Frame, app: &App, area: Rect) {
             crate::keyboard::display(&app.settings.keyboard_layout, &app.settings.keyboard_variant),
         ),
         row(app, "Zona horaria", app.settings.time_zone.clone()),
-        row(app, "Usuario", app.settings.username.clone().unwrap_or_default()),
-        row(app, "Git", git),
         row(app, "Disco", disk),
         row(app, "Cifrado", cifrado),
         Line::from(Span::styled(
@@ -110,10 +107,8 @@ pub fn commands(app: &App) -> Vec<String> {
         .unwrap_or_else(|| "/dev/xxx".into());
     let mut commands = vec![
         format!("disko --mode destroy,format,mount disko.nix --argstr device {device}"),
-        format!(
-            "nix build --impure /mnt/home/{}/nixdots#nixosConfigurations.nixdots... --store /mnt",
-            app.settings.username.as_deref().unwrap_or("")
-        ),
+        "nix build --impure /mnt/persist/nixdots/repo#nixosConfigurations.nixdots... --store /mnt"
+            .into(),
         "nixos-install --root /mnt --system <ruta> --no-root-passwd".into(),
     ];
     if app.secure_boot {

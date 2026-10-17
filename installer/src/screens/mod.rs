@@ -5,17 +5,14 @@
 pub mod disk;
 pub mod done;
 pub mod encryption;
-pub mod git;
 pub mod installing;
 pub mod keyboard;
 pub mod license;
 pub mod locale;
 pub mod network;
-pub mod password;
 pub mod picker;
 pub mod summary;
 pub mod timezone;
-pub mod user;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
