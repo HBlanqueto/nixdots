@@ -49,9 +49,11 @@ actualiza este archivo en el mismo cambio.
   No uses condicionales por nombre de host.
 - Opciones propias bajo `options.nixdots.*` (`machine`, `console`,
   `firstBoot`…). `nixdots.machine` (machine.json) es la única capa de cifrado y
-  Secure Boot. El TPM2 no lo inscribe el instalador: lo hace
-  lanzaboote (`measuredBoot.autoCryptenroll`, con `systemd-pcrlock`) en el
-  primer arranque, de modo que la política se actualiza sola.
+  Secure Boot. El instalador inscribe un token TPM2 puente sin PCRs
+  (`--tpm2-pcrs=`) para que lanzaboote (`measuredBoot.autoCryptenroll`, con
+  `systemd-pcrlock`) pueda desbloquear y reinscribir en el primer arranque la
+  política atada a las PCR 0 4 7, que se actualiza sola; hasta ese arranque el
+  token puente no está atado a ninguna medida.
 - Kernel: es el de nixpkgs por defecto (LTS). Para cambiarlo, `boot.kernelPackages`
   en un módulo (no hay `nixdots.kernel`).
 - Impermanence: la raíz se restaura en cada arranque (Btrfs `@rootfs` desde

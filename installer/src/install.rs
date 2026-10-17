@@ -104,8 +104,9 @@ pub struct Plan {
     pub luks_passphrase: Zeroizing<String>,
     /// Recovery key enrolled as a second LUKS slot. Wiped after use.
     pub recovery_key: Zeroizing<String>,
-    /// Written to machine.json as `tpmUnlock`: lanzaboote (measured boot,
-    /// pcrlock) enrolls the TPM on first boot; the installer does not.
+    /// Written to machine.json as `tpmUnlock`: the installer enrolls a TPM2
+    /// bridge token (no PCRs) so lanzaboote's measured boot (pcrlock) can
+    /// unlock and re-enroll on first boot.
     pub luks_tpm: bool,
     pub device: String,
     pub dry_run: bool,
@@ -708,10 +709,14 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
     }
 
     step_recovery_key(plan, report, &luks.path, pass_path)?;
-    // No se inscribe el TPM aquí: lo hace lanzaboote (measuredBoot.autoCryptenroll,
-    // vía pcrlock) en el primer arranque, y su política se actualiza sola cuando
-    // cambian las PCR de Secure Boot. Un `--tpm2-pcrs=7` estático dejaría de
-    // desbloquear en cuanto lanzaboote inscribe las claves (PCR7 cambia).
+    // Token puente: sin PCRs, para que lanzaboote (measuredBoot.autoCryptenroll)
+    // pueda desbloquear en el primer arranque, donde lo borra con
+    // --wipe-slot=tpm2 y reinscribe la política pcrlock (PCR 0 4 7). Un
+    // `--tpm2-pcrs=7` estático no serviría: PCR7 cambia en cuanto lanzaboote
+    // inscribe las claves.
+    if plan.luks_tpm {
+        step_tpm_enroll(plan, report, &luks.path, pass_path)?;
+    }
     Ok(Some(luks))
 }
 
@@ -1167,6 +1172,59 @@ fn step_recovery_key(
         device,
         recovery.path(),
         "la clave de recuperación no coincide con la mostrada",
+    )
+}
+
+/// Enrolls a TPM2 bridge token (no PCRs) on `device`, unlocking with the shared
+/// passphrase file before it is shredded. It is the token lanzaboote's
+/// autoCryptenroll needs to unlock on the first boot, where it wipes this slot
+/// and re-enrolls the pcrlock policy (PCRs 0 4 7). Until then the bridge token
+/// checks no measurement: anyone with the disk and the same TPM could unlock it.
+/// A `--tpm2-pcrs=7` binding would not survive first boot (lanzaboote enrolls
+/// the Secure Boot keys and PCR7 changes).
+fn step_tpm_enroll(
+    plan: &Plan,
+    report: &mut Reporter,
+    device: &str,
+    pass_path: Option<&Path>,
+) -> Result<()> {
+    if plan.dry_run {
+        report.log(format!(
+            "(simulación) systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs= {device}"
+        ));
+        thread::sleep(Duration::from_millis(300));
+        return Ok(());
+    }
+
+    let pass_path = pass_path.ok_or_else(|| eyre!("falta el archivo de la frase del disco"))?;
+    let cmd = Cmd::new("systemd-cryptenroll")
+        .arg("--tpm2-device=auto")
+        .arg("--tpm2-pcrs=")
+        .arg("--unlock-key-file")
+        .arg_path(pass_path)
+        .arg(device)
+        .with_display(format!(
+            "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs= --unlock-key-file {} {device}",
+            pass_path.display()
+        ));
+    report.log(format!("$ {}", cmd.display));
+
+    let mut nixlog = NixLog::default();
+    let mut sink = |out: Stream| {
+        let l = match out {
+            Stream::Stdout(l) => l,
+            Stream::Stderr(l) => l,
+        };
+        report.raw(&l);
+        for (is_err, d) in nixlog.feed(&l).0 {
+            report.emit(d, is_err);
+        }
+    };
+    let code = runner::run(&cmd, &mut sink);
+    report.repaint();
+    ensure_ok(
+        code,
+        &format!("no se pudo inscribir el token TPM2 puente de {device}"),
     )
 }
 

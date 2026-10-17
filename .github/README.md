@@ -117,15 +117,17 @@ passphrase on the **Cifrado** screen (separate from the account password, which
 does not exist yet) and early boots ask for it.
 
 `modules/common/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
-(`systemd-pcrlock`) on machines that ask for it: Lanzaboote's `autoCryptenroll`
-enrolls the TPM2 chip on the first boot, bound to the firmware, bootloader and
-Secure Boot PCRs (`0 4 7`), and `systemd-pcrlock` keeps the policy up to date
-across Secure Boot and firmware changes, so boots unlock without typing. The
-installer no longer enrolls the TPM itself: a static `--tpm2-pcrs=7` slot would
-stop working as soon as Lanzaboote enrolls the Secure Boot keys. The `pcrlock`
-policy and directory are persisted (`/var/lib/systemd/pcrlock.json`,
-`/var/lib/pcrlock.d`) because the root is ephemeral. A machine without a TPM or
-without Secure Boot (e.g. a VM) keeps asking for the passphrase.
+(`systemd-pcrlock`) on machines that ask for it. The installer enrolls a bridge
+TPM2 token with no PCRs so Lanzaboote's `autoCryptenroll` can unlock on the
+first boot and re-enroll, this time bound to the firmware, bootloader and
+Secure Boot PCRs (`0 4 7`); `systemd-pcrlock` keeps the policy up to date
+across Secure Boot and firmware changes, so boots unlock without typing. A
+static `--tpm2-pcrs=7` would not do: PCR7 changes as soon as Lanzaboote enrolls
+the Secure Boot keys. Until that first autoCryptenroll (the second boot) the
+bridge token is not bound to any measurement. The `pcrlock` policy and
+directory are persisted (`/var/lib/systemd/pcrlock.json`, `/var/lib/pcrlock.d`)
+because the root is ephemeral. A machine without a TPM or without Secure Boot
+(e.g. a VM) keeps asking for the passphrase.
 
 > [!NOTE]
 > Verify support with
