@@ -8,6 +8,8 @@ slint::include_modules!();
 
 use std::cell::Cell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use slint::{ComponentHandle, Model, ModelRc, SharedString};
 
@@ -45,13 +47,29 @@ fn main() -> Result<(), slint::PlatformError> {
     // Preferencia del sistema para la reducción de movimiento (GNOME).
     ui.global::<Theme>().set_reduced_motion(reduced_motion());
 
-    // Saludo del paso 0: máquina de escribir (letra a letra) y luego fundido.
-    spawn_greeting(&ui);
+    // «Reducir animaciones» en vivo: el saludo cambia el ritmo (palabra completa
+    // cada 2,5 s en lugar de máquina de escribir).
+    let reduce = Arc::new(AtomicBool::new(
+        ui.global::<Theme>().get_reduced_motion()
+            || ui.global::<State>().get_a11y_reduce_motion(),
+    ));
+    ui.on_reduce_changed({
+        let reduce = reduce.clone();
+        move |on| reduce.store(on, Ordering::Relaxed)
+    });
 
-    // Esc cierra la ventana de prueba.
+    // Saludo del paso 0: máquina de escribir (letra a letra) y luego fundido.
+    spawn_greeting(&ui, reduce);
+
+    // Esc cierra la ventana solo en simulación. En modo real el asistente lo
+    // relanza lib/data.nix al salir con 0 y reiniciaría el equipo, así que se
+    // ignora: para salir están «Apagar» y «Reiniciar».
     ui.on_quit_app({
         let weak = ui.as_weak();
         move || {
+            if !sim {
+                return;
+            }
             if let Some(ui) = weak.upgrade() {
                 let _ = ui.hide();
             }
@@ -242,9 +260,11 @@ fn set_state(weak: &slint::Weak<AppWindow>, f: impl FnOnce(State) + Send + 'stat
     });
 }
 
-/// Máquina de escribir del saludo: escribe cada palabra letra a letra y luego
-/// la funde antes de pasar a la siguiente.
-fn spawn_greeting(ui: &AppWindow) {
+/// Máquina de escribir del saludo: escribe cada palabra letra a letra (una cada
+/// 110 ms, contando caracteres Unicode, no bytes) y luego la funde 450 ms antes
+/// de pasar a la siguiente. Con «Reducir animaciones» muestra la palabra entera
+/// cada 2,5 s.
+fn spawn_greeting(ui: &AppWindow, reduce: Arc<AtomicBool>) {
     let greets = ui.global::<State>().get_greets();
     let words: Vec<String> = (0..greets.row_count())
         .map(|i| {
@@ -264,7 +284,24 @@ fn spawn_greeting(ui: &AppWindow) {
         let n = words.len();
         let mut i = 0usize;
         loop {
-            let chars: Vec<char> = words[i].chars().collect();
+            let word = words[i].clone();
+            let is_reduced = reduce.load(Ordering::Relaxed);
+            if is_reduced {
+                let full = word.clone();
+                set_state(&weak, move |st| {
+                    st.set_gi(i as i32);
+                    st.set_greet_typed(full.into());
+                    st.set_greet_animate(true);
+                    st.set_g_shown(true);
+                });
+                if weak.upgrade().is_none() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(2500));
+                i = (i + 1) % n;
+                continue;
+            }
+            let chars: Vec<char> = word.chars().collect();
             set_state(&weak, move |st| {
                 st.set_gi(i as i32);
                 st.set_greet_typed("".into());
@@ -279,13 +316,14 @@ fn spawn_greeting(ui: &AppWindow) {
                 if weak.upgrade().is_none() {
                     return;
                 }
-                std::thread::sleep(std::time::Duration::from_millis(90));
+                std::thread::sleep(std::time::Duration::from_millis(110));
             }
-            std::thread::sleep(std::time::Duration::from_millis(1500));
+            std::thread::sleep(std::time::Duration::from_millis(1800));
             set_state(&weak, |st| st.set_g_shown(false));
             if weak.upgrade().is_none() {
                 return;
             }
+            // 450 ms de fundido + 50 ms antes de la siguiente palabra.
             std::thread::sleep(std::time::Duration::from_millis(500));
             i = (i + 1) % n;
         }
