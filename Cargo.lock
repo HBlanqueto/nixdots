@@ -2972,6 +2972,7 @@ dependencies = [
 name = "nixdots-setup-gui"
 version = "0.1.0"
 dependencies = [
+ "image",
  "nixdots-core",
  "serde_json",
  "slint",

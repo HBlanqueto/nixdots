@@ -15,6 +15,7 @@ use slint::{ComponentHandle, Model, ModelRc, SharedString};
 
 mod apply;
 mod machine;
+mod wallpaper;
 
 fn main() -> Result<(), slint::PlatformError> {
     let mut sim = false;
@@ -33,6 +34,11 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     let ui = AppWindow::new()?;
+
+    // Fondo desenfocado una vez (con caché en /run/psamathe).
+    if let Some(image) = wallpaper::load() {
+        ui.set_wallpaper(image);
+    }
 
     // Datos reales del equipo (solo lectura).
     let info = machine::info();

@@ -1076,22 +1076,40 @@ export component AppWindow inherits Window {
         height: dlg-body.preferred-height;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
-        border-radius: Tokens.radiusxl;
-        border-width: 1px;
-        border-color: Tokens.windowOuter;
-        drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.55 : 0.18);
-        drop-shadow-blur: 40px;
-        drop-shadow-offset-y: 18px;
+        background: transparent;
         opacity: root.in-dlg ? 1 : 0;
         transform-scale-x: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         transform-scale-y: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         visible: self.opacity > 0.001;
         animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
-        animate background { duration: Motion.base; }
         animate opacity { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
         animate transform-scale-x { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
         animate transform-scale-y { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
+
+        // Sombra del diálogo (shadow-window): dos rectángulos apilados con
+        // drop-shadow —una difusa grande y otra corta— más el borde de 1 px.
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: Tokens.radiusxl;
+            background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
+            drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.55 : 0.18);
+            drop-shadow-blur: 48px;
+            drop-shadow-offset-y: 24px;
+            animate background { duration: Motion.base; }
+        }
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            border-radius: Tokens.radiusxl;
+            background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
+            border-width: 1px;
+            border-color: Tokens.windowOuter;
+            drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.35 : 0.12);
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 4px;
+            animate background { duration: Motion.base; }
+        }
 
         dlg-body := VerticalLayout {
             padding-left: 48px;
