@@ -35,6 +35,14 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let ui = AppWindow::new()?;
 
+    // Idioma por defecto del asistente: inglés. Se cambia en vivo al elegir
+    // idioma (las traducciones van embebidas desde i18n/*.po).
+    let _ = slint::select_bundled_translation("en");
+    ui.on_language_changed(|code| {
+        let base = code.split(['_', '-']).next().unwrap_or("en");
+        let _ = slint::select_bundled_translation(base);
+    });
+
     // Fondo desenfocado una vez (con caché en /run/psamathe).
     if let Some(image) = wallpaper::load() {
         ui.set_wallpaper(image);
@@ -115,6 +123,58 @@ fn main() -> Result<(), slint::PlatformError> {
                 let err = nixdots_core::user::username_error(&username).unwrap_or("");
                 st.set_username_error(err.into());
             }
+        }
+    });
+
+    // Medidor de seguridad de la contraseña y coincidencia (paso Cuenta).
+    ui.on_passwords_changed({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                let st = ui.global::<State>();
+                let p = st.get_password().to_string();
+                let p2 = st.get_password2().to_string();
+                st.set_pw_strength(password_strength(&p));
+                st.set_pw_match(p2.is_empty() || p2 == p);
+            }
+        }
+    });
+
+    // Wi‑Fi: conecta con NetworkManager. En simulación sólo simula la espera.
+    ui.on_wifi_connect({
+        let weak = ui.as_weak();
+        move || {
+            let Some(ui) = weak.upgrade() else { return };
+            let (ssid, pass, idx) = {
+                let st = ui.global::<State>();
+                (
+                    pick(st.get_net_names(), st.get_net_index()),
+                    st.get_wifi_pass().to_string(),
+                    st.get_net_index(),
+                )
+            };
+            let weak2 = weak.clone();
+            std::thread::spawn(move || {
+                let ok = if sim {
+                    std::thread::sleep(std::time::Duration::from_millis(1100));
+                    true
+                } else {
+                    nmcli_connect(&ssid, &pass)
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak2.upgrade() {
+                        let st = ui.global::<State>();
+                        st.set_wifi_join(false);
+                        if ok {
+                            st.set_wifi_connected(idx);
+                            st.set_wifi_pw(false);
+                            st.set_wifi_error(false);
+                        } else {
+                            st.set_wifi_error(true);
+                        }
+                    }
+                });
+            });
         }
     });
 
@@ -290,6 +350,18 @@ fn spawn_greeting(ui: &AppWindow, reduce: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         // Deja arrancar el bucle de eventos antes del primer invoke.
         std::thread::sleep(std::time::Duration::from_millis(300));
+        // Presentación «Welcome to NixOS» (siempre en inglés): funde de entrada,
+        // se queda ~2 s y funde; luego empieza la máquina de escribir.
+        set_state(&weak, |st| st.set_intro_op(1.0));
+        if weak.upgrade().is_none() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+        set_state(&weak, |st| st.set_intro_op(0.0));
+        if weak.upgrade().is_none() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(750));
         let n = words.len();
         let mut i = 0usize;
         loop {
@@ -373,6 +445,11 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
         "accentColor".into(),
         theme.get_accent_id().to_string().into(),
     );
+    // Color del avatar (variante A: el acento; el asistente no ofrece foto).
+    map.insert(
+        "avatarColor".into(),
+        theme.get_accent_id().to_string().into(),
+    );
     map.insert("autoLogin".into(), st.get_auto_login().into());
     map.insert(
         "a11y".into(),
@@ -425,4 +502,36 @@ fn initials(name: &str) -> String {
 
 fn first_word(name: &str) -> String {
     name.split_whitespace().next().unwrap_or("").to_string()
+}
+
+/// Fuerza de la contraseña (0..4): longitud ≥ 8, mayúsculas y minúsculas,
+/// números y símbolos.
+fn password_strength(p: &str) -> i32 {
+    if p.is_empty() {
+        return 0;
+    }
+    let mut s = 0;
+    if p.chars().count() >= 8 {
+        s += 1;
+    }
+    if p.chars().any(|c| c.is_uppercase()) && p.chars().any(|c| c.is_lowercase()) {
+        s += 1;
+    }
+    if p.chars().any(|c| c.is_ascii_digit()) {
+        s += 1;
+    }
+    if p.chars().any(|c| !c.is_alphanumeric()) {
+        s += 1;
+    }
+    s
+}
+
+/// Conecta a una red Wi‑Fi con NetworkManager. `true` si conectó.
+fn nmcli_connect(ssid: &str, pass: &str) -> bool {
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args(["device", "wifi", "connect", ssid]);
+    if !pass.is_empty() {
+        cmd.args(["password", pass]);
+    }
+    matches!(cmd.output(), Ok(o) if o.status.success())
 }
