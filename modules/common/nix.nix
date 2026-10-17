@@ -4,7 +4,15 @@
     nix = {
         settings = {
             experimental-features = [ "nix-command" "flakes" ];
+
+            # Solo root y el grupo wheel hablan con el daemon de Nix.
+            allowed-users = [ "@wheel" ];
         };
+
+        # Solo flakes: sin nix-channel. NIX_PATH y el registro apuntan al nixpkgs
+        # del flake (nixpkgs.flake.*, activo por defecto), así `nix-shell -p` y
+        # `,` usan la misma revisión que el sistema.
+        channel.enable = false;
 
         optimise.automatic = true;
 

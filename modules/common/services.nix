@@ -11,6 +11,9 @@
     security = {
         sudo-rs = {
             enable = true;
+            # El binario solo es ejecutable por wheel: reduce la superficie de
+            # ataque de un setuid para cualquier otra cuenta.
+            execWheelOnly = true;
         };
 
         rtkit = {
@@ -61,6 +64,10 @@
     };
 
     systemd = {
+        # Nada de este escritorio espera a la red antes de arrancar; NM ya
+        # conecta en segundo plano. Ahorra hasta varios segundos de arranque.
+        services.NetworkManager-wait-online.enable = false;
+
         oomd = {
             enable = true;
             enableRootSlice = true;
