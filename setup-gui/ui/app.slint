@@ -133,7 +133,7 @@ component StepIcon inherits Rectangle {
     drop-shadow-blur: 12px;
     drop-shadow-offset-y: 4px;
     Rectangle {
-        background: @linear-gradient(180deg, Design.highlight-gloss 0%, #ffffff00 60%);
+        background: @linear-gradient(180deg, Design.highlight-gloss 0%, transparent 60%);
         border-radius: 13px;
     }
     HorizontalLayout {
@@ -160,7 +160,7 @@ component TileIcon inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         size: root.glyph-size;
-        ink: #ffffff;
+        ink: Tokens.onAccent;
         commands: root.icon;
     }
 }
@@ -661,7 +661,7 @@ component ModeCard inherits Rectangle {
                         border-radius: 7px;
                         background: root.preview-dark ? Design.preview-dark-window : Design.preview-light-window;
                         border-width: root.preview-dark ? 1px : 0px;
-                        border-color: #000000;
+                        border-color: black;
                         Rectangle {
                             x: 10px;
                             y: 12px;
@@ -1030,7 +1030,7 @@ export component AppWindow inherits Window {
                             spacing: 8px;
                             Text {
                                 text: State.greets[State.gi].cta;
-                                color: #ffffff;
+                                color: Tokens.onAccent;
                                 font-family: "Inter";
                                 font-size: 13px;
                                 font-weight: 600;
@@ -1045,7 +1045,7 @@ export component AppWindow inherits Window {
                                 MiniIcon {
                                     size: 14px;
                                     sw: 2px;
-                                    ink: #ffffff;
+                                    ink: Tokens.onAccent;
                                     commands: State.greets[State.gi].rtl
                                         ? "M19 12 L5 12 M11 6 L5 12 L11 18"
                                         : "M5 12 L19 12 M13 6 L19 12 L13 18";
@@ -1091,7 +1091,7 @@ export component AppWindow inherits Window {
         Rectangle {
             width: 100%;
             height: 100%;
-            border-radius: Tokens.radiusxl;
+            border-radius: Tokens.radiuslg;
             background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
             drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.55 : 0.18);
             drop-shadow-blur: 48px;
@@ -1101,7 +1101,7 @@ export component AppWindow inherits Window {
         Rectangle {
             width: 100%;
             height: 100%;
-            border-radius: Tokens.radiusxl;
+            border-radius: Tokens.radiuslg;
             background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
             border-width: 1px;
             border-color: Tokens.windowOuter;
@@ -1139,7 +1139,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Idioma y región";
                             subtitle: "Se usará en el sistema, las apps y GNOME.";
-                            StepIcon { tint: root.step-tint(1); GlobeIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(1); GlobeIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1206,7 +1206,7 @@ export component AppWindow inherits Window {
                             StepIcon {
                                 tint: root.step-tint(2);
                                 Icon {
-                                    ink: #ffffff;
+                                    ink: Tokens.onAccent;
                                     commands: "M 12 2.9 A 1.6 1.6 0 1 0 12 6.1 A 1.6 1.6 0 1 0 12 2.9 Z M 5 8.5 C 7.3 9.2 9.6 9.5 12 9.5 C 14.4 9.5 16.7 9.2 19 8.5 M 12 9.5 L 12 14 M 9 21 L 12 14 L 15 21";
                                 }
                             }
@@ -1283,7 +1283,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Conéctate a una red";
                             subtitle: "Solo aparece si no hay cable ni Wi‑Fi conectado.";
-                            StepIcon { tint: root.step-tint(3); WifiIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(3); WifiIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1416,7 +1416,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Zona horaria";
                             subtitle: "Se ajusta sola con tu ubicación, o elige una ciudad.";
-                            StepIcon { tint: root.step-tint(5); ClockIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(5); ClockIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1483,7 +1483,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Este equipo";
                             subtitle: "Esto es lo que se instaló. No hay nada que cambiar.";
-                            StepIcon { tint: root.step-tint(6); MonitorIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(6); MonitorIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1563,7 +1563,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Elige tu aspecto";
                             subtitle: "Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.";
-                            StepIcon { tint: root.step-tint(7); ContrastIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(7); ContrastIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1619,7 +1619,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Git";
                             subtitle: "Opcional. Puedes configurarlo después.";
-                            StepIcon { tint: root.step-tint(8); GitIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(8); GitIcon { ink: Tokens.onAccent; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1671,7 +1671,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Todo listo";
                             subtitle: "Revisa antes de aplicar. Puedes volver para cambiar algo.";
-                            StepIcon { tint: root.step-tint(9); CheckIcon { ink: #ffffff; } }
+                            StepIcon { tint: root.step-tint(9); CheckIcon { ink: Tokens.onAccent; } }
                         }
                         Rectangle {
                             width: 100%;
@@ -1779,7 +1779,7 @@ export component AppWindow inherits Window {
             y: 1px;
             width: parent.width - 2px;
             height: parent.height - 2px;
-            border-radius: Tokens.radiusxl - 1px;
+            border-radius: Tokens.radiuslg - 1px;
             background: transparent;
             border-width: 1px;
             border-color: Tokens.windowInner;
@@ -1840,7 +1840,7 @@ export component AppWindow inherits Window {
                         y: (parent.height - self.height) / 2;
                         size: 36px;
                         sw: 2.2px;
-                        ink: #ffffff;
+                        ink: Tokens.onAccent;
                         opacity: (!Motion.reduce && prepare.err == 0) ? 1 : 0;
                         transform-rotation: (State.step == 10 && State.apply-error == "" && !Motion.reduce)
                             ? mod(animation-tick(), 900ms) / 900ms * 360deg
@@ -1855,7 +1855,7 @@ export component AppWindow inherits Window {
                             width: 6px;
                             height: 6px;
                             border-radius: 3px;
-                            background: #ffffff;
+                            background: Tokens.onAccent;
                             opacity: prepare.err == 0 ? 1 : 0;
                             animate opacity { duration: Motion.base; }
                         }
@@ -1876,7 +1876,7 @@ export component AppWindow inherits Window {
                         animate transform-scale-y { duration: Motion.base; }
                         Text {
                             text: "!";
-                            color: #ffffff;
+                            color: Tokens.onAccent;
                             font-size: 28px;
                             font-weight: 700;
                             horizontal-alignment: center;
@@ -1998,7 +1998,7 @@ export component AppWindow inherits Window {
     Rectangle {
         width: parent.width;
         height: parent.height;
-        background: #000000;
+        background: black;
         opacity: State.prep-black ? 1 : 0;
         visible: self.opacity > 0.001;
         animate opacity { duration: Motion.reduce ? 0ms : 600ms; }

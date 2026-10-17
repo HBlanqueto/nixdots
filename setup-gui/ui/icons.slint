@@ -1,9 +1,11 @@
 // Iconos de línea del mockup (SVG de 24×24) como Path de Slint.
 // Se instancian con `commands`; `ink` fija el color del trazo.
 
+import { Tokens } from "theme.slint";
+
 export component Icon inherits Path {
     in property <length> size: 22px;
-    in property <color> ink: #4f6fb3;
+    in property <color> ink: Tokens.inkMuted;
     in property <length> sw: 1.6px;
 
     width: size;
@@ -41,7 +43,7 @@ export component MonitorIcon inherits Icon {
 // Medio círculo relleno (paso 6): círculo con trazo + mitad rellena.
 export component ContrastIcon inherits Rectangle {
     in property <length> size: 22px;
-    in property <color> ink: #4f6fb3;
+    in property <color> ink: Tokens.inkMuted;
     width: size;
     height: size;
     Path {
