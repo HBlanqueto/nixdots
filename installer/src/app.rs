@@ -1169,7 +1169,6 @@ impl App {
             source: self.repo_dir.clone(),
             root,
             settings: self.settings.clone(),
-            password_hash: String::new(),
             encrypt,
             luks_passphrase,
             recovery_key,

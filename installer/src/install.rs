@@ -97,11 +97,10 @@ pub struct Plan {
     /// Mount root (`/mnt` for real, a temp dir in dry-run).
     pub root: PathBuf,
     pub settings: Settings,
-    pub password_hash: String,
     /// Whether the System HD partition is wrapped in LUKS2.
     pub encrypt: bool,
-    /// Passphrase for the LUKS-encrypted root (the account password, or the
-    /// one typed on the Cifrado screen). Never logged, only fed over stdin.
+    // Passphrase for the LUKS-encrypted root, typed on the Cifrado screen.
+    // Never logged, only fed over stdin.
     pub luks_passphrase: Zeroizing<String>,
     /// Recovery key enrolled as a second LUKS slot. Wiped after use.
     pub recovery_key: Zeroizing<String>,
@@ -224,10 +223,6 @@ fn run(plan: Plan, tx: Sender<Msg>) {
         if plan.dry_run { "simulación" } else { "real" }
     ));
     report.raw(&format!("host: {}", plan.settings.host_name));
-    report.raw(&format!(
-        "usuario: {}",
-        plan.settings.username.as_deref().unwrap_or("(ninguno)")
-    ));
     report.raw(&format!("dispositivo: {}", plan.device));
     report.raw(&format!("repo destino: {}", plan.installed_repo().display()));
 
@@ -270,9 +265,6 @@ fn run(plan: Plan, tx: Sender<Msg>) {
 }
 
 fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    // The installer always installs an account; fail clearly if the plan
-    // somehow has none instead of writing a nameless user.
-    plan.settings.username_required()?;
     let resume = plan.resume_from;
 
     // Disk is only formatted when it is the (re)starting point. When resuming
@@ -347,8 +339,8 @@ fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
         set_mode_dir(&build, 0o700)?;
     }
     std::env::set_var("TMPDIR", &tmp);
-    // The root-aware password assertion (modules/common/user.nix) checks
-    // `${NIXDOTS_ROOT}${hashedPasswordFile}`; point it at the target.
+    // The external data the flake reads (machine.json, facter.json) lives under
+    // `${NIXDOTS_ROOT}/persist/nixdots`; point it at the target.
     std::env::set_var("NIXDOTS_ROOT", &plan.root);
     report.log(format!("$ TMPDIR={}", tmp.display()));
     Ok(())
@@ -1348,29 +1340,9 @@ const SNAPSHOT_TEMPLATE: &str = "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/di
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
-    report.log("escribiendo settings.nix, user.json y el hash de la contraseña");
+    report.log("escribiendo settings.nix");
     report.log(format!("$ escribir {}/settings.nix", repo.display()));
     plan.settings.without_user().write(&repo)?;
-
-    // Datos personales fuera del repo; el flake los mezcla con settings.nix.
-    // `NIXDOTS_ROOT` es el target (prepare_target_tmp), así que va a
-    // /mnt/persist/nixdots/user.json.
-    let user = nixdots_core::user_data::UserData {
-        username: plan.settings.username_required()?.to_string(),
-        userdescription: plan.settings.userdescription.clone(),
-        pretty_host_name: None,
-        git_name: plan.settings.git_name.clone(),
-        git_email: plan.settings.git_email.clone(),
-        default_locale: None,
-        region: None,
-        time_zone: None,
-        time_zone_auto: None,
-        keyboard_layout: None,
-        keyboard_variant: None,
-        a11y: None,
-    };
-    report.log(format!("$ escribir {}", nixdots_core::user_data::path().display()));
-    user.write()?;
 
     // Keep a copy of the license in the installed system.
     let lic_dst = plan.root.join("etc/nixdots");
@@ -1379,30 +1351,6 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     if !plan.dry_run && lic_src.exists() {
         fs::create_dir_all(&lic_dst)?;
         fs::copy(&lic_src, lic_dst.join("LICENSE"))?;
-    }
-
-    // Password hash -> /persist/secrets/<user>.hash (0700 dir / 0600 file),
-    // root-owned and without a trailing newline. modules/common/user.nix checks
-    // `${NIXDOTS_ROOT}${hashedPasswordFile}`, so this is the file the install
-    // evaluates.
-    let secrets = plan.root.join("persist/secrets");
-    let hash_path = secrets.join(format!("{}.hash", plan.settings.username_required()?));
-    report.log(format!("$ escribir {}", hash_path.display()));
-    if !plan.dry_run {
-        fs::create_dir_all(&secrets)?;
-        set_mode_dir(&secrets, 0o700)?;
-        fs::write(&hash_path, plan.password_hash.as_bytes())?;
-        set_mode_file(&hash_path, 0o600)?;
-        let written = fs::read_to_string(&hash_path).unwrap_or_default();
-        if written.is_empty() || !written.starts_with("$y$") {
-            return Err(eyre!(
-                "el hash de contraseña no es válido en {}; vuelve a la pantalla Contraseña",
-                hash_path.display()
-            ));
-        }
-    } else {
-        fs::create_dir_all(&secrets)?;
-        fs::write(&hash_path, "$y$(simulación)")?;
     }
 
     // Repoint the boot rollback at the label instead of a fixed UUID.
@@ -2089,9 +2037,7 @@ fn shell_command(cmd: &Cmd) -> String {
 }
 
 /// Evaluates the repo in a temporary copy to catch configuration errors before
-/// the install starts. The password hash the config asserts on is a marker file
-/// under `NIXDOTS_ROOT`, so the evaluation only checks that the repo is sound;
-/// the real target is never touched.
+/// the install starts, without touching the real target.
 pub fn check_source(repo: &Path) -> Result<(), String> {
     let tmp = std::env::temp_dir().join("nixdots-eval");
     let _ = fs::remove_dir_all(&tmp);
