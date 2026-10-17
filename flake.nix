@@ -437,13 +437,7 @@
                             clang
                             lld
                             pkg-config
-                            gtk4
-                            libadwaita
                         ];
-
-                        # A bare `cargo build` in the dev shell needs the same
-                        # tables as the package (include_str!(env!(...))).
-                        NIXDOTS_GTK_CSS = "${pkgs.callPackage ./packages/neptunia-css.nix { inherit theme; }}";
                     });
                     # Shell del asistente Slint: compila (winit + femtovg) y abre
                     # la UI; slint-viewer/slint-lsp para editar .slint. Incluye el

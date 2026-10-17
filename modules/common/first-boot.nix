@@ -5,13 +5,10 @@
 let
     cfg = config.nixdots.firstBoot;
 
-    # Asistente gráfico bajo cage, como root, con un bus de sesión propio (sin
-    # él, libadwaita/portales avisan y StyleManager no funciona).
+    # Asistente gráfico (Slint) bajo cage, como root, con un bus de sesión
+    # propio.
     guiCommand = pkgs.writeShellScript "nixdots-first-boot-gui" ''
         export XDG_RUNTIME_DIR=/run/user/0
-        export GSETTINGS_BACKEND=memory
-        export GDK_BACKEND=wayland
-        export NO_AT_BRIDGE=1
         exec ${pkgs.dbus}/bin/dbus-run-session -- \
             ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.setup-gui}/bin/nixdots-setup-gui
     '';
