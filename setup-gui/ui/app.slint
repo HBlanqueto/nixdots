@@ -1044,11 +1044,14 @@ export component AppWindow inherits Window {
     height: 100%;
     KeyBinding {
         keys: @keys(Escape);
-        activated => { root.quit-app(); }
+        activated => { if (State.wifi-pw) { root.wifi-back(); } else { root.quit-app(); } }
     }
     KeyBinding {
         keys: @keys(Return);
-        activated => { if (State.step == 0) { State.step = 1; } }
+        activated => {
+            if (State.step == 3 && State.wifi-pw) { root.wifi-join-now(); }
+            else if (State.step == 0) { State.step = 1; }
+        }
     }
 
     // Fondo desenfocado en Rust (ver `wallpaper` en main.rs) + velo. Zoom muy
