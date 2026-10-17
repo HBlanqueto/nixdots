@@ -67,7 +67,6 @@ QtObject {
     readonly property int radiusMd: 12
     readonly property int radiusPill: 999
     readonly property int radiusSm: 8
-    readonly property int radiusXl: 16
     readonly property int radiusXs: 4
     readonly property int space1: 4
     readonly property int space2: 8
