@@ -57,14 +57,6 @@ impl Settings {
             .map(|username| format!("/persist/secrets/{username}.hash"))
     }
 
-    /// The username, or a clear error. The installer always has one; the
-    /// first-boot assistant runs before it exists.
-    pub fn username_required(&self) -> Result<&str> {
-        self.username
-            .as_deref()
-            .ok_or_else(|| eyre!("settings.nix no tiene `username` (todavía no hay cuenta)"))
-    }
-
     /// A copy without the user fields: the installed `settings.nix` does not
     /// carry them (they live in `user.json`).
     pub fn without_user(&self) -> Self {
