@@ -302,7 +302,6 @@ pub fn commands(app: &App) -> Vec<String> {
         format!(
             "cryptsetup luksAddKey --key-file /run/... <partición crypto_LUKS de {device}> /run/..."
         ),
-        format!("systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 <partición LUKS de {device}>"),
     ]
 }
 

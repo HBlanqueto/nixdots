@@ -3,6 +3,13 @@
 # `nixdots.machine.secureBoot` and `nixdots.encryption.tpmUnlock` are both set;
 # on the UTM VM (no lanzaboote) the encryption assertion rejects it.
 #
+# lanzaboote's autoCryptenroll is the only TPM enrol when this is on: the
+# installer no longer runs `systemd-cryptenroll --tpm2-pcrs=7`, because a static
+# PCR7 binding stops working as soon as lanzaboote enrolls the Secure Boot keys
+# (PCR7 changes). autoCryptenroll unlocks with `--unlock-tpm2-device=auto`,
+# wipes the (possible) old TPM2 slot and re-enrolls the pcrlock policy, which
+# systemd-pcrlock keeps up to date on every boot and update.
+#
 # The generic encrypted-root bits live in modules/common/encryption.nix; this
 # module only adds the TPM-specific pieces, so it contributes nothing unless
 # `nixdots.encryption.tpmUnlock` is set.

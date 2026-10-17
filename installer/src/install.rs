@@ -104,7 +104,8 @@ pub struct Plan {
     pub luks_passphrase: Zeroizing<String>,
     /// Recovery key enrolled as a second LUKS slot. Wiped after use.
     pub recovery_key: Zeroizing<String>,
-    /// Enroll TPM2 (PCR 7) auto-unlock in addition to the passphrase.
+    /// Written to machine.json as `tpmUnlock`: lanzaboote (measured boot,
+    /// pcrlock) enrolls the TPM on first boot; the installer does not.
     pub luks_tpm: bool,
     pub device: String,
     pub dry_run: bool,
@@ -630,7 +631,7 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
     }
 
     // The passphrase is written once, verbatim (no trailing newline), and reused
-    // by disko, the slot check, luksAddKey and the TPM enroll. Nothing else
+    // by disko, the slot check and luksAddKey. Nothing else
     // writes it; `SecretFile` shreds it when this function returns.
     report.log("creando las particiones y formateando el disco");
     let pass = if plan.encrypt && !plan.dry_run {
@@ -707,9 +708,10 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
     }
 
     step_recovery_key(plan, report, &luks.path, pass_path)?;
-    if plan.luks_tpm {
-        step_tpm_enroll(plan, report, &luks.path, pass_path)?;
-    }
+    // No se inscribe el TPM aquí: lo hace lanzaboote (measuredBoot.autoCryptenroll,
+    // vía pcrlock) en el primer arranque, y su política se actualiza sola cuando
+    // cambian las PCR de Secure Boot. Un `--tpm2-pcrs=7` estático dejaría de
+    // desbloquear en cuanto lanzaboote inscribe las claves (PCR7 cambia).
     Ok(Some(luks))
 }
 
@@ -1165,54 +1167,6 @@ fn step_recovery_key(
         device,
         recovery.path(),
         "la clave de recuperación no coincide con la mostrada",
-    )
-}
-
-/// Enrolls TPM2 auto-unlock (PCR 7 = Secure Boot state) on `device`, unlocking
-/// with the shared passphrase file before it is shredded.
-fn step_tpm_enroll(
-    plan: &Plan,
-    report: &mut Reporter,
-    device: &str,
-    pass_path: Option<&Path>,
-) -> Result<()> {
-    if plan.dry_run {
-        report.log(format!(
-            "(simulación) systemd-cryptenroll --tpm2-device=auto {device}"
-        ));
-        thread::sleep(Duration::from_millis(300));
-        return Ok(());
-    }
-
-    let pass_path = pass_path.ok_or_else(|| eyre!("falta el archivo de la frase del disco"))?;
-    let cmd = Cmd::new("systemd-cryptenroll")
-        .arg("--tpm2-device=auto")
-        .arg("--tpm2-pcrs=7")
-        .arg("--unlock-key-file")
-        .arg_path(pass_path)
-        .arg(device)
-        .with_display(format!(
-            "systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 --unlock-key-file {} {device}",
-            pass_path.display()
-        ));
-    report.log(format!("$ {}", cmd.display));
-
-    let mut nixlog = NixLog::default();
-    let mut sink = |out: Stream| {
-        let l = match out {
-            Stream::Stdout(l) => l,
-            Stream::Stderr(l) => l,
-        };
-        report.raw(&l);
-        for (is_err, d) in nixlog.feed(&l).0 {
-            report.emit(d, is_err);
-        }
-    };
-    let code = runner::run(&cmd, &mut sink);
-    report.repaint();
-    ensure_ok(
-        code,
-        &format!("no se pudo inscribir el TPM2 para el desbloqueo automático de {device}"),
     )
 }
 
