@@ -12,11 +12,13 @@ on:
     paths:
       - "installer/**"
       - "core/**"
+      - "lists/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".cargo/**"
       - "disko.nix"
       - "install.sh"
+      - ".github/workflows/installer-release.yml"
 
 permissions:
   contents: write
