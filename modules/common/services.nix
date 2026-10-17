@@ -40,8 +40,8 @@
             ];
         };
 
-        avahi = {
-            # Solo para descubrir la impresora Epson; no anunciar servicios.
+        # Solo para descubrir la impresora Epson; no anunciar servicios.
+        avahi = lib.mkIf config.nixdots.extras.epson {
             enable = true;
             nssmdns4 = true;
             publish.enable = false;
