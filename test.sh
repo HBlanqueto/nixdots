@@ -108,44 +108,50 @@ def wait_for(marker, timeout=15):
             return True
     return False
 
-# Inicio (splash) -> Bienvenido
+# Inicio (splash) -> Licencia
 wait_for("Continuar")
 send(b"\r")
-wait_for("Bienvenido")
-send(b"\r")                       # -> Licencia
-# Licencia: tab al checkbox, espacio acepta, tab a los botones, enter Aceptar
+# Licencia: Intro abre el diálogo (Acepto enfocado) y otro Intro lo acepta.
 wait_for("Licencia")
-send(b"\t")
-send(b" ")
-send(b"\t")
-send(b"\r")                       # Aceptar -> Red
-# Red: elegir una red WPA, escribir la contraseña y conectar
+send(b"\r")
+wait_for("Leí y acepto")
+send(b"\r")                       # Acepto -> Red
+# Red: elegir la primera red (WPA), escribir la frase y conectar
 wait_for("Red")
 send(b"\r")
 wait_for("contraseña")
 for c in b"contrasena-larga":
     send(bytes([c]), 0.05)
 send(b"\r")                       # Conectando
-wait_for("alcanzable", 12)        # Conectado
-send(b"\r")                       # Continuar -> Idioma
-wait_for("Idioma")
-send(b"\r")                       # Idioma -> Zona horaria
-wait_for("Zona horaria")
-send(b"\r")                       # Zona horaria -> Equipo
-wait_for("Equipo")
-send(b"\r")                       # Equipo -> Usuario
-wait_for("Usuario")
-send(b"\r")                       # Usuario -> Contraseña
-wait_for("Contraseña")
-send(b"test1234")
+wait_for("conectado a", 12)       # Conectado
+send(b"\r")                       # Continuar -> Lenguaje
+# Lenguaje -> Teclado -> Zona horaria (elegir la primera entrada de cada lista)
+wait_for("Lenguaje")
 send(b"\x1b[B")
-send(b"test1234")
-send(b"\r")                       # Contraseña -> Git
-wait_for("Git")
-send(b"\r")                       # Git (omitir) -> Disco
+send(b"\r")
+wait_for("Teclado")
+send(b"\x1b[B")
+send(b"\r")
+wait_for("Zona horaria")
+send(b"\x1b[B")
+send(b"\r")                       # -> Equipo
+wait_for("Equipo")
+send(b"\r")                       # -> Disco
 wait_for("Disco")
-send(b" ")                        # confirmar borrado
-send(b"\r")                       # Disco -> Resumen
+send(b"\r")                       # -> Cifrado
+# Cifrado: frase, confirmar y marcar «La anoté en un lugar seguro»
+wait_for("Cifrado")
+for c in b"frase-larga-123":
+    send(bytes([c]), 0.05)
+send(b"\x1b[B")                   # -> Confirmar
+for c in b"frase-larga-123":
+    send(bytes([c]), 0.05)
+send(b"\x1b[B")                   # -> TPM (si lo hay) o «La anoté»
+if b"Desbloquear con TPM" in buf:
+    send(b"\x1b[B")               # -> La anoté
+send(b" ")                        # marcar
+send(b"\x1b[B")                   # -> botones
+send(b"\r")                       # Continuar -> Resumen
 wait_for("Resumen")
 send(b"\r")                       # Resumen -> Instalando (dry run ~20 s)
 wait_for("Instalando")
@@ -186,9 +192,9 @@ capture() { # binary
 # ---------------------------------------------------------------------------
 say "simulación: recorrido completo"
 EXPECT=(
-    Bienvenido Licencia Red "Idioma" "Zona horaria" Equipo Usuario
-    "Contraseña" Git Disco Resumen Instalando Reiniciar
-    "simulación" "no se puede deshacer" "efímero" "alcanzable"
+    Inicio Licencia Red Lenguaje Teclado "Zona horaria" Equipo Disco Cifrado
+    Resumen Instalando Reiniciar "simulación" "conectado a" "Acepto"
+    "clave de recuperación" "La anoté en un lugar seguro"
 )
 if capture "$INSTALLER"; then
     ok "installer: ${#EXPECT[@]} comprobaciones"
