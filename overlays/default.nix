@@ -7,9 +7,6 @@ final: _: {
 
     xnu-console-font = final.callPackage ../packages/xnu-console-font.nix { };
 
-    # Sesión opcional Otto (experimental); ver core/desktop/otto.nix.
-    otto = final.callPackage ../packages/otto.nix { };
-
     # brave-previews is intentionally not exposed here: the input only ships
     # x86_64-linux outputs, so referencing it would break aarch64 evaluation.
     # It is used directly (guarded by isx86_64) in users/templates/nixdots/common/apps.nix.

@@ -152,6 +152,23 @@
         "type": "github"
       }
     },
+    "layers": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792343331,
+        "narHash": "sha256-KvYzihQRw15mAOfbuGH+Tt1HlUCRwQLXPozbbCun/88=",
+        "owner": "HBlanqueto",
+        "repo": "layers",
+        "rev": "bb63d062cfc4468ee8f5524ce2cc0bec007ef13a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "HBlanqueto",
+        "ref": "neptunia",
+        "repo": "layers",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1791956154,
@@ -165,6 +182,29 @@
         "owner": "nixos",
         "ref": "nixos-unstable",
         "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "otto": {
+      "inputs": {
+        "layers": "layers",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "smithay": "smithay"
+      },
+      "locked": {
+        "lastModified": 1792352484,
+        "narHash": "sha256-JQ4qbPf1BjaS592iOpn2NehaoFxQhvSeaIjwyEG59c8=",
+        "owner": "HBlanqueto",
+        "repo": "otto",
+        "rev": "dbcdfbd05f3d4f9937dfba246db2d3e5111a31bd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "HBlanqueto",
+        "ref": "neptunia",
+        "repo": "otto",
         "type": "github"
       }
     },
@@ -197,6 +237,7 @@
         "impermanence": "impermanence",
         "lanzaboote": "lanzaboote",
         "nixpkgs": "nixpkgs",
+        "otto": "otto",
         "ucodenix": "ucodenix"
       }
     },
@@ -218,6 +259,23 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "smithay": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792343331,
+        "narHash": "sha256-T/2dYWyTqy53gDBrXpjIVx4zp1UkRdJ0O0r4eiE6q00=",
+        "owner": "HBlanqueto",
+        "repo": "smithay-otto",
+        "rev": "0a8efd1a6da4f40232d24f33940a622fa2a08c30",
+        "type": "github"
+      },
+      "original": {
+        "owner": "HBlanqueto",
+        "ref": "neptunia",
+        "repo": "smithay-otto",
         "type": "github"
       }
     },
