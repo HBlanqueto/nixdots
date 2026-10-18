@@ -1274,7 +1274,7 @@ export component AppWindow inherits Window {
                         // Lista completa de locales (scroll): nombre nativo + código.
                         Rectangle {
                             width: 100%;
-                            vertical-stretch: 1;
+                            height: 168px;
                             border-radius: Tokens.radiuslg;
                             background: Tokens.bgSurface;
                             border-width: 1px;
@@ -2032,13 +2032,13 @@ export component AppWindow inherits Window {
                 padding-left: 20px;
                 padding-right: 20px;
                 spacing: 12px;
-                alignment: start;
                 accessible-role: none;
                 accessible-label: @tr("Paso") + " " + State.step + " " + @tr("de") + " 8";
                 // Botón de accesibilidad: desde cualquier paso, al paso 2.
                 Rectangle {
                     width: 30px;
                     height: 30px;
+                    horizontal-stretch: 0;
                     border-radius: Tokens.radiuspill;
                     background: a11y-ta.has-hover ? Tokens.bgHover : transparent;
                     border-width: 1px;
@@ -2059,6 +2059,7 @@ export component AppWindow inherits Window {
                 Rectangle {
                     width: 320px;
                     height: 30px;
+                    horizontal-stretch: 0;
                     background: transparent;
                     Text {
                         x: 0;
@@ -2095,6 +2096,7 @@ export component AppWindow inherits Window {
                     label: @tr("Atrás");
                     h: Tokens.controlmd;
                     w: 96px;
+                    horizontal-stretch: 0;
                     opacity: State.step > 1 ? 1 : 0;
                     clicked => { if (State.step > 1) { State.step = root.prev-step(State.step); } }
                 }
@@ -2103,6 +2105,7 @@ export component AppWindow inherits Window {
                     primary: true;
                     h: Tokens.controlmd;
                     w: 96px;
+                    horizontal-stretch: 0;
                     clicked => { root.continue-clicked(); }
                 }
             }

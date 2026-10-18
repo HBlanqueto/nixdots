@@ -451,10 +451,7 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
         pick(st.get_kb_codes(), st.get_kb_index()).into(),
     );
     map.insert("keyboardVariant".into(), "".into());
-    map.insert(
-        "timeZone".into(),
-        st.get_city_selected().to_string().into(),
-    );
+    map.insert("timeZone".into(), st.get_city_selected().to_string().into());
     map.insert("timeZoneAuto".into(), st.get_tz_auto().into());
     // GNOME solo distingue claro/oscuro; «dark-tint» del asistente es oscuro.
     let scheme = if tokens.get_theme() == "light" {

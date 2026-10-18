@@ -327,3 +327,27 @@ msgstr "SUGGESTED"
 
 msgid "El idioma del sistema y de GNOME se aplica al reiniciar. Este asistente cambia ya si hay traducción; si no, sigue en inglés."
 msgstr "The system and GNOME language applies after a restart. This assistant switches now if a translation exists; otherwise it stays in English."
+
+msgid "Buscar idioma o región"
+msgstr "Search language or region"
+
+msgid "Conectar a una red oculta…"
+msgstr "Connect to a hidden network…"
+
+msgid "El idioma del sistema se aplica al reiniciar."
+msgstr "The system language applies after restarting."
+
+msgid "Escribe el nombre y la contraseña de la red."
+msgstr "Enter the network name and password."
+
+msgid "Mi equipo no se conecta a Internet"
+msgstr "My computer doesn't connect to the Internet"
+
+msgid "Nombre de la red"
+msgstr "Network name"
+
+msgid "Otras opciones de red…"
+msgstr "Other Network Options…"
+
+msgid "Red oculta"
+msgstr "Hidden network"
