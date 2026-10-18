@@ -63,12 +63,45 @@
     "window": {
       "radius": "radius.lg", "bg": "bg-window", "titlebar-height": "size.titlebar-h", "sidebar-width": "size.sidebar-w",
       "outer-border": "window-outer", "inner-line": "window-inner",
-      "traffic-lights": { "size": 12, "radius": "radius.xs", "gap": 8, "colors": ["traffic-close", "traffic-min", "traffic-zoom"], "rule": "Mismos colores en todos los temas." }
+      "traffic-lights": {
+        "size": 12, "radius": "radius.xs", "gap": 8, "pressed-darken": 0.2,
+        "colors": ["traffic-close", "traffic-min", "traffic-zoom"],
+        "rule": "Mismos colores en todos los temas.",
+        "styles": {
+          "status": "idea en estudio",
+          "macos": { "close": "#ff5f57", "minimize": "#febc2e", "zoom": "#28c840", "glyph": "#0000008c" },
+          "accent": { "source": "accent", "close-minimize": "mezcla 28 % hacia negro", "zoom": "mezcla 58 % hacia blanco", "glyph-on-dark": "#ffffffd1", "glyph-on-light": "#000000b0" },
+          "wallpaper": { "source": "color dominante del fondo", "rule": "misma fórmula que accent" }
+        },
+        "inactive": { "light": "#d3d3d5", "dark": "#4e4e50" },
+        "variants": ["derecha con orden invertido", "solo cerrar en diálogos", "sobre la barra lateral"]
+      }
     },
     "dialog": { "radius": "radius.lg", "bg": "bg-raised", "padding": 20, "scrim": "scrim", "outer-border": "window-outer", "inner-line": "window-inner" },
     "menu-popover": { "radius": "radius.md", "bg": "bg-raised", "item-height": 26, "item-radius": "radius.sm", "outer-border": "window-outer", "inner-line": "window-inner" },
     "progress": { "height": 6, "radius": "radius.pill", "track": "bg-control", "fill": "accent", "ring": { "size": 28, "stroke": 3.5 } },
     "badge": { "height": 20, "padding-x": 8, "radius": "radius.pill", "font": "caption" },
     "focus-ring": { "width": 2, "offset": 2, "color": "accent-strong", "rule": "Solo al navegar con teclado." }
+  },
+  "appearance": {
+    "status": "idea en estudio",
+    "setting": "Ajustes › Apariencia › Color de las ventanas",
+    "modes": {
+      "neutral": { "tint": null, "accent": "el que elige el usuario", "traffic-lights": "macos" },
+      "accent": { "tint": "accent", "windows": { "light": 0.06, "dark": 0.08 }, "traffic-lights": "accent" },
+      "wallpaper": {
+        "tint": "color dominante del fondo",
+        "accent": "el dominante, 8 % más oscuro en claro / 12 % más claro en oscuro",
+        "traffic-lights": "wallpaper",
+        "scope": {
+          "windows": { "windows": { "light": 0.07, "dark": 0.09 }, "panel-dock": 0 },
+          "desktop": { "windows": { "light": 0.07, "dark": 0.09 }, "panel-dock": { "light": 0.2, "dark": 0.26 } }
+        }
+      }
+    },
+    "layer-factors": { "bg-sunken": 1.4, "bg-control": 1.2, "bg-hover": 1.2, "line": 1.2, "bg-window": 1.0, "bg-surface": 0.6, "bg-raised": 0.6 },
+    "never-tinted": ["sys-*", "danger", "danger-fill", "success", "warning", "info"],
+    "propagation": "regenerar Slint/CSS GTK/Kvantum/QML desde share/design/neptunia y anunciarlo por portal o D-Bus para que las apps abiertas se actualicen",
+    "mockup": "https://claude.ai/artifact/N1WN3NJJftGL2CGdaUvaHf"
   }
 }

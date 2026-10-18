@@ -30,6 +30,16 @@ nix eval --raw -f . css   > generated/neptunia.css
 nix eval --raw -f . qml   > generated/Neptunia.qml
 ```
 
+## Modos de color del escritorio
+
+El bloque `appearance` de `components.json` describe (como idea en estudio) el
+color de las ventanas: `neutral` (sin tinte), `accent` (tintado por el acento) y
+`wallpaper` (tintado por el color dominante del fondo, en toda la ventana o en
+todo el escritorio). El mismo bloque elige el estilo de los semáforos —`macos`
+(colores fijos), `accent` o `wallpaper` (derivados de su color)—; los `sys-*`
+(avisos, error, éxito…) nunca se tintan y `layer-factors` fija cuánto se aclara
+u oscurece cada capa.
+
 ## Cómo lo lee cada proyecto
 
 | Proyecto | Cómo se sincroniza |
