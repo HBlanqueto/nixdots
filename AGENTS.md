@@ -50,12 +50,12 @@ actualiza este archivo en el mismo cambio.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
-  - `/persist/secrets/nix-github.env` — root `0600`:
-    `NIX_GITHUB_PRIVATE_USERNAME` y `NIX_GITHUB_PRIVATE_PASSWORD` (token de
-    GitHub de solo lectura) en el entorno del nix-daemon (`core/nix.nix`), para
-    que `fetchFromGitHub { private = true; }` baje los forks privados de Otto.
-    Sin él Otto queda apagado (`autoEnable` lo exige); forzarlo con `"otto":
-    true` en machine.json y sin token es un error de configuración.
+  - `/persist/secrets/nix-access-tokens.conf` — root:wheel `0640`, opcional:
+    `access-tokens = github.com=<token>` (token de GitHub de solo lectura),
+    incluido en nix.conf con `!include` (`core/nix.nix`). Lo usan los inputs
+    privados `github:HBlanqueto/…` (el fork de Otto). Sin el archivo nix arranca
+    igual; solo Otto queda apagado (su módulo no se puede evaluar sin bajar el
+    input).
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
@@ -95,14 +95,13 @@ actualiza este archivo en el mismo cambio.
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
-- Otto (sesión opcional, `nixdots.desktop.otto`): `packages/otto.nix` fija
-  Otto, layers y smithay-otto en `pins` (rev + hash NAR) y los baja de los forks
-  privados de HBlanqueto (`private = true`, token del nix-daemon). Los revs de
-  layers y smithay no son el HEAD de sus forks: los fija el Cargo.lock de Otto, y
-  `tools/otto-pins.sh` los relee de ahí (rama `neptunia`) y reescribe `pins`.
-  Flujo al subir un fork: en Otto, `scripts/bump-forks.sh` actualiza
-  Cargo.toml/Cargo.lock; aquí, `tools/otto-pins.sh`. `"otto"` en machine.json
-  fuerza o apaga la sesión; sin token, Otto queda apagado.
+- Otto (sesión opcional, `nixdots.desktop.otto`): el paquete y el módulo NixOS
+  vienen del input `otto` del flake (fork privado `github:HBlanqueto/otto`,
+  rama `neptunia`), que `core/desktop/otto.nix` importa y activa con
+  `programs.otto.enable`. Se actualiza con `nix flake update otto`; el acceso a
+  los forks privados va por `/persist/secrets/nix-access-tokens.conf`. No hay
+  `packages/otto.nix` ni pines en este repo. `"otto"` en machine.json fuerza o
+  apaga la sesión sobre la detección de hardware.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
