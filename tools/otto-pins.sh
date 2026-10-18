@@ -10,9 +10,11 @@
 #   tools/otto-pins.sh <rev>           # ese commit de Otto
 #   tools/otto-pins.sh <rev> <rama>    # resuelve <rev> en <rama>
 #
-# Los hashes salen de `nix flake prefetch github:HBlanqueto/<repo>/<rev>`, que
-# exige el token de GitHub (si falla, para y avisa). Con OTTO_PINS_SSH=1 usa
-# git+ssh en su lugar (mismo hash NAR, sin token). Necesita nix, git y jq.
+# Los hashes salen de `nix flake prefetch` por git+ssh (usa tu llave SSH, sin
+# token). Con OTTO_PINS_HTTPS=1 usa github:; como `nix flake prefetch` corre como
+# tu usuario, eso exige `access-tokens = github.com=<token>` en
+# ~/.config/nix/nix.conf (el token del nix-daemon, /persist/secrets/nix-github.env,
+# no sirve aquí). Necesita nix, git y jq.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -21,20 +23,23 @@ nix_file="$root/packages/otto.nix"
 otto_rev=${1:-}
 otto_branch=${2:-neptunia}
 
-# nix flake prefetch -> {locked.rev, hash, storePath}. github: usa el token del
-# daemon; git+ssh (OTTO_PINS_SSH=1) da el mismo árbol sin token.
+# nix flake prefetch -> {locked.rev, hash, storePath}. Por defecto git+ssh (mismo
+# hash NAR sin token); github: (OTTO_PINS_HTTPS=1) usa el access-token del usuario.
 prefetch() {
-    local repo=$1 ref=$2
-    if [ "${OTTO_PINS_SSH:-0}" = 1 ]; then
-        local query
-        if [[ $ref =~ ^[0-9a-f]{40}$ ]]; then query="rev=$ref"; else query="ref=$ref"; fi
-        nix flake prefetch "git+ssh://git@github.com/HBlanqueto/$repo?$query" --json
-    else
+    local repo=$1 ref=$2 query
+    if [ "${OTTO_PINS_HTTPS:-0}" = 1 ]; then
         nix flake prefetch "github:HBlanqueto/$repo/$ref" --json 2>/dev/null \
             || {
-                echo "otto-pins: no pude leer HBlanqueto/$repo: falta el token de GitHub del nix-daemon" >&2
+                echo "otto-pins: no pude leer HBlanqueto/$repo por HTTPS." >&2
+                echo "  nix flake prefetch corre como tu usuario: añade" >&2
+                echo "  access-tokens = github.com=<token> a ~/.config/nix/nix.conf" >&2
+                echo "  (el token del nix-daemon, /persist/secrets/nix-github.env, no sirve)." >&2
+                echo "  O ejecuta sin OTTO_PINS_HTTPS para usar git+ssh." >&2
                 exit 1
             }
+    else
+        if [[ $ref =~ ^[0-9a-f]{40}$ ]]; then query="rev=$ref"; else query="ref=$ref"; fi
+        nix flake prefetch "git+ssh://git@github.com/HBlanqueto/$repo?$query" --json
     fi
 }
 
