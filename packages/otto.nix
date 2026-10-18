@@ -324,7 +324,7 @@ rustPlatform.buildRustPackage.override { stdenv = clangStdenv; } {
     passthru = {
         providedSessions = [ "otto" ];
         # Las tres fuentes, para comprobar una copia sin compilar:
-        #   nix build .#otto.sources.layers --rebuild
+        #   nix build .#nixosConfigurations.nixdots.config.nixdots.desktop.otto.package.sources.layers --impure
         sources = { otto = src; inherit layers smithay; };
     };
 
