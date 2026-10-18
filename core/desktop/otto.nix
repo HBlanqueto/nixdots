@@ -50,5 +50,11 @@ in
     // lib.optionalAttrs hasToken {
         # `programs.otto` solo existe si se importó su módulo.
         programs.otto.enable = cfg.enable;
+
+        # Skia solo es dependencia de compilación de Otto: sin esta raíz, el GC
+        # semanal la borra y el siguiente build de Otto la recompila entera.
+        system.extraDependencies = lib.mkIf cfg.enable [
+            config.programs.otto.package.skiaBinaries
+        ];
     };
 }
