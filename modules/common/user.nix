@@ -59,6 +59,12 @@ in
 
     i18n = {
         inherit defaultLocale;
+        # Solo el idioma elegido (y en_US como respaldo); generar todos los
+        # locales pesa mucho. El sufijo `/UTF-8` es el formato de la opción.
+        supportedLocales = lib.unique [
+            "${defaultLocale}/UTF-8"
+            "en_US.UTF-8/UTF-8"
+        ];
         # Región y formatos sólo si difiere del idioma base.
         extraLocaleSettings = lib.mkIf (region != null && region != defaultLocale) {
             LC_TIME = region;
