@@ -45,15 +45,15 @@
             # un informe de facter). lanzaboote y luks-tpm se importan siempre:
             # secure-boot.nix decide con mkIf y luks-tpm define boot.lanzaboote.
             genericModules = [
-                ./modules/common/facter.nix
-                ./modules/common/filesystems.nix
-                ./modules/common/rollback.nix
+                ./core/facter.nix
+                ./core/filesystems.nix
+                ./core/rollback.nix
                 # Igual que lanzaboote: el módulo se importa siempre y
                 # hardware-detect.nix activa ucodenix solo si el informe de
                 # facter ve una CPU AMD en bare-metal.
                 inputs.ucodenix.nixosModules.default
                 inputs.lanzaboote.nixosModules.lanzaboote
-                ./modules/common/luks-tpm.nix
+                ./core/luks-tpm.nix
             ];
 
             # El perfil único detecta el hardware en tiempo de evaluación, así
@@ -91,14 +91,14 @@
                 };
 
                 modules = [
-                    ./modules/desktop
+                    ./core/desktop
                     # nix.nix aporta el overlay (pkgs.xnu-console-font), que
                     # console.nix y user.nix usan directamente: la XNU es la
                     # única fuente de la TTY.
-                    ./modules/common/nix.nix
-                    ./modules/common/console.nix
-                    ./modules/common/first-boot.nix
-                    ./modules/common/user.nix
+                    ./core/nix.nix
+                    ./core/console.nix
+                    ./core/first-boot.nix
+                    ./core/user.nix
                     { system.stateVersion = data.settings.stateVersion; }
                     # Solo en la VM de prueba: root con contraseña para poder
                     # depurar desde tty2. Nunca en los hosts reales.

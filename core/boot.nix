@@ -2,8 +2,8 @@
 
 {
     # Boot settings shared by both hosts. The bootloader lives in
-    # modules/common/secure-boot.nix and the impermanence rollback in
-    # modules/common/rollback.nix.
+    # core/secure-boot.nix and the impermanence rollback in
+    # core/rollback.nix.
     boot = {
         loader.efi.canTouchEfiVariables = true;
 
@@ -25,7 +25,7 @@
         };
 
         # Generic kernel parameters shared by both hosts; the AMD hardware
-        # module (modules/common/hardware-detect.nix) adds
+        # module (core/hardware-detect.nix) adds
         # microcode.amd_sha_check=off on top of these, for ucodenix.
         kernelParams = [ "quiet" "rd.udev.log_level=3" "rd.systemd.show_status=auto" ];
 

@@ -368,7 +368,7 @@ fn set_mode(path: &Path, mode: u32) -> Result<()> {
 }
 
 /// Deja `~<usuario>/nixdots` como enlace al repo y pone el repo en manos del
-/// usuario. El uid está fijado a 1000 en `modules/common/user.nix` (el asistente
+/// usuario. El uid está fijado a 1000 en `core/user.nix` (el asistente
 /// corre antes de que exista la cuenta).
 fn link_home(username: &str, repo: &Path) -> Result<()> {
     let home = format!("/home/{username}");

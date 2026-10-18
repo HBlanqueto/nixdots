@@ -35,7 +35,7 @@
 let
     doEncrypt = encrypt == "true";
 
-    # Base compartida con modules/common/filesystems.nix.
+    # Base compartida con core/filesystems.nix.
     mountOptions = import ./lib/btrfs-mount-options.nix;
 
     # The btrfs filesystem itself, shared by the encrypted and plain layouts.

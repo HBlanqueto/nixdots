@@ -132,7 +132,7 @@ in
         };
 
         # Cross-platform CLI tools only. Desktop/GPU tools live in
-        # modules/desktop, laptop-only tools in modules/common/hardware-detect.nix.
+        # core/desktop, laptop-only tools in core/hardware-detect.nix.
         systemPackages = with pkgs; [
             comma
 

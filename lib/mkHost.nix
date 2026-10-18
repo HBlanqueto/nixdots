@@ -25,8 +25,8 @@ inputs.nixpkgs.lib.nixosSystem {
             nixpkgs.hostPlatform =
                 lib.mkIf (!config.hardware.facter.enable) (lib.mkDefault system);
         })
-        ../modules/common
-        ../modules/desktop
+        ../core
+        ../core/desktop
         # Sin evaluación impura no se puede leer user.json; abortar en vez de
         # tratar el host como primer arranque (que borraría la cuenta). Las
         # salidas puras de CI (requireImpure = false) se saltan la assertion: no

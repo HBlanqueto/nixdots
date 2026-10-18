@@ -4,7 +4,7 @@
 # exist yet, the whole facter layer stays off (facterReport = null) and nothing
 # below applies.
 #
-# This module is deliberately NOT in modules/common/default.nix: it is imported
+# This module is deliberately NOT in core/default.nix: it is imported
 # only by the generic `nixdots` configuration, so the existing per-host
 # configurations keep evaluating exactly as before.
 { lib, data, ... }:

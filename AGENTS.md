@@ -43,7 +43,7 @@ actualiza este archivo en el mismo cambio.
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
   zona, locale, teclado por defecto).
-- Diferencias de hardware: `modules/common/hardware-detect.nix` decide con
+- Diferencias de hardware: `core/hardware-detect.nix` decide con
   `config.hardware.facter.detected/report` (bare-metal AMD → ucodenix y amdgpu
   en initrd; portátil → acpid/upower; QEMU/UTM → spice-vdagent, qemu-guest).
   No uses condicionales por nombre de host.
@@ -62,8 +62,10 @@ actualiza este archivo en el mismo cambio.
 
 ## Componentes
 
-- `modules/common/` — capa NixOS común; `modules/desktop/` — GNOME/GDM;
-  `modules/home/` — home-manager (fish, wezterm, starship, yazi, opencode…).
+- `core/` — capa de sistema (hardware, boot, consola, nix, seguridad,
+  filesystems/rollback/persistence, servicios, GNOME, fuentes, extras y
+  first-boot); `modules/home/` — home-manager (fish, wezterm, starship, yazi,
+  opencode…), aún en `modules/` hasta la fase de plantillas.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor

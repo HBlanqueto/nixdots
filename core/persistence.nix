@@ -1,7 +1,7 @@
 _: {
     # Impermanence roots common to every machine. Persistent dirs that depend on
     # the hardware/roles (cups, sbctl, auto-cryptenroll, fwupd, libvirt…) are
-    # appended by modules/common/extras.nix, secure-boot.nix, hardware-detect.nix
+    # appended by core/extras.nix, secure-boot.nix, hardware-detect.nix
     # and luks-tpm.nix.
     environment = {
         persistence."/persist" = {

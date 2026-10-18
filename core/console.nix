@@ -1,7 +1,7 @@
 { config, lib, pkgs, theme, ... }:
 
 let
-    palette = import ../../lib/palette.nix { inherit theme; };
+    palette = import ../lib/palette.nix { inherit theme; };
 
     # La XNU (la consola de texto de macOS, 8x16, solo Latin-1) es la única
     # fuente de la TTY: el mismo .psf para el kernel (initrd, consola de

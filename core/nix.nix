@@ -35,7 +35,7 @@
             allowUnfree = true;
         };
         overlays = [
-            (import ../../overlays { inherit inputs; })
+            (import ../overlays { inherit inputs; })
             # brave-previews publica brave-origin-beta usando `xorg.libxcb`, que
             # nixpkgs renombró a `libxcb`. Aplicamos su overlay a nuestro pkgs
             # (así el paquete se evalúa con nuestros overlays) y reescribimos el

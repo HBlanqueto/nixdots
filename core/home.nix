@@ -15,8 +15,8 @@ lib.mkIf (data.username != null) {
 
         users.${data.username} = {
             imports = [
-                ../home/common
-                ../home/desktop
+                ../modules/home/common
+                ../modules/home/desktop
             ];
         };
     };
