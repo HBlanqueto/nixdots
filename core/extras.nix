@@ -6,7 +6,6 @@
 
 let
     cfg = config.nixdots.extras;
-    inherit (data) username;
     extraData = data.machine.extras or { };
 in
 {
@@ -45,11 +44,12 @@ in
             extraBackends = [ pkgs.epsonscan2 ];
         };
 
-        # The chime plays in the user session, so it needs an account.
-        systemd.services.chime = lib.mkIf (cfg.chime && username != null) {
+        # El chime suena al arrancar; usa el wav del store, sin depender de
+        # ninguna cuenta ni del home-manager de un usuario.
+        systemd.services.chime = lib.mkIf cfg.chime {
             description = "Boot up";
             wants = [ "sound.target" ];
-            after = [ "sound.target" "home-manager-${username}.service" ];
+            after = [ "sound.target" ];
             wantedBy = [ "multi-user.target" ];
 
             serviceConfig = {
@@ -58,7 +58,7 @@ in
                     "-${pkgs.alsa-utils}/bin/amixer -c 1 sset Master 100% unmute"
                     "-${pkgs.alsa-utils}/bin/amixer -c 1 sset Speaker 100% unmute"
                 ];
-                ExecStart = "${pkgs.alsa-utils}/bin/aplay -c 2 -D plughw:1,0 /home/${username}/.config/chime/chime.wav";
+                ExecStart = "${pkgs.alsa-utils}/bin/aplay -c 2 -D plughw:1,0 ${../share/chime.wav}";
                 RemainAfterExit = false;
                 SupplementaryGroups = "audio";
             };
@@ -67,9 +67,12 @@ in
         virtualisation.libvirtd.enable = cfg.libvirt;
         programs.virt-manager.enable = cfg.libvirt;
         networking.firewall.trustedInterfaces = lib.mkIf cfg.libvirt [ "virbr0" ];
-        users.users = lib.mkIf (cfg.libvirt && username != null) {
-            ${username}.extraGroups = [ "libvirtd" ];
-        };
+        # libvirtd se añade a todas las cuentas admin, no a una en concreto.
+        users.users = lib.mapAttrs
+            (_: u: lib.mkIf (cfg.libvirt && (u.admin or false)) {
+                extraGroups = [ "libvirtd" ];
+            })
+            data.users;
 
         environment.systemPackages =
             lib.optionals cfg.brightnessctl [ pkgs.brightnessctl ]
