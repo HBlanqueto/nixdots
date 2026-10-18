@@ -49,6 +49,13 @@ actualiza este archivo en el mismo cambio.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
+  - `/persist/secrets/nix-github.env` — opcional, root `0600`:
+    `NIX_GITHUB_PRIVATE_USERNAME` y `NIX_GITHUB_PRIVATE_PASSWORD` (token de
+    GitHub de solo lectura) en el entorno del nix-daemon (`core/nix.nix`), para
+    `fetchFromGitHub { private = true; }`. Si existe, Otto descarga de las copias
+    privadas `HBlanqueto/{otto,layers,smithay-otto}`; si no, de `nongio`
+    (`nixdots.desktop.otto.source`). Mismos commits y hashes en los dos: la
+    ruta del store y la derivación no cambian.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
