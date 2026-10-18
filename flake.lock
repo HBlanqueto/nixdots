@@ -194,11 +194,11 @@
         "smithay": "smithay"
       },
       "locked": {
-        "lastModified": 1792358184,
-        "narHash": "sha256-0SDInh7y1Mn8pnUQQ/JbquzX9fs36kixxpcSGSLqzLo=",
+        "lastModified": 1792364412,
+        "narHash": "sha256-jHyr4e/SQ7OyanBys5RiYyHj/RJLCJpkDOR2200AtUw=",
         "owner": "HBlanqueto",
         "repo": "otto",
-        "rev": "d5b012e0a3b0444544db8886ab5bfbab914ae108",
+        "rev": "130d8e77773269322f5bc8c3ddf64b7134038221",
         "type": "github"
       },
       "original": {
