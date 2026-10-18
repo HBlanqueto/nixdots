@@ -9,12 +9,11 @@ slint::include_modules!();
 use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use slint::{ComponentHandle, Model, ModelRc, SharedString};
 
 mod apply;
-mod machine;
 mod wallpaper;
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -35,30 +34,57 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let ui = AppWindow::new()?;
 
+    // Lista de locales (todos los UTF-8 de glibc, nombre nativo + código) y
+    // selección inicial es_MX (o el primero).
+    fill_locales(&ui, "");
+    {
+        let st = ui.global::<State>();
+        let locales = locales();
+        let idx = locales
+            .iter()
+            .position(|l| l.code == "es_MX.UTF-8")
+            .unwrap_or(0);
+        if let Some(l) = locales.get(idx) {
+            st.set_lang_selected(l.code.clone().into());
+            st.set_lang_selected_name(l.name.clone().into());
+        }
+    }
+
     // Idioma por defecto del asistente: inglés. Se cambia en vivo al elegir
-    // idioma (las traducciones van embebidas desde i18n/*.po).
+    // idioma (las traducciones van embebidas desde i18n/*.po); si el idioma no
+    // tiene .po, se muestra la interfaz en inglés.
     let _ = slint::select_bundled_translation("en");
-    ui.on_language_changed(|code| {
-        let base = code.split(['_', '-']).next().unwrap_or("en");
-        let _ = slint::select_bundled_translation(base);
+    ui.on_language_changed({
+        let weak = ui.as_weak();
+        move |code| {
+            let code = code.to_string();
+            let base = code.split(['_', '-']).next().unwrap_or("en");
+            if slint::select_bundled_translation(base).is_err() {
+                let _ = slint::select_bundled_translation("en");
+            }
+            if let Some(ui) = weak.upgrade() {
+                let name = locales()
+                    .iter()
+                    .find(|l| l.code == code)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_else(|| code.clone());
+                ui.global::<State>().set_lang_selected_name(name.into());
+            }
+        }
+    });
+    // Buscador de idioma: filtra por nombre o código.
+    ui.on_lang_search_changed({
+        let weak = ui.as_weak();
+        move |query| {
+            if let Some(ui) = weak.upgrade() {
+                fill_locales(&ui, &query);
+            }
+        }
     });
 
     // Fondo desenfocado una vez (con caché en /run/psamathe).
     if let Some(image) = wallpaper::load() {
         ui.set_wallpaper(image);
-    }
-
-    // Datos reales del equipo (solo lectura).
-    let info = machine::info();
-    {
-        let st = ui.global::<State>();
-        st.set_machine_model(info.model.into());
-        st.set_machine_cpu(info.cpu.into());
-        st.set_machine_ram(info.ram.into());
-        st.set_machine_disk(info.disk.into());
-        st.set_machine_disk_used(info.disk_used.into());
-        st.set_machine_disk_fill(info.disk_fill);
-        st.set_machine_host(info.host.into());
     }
 
     // Preferencia del sistema para la reducción de movimiento (GNOME).
@@ -194,7 +220,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 st.set_log_text("".into());
                 st.set_prep_phase(0);
                 st.set_prep_black(false);
-                st.set_step(10);
+                st.set_step(9);
                 let json = build_json(&st, &ui.global::<Theme>(), &ui.global::<Tokens>());
                 (json, st.get_password().to_string())
             };
@@ -245,7 +271,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     if !ok {
                         st.set_show_details(true);
                         if st.get_apply_error().is_empty() {
-                            st.set_error_step(9);
+                            st.set_error_step(8);
                             st.set_apply_error("No se pudo terminar la configuración.".into());
                         }
                         return;
@@ -350,16 +376,12 @@ fn spawn_greeting(ui: &AppWindow, reduce: Arc<AtomicBool>) {
         // Deja arrancar el bucle de eventos antes del primer invoke.
         std::thread::sleep(std::time::Duration::from_millis(300));
         // Presentación «Welcome to NixOS» (siempre en inglés): funde de entrada,
-        // se queda ~2 s y funde; luego empieza la máquina de escribir.
+        // se queda ~2 s y funde; luego empieza la máquina de escribir. El
+        // upgrade del Weak va dentro de `set_state` (en el hilo del bucle de
+        // eventos): desde otro hilo siempre devolvería None.
         set_state(&weak, |st| st.set_intro_op(1.0));
-        if weak.upgrade().is_none() {
-            return;
-        }
         std::thread::sleep(std::time::Duration::from_millis(2000));
         set_state(&weak, |st| st.set_intro_op(0.0));
-        if weak.upgrade().is_none() {
-            return;
-        }
         std::thread::sleep(std::time::Duration::from_millis(750));
         let n = words.len();
         let mut i = 0usize;
@@ -374,9 +396,6 @@ fn spawn_greeting(ui: &AppWindow, reduce: Arc<AtomicBool>) {
                     st.set_greet_animate(true);
                     st.set_g_shown(true);
                 });
-                if weak.upgrade().is_none() {
-                    return;
-                }
                 std::thread::sleep(std::time::Duration::from_millis(2500));
                 i = (i + 1) % n;
                 continue;
@@ -393,16 +412,10 @@ fn spawn_greeting(ui: &AppWindow, reduce: Arc<AtomicBool>) {
                 prefix.push(c);
                 let p = prefix.clone();
                 set_state(&weak, move |st| st.set_greet_typed(p.into()));
-                if weak.upgrade().is_none() {
-                    return;
-                }
                 std::thread::sleep(std::time::Duration::from_millis(110));
             }
             std::thread::sleep(std::time::Duration::from_millis(1800));
             set_state(&weak, |st| st.set_g_shown(false));
-            if weak.upgrade().is_none() {
-                return;
-            }
             // 450 ms de fundido + 50 ms antes de la siguiente palabra.
             std::thread::sleep(std::time::Duration::from_millis(500));
             i = (i + 1) % n;
@@ -415,14 +428,10 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
     let mut map = serde_json::Map::new();
     map.insert("fullName".into(), st.get_full_name().to_string().into());
     map.insert("username".into(), st.get_username().to_string().into());
-    map.insert(
-        "locale".into(),
-        pick(st.get_lang_codes(), st.get_lang_index()).into(),
-    );
-    map.insert(
-        "region".into(),
-        pick(st.get_region_codes(), st.get_region_index()).into(),
-    );
+    let locale = st.get_lang_selected().to_string();
+    map.insert("locale".into(), locale.clone().into());
+    // Región y formatos = mismo locale elegido (no hay paso aparte).
+    map.insert("region".into(), locale.into());
     map.insert(
         "keyboardLayout".into(),
         pick(st.get_kb_codes(), st.get_kb_index()).into(),
@@ -476,6 +485,29 @@ fn reduced_motion() -> bool {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim() == "false",
         _ => false,
     }
+}
+
+/// Todos los locales UTF-8, cacheados (se parsea la tabla una sola vez).
+fn locales() -> &'static [nixdots_lists::locale::Locale] {
+    static CACHE: OnceLock<Vec<nixdots_lists::locale::Locale>> = OnceLock::new();
+    CACHE.get_or_init(nixdots_lists::locale::all)
+}
+
+/// Rellena los modelos de la lista de idiomas filtrando por `query` (nombre o
+/// código, sin distinguir mayúsculas).
+fn fill_locales(ui: &AppWindow, query: &str) {
+    let q = query.to_lowercase();
+    let items: Vec<&nixdots_lists::locale::Locale> = locales()
+        .iter()
+        .filter(|l| {
+            q.is_empty() || l.name.to_lowercase().contains(&q) || l.code.to_lowercase().contains(&q)
+        })
+        .collect();
+    let names: Vec<SharedString> = items.iter().map(|l| l.name.clone().into()).collect();
+    let codes: Vec<SharedString> = items.iter().map(|l| l.code.clone().into()).collect();
+    let st = ui.global::<State>();
+    st.set_lang_names(ModelRc::from(names.as_slice()));
+    st.set_lang_codes(ModelRc::from(codes.as_slice()));
 }
 
 fn pick(model: ModelRc<SharedString>, index: i32) -> String {

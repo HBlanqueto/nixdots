@@ -35,11 +35,6 @@ export component ClockIcon inherits Icon {
     commands: "M 3 12 A 9 9 0 1 0 21 12 A 9 9 0 1 0 3 12 Z M 12 7 L 12 12 L 15 14";
 }
 
-// Pantalla (paso 5).
-export component MonitorIcon inherits Icon {
-    commands: "M 4 5 L 20 5 L 20 16 L 4 16 Z M 2 19 L 22 19";
-}
-
 // Medio círculo relleno (paso 6): círculo con trazo + mitad rellena.
 export component ContrastIcon inherits Rectangle {
     in property <length> size: 22px;
@@ -78,10 +73,10 @@ export component CheckIcon inherits Icon {
     commands: "M 5 12.5 L 9.5 17 L 19 7.5";
 }
 
-// Arco del spinner de Preparando.
+// Arco del spinner de Preparando: 270° para que el giro se vea completo.
 export component SpinIcon inherits Icon {
-    sw: 2.2px;
-    commands: "M 12 3 A 9 9 0 0 1 21 12";
+    sw: 2.4px;
+    commands: "M 12 2.5 A 9.5 9.5 0 1 1 2.5 12";
 }
 
 // Icono pequeño de 16×16 (filas y fichas), mismo trazo que el bundle.

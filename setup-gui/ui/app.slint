@@ -7,11 +7,13 @@
 import "fonts/DancingScript-Regular.ttf";
 import "fonts/DancingScript-Bold.ttf";
 
+import { ListView } from "std-widgets.slint";
+
 import { Tokens, Theme, Metrics, Motion } from "theme.slint";
 export { Tokens, Theme, Motion } from "theme.slint";
 import { Theme as Design, NeptuniaMode } from "../../share/design/neptunia/generated/neptunia.slint";
 import {
-    Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, MonitorIcon, ContrastIcon,
+    Icon, MiniIcon, GlobeIcon, WifiIcon, ClockIcon, ContrastIcon,
     GitIcon, CheckIcon, SpinIcon,
 } from "icons.slint";
 
@@ -36,7 +38,7 @@ export global State {
     in-out property <int> prep-phase: 0;
     in-out property <bool> prep-black: false;
     // A dónde vuelve «Volver a la configuración» (Cuenta si fue la contraseña).
-    in-out property <int> error-step: 9;
+    in-out property <int> error-step: 8;
     // Saludo escrito letra a letra por Rust.
     in-out property <string> greet-typed: "";
     in-out property <bool> greet-animate: false;
@@ -46,10 +48,12 @@ export global State {
     // ¿Hay red? Si la hay, el paso de Wi‑Fi se salta (pero cuenta en los puntos).
     in-out property <bool> has-network: false;
 
-    in-out property <int> lang-index: 2;
-    in-out property <bool> lang-more: false;
-    in-out property <int> region-index: 2;
-    in-out property <int> kb-index: 2;
+    // Idioma elegido (código) y su nombre; la lista la rellena Rust desde el
+    // crate `lists` (todos los locales UTF-8, nombre nativo + código).
+    in-out property <string> lang-search: "";
+    in-out property <string> lang-selected: "es_MX.UTF-8";
+    in-out property <string> lang-selected-name: "Español (México)";
+    in-out property <int> kb-index: 0;
     in-out property <int> city-index: 0;
     in-out property <bool> tz-auto: true;
     in-out property <bool> auto-login: false;
@@ -66,6 +70,9 @@ export global State {
 
     // Cuenta: el usuario editable cambia la línea de ayuda por un campo.
     in-out property <bool> username-editing: false;
+    // Se activa al pulsar Continuar con datos inválidos: obliga a mostrar la
+    // validación de todos los campos del paso.
+    in-out property <bool> form-attempted: false;
     // Medidor de seguridad (0..4) y coincidencia, calculados por Rust.
     in-out property <int> pw-strength: 0;
     in-out property <bool> pw-match: true;
@@ -87,14 +94,6 @@ export global State {
     in-out property <string> git-name: "";
     in-out property <string> git-email: "";
 
-    in-out property <string> machine-model: "—";
-    in-out property <string> machine-cpu: "—";
-    in-out property <string> machine-ram: "—";
-    in-out property <string> machine-disk: "—";
-    in-out property <string> machine-disk-used: "—";
-    in-out property <float> machine-disk-fill: 0.0;
-    in-out property <string> machine-host: "—";
-
     // Saludo (paso 0): 13 idiomas.
     in-out property <[Greet]> greets: [
         { word: "hola", cta: "Continuar", hint: "Pulsa Intro para empezar", size: 150px, rtl: false },
@@ -112,25 +111,16 @@ export global State {
         { word: "مرحبا", cta: "متابعة", hint: "اضغط على Enter للبدء", size: 120px, rtl: true },
     ];
     in-out property <int> gi: 0;
-    in-out property <bool> g-shown: true;
+    // El saludo empieza oculto: sólo aparece cuando la presentación
+    // «Welcome to NixOS» ha terminado su fundido de salida (lo hace Rust).
+    in-out property <bool> g-shown: false;
 
-    // Listas de ejemplo. `region-*` y `kb-*` van en paralelo a `lang-*`
-    // (4 base + 4 de «Más idiomas…»). Los nombres de idioma van en su idioma.
-    in-out property <[string]> lang-names: [
-        "Español (México)", "Español (España)", "English (United States)",
-        "Português (Brasil)", "Français", "Deutsch", "Italiano", "日本語",
-    ];
-    in-out property <[string]> lang-codes: [
-        "es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8",
-        "fr_FR.UTF-8", "de_DE.UTF-8", "it_IT.UTF-8", "ja_JP.UTF-8",
-    ];
-    in-out property <[string]> region-names: [
-        "México", "España", "United States", "Brasil", "France", "Deutschland", "Italia", "日本",
-    ];
-    in-out property <[string]> region-codes: [
-        "es_MX.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "pt_BR.UTF-8",
-        "fr_FR.UTF-8", "de_DE.UTF-8", "it_IT.UTF-8", "ja_JP.UTF-8",
-    ];
+    // Listas que rellena Rust desde el crate `lists`.
+    in-out property <[string]> lang-names: [];
+    in-out property <[string]> lang-codes: [];
+    // Sugeridos (siempre visibles): es_MX y en_US.
+    in-out property <[string]> suggested-names: ["Español (México)", "English (United States)"];
+    in-out property <[string]> suggested-codes: ["es_MX.UTF-8", "en_US.UTF-8"];
 
     in-out property <[string]> kb-names: [
         "Español (Latinoamérica)", "Español (España)", "U.S.", "Português (Brasil ABNT2)",
@@ -216,11 +206,18 @@ component Field inherits VerticalLayout {
     in property <string> placeholder;
     in property <bool> password: false;
     in property <string> help;
-    in property <bool> error: false;
+    // `invalid` es la condición; el campo sólo se pinta en rojo tras salir del
+    // campo (blur), tras pulsar Continuar con datos inválidos, o si `immediate`
+    // (p. ej. un error devuelto por el sistema).
+    in property <bool> invalid: false;
+    in property <bool> immediate: false;
+    property <bool> touched: false;
+    property <bool> error: root.invalid && (root.immediate || root.touched || State.form-attempted);
     in property <string> icon;
     in property <bool> reveal: false;
     in-out property <bool> show: false;
     callback edited(string);
+    callback accepted();
     spacing: 6px;
     alignment: start;
     Text {
@@ -251,6 +248,11 @@ component Field inherits VerticalLayout {
             border-color: Tokens.accentSoft;
             opacity: (ti.has-focus && !root.error) ? 1 : 0;
             animate opacity { duration: Motion.fast; }
+        }
+        // Foco al hacer clic en cualquier punto de la caja, no sólo sobre el
+        // texto (el TextInput de arriba se ocupa de sus propios clics).
+        TouchArea {
+            clicked => { ti.focus(); }
         }
         MiniIcon {
             x: 12px;
@@ -302,7 +304,13 @@ component Field inherits VerticalLayout {
             input-type: (root.password && !root.show) ? InputType.password : InputType.text;
             text <=> root.text;
             edited => { root.edited(root.text); }
+            accepted => { root.accepted(); }
         }
+    }
+    // Al salir del campo, la validación ya puede mostrarse.
+    property <bool> focused: ti.has-focus;
+    changed focused => {
+        if (!root.focused) { root.touched = true; }
     }
     if root.help != "" : Text {
         text: root.help;
@@ -316,6 +324,7 @@ component Field inherits VerticalLayout {
 component SearchField inherits Rectangle {
     in-out property <string> text;
     in property <string> placeholder;
+    callback edited(string);
     height: 36px;
     border-radius: Tokens.radiuspill;
     background: Tokens.bgControl;
@@ -347,6 +356,7 @@ component SearchField inherits Rectangle {
         color: Tokens.inkStrong;
         single-line: true;
         text <=> root.text;
+        edited => { root.edited(root.text); }
     }
 }
 
@@ -623,82 +633,6 @@ component LinkText inherits Rectangle {
     }
 }
 
-// Ficha tintada Neptunia (np-tile--tint) para «Este equipo».
-component InfoTile inherits Rectangle {
-    in property <string> caption;
-    in property <string> value;
-    in property <string> icon;
-    in property <color> tint: Theme.accent;
-    in property <string> extra;
-    in property <bool> progress: false;
-    in property <float> fill: 0.15;
-    in property <length> tile-h: 84px;
-    horizontal-stretch: 1;
-    height: tile-h;
-    border-radius: Tokens.radiuslg;
-    background: Tokens.bgSurface.mix(tint, Tokens.dark ? 0.16 : 0.12);
-    border-width: 1px;
-    border-color: Tokens.line.mix(tint, 0.22);
-    VerticalLayout {
-        alignment: start;
-        padding-left: 14px;
-        padding-right: 14px;
-        padding-top: 12px;
-        padding-bottom: 12px;
-        spacing: 8px;
-        Rectangle {
-            width: 100%;
-            height: 26px;
-            TileIcon {
-                x: 0;
-                y: 0;
-                size: 26px;
-                radius: 8px;
-                tint: root.tint;
-                icon: root.icon;
-            }
-            Text {
-                x: 34px;
-                text: root.caption;
-                color: Tokens.inkMuted;
-                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
-                font-weight: 500;
-                vertical-alignment: center;
-                height: parent.height;
-            }
-            Text {
-                x: parent.width - self.width;
-                text: root.extra;
-                color: Tokens.inkMuted;
-                font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
-                vertical-alignment: center;
-                height: parent.height;
-            }
-        }
-        Text {
-            text: root.value;
-            color: Tokens.inkStrong;
-            font-size: 15px * (State.a11y-large-text ? 1.25 : 1.0);
-            font-weight: 600;
-            wrap: no-wrap;
-            overflow: elide;
-        }
-        if root.progress : Rectangle {
-            width: 100%;
-            height: 6px;
-            border-radius: 3px;
-            background: Tokens.bgControl;
-            Rectangle {
-                x: 0;
-                width: root.fill * parent.width;
-                height: 100%;
-                border-radius: 3px;
-                background: root.tint;
-            }
-        }
-    }
-}
-
 // Tarjeta de modo claro/oscuro (fb-mode): miniatura radio 12, ventana radio 8.
 component ModeCard inherits Rectangle {
     in property <bool> preview-dark: false;
@@ -890,6 +824,9 @@ export component AppWindow inherits Window {
 
     // Alias para `slint-viewer --load-data` (capturas por pantalla/tema).
     in-out property <int> step <=> State.step;
+    // Al entrar en Cuenta, la validación vuelve a estar oculta hasta que el
+    // usuario interactúe.
+    changed step => { if (State.step == 4) { State.form-attempted = false; } }
     in-out property <string> theme <=> Tokens.theme;
     // El sistema de diseño resuelve los colores según Design.mode; se sincroniza
     // aquí (no en el global) porque los componentes sí pueden fijar globales.
@@ -907,6 +844,8 @@ export component AppWindow inherits Window {
     callback username-edited(string);
     // Idiomas: Rust cambia la traducción activa de Slint.
     callback language-changed(string);
+    // Búsqueda de idioma: Rust filtra la lista de locales.
+    callback lang-search-changed(string);
     // Contraseñas: Rust recalcula el medidor de seguridad.
     callback passwords-changed();
     // Wi‑Fi: Rust conecta con NetworkManager.
@@ -919,7 +858,7 @@ export component AppWindow inherits Window {
     init => { Motion.reduce = root.reduce; root.reduce-changed(root.reduce); }
     changed reduce => { Motion.reduce = root.reduce; root.reduce-changed(root.reduce); }
 
-    out property <bool> in-dlg: State.step >= 1 && State.step <= 9;
+    out property <bool> in-dlg: State.step >= 1 && State.step <= 8;
 
     // Fondo: Rust lo sustituye por el PNG desenfocado en caché; el zoom lento
     // (1.00→1.04 en 30 s, ida y vuelta) sólo corre en el saludo y sin reduce.
@@ -957,9 +896,8 @@ export component AppWindow inherits Window {
             : i == 2 ? Tokens.sysBlue
             : i == 3 ? Tokens.sysCyan
             : i == 5 ? Tokens.sysOrange
-            : i == 6 ? Tokens.sysGray
-            : i == 7 ? Tokens.sysPurple
-            : i == 8 ? Tokens.sysGreen
+            : i == 6 ? Tokens.sysPurple
+            : i == 7 ? Tokens.sysGreen
             : Tokens.sysBlue;
     }
     // Fuente del saludo: Dancing Script 600 (latino); Noto Sans CJK y DejaVu.
@@ -993,12 +931,18 @@ export component AppWindow inherits Window {
             && State.password != ""
             && State.password2 == State.password;
     }
-    // Elige idioma: región y teclado van en paralelo; Rust cambia la traducción.
-    function set-language(i: int) {
-        State.lang-index = i;
-        State.region-index = i;
-        State.kb-index = i;
-        root.language-changed(State.lang-codes[i]);
+    // Acción de «Continuar»/«Aplicar» y de Intro en un campo. En la cuenta, con
+    // datos inválidos no avanza: obliga a mostrar la validación.
+    function continue-clicked() {
+        if (State.step == 8) { root.apply(); }
+        else if (State.step == 4 && !root.cuenta-valid()) { State.form-attempted = true; }
+        else { State.step = root.next-step(State.step); }
+    }
+    // Elige idioma: guarda el código y avisa a Rust para que cambie la
+    // traducción activa (sólo hay .po para es, en y pt; el resto cae a inglés).
+    function set-language(code: string) {
+        State.lang-selected = code;
+        root.language-changed(code);
     }
     // Wi‑Fi: red abierta conecta directa; protegida abre el panel de contraseña.
     function pick-network(i: int) {
@@ -1088,7 +1032,8 @@ export component AppWindow inherits Window {
             width: parent.width;
             height: parent.height;
             background: transparent;
-            visible: State.intro-op > 0.001;
+            // Sin `visible`: si dependiera de intro-op, el fundido de salida se
+            // cortaría al pasar la opacidad por debajo del umbral.
             opacity: State.intro-op;
             animate opacity { duration: Motion.reduce ? 0ms : 700ms; easing: ease-out; }
             VerticalLayout {
@@ -1144,11 +1089,14 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Botón principal + ayuda, a 120 px del pie.
+        // Botón principal + ayuda, a 120 px del pie. Ocultos mientras dura la
+        // presentación: sólo aparecen con el saludo (g-shown).
         Rectangle {
             width: 100%;
             height: 68px;
             y: parent.height - self.height - 120px;
+            opacity: State.g-shown ? 1 : 0;
+            animate opacity { duration: Motion.reduce ? 0ms : 450ms; }
             VerticalLayout {
                 width: 100%;
                 alignment: center;
@@ -1280,42 +1228,62 @@ export component AppWindow inherits Window {
                     animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
                         alignment: start;
-                        spacing: 20px;
+                        spacing: 12px;
                         StepHeader {
                             title: @tr("Idioma y región");
                             subtitle: @tr("Se usará en el sistema, las apps y GNOME.");
                             StepIcon { tint: root.step-tint(1); GlobeIcon { ink: Tokens.onAccent; size: 30px; } }
                         }
+                        SearchField {
+                            placeholder: @tr("Buscar idioma");
+                            text <=> State.lang-search;
+                            edited(t) => { root.lang-search-changed(t); }
+                        }
                         ListCard {
-                            SectionLabel { text: @tr("IDIOMA"); }
-                            for name[i] in State.lang-names : OptionRow {
-                                visible: i < 4 || State.lang-more;
-                                label: name;
+                            SectionLabel { text: @tr("SUGERIDOS"); }
+                            for i in State.suggested-codes.length : OptionRow {
+                                label: State.suggested-names[i];
+                                trailing: State.suggested-codes[i];
                                 check: true;
-                                selected: i == State.lang-index;
+                                selected: State.lang-selected == State.suggested-codes[i];
                                 divider: i > 0;
-                                picked => { root.set-language(i); }
+                                picked => { root.set-language(State.suggested-codes[i]); }
                             }
-                            OptionRow {
-                                label: @tr("Más idiomas…");
-                                label-accent: true;
-                                picked => { State.lang-more = !State.lang-more; }
+                        }
+                        // Lista completa de locales (scroll): nombre nativo + código.
+                        Rectangle {
+                            width: 100%;
+                            height: 104px;
+                            border-radius: Tokens.radiuslg;
+                            background: Tokens.bgSurface;
+                            border-width: 1px;
+                            border-color: Tokens.line;
+                            clip: true;
+                            ListView {
+                                for name[i] in State.lang-names : OptionRow {
+                                    label: name;
+                                    trailing: State.lang-codes[i];
+                                    check: true;
+                                    selected: State.lang-selected == State.lang-codes[i];
+                                    divider: i > 0;
+                                    picked => { root.set-language(State.lang-codes[i]); }
+                                }
                             }
-                            SectionLabel { text: @tr("REGIÓN"); }
-                            OptionRow {
-                                label: @tr("Región y formatos");
-                                sub: @tr("Fechas, horas, moneda y números");
-                                trailing: State.region-names[State.region-index];
-                                chevron: true;
-                                divider: false;
-                                picked => { State.region-index = Math.mod(State.region-index + 1, State.region-names.length); }
-                            }
+                        }
+                        ListCard {
                             OptionRow {
                                 label: @tr("Teclado");
                                 trailing: State.kb-names[State.kb-index];
                                 chevron: true;
+                                divider: false;
                                 picked => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
                             }
+                        }
+                        Text {
+                            text: @tr("El idioma del sistema y de GNOME se aplica al reiniciar. Este asistente cambia ya si hay traducción; si no, sigue en inglés.");
+                            color: Tokens.inkMuted;
+                            font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
+                            wrap: word-wrap;
                         }
                     }
                 }
@@ -1555,8 +1523,10 @@ export component AppWindow inherits Window {
                                         reveal: true;
                                         show <=> State.wifi-show;
                                         text <=> State.wifi-pass;
-                                        error: State.wifi-error;
+                                        invalid: State.wifi-error;
+                                        immediate: true;
                                         help: State.wifi-error ? @tr("La contraseña no es correcta.") : "";
+                                        accepted => { root.wifi-join-now(); }
                                     }
                                     HorizontalLayout {
                                         alignment: end;
@@ -1595,26 +1565,6 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: @tr("Crea tu cuenta");
                             subtitle: @tr("Así te verás al iniciar sesión.");
-                            Rectangle {
-                                width: 64px;
-                                height: 64px;
-                                border-radius: Tokens.radiuslg;
-                                background: Theme.accent;
-                                Rectangle {
-                                    background: @linear-gradient(180deg, Design.highlight-gloss 0%, transparent 60%);
-                                    border-radius: Tokens.radiuslg;
-                                }
-                                Text {
-                                    text: State.initials;
-                                    color: Tokens.onAccent;
-                                    font-size: 24px * (State.a11y-large-text ? 1.25 : 1.0);
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                    width: parent.width;
-                                    height: parent.height;
-                                }
-                            }
                         }
                         // Vista previa del inicio de sesión sobre el wallpaper.
                         Rectangle {
@@ -1648,25 +1598,42 @@ export component AppWindow inherits Window {
                             VerticalLayout {
                                 alignment: center;
                                 spacing: 8px;
-                                Rectangle {
-                                    width: 56px;
-                                    height: 56px;
-                                    border-radius: 28px;
-                                    background: Theme.accent;
-                                    border-width: 2px;
-                                    border-color: rgba(255, 255, 255, 0.9);
-                                    drop-shadow-color: rgba(13, 18, 25, 0.28);
-                                    drop-shadow-blur: 16px;
-                                    drop-shadow-offset-y: 6px;
-                                    Text {
-                                        text: State.initials;
-                                        color: Tokens.onAccent;
-                                        font-size: 20px;
-                                        font-weight: 600;
-                                        horizontal-alignment: center;
-                                        vertical-alignment: center;
-                                        width: parent.width;
-                                        height: parent.height;
+                                // El avatar se centra con un HorizontalLayout: si
+                                // fuera hijo directo del VerticalLayout se
+                                // estiraría a todo el ancho.
+                                HorizontalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 56px;
+                                        height: 56px;
+                                        border-radius: 28px;
+                                        background: Theme.accent;
+                                        border-width: 2px;
+                                        border-color: rgba(255, 255, 255, 0.9);
+                                        drop-shadow-color: rgba(13, 18, 25, 0.28);
+                                        drop-shadow-blur: 16px;
+                                        drop-shadow-offset-y: 6px;
+                                        Text {
+                                            visible: State.initials != "";
+                                            text: State.initials;
+                                            color: Tokens.onAccent;
+                                            font-size: 20px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                            width: parent.width;
+                                            height: parent.height;
+                                        }
+                                        // Sin nombre aún: silueta de persona.
+                                        MiniIcon {
+                                            visible: State.initials == "";
+                                            x: (parent.width - self.width) / 2;
+                                            y: (parent.height - self.height) / 2;
+                                            size: 30px;
+                                            sw: 1.8px;
+                                            ink: Tokens.onAccent;
+                                            commands: "M8 3.4 A2.7 2.7 0 1 0 8 8.8 A2.7 2.7 0 1 0 8 3.4 Z M2.7 14 C3.5 11.5 5.6 10 8 10 C10.4 10 12.5 11.5 13.3 14";
+                                        }
                                     }
                                 }
                                 Text {
@@ -1688,10 +1655,12 @@ export component AppWindow inherits Window {
                             label: @tr("Nombre completo");
                             icon: "M8 8 A2.5 2.5 0 1 0 8 3 A2.5 2.5 0 1 0 8 8 Z M3 13.5 C3.8 11.3 5.7 10 8 10 C10.3 10 12.2 11.3 13 13.5";
                             text <=> State.full-name;
-                            error: State.full-name == "";
+                            invalid: State.full-name == "";
                             edited(t) => { root.name-edited(t); }
+                            accepted => { root.continue-clicked(); }
                         }
                         if !State.username-editing : HorizontalLayout {
+                            alignment: start;
                             padding-left: 2px;
                             spacing: 0px;
                             Text {
@@ -1723,8 +1692,9 @@ export component AppWindow inherits Window {
                             label: @tr("Nombre de usuario");
                             text <=> State.username;
                             help: State.username-error;
-                            error: State.username-error != "";
+                            invalid: State.username-error != "";
                             edited(t) => { root.username-edited(t); }
+                            accepted => { root.continue-clicked(); }
                         }
                         HorizontalLayout {
                             spacing: 12px;
@@ -1734,8 +1704,9 @@ export component AppWindow inherits Window {
                                 icon: "M4.5 7 V5 A2.5 2.5 0 0 1 9.5 5 V7 M3.5 7 H10.5 V13.5 H3.5 Z";
                                 reveal: true;
                                 text <=> State.password;
-                                error: State.password == "";
+                                invalid: State.password == "";
                                 edited(_t) => { root.passwords-changed(); }
+                                accepted => { root.continue-clicked(); }
                             }
                             Field {
                                 label: @tr("Repetir");
@@ -1743,8 +1714,9 @@ export component AppWindow inherits Window {
                                 icon: "M4.5 7 V5 A2.5 2.5 0 0 1 9.5 5 V7 M3.5 7 H10.5 V13.5 H3.5 Z";
                                 reveal: true;
                                 text <=> State.password2;
-                                error: State.password2 != "" && State.password2 != State.password;
+                                invalid: State.password2 != State.password;
                                 edited(_t) => { root.passwords-changed(); }
+                                accepted => { root.continue-clicked(); }
                             }
                         }
                         // Medidor de seguridad: 4 segmentos y su leyenda.
@@ -1843,7 +1815,7 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 6 · Este equipo ---
+                // --- Paso 6 · Apariencia ---
                 p6 := Rectangle {
                     width: 100%;
                     height: 100%;
@@ -1856,90 +1828,9 @@ export component AppWindow inherits Window {
                         alignment: start;
                         spacing: 20px;
                         StepHeader {
-                            title: @tr("Este equipo");
-                            subtitle: @tr("Esto es lo que se instaló. No hay nada que cambiar.");
-                            StepIcon { tint: root.step-tint(6); MonitorIcon { ink: Tokens.onAccent; size: 30px; } }
-                        }
-                        VerticalLayout {
-                            alignment: start;
-                            spacing: 12px;
-                            InfoTile {
-                                caption: @tr("Procesador");
-                                value: State.machine-cpu;
-                                icon: "M4 4 H12 V12 H4 Z M6.5 1.5 V3.5 M9.5 1.5 V3.5 M6.5 12.5 V14.5 M9.5 12.5 V14.5 M1.5 6.5 H3.5 M1.5 9.5 H3.5 M12.5 6.5 H14.5 M12.5 9.5 H14.5";
-                                tint: Tokens.sysBlue;
-                            }
-                            HorizontalLayout {
-                                spacing: 12px;
-                                InfoTile {
-                                    caption: @tr("Modelo");
-                                    value: State.machine-model;
-                                    icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
-                                    tint: Tokens.sysGray;
-                                }
-                                InfoTile {
-                                    caption: @tr("Memoria");
-                                    value: State.machine-ram;
-                                    icon: "M1.5 4.5 H14.5 V10.5 H1.5 Z M4 10.5 V12.5 M7 10.5 V12.5 M10 10.5 V12.5 M13 10.5 V12.5";
-                                    tint: Tokens.sysGreen;
-                                }
-                            }
-                            InfoTile {
-                                caption: @tr("Disco");
-                                value: State.machine-disk;
-                                extra: State.machine-disk-used;
-                                icon: "M2.5 4 A5.5 2 0 1 0 13.5 4 A5.5 2 0 1 0 2.5 4 Z M2.5 4 V12 C2.5 13.1 5 14 8 14 C11 14 13.5 13.1 13.5 12 V4 M2.5 8 C2.5 9.1 5 10 8 10 C11 10 13.5 9.1 13.5 8";
-                                tint: Tokens.sysCyan;
-                                progress: true;
-                                fill: State.machine-disk-fill;
-                            }
-                            Rectangle {
-                                width: 100%;
-                                height: 40px;
-                                border-radius: Tokens.radiuslg;
-                                background: Tokens.bgSurface;
-                                border-width: 1px;
-                                border-color: Tokens.line;
-                                Text {
-                                    x: 14px;
-                                    text: @tr("Nombre del equipo");
-                                    color: Tokens.inkStrong;
-                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
-                                    font-weight: 500;
-                                    vertical-alignment: center;
-                                    height: parent.height;
-                                }
-                                Text {
-                                    x: parent.width - self.width - 14px;
-                                    text: State.machine-host;
-                                    color: Tokens.inkMuted;
-                                    font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
-                                    vertical-alignment: center;
-                                    height: parent.height;
-                                    wrap: no-wrap;
-                                    overflow: elide;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- Paso 7 · Apariencia ---
-                p7 := Rectangle {
-                    width: 100%;
-                    height: 100%;
-                    x: root.off(7);
-                    opacity: root.op(7);
-                    visible: self.opacity > 0.001;
-                    animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
-                    animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
-                    VerticalLayout {
-                        alignment: start;
-                        spacing: 20px;
-                        StepHeader {
                             title: @tr("Elige tu aspecto");
                             subtitle: @tr("Se aplicará a GNOME. Puedes cambiarlo después en Ajustes.");
-                            StepIcon { tint: root.step-tint(7); ContrastIcon { ink: Tokens.onAccent; size: 30px; } }
+                            StepIcon { tint: root.step-tint(6); ContrastIcon { ink: Tokens.onAccent; size: 30px; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -1981,12 +1872,12 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 8 · Git ---
-                p8 := Rectangle {
+                // --- Paso 7 · Git ---
+                p7 := Rectangle {
                     width: 100%;
                     height: 100%;
-                    x: root.off(8);
-                    opacity: root.op(8);
+                    x: root.off(7);
+                    opacity: root.op(7);
                     visible: self.opacity > 0.001;
                     animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
@@ -1996,7 +1887,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: "Git";
                             subtitle: @tr("Opcional. Puedes configurarlo después.");
-                            StepIcon { tint: root.step-tint(8); GitIcon { ink: Tokens.onAccent; size: 30px; } }
+                            StepIcon { tint: root.step-tint(7); GitIcon { ink: Tokens.onAccent; size: 30px; } }
                         }
                         VerticalLayout {
                             alignment: start;
@@ -2028,12 +1919,12 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // --- Paso 9 · Todo listo ---
-                p9 := Rectangle {
+                // --- Paso 8 · Todo listo ---
+                p8 := Rectangle {
                     width: 100%;
                     height: 100%;
-                    x: root.off(9);
-                    opacity: root.op(9);
+                    x: root.off(8);
+                    opacity: root.op(8);
                     visible: self.opacity > 0.001;
                     animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
@@ -2043,7 +1934,7 @@ export component AppWindow inherits Window {
                         StepHeader {
                             title: @tr("Todo listo");
                             subtitle: @tr("Revisa antes de aplicar. Puedes volver para cambiar algo.");
-                            StepIcon { tint: root.step-tint(9); CheckIcon { ink: Tokens.onAccent; size: 30px; } }
+                            StepIcon { tint: root.step-tint(8); CheckIcon { ink: Tokens.onAccent; size: 30px; } }
                         }
                         ListCard {
                             SectionLabel { text: @tr("CUENTA"); }
@@ -2052,14 +1943,9 @@ export component AppWindow inherits Window {
                                 icon: "M8 8 A2.5 2.5 0 1 0 8 3 A2.5 2.5 0 1 0 8 8 Z M3 13.5 C3.8 11.3 5.7 10 8 10 C10.3 10 12.2 11.3 13 13.5";
                                 tint: Tokens.sysBlue;
                             }
-                            SummaryRow {
-                                k: @tr("Equipo"); v: State.machine-host;
-                                icon: "M2.5 3 H13.5 V10.5 H2.5 Z M1 13 H15";
-                                tint: Tokens.sysGray;
-                            }
                             SectionLabel { text: @tr("REGIÓN"); }
                             SummaryRow {
-                                k: @tr("Idioma"); v: State.lang-names[State.lang-index]; divider: false;
+                                k: @tr("Idioma"); v: State.lang-selected-name; divider: false;
                                 icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M1.5 8 H14.5 M8 1.5 C9.8 3.3 10.6 5.5 10.6 8 C10.6 10.5 9.8 12.7 8 14.5 C6.2 12.7 5.4 10.5 5.4 8 C5.4 5.5 6.2 3.3 8 1.5";
                                 tint: Tokens.sysPurple;
                             }
@@ -2097,15 +1983,15 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Puntos de progreso (9), centrados.
+            // Puntos de progreso (8), centrados.
             HorizontalLayout {
                 width: 100%;
                 height: 6px;
                 alignment: center;
                 spacing: 6px;
                 accessible-role: none;
-                accessible-label: @tr("Paso") + " " + State.step + " " + @tr("de") + " 9";
-                for di in 9 : Rectangle {
+                accessible-label: @tr("Paso") + " " + State.step + " " + @tr("de") + " 8";
+                for di in 8 : Rectangle {
                     height: 6px;
                     width: (di + 1) == State.step ? 18px : 6px;
                     border-radius: 3px;
@@ -2126,13 +2012,9 @@ export component AppWindow inherits Window {
                     clicked => { if (State.step > 1) { State.step = root.prev-step(State.step); } }
                 }
                 Button {
-                    label: State.step == 9 ? @tr("Aplicar") : @tr("Continuar");
+                    label: State.step == 8 ? @tr("Aplicar") : @tr("Continuar");
                     primary: true;
-                    enabled: State.step != 4 || root.cuenta-valid();
-                    clicked => {
-                        if (State.step == 9) { root.apply(); }
-                        else { State.step = root.next-step(State.step); }
-                    }
+                    clicked => { root.continue-clicked(); }
                 }
             }
         }
@@ -2154,9 +2036,9 @@ export component AppWindow inherits Window {
     prepare := Rectangle {
         width: parent.width;
         height: parent.height;
-        opacity: State.step == 10 ? 1 : 0;
-        transform-scale-x: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
-        transform-scale-y: Motion.reduce ? 100% : (State.step == 10 ? 100% : 103%);
+        opacity: State.step == 9 ? 1 : 0;
+        transform-scale-x: Motion.reduce ? 100% : (State.step == 9 ? 100% : 103%);
+        transform-scale-y: Motion.reduce ? 100% : (State.step == 9 ? 100% : 103%);
         visible: self.opacity > 0.001;
         animate opacity { duration: Motion.slow; easing: ease-out; }
         animate transform-scale-x { duration: Motion.slow; easing: ease-out; }
@@ -2164,24 +2046,26 @@ export component AppWindow inherits Window {
 
         // 0 mientras prepara; 1 al aparecer el error (funde spinner ↔ «!»).
         property <float> err: State.apply-error == "" ? 0.0 : 1.0;
-        // Texto de fase con fundido: sale, cambia y vuelve a entrar.
-        property <string> status-text: "";
+        // Texto de fase con fundido: sale, cambia y vuelve a entrar. `shown-phase`
+        // va con binding a `status-label` para que @tr se reevalúe con la
+        // traducción activa (un valor guardado en `init` no se traduce).
+        property <int> shown-phase: 0;
+        property <string> status-text: root.status-label(prepare.shown-phase);
         property <float> status-op: 1.0;
         // Alias local para poder usar `changed` (no admite nombres cualificados).
         property <int> phase: State.prep-phase;
-        init => { prepare.status-text = root.status-label(prepare.phase); }
         status-timer := Timer {
             interval: Motion.reduce ? 1ms : 250ms;
             running: false;
             triggered => {
-                prepare.status-text = root.status-label(prepare.phase);
+                prepare.shown-phase = prepare.phase;
                 prepare.status-op = 1.0;
                 self.running = false;
             }
         }
         changed phase => {
             if (Motion.reduce) {
-                prepare.status-text = root.status-label(prepare.phase);
+                prepare.shown-phase = prepare.phase;
                 prepare.status-op = 1.0;
             } else {
                 prepare.status-op = 0.0;
@@ -2206,7 +2090,7 @@ export component AppWindow inherits Window {
                         sw: 2.2px;
                         ink: Tokens.onAccent;
                         opacity: (!Motion.reduce && prepare.err == 0) ? 1 : 0;
-                        transform-rotation: (State.step == 10 && State.apply-error == "" && !Motion.reduce)
+                        transform-rotation: (State.step == 9 && State.apply-error == "" && !Motion.reduce)
                             ? mod(animation-tick(), 900ms) / 900ms * 360deg
                             : 0deg;
                         animate opacity { duration: Motion.base; }

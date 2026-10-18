@@ -255,7 +255,9 @@
                     subdir = "setup-gui";
                     description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                     runtimeInputs = [ setups.${system} ];
-                    extra = {
+                    # Tablas que `nixdots-lists` embebe (locales) para la lista
+                    # de idiomas del asistente.
+                    extra = (tablesEnv pkgs) // {
                         nativeBuildInputs = [ pkgs.pkg-config pkgs.makeWrapper ];
                         buildInputs = with pkgs; [
                             fontconfig

@@ -318,3 +318,12 @@ msgstr "automático"
 
 msgid "de"
 msgstr "de"
+
+msgid "Buscar idioma"
+msgstr "Buscar idioma"
+
+msgid "SUGERIDOS"
+msgstr "SUGERIDOS"
+
+msgid "El idioma del sistema y de GNOME se aplica al reiniciar. Este asistente cambia ya si hay traducción; si no, sigue en inglés."
+msgstr "O idioma do sistema e do GNOME é aplicado ao reiniciar. Este assistente muda já se houver tradução; caso contrário, continua em inglês."
