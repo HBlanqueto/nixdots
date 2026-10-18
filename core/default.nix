@@ -5,7 +5,6 @@
   # come from machine.json/facter.json (see lib/data.nix).
   imports = [
     inputs.impermanence.nixosModules.impermanence
-    inputs.home.nixosModules.home-manager
 
     ./nix.nix
     ./persistence.nix
@@ -20,6 +19,5 @@
     ./console.nix
     ./fonts.nix
     ./iphone-tethering.nix
-    ./home.nix
   ];
 }

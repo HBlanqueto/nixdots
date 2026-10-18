@@ -1,11 +1,11 @@
-{ data, lib, ... }:
+{ userData, osConfig, lib, ... }:
 
 let
-    a = data.settings.a11y or { };
+    a = userData.a11y or { };
     on = k: a.${k} or false;
-    timeZoneAuto = data.settings.timeZoneAuto or false;
-    colorScheme = data.settings.colorScheme or null;
-    accentColor = data.settings.accentColor or null;
+    timeZoneAuto = osConfig.services.automatic-timezoned.enable;
+    colorScheme = userData.colorScheme or null;
+    accentColor = userData.accentColor or null;
     # Ids válidos de accent-color de GNOME: «neptunia» no se escribe.
     gnomeAccents = [
         "blue"

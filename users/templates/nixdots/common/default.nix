@@ -3,7 +3,7 @@
 {
     imports = [
         ./apps.nix
-        ./style.nix
+        ../../style.nix
         ./ai.nix
     ];
 
@@ -22,7 +22,7 @@
         };
 
         file = {
-            ".config/chime/chime.wav".source = ../../../share/chime.wav;
+            ".config/chime/chime.wav".source = ../../../../share/chime.wav;
         };
     };
 

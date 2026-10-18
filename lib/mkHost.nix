@@ -27,6 +27,7 @@ inputs.nixpkgs.lib.nixosSystem {
         })
         ../core
         ../core/desktop
+        ../users
         # Sin evaluación impura no se puede leer user.json; abortar en vez de
         # tratar el host como primer arranque (que borraría la cuenta). Las
         # salidas puras de CI (requireImpure = false) se saltan la assertion: no

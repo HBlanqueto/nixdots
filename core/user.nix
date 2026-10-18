@@ -1,35 +1,28 @@
+# Sistema: locale, zona, teclado, consola y ajustes de cuenta independientes
+# del usuario. Los datos de sistema salen de settings.nix (defaults) y
+# machine.json (manda); las cuentas concretas las crea users/default.nix.
 { config, lib, pkgs, data, ... }:
 
 let
-    # The installed system checks the final path; the installer evaluates from
-    # the ISO, so lib/data.nix points NIXDOTS_ROOT at the target (e.g. "/mnt"),
-    # where the file lives. On a normal system the variable is unset ("").
+    # La ruta final la comprueba el sistema instalado; el instalador evalúa
+    # desde el ISO, así que lib/data.nix apunta NIXDOTS_ROOT al destino.
     inherit (data) root;
 
-    # Todo lo personal sale de data.settings (settings.nix + user.json). En las
-    # variantes de CI no hay user.json, así que los campos personales caen a null.
     inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;
-    inherit (data) username;
-    userdescription = data.settings.userdescription or null;
-    # Región y formatos, zona horaria automática y accesibilidad.
     region = data.settings.region or null;
     timeZoneAuto = data.settings.timeZoneAuto or false;
-    autoLogin = data.settings.autoLogin or false;
-    a11y = data.settings.a11y or { };
 
-    # El nombre visible puede traer `\` o `"`; hay que escaparlos antes de
-    # escribirlo entre comillas en /etc/machine-info.
-    escapedPretty =
-        lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] (data.settings.prettyHostName or "");
+    # Entrada automática: un único usuario, de machine.json.
+    autoLoginUser = data.machine.autoLoginUser or null;
 
-    # Derivado del usuario: no se guarda en ningún archivo.
-    hashedPasswordFile =
-        if username == null then null else "/persist/secrets/${username}.hash";
+    # El nombre visible puede traer `\` o `"`; hay que escaparlos.
+    escapedPretty = lib.replaceStrings
+        [ "\\" "\"" ]
+        [ "\\\\" "\\\"" ]
+        (data.machine.prettyHostName or "");
 
-    # Every declared normal user must point at an existing password hash file.
-    # With mutableUsers = false a missing file leaves the account without a
-    # password on activation. Evaluated with --impure so the real path can be
-    # inspected.
+    # Toda cuenta declarada debe apuntar a un hash existente: con mutableUsers =
+    # false, un archivo ausente deja la cuenta sin contraseña al activar.
     normalUsers = builtins.filter (u: u.isNormalUser) (builtins.attrValues config.users.users);
     missingHashes = builtins.filter
         (u: (u.hashedPasswordFile or null) != null && !(data.exists u.hashedPasswordFile))
@@ -39,8 +32,6 @@ in
 {
     assertions = [
         {
-            # Pure evaluation (nix flake check, the ISO's own build) has no
-            # getEnv and no filesystem access, so skip the check there.
             assertion = !(builtins ? currentSystem) || missingHashes == [ ];
             message =
                 "Falta el archivo de contraseña de: "
@@ -50,23 +41,16 @@ in
         }
     ];
 
-    time = {
-        # Con la zona automática, timeZone queda sin definir (lo pone geoclue).
-        timeZone = lib.mkIf (!timeZoneAuto) timeZone;
-    };
-
+    time.timeZone = lib.mkIf (!timeZoneAuto) timeZone;
     services.automatic-timezoned.enable = timeZoneAuto;
 
     i18n = {
         inherit defaultLocale;
-        # Solo el idioma elegido (y en_US y C como respaldo); generar todos los
-        # locales pesa mucho. El sufijo `/UTF-8` es el formato de la opción.
         supportedLocales = lib.unique [
             "${defaultLocale}/UTF-8"
             "en_US.UTF-8/UTF-8"
             "C.UTF-8/UTF-8"
         ];
-        # Región y formatos sólo si difiere del idioma base.
         extraLocaleSettings = lib.mkIf (region != null && region != defaultLocale) {
             LC_TIME = region;
             LC_MONETARY = region;
@@ -78,33 +62,18 @@ in
         };
     };
 
-    # dconf para los ajustes de accesibilidad de GNOME (home-manager los escribe).
     programs.dconf.enable = true;
 
-    # Entrada automática al escritorio si el asistente la pidió.
-    services.displayManager.autoLogin = lib.mkIf (autoLogin && username != null) {
+    services.displayManager.autoLogin = lib.mkIf (autoLoginUser != null) {
         enable = true;
-        user = username;
+        user = autoLoginUser;
     };
 
-    networking = {
-        inherit (data) hostName;
-    };
+    networking.hostName = data.hostName;
 
     users = {
         defaultUserShell = pkgs.fish;
         mutableUsers = false;
-    } // lib.optionalAttrs (username != null) {
-        users.${username} = {
-            isNormalUser = true;
-            # Fijo para que el asistente (que corre antes de existir la cuenta)
-            # pueda hacer el chown del repo a 1000:users. Ver setup/src/main.rs.
-            uid = 1000;
-            description = userdescription;
-            extraGroups = [ "networkmanager" "wheel" "video" ];
-            createHome = true;
-            inherit hashedPasswordFile;
-        };
     };
 
     services.xserver.xkb = {
@@ -112,47 +81,31 @@ in
         variant = keyboardVariant;
     };
 
-    programs = {
-        fish = {
-            enable = true;
-        };
-    };
+    programs.fish.enable = true;
 
     environment = {
         binsh = "${pkgs.dash}/bin/dash";
 
-        # El nombre visible de `hostnamectl` (/etc/machine-info). Se declara en
-        # la config para que sobreviva al rollback de impermanence. Los
-        # settings.nix antiguos no tienen prettyHostName, y entonces no se
-        # escribe el archivo.
-        etc."machine-info" = lib.mkIf (data.settings ? prettyHostName) {
+        # El nombre visible de `hostnamectl` (/etc/machine-info), de machine.json.
+        etc."machine-info" = lib.mkIf (data.machine ? prettyHostName) {
             text = ''
                 PRETTY_HOSTNAME="${escapedPretty}"
             '';
         };
 
-        # Cross-platform CLI tools only. Desktop/GPU tools live in
-        # core/desktop, laptop-only tools in core/hardware-detect.nix.
+        # Herramientas de sistema. Las de escritorio viven en core/desktop y las
+        # de portátil en core/hardware-detect.nix; las personales, en la
+        # plantilla del usuario.
         systemPackages = with pkgs; [
             comma
 
             wget
             curl
-            luajit
-            lua51Packages.luacheck
-            poppler-utils
 
             neovim
             unzip
             tree
-
-            fastfetch
-            eza
-            mpc
-            ffmpeg
             jq
-            gh
-            python3
-        ] ++ lib.optional (a11y.screenReader or false) pkgs.orca;
+        ];
     };
 }

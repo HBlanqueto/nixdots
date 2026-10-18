@@ -68,10 +68,20 @@ actualiza este archivo en el mismo cambio.
 
 ## Componentes
 
-- `core/` — capa de sistema (hardware, boot, consola, nix, seguridad,
-  filesystems/rollback/persistence, servicios, GNOME, fuentes, extras y
-  first-boot); `modules/home/` — home-manager (fish, wezterm, starship, yazi,
-  opencode…), aún en `modules/` hasta la fase de plantillas.
+- Tres capas:
+  - `core/` — sistema (hardware, boot, consola, nix, seguridad,
+    filesystems/rollback/persistence, servicios, GNOME, fuentes, extras y
+    first-boot). No referencia a ningún usuario concreto ni rutas de `/home`.
+  - `users/` — cuentas: `users/default.nix` lee `data.users` y genera
+    `users.users.<nombre>` (`hashedPasswordFile` derivado, `wheel` solo si
+    `admin`) y cablea home-manager desde `users/templates/<template>`.
+    `nixdots.users.homeManager.enable` (default true) lo desactiva en la VM de
+    primer arranque.
+  - `users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
+    `minimal` (fish, starship, git y el tema). Reciben `userData` (su propio
+    usuario) por `_module.args`; `stateVersion` y `timeZoneAuto` salen de
+    `osConfig`. El personal opcional va en `/persist/nixdots/users/<nombre>/home.nix`.
+- `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor

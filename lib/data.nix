@@ -57,20 +57,20 @@ let
             fullName = legacy.fullName or legacy.userdescription or "";
             admin = true;
             template = "nixdots";
-        };
+        } // (if legacy ? gitName && legacy ? gitEmail then {
+            git = { name = legacy.gitName; email = legacy.gitEmail; };
+        } else { });
     } else { };
 
     users = if usersFromDir != { } then usersFromDir else legacyUsers;
     hasUsers = users != { };
 
-    # Compat temporal (se retira en la fase de cuentas): mientras los módulos
-    # lean `settings`, los campos personales del único usuario siguen ahí.
     userNames = builtins.attrNames users;
     soleUser = if builtins.length userNames == 1 then users.${builtins.head userNames} else null;
 
     # settings.nix son los valores del sistema por defecto; machine.json manda
-    # en las claves que define.
-    settings = import ../settings.nix // machine // (if soleUser == null then { } else soleUser);
+    # en las claves que define. Los datos de cada cuenta viven en `users`.
+    settings = import ../settings.nix // machine;
 
     facterFile = "${persist}/facter.json";
 

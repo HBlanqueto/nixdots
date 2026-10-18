@@ -1,15 +1,12 @@
-{ pkgs, lib, inputs, data, theme, ... }:
+{ pkgs, lib, inputs, userData, osConfig, theme, ... }:
 
 let
-    # Los campos personales no están en las variantes de CI (sin user.json).
-    stateVersion = data.settings.stateVersion;
-    gitName = data.settings.gitName or null;
-    gitEmail = data.settings.gitEmail or null;
+    git = userData.git or null;
 
     yaziConfig = import ./config/yazi { inherit theme; };
 
     # rgba() a partir del rgb de la paleta (misma fuente que la consola).
-    palette = import ../../../lib/palette.nix { inherit theme; };
+    palette = import ../../../../lib/palette.nix { inherit theme; };
     rgba = hex: alpha: "rgba(${palette.rgb hex},${alpha})";
 
     # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
@@ -100,7 +97,7 @@ in
     };
 
     home = {
-        inherit stateVersion;
+        stateVersion = osConfig.system.stateVersion;
 
         file = {
             ".config/Code/User/settings.json".text = builtins.toJSON vscodeSettings;
@@ -151,6 +148,17 @@ in
         };
 
         packages = with pkgs; [
+            # Herramientas de terminal que antes vivían en systemPackages.
+            fastfetch
+            eza
+            luajit
+            lua51Packages.luacheck
+            mpc
+            ffmpeg
+            poppler-utils
+            gh
+            python3
+
             cava
             firefox
             trezor-suite
@@ -170,7 +178,7 @@ in
         ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             # OnlyOffice ships no aarch64 build in nixpkgs.
             onlyoffice-desktopeditors
-        ];
+        ] ++ lib.optional (userData.a11y.screenReader or false) pkgs.orca;
     };
 
     programs = {
@@ -187,14 +195,13 @@ in
             });
         };
 
-        # Only configure git when the installer collected a name and email
-        # (settings.nix uses `null` when the git step is skipped).
-        git = lib.mkIf (gitName != null && gitEmail != null) {
+        # Solo se configura git si el asistente recogió nombre y correo.
+        git = lib.mkIf (git != null) {
             enable = true;
             settings = {
                 user = {
-                    name = gitName;
-                    email = gitEmail;
+                    name = git.name;
+                    email = git.email;
                 };
             };
         };

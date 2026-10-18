@@ -63,7 +63,7 @@
             mkGeneric = { system, requireImpure ? true, data }: mkHost {
                 inherit system requireImpure data;
                 modules = genericModules
-                    ++ nixpkgs.lib.optional (data.username == null) {
+                    ++ nixpkgs.lib.optional (!data.hasUsers) {
                         # Las salidas sin cuenta (CI, o un equipo sin user.json)
                         # satisfacen la assertion de NixOS "ningún usuario con
                         # contraseña". Las de CI nunca se arrancan.
@@ -99,6 +99,10 @@
                     ./core/console.nix
                     ./core/first-boot.nix
                     ./core/user.nix
+                    # Cuentas desde users/*.json, pero sin plantilla de
+                    # home-manager: la VM solo comprueba el primer arranque.
+                    ./users/default.nix
+                    { nixdots.users.homeManager.enable = false; }
                     { system.stateVersion = data.settings.stateVersion; }
                     # Solo en la VM de prueba: root con contraseña para poder
                     # depurar desde tty2. Nunca en los hosts reales.
