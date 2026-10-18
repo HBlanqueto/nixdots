@@ -385,8 +385,11 @@
                     pkgs.callPackage ./packages/xnu-console-font.nix { };
 
                 # Sesión opcional Otto (compositor Wayland); el módulo la
-                # oferece en GDM. Mismo paquete que expone el overlay.
+                # ofrece en GDM. Mismo paquete que expone el overlay (fuentes de
+                # nongio); otto-mirror, el mismo desde las copias privadas de
+                # HBlanqueto (necesita el token del nix-daemon, ver core/nix.nix).
                 otto = pkgs.callPackage ./packages/otto.nix { };
+                otto-mirror = pkgs.callPackage ./packages/otto.nix { useMirror = true; };
             });
 
             apps = forAllSystems ({ system, ... }: {
@@ -441,7 +444,8 @@
                     ];
                 in
                 {
-                    # Shell para compilar Otto (nongio/otto): toolchain Rust
+                    # Shell para compilar Otto (copia de trabajo en ~/src/otto,
+                    # desde HBlanqueto/otto; upstream nongio/otto): toolchain Rust
                     # estable de nixpkgs (1.98.x ≥ 1.97 que fija rust-toolchain),
                     # clang/libclang para bindgen y gn/ninja/python para que
                     # skia-safe pueda construir Skia desde fuentes si lo pide.
