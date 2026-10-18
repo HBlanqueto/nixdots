@@ -34,7 +34,8 @@ actualiza este archivo en el mismo cambio.
     keyboardLayout/Variant, autoLoginUser); gana el último en escribir. La
     escritura fusiona sobre el JSON existente. `espUuid` es el UUID de la ESP de
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
-    en ese caso, y por label `BOOT` en el resto.
+    en ese caso, y por label `BOOT` en el resto. `otto` (bool, opcional) fuerza
+    la sesión Otto sobre la detección de hardware.
   - `facter.json` — informe de hardware.
   - `users/<usuario>.json` — una cuenta por archivo, lo escribe el asistente
     (username, fullName, admin, template, personalConfig, git, colorScheme,
@@ -95,6 +96,12 @@ actualiza este archivo en el mismo cambio.
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
+- Otto (sesión opcional, `nixdots.desktop.otto`): `packages/otto.nix` fija
+  Otto, layers y el fork de smithay en `pins` (rev + hash NAR). Los revs de
+  layers y smithay no son el HEAD de sus forks: los fija el Cargo.lock de Otto,
+  y `tools/otto-pins.sh` los relee de ahí (hash vía `nix flake prefetch`, cae a
+  nongio sin acceso) y reescribe `pins`. `"otto"` en machine.json fuerza o
+  apaga la sesión; sin token de GitHub se usan las fuentes de nongio.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
