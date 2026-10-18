@@ -336,7 +336,12 @@ rustPlatform.buildRustPackage.override { stdenv = clangStdenv; } {
 
     disallowedReferences = [ skia-source ];
 
-    passthru.providedSessions = [ "otto" ];
+    passthru = {
+        providedSessions = [ "otto" ];
+        # Las tres fuentes, para comprobar una copia sin compilar:
+        #   nix build .#otto-mirror.sources.layers --rebuild
+        sources = { otto = src; inherit layers smithay; };
+    };
 
     meta = {
         description = "Wayland compositor with a macOS-like desktop (Otto)";
