@@ -385,11 +385,9 @@
                     pkgs.callPackage ./packages/xnu-console-font.nix { };
 
                 # Sesión opcional Otto (compositor Wayland); el módulo la
-                # ofrece en GDM. Mismo paquete que expone el overlay (fuentes de
-                # nongio); otto-mirror, el mismo desde las copias privadas de
+                # ofrece en GDM. Compilado desde los forks privados de
                 # HBlanqueto (necesita el token del nix-daemon, ver core/nix.nix).
                 otto = pkgs.callPackage ./packages/otto.nix { };
-                otto-mirror = pkgs.callPackage ./packages/otto.nix { useMirror = true; };
             });
 
             apps = forAllSystems ({ system, ... }: {
