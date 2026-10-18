@@ -401,8 +401,77 @@
             # `nix fmt`: el formateador oficial (RFC 166).
             formatter = forAllSystems ({ pkgs, ... }: pkgs.nixfmt);
 
-            devShells = forAllSystems ({ pkgs, ... }:
+            devShells = forAllSystems ({ system, pkgs, ... }:
+                let
+                    # Librerías nativas que Otto enlaza en tiempo de compilación
+                    # (Wayland, DRM/GBM, entrada, Vulkan, texto, PipeWire…). Se
+                    # usan a la vez como buildInputs y como rutas de búsqueda, así
+                    # que viven en una lista común.
+                    ottoDeps = with pkgs; [
+                        wayland
+                        wayland-protocols
+                        libxkbcommon
+                        libinput
+                        systemd
+                        dbus
+                        seatd
+                        mesa
+                        libgbm
+                        libglvnd
+                        libdrm
+                        pixman
+                        # smithay fija la crate libdisplay-info 0.3, que exige
+                        # libdisplay-info < 0.4: nixpkgs ya trae 0.4 y el attr
+                        # versionado 0.3.
+                        libdisplay-info_0_3
+                        vulkan-loader
+                        vulkan-headers
+                        fontconfig
+                        freetype
+                        pipewire
+                        xwayland
+                        linux-pam
+                        polkit
+                        gst_all_1.gstreamer
+                        gst_all_1.gst-plugins-base
+                    ];
+                in
                 {
+                    # Shell para compilar Otto (nongio/otto): toolchain Rust
+                    # estable de nixpkgs (1.98.x ≥ 1.97 que fija rust-toolchain),
+                    # clang/libclang para bindgen y gn/ninja/python para que
+                    # skia-safe pueda construir Skia desde fuentes si lo pide.
+                    # `cargo build --release` usa los binarios precompilados de
+                    # skia-safe-si la descarga funciona (ver FORCE_SKIA_BUILD).
+                    otto = pkgs.mkShell {
+                        packages = with pkgs; [
+                            cargo
+                            rustc
+                            rustfmt
+                            rust-analyzer
+                            clippy
+                            pkg-config
+                            cmake
+                            ninja
+                            gn
+                            python3
+                            clang
+                            llvmPackages.libclang
+                        ] ++ ottoDeps;
+
+                        LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+                        # Skia desde fuentes, si hiciera falta: nixpkgs trae las
+                        # herramientas pero no la versión de Skia que espera
+                        # skia-safe; SKIA_SOURCE_DIR apuntaría a ella.
+                        SKIA_GN_COMMAND = "${pkgs.gn}/bin/gn";
+                        SKIA_NINJA_COMMAND = "${pkgs.ninja}/bin/ninja";
+
+                        # winit/EGL/Wayland cargan con dlopen, que no mira el
+                        # PATH: hay que dejar las librerías en el loader path.
+                        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath ottoDeps;
+                        PKG_CONFIG_PATH = pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" ottoDeps;
+                    };
+
                     installer = pkgs.mkShell ((tablesEnv pkgs) // {
                         packages = with pkgs; [
                             cargo
