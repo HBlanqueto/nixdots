@@ -39,6 +39,9 @@ actualiza este archivo en el mismo cambio.
   - `users/<usuario>.json` — una cuenta por archivo, lo escribe el asistente
     (username, fullName, admin, template, personalConfig, git, colorScheme,
     accentColor y a11y). El nombre del archivo debe coincidir con `username`.
+  - `users/<usuario>/home.nix` — config personal opcional, se importa encima de
+    la plantilla si `personalConfig` y el usuario es admin. Debe ser de **root**:
+    el rebuild evalúa como root y el archivo podría leer `/persist/secrets`.
   - `user.json` — **respaldo transitorio**: si no hay `users/*.json`, `data.nix`
     lo lee como un único usuario `admin = true` y `template = "nixdots"`. Se
     retira cuando exista el comando de migración.

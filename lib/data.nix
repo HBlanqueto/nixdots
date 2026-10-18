@@ -39,7 +39,14 @@ let
         in
         {
             inherit name;
-            value = value // { username = value.username or name; };
+            value = value // {
+                username = value.username or name;
+                # Ruta del home.nix personal, o null. Debe ser de root: el
+                # rebuild evalúa como root y el archivo podría leer secretos.
+                personalHome =
+                    let p = "${usersDir}/${name}/home.nix";
+                    in if impure && builtins.pathExists p then p else null;
+            };
         }
     ) userFiles);
     mismatched = builtins.filter
@@ -59,7 +66,7 @@ let
             template = "nixdots";
         } // (if legacy ? gitName && legacy ? gitEmail then {
             git = { name = legacy.gitName; email = legacy.gitEmail; };
-        } else { });
+        } else { }) // { personalHome = null; };
     } else { };
 
     users = if usersFromDir != { } then usersFromDir else legacyUsers;

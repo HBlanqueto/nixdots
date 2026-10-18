@@ -24,12 +24,25 @@ let
         hashedPasswordFile = "/persist/secrets/${name}.hash";
     };
 
+    # La config personal solo se importa si el usuario es admin (un no-admin
+    # no debe poder leer /persist/secrets). El archivo debe ser de root.
+    personal = u:
+        lib.optional
+            ((u.admin or false) && (u.personalConfig or false) && u.personalHome != null)
+            u.personalHome;
+
     mkHome = _: u: {
         imports = [
             (templates.${u.template} or (throw "nixdots: plantilla desconocida '${u.template}'"))
-        ];
+        ] ++ personal u;
         _module.args.userData = u;
     };
+
+    ignoredPersonal = lib.mapAttrsToList
+        (name: u:
+            lib.optional ((u.personalConfig or false) && !(u.admin or false))
+                "nixdots: ${name} tiene personalConfig pero no es admin; se ignora")
+        data.users;
 in
 
 {
@@ -45,6 +58,8 @@ in
     imports = [ inputs.home.nixosModules.home-manager ];
 
     config = {
+        warnings = lib.flatten ignoredPersonal;
+
         users.users = lib.mapAttrs mkUser data.users;
 
         home-manager = lib.mkIf cfg.homeManager.enable {
