@@ -383,6 +383,10 @@
                 # The macOS XNU console font, as PSF2 (kernel and kmscon).
                 xnu-console-font =
                     pkgs.callPackage ./packages/xnu-console-font.nix { };
+
+                # Sesión opcional Otto (compositor Wayland); el módulo la
+                # oferece en GDM. Mismo paquete que expone el overlay.
+                otto = pkgs.callPackage ./packages/otto.nix { };
             });
 
             apps = forAllSystems ({ system, ... }: {
