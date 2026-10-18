@@ -205,6 +205,8 @@
                                 ./LICENSE
                                 # El test de tools/installer lee la paleta del tema.
                                 ./share/themes/neptunia.nix
+                                # Import de tools/setup-gui/ui/theme.slint.
+                                ./share/design/neptunia/generated/neptunia.slint
                             ];
                         };
                         # buildAndTestSubdir makes the hooks run cargo inside the
