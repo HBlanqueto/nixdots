@@ -23,18 +23,16 @@
             dates = "weekly";
             options = "--delete-older-than 14d";
         };
-    };
 
-    # Credenciales para las descargas de repos privados de GitHub
-    # (fetchFromGitHub con `private = true`, p. ej. las copias de Otto en
-    # core/desktop/otto.nix). Las descarga el daemon, así que las variables van
-    # en su entorno, fuera del repo, en un archivo de root 0600:
-    #   NIX_GITHUB_PRIVATE_USERNAME=HBlanqueto
-    #   NIX_GITHUB_PRIVATE_PASSWORD=github_pat_…
-    # El «-» lo hace opcional: sin el archivo el daemon arranca igual.
-    systemd.services.nix-daemon.serviceConfig.EnvironmentFile = [
-        "-/persist/secrets/nix-github.env"
-    ];
+        # Token de GitHub para leer los forks privados (Otto y sus dependencias).
+        # Vive fuera del repo, en un archivo de root:wheel 0640 con
+        #   access-tokens = github.com=<token>
+        # El «!include» es opcional: sin el archivo, nix arranca igual y solo
+        # fallarán los inputs privados.
+        extraOptions = ''
+            !include /persist/secrets/nix-access-tokens.conf
+        '';
+    };
 
     # Mantén vivos los sources de los inputs del flake (fuentes, temas...),
     # para que el GC semanal no obligue a re-descargarlos.
