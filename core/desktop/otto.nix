@@ -3,7 +3,8 @@
 # portal, sin tocar la de GNOME (el portal usa UseIn=otto y una config aparte).
 #
 # Se activa sola en hardware real x86_64 con GPU (el backend udev de Otto usa
-# DRM/Vulkan; la VM aarch64 UTM con virtio-gpu no tiene Vulkan).
+# DRM/Vulkan; la VM aarch64 UTM con virtio-gpu no tiene Vulkan) y machine.json
+# puede forzarla con `"otto": true`/`false` (manda sobre la detección).
 #
 # Fuentes: si existe el archivo con el token de GitHub del nix-daemon (ver
 # core/nix.nix), se descargan de las copias privadas de HBlanqueto; si no, de
@@ -47,7 +48,9 @@ in
     };
 
     config = lib.mkMerge [
-        { nixdots.desktop.otto.enable = lib.mkDefault autoEnable; }
+        # machine.json manda sobre la detección; si no trae `otto`, se usa
+        # autoEnable (y false en cualquier otro caso).
+        { nixdots.desktop.otto.enable = lib.mkDefault (data.machine.otto or autoEnable); }
 
         (lib.mkIf cfg.enable {
             environment.systemPackages = [ cfg.package ];
