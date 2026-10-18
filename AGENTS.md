@@ -54,8 +54,8 @@ actualiza este archivo en el mismo cambio.
     `access-tokens = github.com=<token>` (token de GitHub de solo lectura),
     incluido en nix.conf con `!include` (`core/nix.nix`). Lo usan los inputs
     privados `github:HBlanqueto/…` (el fork de Otto). Sin el archivo nix arranca
-    igual; solo Otto queda apagado (su módulo no se puede evaluar sin bajar el
-    input).
+    igual y el input privado no se descarga: `core/desktop/otto.nix` solo importa
+    el módulo de Otto cuando el token existe.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
@@ -97,11 +97,12 @@ actualiza este archivo en el mismo cambio.
   reintroduzcas sin que se pida.
 - Otto (sesión opcional, `nixdots.desktop.otto`): el paquete y el módulo NixOS
   vienen del input `otto` del flake (fork privado `github:HBlanqueto/otto`,
-  rama `neptunia`), que `core/desktop/otto.nix` importa y activa con
-  `programs.otto.enable`. Se actualiza con `nix flake update otto`; el acceso a
-  los forks privados va por `/persist/secrets/nix-access-tokens.conf`. No hay
-  `packages/otto.nix` ni pines en este repo. `"otto"` en machine.json fuerza o
-  apaga la sesión sobre la detección de hardware.
+  rama `neptunia`), que `core/desktop/otto.nix` importa **solo con token** y
+  activa con `programs.otto.enable`. Se actualiza con `nix flake update otto`; el
+  acceso a los forks privados va por `/persist/secrets/nix-access-tokens.conf`.
+  Sin token, el módulo no se importa (el input privado ni se descarga) y el
+  sistema evalúa igual; `"otto": true` en machine.json sin token es un error. No
+  hay `packages/otto.nix` ni pines en este repo.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
@@ -150,4 +151,8 @@ actualiza este archivo en el mismo cambio.
 - Rust: rustfmt y `cargo clippy -D warnings` limpios. Errores con
   `color_eyre`/`Result`, nunca `unwrap()` en rutas que dependan del sistema.
   Secretos con `Zeroizing` y por stdin o archivo temporal, nunca por argv.
+  `Cargo.toml` tiene dos perfiles: `release` (solo `panic = "abort"`, el que usa
+  Nix) y `dist` (hereda el anterior y añade `opt-level = "z"`, `lto = true`,
+  `codegen-units = 1` y `strip = true`; es el de las releases de GitHub,
+  `cargo build --profile dist`).
 - devShells: `.#installer` (TUI) y `.#setup-gui` (Slint).
