@@ -11,7 +11,7 @@ This NixOS system features the following core components:
 
 - [x] **Flakes:** Fully flake-based system configuration
 - [x] **Single config:** one generic `nixdots` output; hardware detected by facter, per-machine facts in `machine.json`
-- [x] **Installer:** text-mode installer (`installer/`, Rust)
+- [x] **Installer:** text-mode installer (`tools/installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
 - [x] **Lanzaboote & LUKS:** Secure Boot with a LUKS2 root, auto-unlocked by Measured Boot (`systemd-pcrlock`) on the ThinkPad
@@ -22,7 +22,7 @@ This NixOS system features the following core components:
 
 ```text
 .
-├── installer/               # Rust text-mode installer (see installer/README.md)
+├── tools/                   # Rust crates (installer, nixdots-common, lists, setup, setup-gui)
 ├── lib/mkHost.nix           # helper: mkHost { system, modules, data }
 ├── modules/                 # shared NixOS + home-manager configuration
 │   ├── common/              # users, fish, locale, nix, services, hardware-detect, boot
@@ -39,12 +39,12 @@ This NixOS system features the following core components:
 * **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
 * **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.json` and `facter.json`, the first-boot assistant writes `user.json` (plus the password hash), and `lib/data.nix` merges them.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `cryptroot` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
-* **`installer/`:** text-mode installer. See [installer/README.md](installer/README.md).
+* **`tools/installer/`:** text-mode installer. See [tools/installer/README.md](tools/installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
 
 ## Installer
 
-`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
+`tools/installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
 
 There are two ways to run it:
 
@@ -66,7 +66,7 @@ The installed system's TTY uses **only** the XNU (macOS text-console) font, read
   nix run .#installer                     # simulation: no disk, no root
   ```
 
-The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
+The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [tools/installer/README.md](tools/installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
 
 ## Setup
 

@@ -2927,7 +2927,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixdots-core"
+name = "nixdots-common"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
@@ -2943,7 +2943,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "crossterm",
- "nixdots-core",
+ "nixdots-common",
  "nixdots-lists",
  "ratatui",
  "serde",
@@ -2961,7 +2961,7 @@ name = "nixdots-setup"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "nixdots-core",
+ "nixdots-common",
  "nixdots-lists",
  "serde",
  "serde_json",
@@ -2973,7 +2973,7 @@ name = "nixdots-setup-gui"
 version = "0.1.0"
 dependencies = [
  "image",
- "nixdots-core",
+ "nixdots-common",
  "nixdots-lists",
  "serde_json",
  "slint",

@@ -10,9 +10,9 @@ on:
     branches:
       - master
     paths:
-      - "installer/**"
-      - "core/**"
-      - "lists/**"
+      - "tools/installer/**"
+      - "tools/nixdots-common/**"
+      - "tools/lists/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".cargo/**"

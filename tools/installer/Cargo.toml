@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 color-eyre = "0.6.5"
 crossterm = "0.29.0"
-nixdots-core = { path = "../core" }
+nixdots-common = { path = "../nixdots-common" }
 nixdots-lists = { path = "../lists" }
 ratatui = "0.30.2"
 serde = { version = "1.0.229", features = ["derive"] }

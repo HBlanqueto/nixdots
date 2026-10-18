@@ -207,7 +207,7 @@
             installers = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-installer";
-                    subdir = "installer";
+                    subdir = "tools/installer";
                     runtimeInputs = with pkgs; [
                         disko
                         btrfs-progs
@@ -231,7 +231,7 @@
             setups = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-setup";
-                    subdir = "setup";
+                    subdir = "tools/setup";
                     runtimeInputs = with pkgs; [
                         git
                         nix
@@ -248,11 +248,11 @@
             #
             # Licencia: Slint es GPL-3.0-only (o comercial/royalty-free). El
             # flake declara gpl2Only y GPLv2-only es incompatible con GPLv3.
-            # Ver setup-gui/Cargo.toml.
+            # Ver tools/setup-gui/Cargo.toml.
             setupsGui = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-setup-gui";
-                    subdir = "setup-gui";
+                    subdir = "tools/setup-gui";
                     description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
                     runtimeInputs = [ setups.${system} ];
                     # Tablas que `nixdots-lists` embebe (locales) para la lista
@@ -409,7 +409,7 @@
                             watchexec
                             gcc
                             # The released musl binaries link with clang + lld
-                            # (see installer/.cargo/config.toml).
+                            # (see .cargo/config.toml).
                             clang
                             lld
                             pkg-config

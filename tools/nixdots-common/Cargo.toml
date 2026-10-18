@@ -1,12 +1,11 @@
 [package]
-name = "nixdots-setup"
+name = "nixdots-common"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.5"
-nixdots-core = { path = "../core" }
-nixdots-lists = { path = "../lists" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+rand = "0.8"
 zeroize = "1"

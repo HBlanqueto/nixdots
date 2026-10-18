@@ -74,16 +74,16 @@ actualiza este archivo en el mismo cambio.
   lanzador del instalador sí abre kmscon con JetBrainsMono Nerd Font Mono 14 y la
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
-- Workspace Rust (`Cargo.toml` raíz):
-  - `core` — settings, user.json, hash, ejecución de comandos.
-  - `lists` — locales, zonas y teclados embebidos al compilar.
-  - `installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
+- Workspace Rust (`Cargo.toml` raíz); los crates viven en `tools/`:
+  - `tools/nixdots-common` — settings, user.json, hash, ejecución de comandos.
+  - `tools/lists` — locales, zonas y teclados embebidos al compilar.
+  - `tools/installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
     contraseña ni Git, ni escribe `user.json` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
-  - `setup` — CLI del primer arranque (`nixdots-setup apply`).
-  - `setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita).
+  - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`).
+  - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita).
 - El instalador orquesta herramientas existentes (disko, nixos-facter, sbctl,
   nixos-install…); nunca reimplementa particionado. Los binarios se publican en
   la release `latest` desde `.github/workflows/installer-release.yml`;

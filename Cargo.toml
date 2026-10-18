@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["installer", "core", "setup", "lists", "setup-gui"]
+members = ["tools/installer", "tools/nixdots-common", "tools/setup", "tools/lists", "tools/setup-gui"]
 
 # Small, self-contained release binary for the precompiled GitHub release.
 [profile.release]

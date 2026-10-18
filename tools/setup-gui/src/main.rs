@@ -129,7 +129,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // Validación del usuario con nixdots_core, y derivación desde el nombre.
+    // Validación del usuario con nixdots_common, y derivación desde el nombre.
     let user_edited = Rc::new(Cell::new(false));
     ui.on_username_edited({
         let user_edited = user_edited.clone();
@@ -137,7 +137,7 @@ fn main() -> Result<(), slint::PlatformError> {
         move |text| {
             user_edited.set(true);
             if let Some(ui) = weak.upgrade() {
-                let err = nixdots_core::user::username_error(&text).unwrap_or("");
+                let err = nixdots_common::user::username_error(&text).unwrap_or("");
                 ui.global::<State>().set_username_error(err.into());
             }
         }
@@ -152,11 +152,11 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(ui) = weak.upgrade() {
                 let st = ui.global::<State>();
                 let full = text.to_string();
-                let username = nixdots_core::user::generate_username(&full);
+                let username = nixdots_common::user::generate_username(&full);
                 st.set_username(username.clone().into());
                 st.set_initials(initials(&full).into());
                 st.set_first_name(first_word(&full).into());
-                let err = nixdots_core::user::username_error(&username).unwrap_or("");
+                let err = nixdots_common::user::username_error(&username).unwrap_or("");
                 st.set_username_error(err.into());
             }
         }

@@ -15,14 +15,14 @@ cd "$REPO"
 # En la misma terminal.
 if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
     exec nix develop .#installer --command \
-        cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
+        cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
 fi
 
 # Sin Wayland no hay ventana WezTerm: cae a esta terminal.
 if [ -z "${WAYLAND_DISPLAY:-}" ] || [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     echo "Sin WAYLAND_DISPLAY/XDG_RUNTIME_DIR; ejecutando en esta terminal." >&2
     exec nix develop .#installer --command \
-        cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
+        cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
 fi
 
 # No abras otra si ya existe.
@@ -34,8 +34,8 @@ fi
 # Ventana nueva e independiente, con recarga automática al guardar.
 setsid -f wezterm start --always-new-process --class nixdots-installer-dev \
     --cwd "$REPO" -- nix develop .#installer --command \
-    watchexec -r -c -w installer/src -w core/src \
-        -w installer/Cargo.toml -w core/Cargo.toml -w Cargo.toml -e rs,toml -- \
-    cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
+    watchexec -r -c -w tools/installer/src -w tools/nixdots-common/src \
+        -w tools/installer/Cargo.toml -w tools/nixdots-common/Cargo.toml -w Cargo.toml -e rs,toml -- \
+    cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
 
 echo "Ventana de simulación lanzada (clase nixdots-installer-dev)."

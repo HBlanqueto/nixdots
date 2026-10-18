@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
-nixdots-core = { path = "../core" }
+nixdots-common = { path = "../nixdots-common" }
 nixdots-lists = { path = "../lists" }
 serde_json = "1.0.154"
 # Desenfoque gaussiano del fondo una sola vez al arrancar (ver src/wallpaper.rs).

@@ -7,8 +7,8 @@
 //! La contraseña se lee de stdin (nunca del JSON ni de argv).
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
-use nixdots_core::runner::{self, Cmd, Stream};
-use nixdots_core::user_data::UserData;
+use nixdots_common::runner::{self, Cmd, Stream};
+use nixdots_common::user_data::UserData;
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -54,7 +54,7 @@ struct Data {
     #[serde(default)]
     auto_login: Option<bool>,
     #[serde(default)]
-    a11y: Option<nixdots_core::user_data::A11y>,
+    a11y: Option<nixdots_common::user_data::A11y>,
     #[serde(default)]
     git_name: Option<String>,
     #[serde(default)]
@@ -109,7 +109,7 @@ fn apply(args: &[String]) -> Result<()> {
 
     // 1. Hash (0600) antes de user.json: user.nix exige que exista.
     phase(0, dry_run);
-    let hash = nixdots_core::crypto::hash_password(&password)?;
+    let hash = nixdots_common::crypto::hash_password(&password)?;
     let secrets = Path::new("/persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", data.username));
     println!("$ escribir {} (0600)", hash_path.display());
@@ -165,7 +165,7 @@ fn apply(args: &[String]) -> Result<()> {
     };
     println!(
         "$ escribir {} (0644)",
-        nixdots_core::user_data::path().display()
+        nixdots_common::user_data::path().display()
     );
     if !dry_run {
         user.write()?;
@@ -215,7 +215,7 @@ fn validate(data: &Data) -> Result<()> {
     if data.full_name.trim().is_empty() {
         bail!("fullName está vacío");
     }
-    if let Some(err) = nixdots_core::user::username_error(&data.username) {
+    if let Some(err) = nixdots_common::user::username_error(&data.username) {
         bail!("username inválido: {err}");
     }
     if data.locale.trim().is_empty() {
