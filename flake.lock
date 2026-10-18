@@ -155,11 +155,11 @@
     "layers": {
       "flake": false,
       "locked": {
-        "lastModified": 1792343331,
-        "narHash": "sha256-KvYzihQRw15mAOfbuGH+Tt1HlUCRwQLXPozbbCun/88=",
+        "lastModified": 1792355313,
+        "narHash": "sha256-RvDzIExylGdGzSkOHw4EzKlaghlGQEdRRamKYz+5TWs=",
         "owner": "HBlanqueto",
         "repo": "layers",
-        "rev": "bb63d062cfc4468ee8f5524ce2cc0bec007ef13a",
+        "rev": "6706e9bbdbf3b01b2d1ecd83e511995322ff886b",
         "type": "github"
       },
       "original": {
@@ -194,11 +194,11 @@
         "smithay": "smithay"
       },
       "locked": {
-        "lastModified": 1792352484,
-        "narHash": "sha256-JQ4qbPf1BjaS592iOpn2NehaoFxQhvSeaIjwyEG59c8=",
+        "lastModified": 1792358184,
+        "narHash": "sha256-0SDInh7y1Mn8pnUQQ/JbquzX9fs36kixxpcSGSLqzLo=",
         "owner": "HBlanqueto",
         "repo": "otto",
-        "rev": "dbcdfbd05f3d4f9937dfba246db2d3e5111a31bd",
+        "rev": "d5b012e0a3b0444544db8886ab5bfbab914ae108",
         "type": "github"
       },
       "original": {
@@ -265,11 +265,11 @@
     "smithay": {
       "flake": false,
       "locked": {
-        "lastModified": 1792343331,
-        "narHash": "sha256-T/2dYWyTqy53gDBrXpjIVx4zp1UkRdJ0O0r4eiE6q00=",
+        "lastModified": 1792355404,
+        "narHash": "sha256-k/gQDjvKWMZf4nsZQ/1d3jL9O+VGChX1H4jydu3dNb4=",
         "owner": "HBlanqueto",
         "repo": "smithay-otto",
-        "rev": "0a8efd1a6da4f40232d24f33940a622fa2a08c30",
+        "rev": "96783e9b57d9487786ee23bd858a2a50c4c492dc",
         "type": "github"
       },
       "original": {
