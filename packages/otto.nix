@@ -1,12 +1,11 @@
-# Compositor Wayland Otto (nongio/otto) y sus aplicaciones de escritorio.
+# Compositor Wayland Otto (HBlanqueto/otto) y sus aplicaciones de escritorio.
 #
-# Fuentes: Otto y sus dos dependencias git (nongio/layers y el fork
-# nongio/smithay) se fijan aquí, una vez, por commit y hash NAR. Con
-# `useMirror = true` se descargan de las copias privadas de HBlanqueto
-# (otto, layers, smithay-otto); si no, de nongio. El contenido es el mismo, así
-# que la ruta del store y la derivación también: da igual de dónde salga. Las dos dependencias git se compilan como dependencias
-# `path` (no como `git`), porque el vendoreo de Cargo en el sandbox no tiene
-# credenciales para leer un repo privado.
+# Fuentes: Otto y sus dos dependencias git (HBlanqueto/layers y
+# HBlanqueto/smithay-otto) se fijan aquí, una vez, por commit y hash NAR, y se
+# descargan de los forks privados de HBlanqueto con `private = true` (token de
+# GitHub del nix-daemon, ver core/nix.nix). Las dos dependencias git se compilan
+# como dependencias `path` (no como `git`), porque el vendoreo de Cargo en el
+# sandbox no tiene credenciales para leer un repo privado.
 #
 # Se compila todo el workspace menos otto-rdp (necesita GStreamer de desarrollo
 # y es un extra opcional) y los sample-clients/tools, y se instalan los mismos
@@ -55,33 +54,30 @@
     zlib,
     gst_all_1,
     writeText,
-    # true: descargar de las copias privadas de HBlanqueto (ver arriba).
-    useMirror ? false,
 }:
 
 let
     version = "1.7.1";
 
-    # Commits fijados. `hash` es el hash NAR del árbol (sin .git), el mismo en
-    # nongio y en la copia. `ref` es como los cita el Cargo.lock de Otto; al
-    # subir de versión, cópialo de ahí.
+    # Dueño de los forks (todas las fuentes salen de aquí, con `private = true`).
+    owner = "HBlanqueto";
+
+    # Commits fijados. `hash` es el hash NAR del árbol (sin .git). `ref` es como
+    # lo cita el Cargo.lock de Otto; al subir de versión, cópialo de ahí.
     pins = {
         otto = {
             repo = "otto";
-            mirror = "otto";
-            rev = "0ffa2ea50bca75ddd779341be5d81e9cedfbd0b5";
-            hash = "sha256-HRTc0CqQVR1leDWKQvaTOlymI24ZHvvYW3o2HdyaVlA=";
+            rev = "8db185a4e5186277ec33ca90e1335dca620bbb27";
+            hash = "sha256-821xdTapnXCH8hRpzvDS05mPfFJKe8bc3Ct7aT11mqg=";
         };
         layers = {
             repo = "layers";
-            mirror = "layers";
             rev = "744fb23948cce807cfe13e41583b68d056b7d387";
-            ref = "tag=v1.18.2";
+            ref = "rev=744fb23948cce807cfe13e41583b68d056b7d387";
             hash = "sha256-H/LMPE1CWpgLitMfRjFGNXHNvKw3puL8A8aIGU4ErLs=";
         };
         smithay = {
-            repo = "smithay";
-            mirror = "smithay-otto";
+            repo = "smithay-otto";
             rev = "9341e4d190db994690b4af91ac86f83b5597e9b2";
             ref = "rev=9341e4d190db994690b4af91ac86f83b5597e9b2";
             hash = "sha256-8ZpQvdjgsXtlH1KDnDxYnt9mG9S83pcpcojwBmvEZ3E=";
@@ -89,26 +85,15 @@ let
     };
 
     # Salidas de hash fijo: la ruta del store depende solo del nombre y del
-    # hash, no de la URL. Copia y upstream dan la misma ruta (y la misma
-    # derivación de Otto), así que cambiar de origen no recompila nada y solo se
-    # descarga lo que falte en el store. La copia privada usa la API de GitHub
-    # con NIX_GITHUB_PRIVATE_{USERNAME,PASSWORD} del nix-daemon (core/nix.nix).
+    # hash, no de la URL. La descarga usa la API de GitHub con
+    # NIX_GITHUB_PRIVATE_{USERNAME,PASSWORD} del nix-daemon (core/nix.nix).
     fetchPin =
         pin:
-        fetchFromGitHub (
-            if useMirror then
-                {
-                    owner = "HBlanqueto";
-                    repo = pin.mirror;
-                    private = true;
-                    inherit (pin) rev hash;
-                }
-            else
-                {
-                    owner = "nongio";
-                    inherit (pin) repo rev hash;
-                }
-        );
+        fetchFromGitHub {
+            inherit owner;
+            inherit (pin) repo rev hash;
+            private = true;
+        };
 
     src = fetchPin pins.otto;
     layers = fetchPin pins.layers;
@@ -116,9 +101,9 @@ let
 
     # Cargo.lock sin el `source` de las dos dependencias git: como `path` no
     # llevan source. Si un pin deja de coincidir con el lock, la assert falla
-    # aquí en vez de bajar las fuentes de nongio a escondidas.
+    # aquí en vez de intentar bajar una dependencia git que no está en `pins`.
     gitSource =
-        pin: "source = \"git+https://github.com/nongio/${pin.repo}?${pin.ref}#${pin.rev}\"\n";
+        pin: "source = \"git+https://github.com/${owner}/${pin.repo}?${pin.ref}#${pin.rev}\"\n";
     upstreamLock = builtins.readFile "${src}/Cargo.lock";
     lockContents =
         let
@@ -209,13 +194,13 @@ rustPlatform.buildRustPackage.override { stdenv = clangStdenv; } {
     postPatch = ''
         substituteInPlace Cargo.toml \
             --replace-fail \
-                'smithay = { git = "https://github.com/nongio/smithay", rev = "${pins.smithay.rev}", default-features = false }' \
+                'smithay = { git = "https://github.com/${owner}/${pins.smithay.repo}", rev = "${pins.smithay.rev}", default-features = false }' \
                 'smithay = { path = "../otto-deps/smithay", default-features = false }' \
             --replace-fail \
-                'laye-rs = { git = "https://github.com/nongio/layers", tag = "v1.18.2", features = [' \
+                'laye-rs = { git = "https://github.com/${owner}/${pins.layers.repo}", rev = "${pins.layers.rev}", features = [' \
                 'laye-rs = { path = "../otto-deps/layers", features = [' \
             --replace-fail \
-                'git = "https://github.com/nongio/smithay"' \
+                'git = "https://github.com/${owner}/${pins.smithay.repo}"' \
                 'path = "../otto-deps/smithay/smithay-drm-extras"' \
             --replace-fail \
                 'rev = "${pins.smithay.rev}" # feat/vulkan-device; keep in step with smithay below' \
@@ -339,13 +324,13 @@ rustPlatform.buildRustPackage.override { stdenv = clangStdenv; } {
     passthru = {
         providedSessions = [ "otto" ];
         # Las tres fuentes, para comprobar una copia sin compilar:
-        #   nix build .#otto-mirror.sources.layers --rebuild
+        #   nix build .#otto.sources.layers --rebuild
         sources = { otto = src; inherit layers smithay; };
     };
 
     meta = {
         description = "Wayland compositor with a macOS-like desktop (Otto)";
-        homepage = "https://github.com/nongio/otto";
+        homepage = "https://github.com/HBlanqueto/otto";
         license = lib.licenses.mit;
         mainProgram = "otto";
         platforms = [ "x86_64-linux" "aarch64-linux" ];
