@@ -190,7 +190,23 @@
                         inherit pname;
                         version = "0.1.0";
 
-                        src = ./.;
+                        # Solo el código Rust y lo que embebe: cambios en el
+                        # resto del repo (por ejemplo un .nix) no recompilan
+                        # estas herramientas.
+                        src = pkgs.lib.fileset.toSource {
+                            root = ./.;
+                            fileset = pkgs.lib.fileset.unions [
+                                ./Cargo.toml
+                                ./Cargo.lock
+                                ./tools
+                                ./.cargo
+                                # include_str!/include_bytes! de las herramientas.
+                                ./assets
+                                ./LICENSE
+                                # El test de tools/installer lee la paleta del tema.
+                                ./share/themes/neptunia.nix
+                            ];
+                        };
                         # buildAndTestSubdir makes the hooks run cargo inside the
                         # crate dir; the Cargo.lock lives at the workspace root.
                         buildAndTestSubdir = subdir;
