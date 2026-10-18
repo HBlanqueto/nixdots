@@ -110,6 +110,8 @@ let
       num m.value;
 
   styleNames = attrNames tokens.font.styles;
+  # Primer nombre de una lista CSS de familias: "Geist, \"Noto…\"" → Geist
+  family = f: builtins.replaceStrings [ "\"" ] [ "" ] (builtins.head (builtins.split ", *" tokens.font.families.${f}));
   sh = tokens.shadow.slint;
 
   slint = ''
@@ -135,9 +137,9 @@ let
     ${lines (n: "    out property <duration> dur-${n}: ${num tokens.duration.${n}}ms;") (attrNames tokens.duration)}
 
         // Tipografía
-        out property <string> font-sans: "Inter";
-        out property <string> font-mono: "SF Mono Ligaturized";
-        out property <string> font-script: "Dancing Script";
+        out property <string> font-sans: "${family "sans"}";
+        out property <string> font-mono: "${family "mono"}";
+        out property <string> font-script: "${family "script"}";
     ${lines (s: "    out property <length> text-${s}-size: ${num tokens.font.styles.${s}.size}px;") styleNames}
     ${lines (s: "    out property <int> text-${s}-weight: ${num tokens.font.styles.${s}.weight};") styleNames}
 
@@ -202,8 +204,8 @@ let
     ${lines (n: "    readonly property int ${camel "space-${n}"}: ${num tokens.space.${n}}") (attrNames tokens.space)}
     ${lines (n: "    readonly property int ${camel n}: ${num tokens.size.${n}}") (attrNames tokens.size)}
     ${lines (n: "    readonly property int ${camel "dur-${n}"}: ${num tokens.duration.${n}}") (attrNames tokens.duration)}
-        readonly property string fontSans: "Inter"
-        readonly property string fontMono: "SF Mono Ligaturized"
+        readonly property string fontSans: "${family "sans"}"
+        readonly property string fontMono: "${family "mono"}"
     }
   '';
 in

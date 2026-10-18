@@ -8,7 +8,7 @@
         enableGhostscriptFonts = true;
 
         packages = with pkgs; [
-            inter
+            geist-font
             cantarell-fonts
             noto-fonts-cjk-sans
             noto-fonts-cjk-serif
@@ -27,7 +27,7 @@
         fontconfig = {
             defaultFonts = {
                 monospace = [ "UbuntuMono Nerd Font" "Victor Mono" ];
-                sansSerif = [ "Inter" "Noto Sans CJK SC" ];
+                sansSerif = [ "Geist" "Noto Sans CJK SC" ];
                 serif     = [ "Noto Serif CJK SC" ];
                 emoji     = [ "Twitter Color Emoji" "Noto Color Emoji" ];
             };

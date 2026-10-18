@@ -145,7 +145,7 @@
   --dur-fast: 120ms;
   --dur-slow: 420ms;
   --shadow-knob: 0 1px 3px rgba(13, 18, 25, 0.3), 0 0 0 0.5px rgba(13, 18, 25, 0.12);
-  --font-sans: Inter, "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-sans: Geist, "Noto Sans CJK SC", system-ui, sans-serif;
   --font-mono: "SF Mono Ligaturized", "UbuntuMono Nerd Font", "Victor Mono", ui-monospace, monospace;
   --font-script: "Dancing Script", cursive;
 }

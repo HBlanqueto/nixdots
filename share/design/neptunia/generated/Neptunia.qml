@@ -62,6 +62,6 @@ QtObject {
     readonly property int durBase: 220
     readonly property int durFast: 120
     readonly property int durSlow: 420
-    readonly property string fontSans: "Inter"
+    readonly property string fontSans: "Geist"
     readonly property string fontMono: "SF Mono Ligaturized"
 }
