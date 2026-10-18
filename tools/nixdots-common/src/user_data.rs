@@ -9,7 +9,7 @@
 //! Los datos del sistema (locale, zona, teclado, autologin…) NO van aquí: van
 //! en `machine.json` (ver [`crate::machine`]).
 
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{eyre, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -98,6 +98,67 @@ impl UserData {
     /// anterior a `users/<username>.json.bak`.
     pub fn write(&self) -> Result<()> {
         write_json_atomic(&path_for(&self.username), &serde_json::to_value(self)?)
+    }
+}
+
+/// `${NIXDOTS_ROOT}/persist/nixdots/user.json`, el formato antiguo.
+pub fn legacy_path() -> PathBuf {
+    let root = std::env::var("NIXDOTS_ROOT").unwrap_or_default();
+    PathBuf::from(format!("{root}/persist/nixdots/user.json"))
+}
+
+/// Formato antiguo de `user.json` (un único usuario con los campos de sistema
+/// mezclados). Solo se usa para migrarlo a `users/<usuario>.json` + machine.json.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyUser {
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub userdescription: Option<String>,
+    #[serde(default)]
+    pub pretty_host_name: Option<String>,
+    #[serde(default)]
+    pub git_name: Option<String>,
+    #[serde(default)]
+    pub git_email: Option<String>,
+    #[serde(default)]
+    pub default_locale: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
+    #[serde(default)]
+    pub time_zone: Option<String>,
+    #[serde(default)]
+    pub time_zone_auto: Option<bool>,
+    #[serde(default)]
+    pub keyboard_layout: Option<String>,
+    #[serde(default)]
+    pub keyboard_variant: Option<String>,
+    #[serde(default)]
+    pub color_scheme: Option<String>,
+    #[serde(default)]
+    pub accent_color: Option<String>,
+    #[serde(default)]
+    pub avatar_color: Option<String>,
+    #[serde(default)]
+    pub avatar_path: Option<String>,
+    #[serde(default)]
+    pub auto_login: Option<bool>,
+    #[serde(default)]
+    pub a11y: Option<A11y>,
+}
+
+impl LegacyUser {
+    /// Lee el `user.json` antiguo, o `None` si no existe.
+    pub fn read() -> Result<Option<Self>> {
+        let path = legacy_path();
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Ok(Some(
+                serde_json::from_str(&text).wrap_err("user.json no tiene el formato esperado")?,
+            )),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err).wrap_err_with(|| format!("no se pudo leer {}", path.display())),
+        }
     }
 }
 

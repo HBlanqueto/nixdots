@@ -10,7 +10,7 @@
 use color_eyre::eyre::{bail, eyre, Context, Result};
 use nixdots_common::machine;
 use nixdots_common::runner::{self, Cmd, Stream};
-use nixdots_common::user_data::{self, Git, UserData};
+use nixdots_common::user_data::{self, Git, LegacyUser, UserData};
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,12 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
 
 Los datos personales van a users/<usuario>.json; los de sistema (locale, zona,
 teclado, prettyHostName, autoLoginUser) se fusionan en machine.json. La
-contraseña se lee de stdin.";
+contraseña se lee de stdin.
+
+nixdots-setup migrate [--dry-run]
+
+  migrate     convierte el user.json antiguo en users/<usuario>.json y mueve
+              sus campos de sistema a machine.json, dejando user.json.bak.";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,6 +90,7 @@ fn run() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("apply") => apply(&args[1..]),
+        Some("migrate") => migrate(&args[1..]),
         Some("-h") | Some("--help") | None => {
             println!("{HELP}");
             Ok(())
@@ -233,6 +239,106 @@ fn apply(args: &[String]) -> Result<()> {
         link_home(&data.username, &repo)?;
     }
     phase(4, dry_run);
+    Ok(())
+}
+
+/// Migra el `user.json` antiguo (un único usuario con campos de sistema
+/// mezclados) a `users/<usuario>.json` + machine.json y deja `user.json.bak`.
+fn migrate(args: &[String]) -> Result<()> {
+    let mut dry_run = false;
+    for arg in args {
+        match arg.as_str() {
+            "--dry-run" => dry_run = true,
+            "-h" | "--help" => {
+                println!("{HELP}");
+                return Ok(());
+            }
+            other => bail!("opción desconocida: {other}"),
+        }
+    }
+
+    let Some(old) = LegacyUser::read()? else {
+        println!("No hay user.json; nada que migrar.");
+        return Ok(());
+    };
+    let username = old
+        .username
+        .clone()
+        .filter(|u| !u.trim().is_empty())
+        .ok_or_else(|| eyre!("user.json no tiene username"))?;
+
+    let user = UserData {
+        username: username.clone(),
+        full_name: old
+            .userdescription
+            .clone()
+            .and_then(non_empty)
+            .unwrap_or_else(|| username.clone()),
+        admin: true,
+        template: "nixdots".into(),
+        personal_config: false,
+        git: match (old.git_name.clone(), old.git_email.clone()) {
+            (Some(name), Some(email))
+                if !name.trim().is_empty() && !email.trim().is_empty() =>
+            {
+                Some(Git { name, email })
+            }
+            _ => None,
+        },
+        color_scheme: old.color_scheme.clone().and_then(non_empty),
+        accent_color: old.accent_color.clone().and_then(non_empty),
+        avatar_color: old.avatar_color.clone().and_then(non_empty),
+        avatar_path: old.avatar_path.clone().and_then(non_empty),
+        a11y: old.a11y.clone(),
+    };
+    println!("$ escribir {}", user_data::path_for(&username).display());
+    if !dry_run {
+        user.write()?;
+    }
+
+    let mut fields = serde_json::Map::new();
+    if let Some(v) = old.pretty_host_name.clone().and_then(non_empty) {
+        fields.insert("prettyHostName".into(), v.into());
+    }
+    if let Some(v) = old.default_locale.clone().and_then(non_empty) {
+        fields.insert("defaultLocale".into(), v.into());
+    }
+    if let Some(v) = old.region.clone().and_then(non_empty) {
+        fields.insert("region".into(), v.into());
+    }
+    if let Some(v) = old.time_zone.clone().and_then(non_empty) {
+        fields.insert("timeZone".into(), v.into());
+    }
+    if let Some(v) = old.time_zone_auto {
+        fields.insert("timeZoneAuto".into(), v.into());
+    }
+    if let Some(v) = old.keyboard_layout.clone().and_then(non_empty) {
+        fields.insert("keyboardLayout".into(), v.into());
+    }
+    if let Some(v) = old.keyboard_variant.clone().and_then(non_empty) {
+        fields.insert("keyboardVariant".into(), v.into());
+    }
+    fields.insert(
+        "autoLoginUser".into(),
+        if old.auto_login == Some(true) {
+            username.clone().into()
+        } else {
+            serde_json::Value::Null
+        },
+    );
+    println!("$ fusionar {}", machine::path().display());
+    if !dry_run {
+        machine::merge_fields(fields)?;
+    }
+
+    let path = user_data::legacy_path();
+    let bak = path.with_extension("json.bak");
+    println!("$ mv {} {}", path.display(), bak.display());
+    if !dry_run {
+        std::fs::rename(&path, &bak)?;
+    }
+
+    println!("Migración completada.");
     Ok(())
 }
 

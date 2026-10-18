@@ -43,8 +43,9 @@ actualiza este archivo en el mismo cambio.
     la plantilla si `personalConfig` y el usuario es admin. Debe ser de **root**:
     el rebuild evalúa como root y el archivo podría leer `/persist/secrets`.
   - `user.json` — **respaldo transitorio**: si no hay `users/*.json`, `data.nix`
-    lo lee como un único usuario `admin = true` y `template = "nixdots"`. Se
-    retira cuando exista el comando de migración.
+    lo lee como un único usuario `admin = true` y `template = "nixdots"`.
+    `nixdots-setup migrate` lo convierte a `users/<usuario>.json` + machine.json
+    y deja `user.json.bak`; el respaldo se retira en un commit aparte y al final.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
@@ -104,7 +105,8 @@ actualiza este archivo en el mismo cambio.
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
     contraseña ni Git, ni escribe `users/*.json` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
-  - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`).
+  - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`) y de
+    migración (`nixdots-setup migrate`).
   - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita).
 - El instalador orquesta herramientas existentes (disko, nixos-facter, sbctl,
   nixos-install…); nunca reimplementa particionado. Los binarios se publican en
