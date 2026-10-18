@@ -49,6 +49,8 @@ fn main() -> Result<(), slint::PlatformError> {
             st.set_lang_selected_name(l.name.clone().into());
         }
     }
+    // Lista de ciudades (filtrable) y ciudad inicial.
+    fill_cities(&ui, "");
 
     // Idioma por defecto del asistente: inglés. Se cambia en vivo al elegir
     // idioma (las traducciones van embebidas desde i18n/*.po); si el idioma no
@@ -78,6 +80,15 @@ fn main() -> Result<(), slint::PlatformError> {
         move |query| {
             if let Some(ui) = weak.upgrade() {
                 fill_locales(&ui, &query);
+            }
+        }
+    });
+    // Buscador de ciudad: filtra por nombre o zona.
+    ui.on_city_search_changed({
+        let weak = ui.as_weak();
+        move |query| {
+            if let Some(ui) = weak.upgrade() {
+                fill_cities(&ui, &query);
             }
         }
     });
@@ -172,11 +183,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let Some(ui) = weak.upgrade() else { return };
             let (ssid, pass, idx) = {
                 let st = ui.global::<State>();
-                (
-                    pick(st.get_net_names(), st.get_net_index()),
-                    st.get_wifi_pass().to_string(),
-                    st.get_net_index(),
-                )
+                let hidden = st.get_wifi_hidden();
+                let ssid = if hidden {
+                    st.get_wifi_ssid().to_string()
+                } else {
+                    pick(st.get_net_names(), st.get_net_index())
+                };
+                let idx = if hidden { -1 } else { st.get_net_index() };
+                (ssid, st.get_wifi_pass().to_string(), idx)
             };
             let weak2 = weak.clone();
             std::thread::spawn(move || {
@@ -439,7 +453,7 @@ fn build_json(st: &State, theme: &Theme, tokens: &Tokens) -> String {
     map.insert("keyboardVariant".into(), "".into());
     map.insert(
         "timeZone".into(),
-        pick(st.get_city_tz(), st.get_city_index()).into(),
+        st.get_city_selected().to_string().into(),
     );
     map.insert("timeZoneAuto".into(), st.get_tz_auto().into());
     // GNOME solo distingue claro/oscuro; «dark-tint» del asistente es oscuro.
@@ -508,6 +522,32 @@ fn fill_locales(ui: &AppWindow, query: &str) {
     let st = ui.global::<State>();
     st.set_lang_names(ModelRc::from(names.as_slice()));
     st.set_lang_codes(ModelRc::from(codes.as_slice()));
+}
+
+/// Ciudades del paso Zona horaria: (nombre, zona). Se filtran en Rust.
+const CITIES: [(&str, &str); 5] = [
+    ("Mérida", "America/Merida"),
+    ("Ciudad de México", "America/Mexico_City"),
+    ("Monterrey", "America/Monterrey"),
+    ("Tijuana", "America/Tijuana"),
+    ("Madrid", "Europe/Madrid"),
+];
+
+/// Rellena los modelos de ciudades filtrando por `query` (nombre o zona).
+fn fill_cities(ui: &AppWindow, query: &str) {
+    let q = query.to_lowercase();
+    let items: Vec<(&str, &str)> = CITIES
+        .iter()
+        .copied()
+        .filter(|(name, zone)| {
+            q.is_empty() || name.to_lowercase().contains(&q) || zone.to_lowercase().contains(&q)
+        })
+        .collect();
+    let names: Vec<SharedString> = items.iter().map(|(n, _)| (*n).into()).collect();
+    let zones: Vec<SharedString> = items.iter().map(|(_, z)| (*z).into()).collect();
+    let st = ui.global::<State>();
+    st.set_city_names(ModelRc::from(names.as_slice()));
+    st.set_city_tz(ModelRc::from(zones.as_slice()));
 }
 
 fn pick(model: ModelRc<SharedString>, index: i32) -> String {

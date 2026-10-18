@@ -54,7 +54,10 @@ export global State {
     in-out property <string> lang-selected: "es_MX.UTF-8";
     in-out property <string> lang-selected-name: "Español (México)";
     in-out property <int> kb-index: 0;
-    in-out property <int> city-index: 0;
+    // Zona horaria: ciudad elegida por su zona (la lista la filtra Rust).
+    in-out property <string> city-search: "";
+    in-out property <string> city-selected: "America/Merida";
+    in-out property <string> city-selected-name: "Mérida";
     in-out property <bool> tz-auto: true;
     in-out property <bool> auto-login: false;
     in-out property <bool> git-on: false;
@@ -67,6 +70,10 @@ export global State {
     in-out property <bool> wifi-show: false;
     in-out property <bool> wifi-join: false;
     in-out property <bool> wifi-error: false;
+    // «Otras opciones de red…» y red oculta (SSID a mano).
+    in-out property <bool> wifi-options: false;
+    in-out property <bool> wifi-hidden: false;
+    in-out property <string> wifi-ssid: "";
 
     // Cuenta: el usuario editable cambia la línea de ayuda por un campo.
     in-out property <bool> username-editing: false;
@@ -131,10 +138,8 @@ export global State {
     in-out property <[string]> net-names: ["Casa", "Casa 5G", "Oficina", "Invitados"];
     in-out property <[bool]> net-lock: [true, true, true, false];
 
-    in-out property <[string]> city-names: ["Mérida", "Ciudad de México", "Monterrey", "Tijuana", "Madrid"];
-    in-out property <[string]> city-tz: [
-        "America/Merida", "America/Mexico_City", "America/Monterrey", "America/Tijuana", "Europe/Madrid",
-    ];
+    in-out property <[string]> city-names: [];
+    in-out property <[string]> city-tz: [];
 }
 
 // Cuadro de icono de paso (64 px) con tinte sólido y brillo arriba.
@@ -583,9 +588,11 @@ component Button inherits Rectangle {
     in property <bool> primary: false;
     in property <bool> enabled: true;
     in property <length> w: 112px;
+    // Altura: `control-lg` (38) por defecto; el pie usa `control-md` (30).
+    in property <length> h: Tokens.controllg;
     callback clicked();
     width: w;
-    height: Tokens.controllg;
+    height: root.h;
     border-radius: Tokens.radiusButton;
     background: primary
         ? (ta.pressed ? Theme.accent-strong : (ta.has-hover ? Tokens.accentHover : Theme.accent))
@@ -846,6 +853,8 @@ export component AppWindow inherits Window {
     callback language-changed(string);
     // Búsqueda de idioma: Rust filtra la lista de locales.
     callback lang-search-changed(string);
+    // Búsqueda de ciudad: Rust filtra la lista de ciudades.
+    callback city-search-changed(string);
     // Contraseñas: Rust recalcula el medidor de seguridad.
     callback passwords-changed();
     // Wi‑Fi: Rust conecta con NetworkManager.
@@ -944,10 +953,16 @@ export component AppWindow inherits Window {
         State.lang-selected = code;
         root.language-changed(code);
     }
+    // Elige ciudad: guarda su zona y su nombre.
+    function pick-city(name: string, zone: string) {
+        State.city-selected = zone;
+        State.city-selected-name = name;
+    }
     // Wi‑Fi: red abierta conecta directa; protegida abre el panel de contraseña.
     function pick-network(i: int) {
         State.net-index = i;
         State.wifi-error = false;
+        State.wifi-hidden = false;
         if (State.net-lock[i]) {
             State.wifi-pw = true;
             State.wifi-pass = "";
@@ -956,10 +971,21 @@ export component AppWindow inherits Window {
             State.wifi-connected = i;
         }
     }
+    // Red oculta: SSID a mano y contraseña; abre el mismo panel.
+    function open-hidden-network() {
+        State.wifi-options = false;
+        State.wifi-hidden = true;
+        State.wifi-pw = true;
+        State.wifi-ssid = "";
+        State.wifi-pass = "";
+        State.wifi-show = false;
+        State.wifi-error = false;
+    }
     function wifi-back() {
         State.wifi-pw = false;
         State.wifi-join = false;
         State.wifi-error = false;
+        State.wifi-hidden = false;
     }
     function wifi-join-now() {
         State.wifi-error = false;
@@ -1163,9 +1189,9 @@ export component AppWindow inherits Window {
 
     // -------------------------------------------------------------- Diálogo --
     dialog := Rectangle {
-        width: 560px;
-        // La altura sale del paso activo: crece o mengua con su contenido real.
-        height: dlg-body.preferred-height;
+        // Ventana del asistente: 880 × 648 (130 + 620 + 130 y 36 + 548 + 64).
+        width: 880px;
+        height: 648px;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         background: transparent;
@@ -1173,7 +1199,6 @@ export component AppWindow inherits Window {
         transform-scale-x: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         transform-scale-y: Motion.reduce ? 100% : (root.in-dlg ? 100% : 97%);
         visible: self.opacity > 0.001;
-        animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
         animate opacity { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
         animate transform-scale-x { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
         animate transform-scale-y { duration: Motion.slow; easing: ease-out; delay: Motion.reduce ? 0ms : 180ms; }
@@ -1203,19 +1228,14 @@ export component AppWindow inherits Window {
             animate background { duration: Motion.base; }
         }
 
-        dlg-body := VerticalLayout {
-            padding-left: 48px;
-            padding-right: 48px;
-            padding-top: 36px;
-            padding-bottom: 28px;
-            spacing: 20px;
-
-            // Contenido entre pasos: alto fijo (540) recortado.
-            Rectangle {
-                width: 100%;
-                height: 540px;
-                clip: true;
-                animate height { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
+        // Contenido: columna de 620 px centrada (margen 130), 36 arriba y 548
+        // de alto. Los pasos se deslizan dentro.
+        Rectangle {
+            x: 130px;
+            y: 36px;
+            width: 620px;
+            height: 548px;
+            clip: true;
 
                 // --- Paso 1 · Idioma y región ---
                 p1 := Rectangle {
@@ -1227,6 +1247,7 @@ export component AppWindow inherits Window {
                     animate x { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     animate opacity { duration: Motion.reduce ? 0ms : Motion.base; easing: ease-out; }
                     VerticalLayout {
+                        height: 100%;
                         alignment: start;
                         spacing: 12px;
                         StepHeader {
@@ -1235,7 +1256,7 @@ export component AppWindow inherits Window {
                             StepIcon { tint: root.step-tint(1); GlobeIcon { ink: Tokens.onAccent; size: 30px; } }
                         }
                         SearchField {
-                            placeholder: @tr("Buscar idioma");
+                            placeholder: @tr("Buscar idioma o región");
                             text <=> State.lang-search;
                             edited(t) => { root.lang-search-changed(t); }
                         }
@@ -1253,7 +1274,7 @@ export component AppWindow inherits Window {
                         // Lista completa de locales (scroll): nombre nativo + código.
                         Rectangle {
                             width: 100%;
-                            height: 104px;
+                            vertical-stretch: 1;
                             border-radius: Tokens.radiuslg;
                             background: Tokens.bgSurface;
                             border-width: 1px;
@@ -1278,12 +1299,6 @@ export component AppWindow inherits Window {
                                 divider: false;
                                 picked => { State.kb-index = Math.mod(State.kb-index + 1, State.kb-names.length); }
                             }
-                        }
-                        Text {
-                            text: @tr("El idioma del sistema y de GNOME se aplica al reiniciar. Este asistente cambia ya si hay traducción; si no, sigue en inglés.");
-                            color: Tokens.inkMuted;
-                            font-size: 12px * (State.a11y-large-text ? 1.25 : 1.0);
-                            wrap: word-wrap;
                         }
                     }
                 }
@@ -1491,7 +1506,9 @@ export component AppWindow inherits Window {
                                 alignment: start;
                                 spacing: 6px;
                                 Text {
-                                    text: @tr("Introduce la contraseña de") + " «" + State.net-names[State.net-index] + "»";
+                                    text: State.wifi-hidden
+                                        ? @tr("Red oculta")
+                                        : @tr("Introduce la contraseña de") + " «" + State.net-names[State.net-index] + "»";
                                     color: Tokens.inkStrong;
                                     font-size: 22px * (State.a11y-large-text ? 1.25 : 1.0);
                                     font-weight: 650;
@@ -1499,7 +1516,9 @@ export component AppWindow inherits Window {
                                     wrap: word-wrap;
                                 }
                                 Text {
-                                    text: @tr("Esta red está protegida. Escribe su contraseña para unirte.");
+                                    text: State.wifi-hidden
+                                        ? @tr("Escribe el nombre y la contraseña de la red.")
+                                        : @tr("Esta red está protegida. Escribe su contraseña para unirte.");
                                     color: Tokens.inkMuted;
                                     font-size: 13px * (State.a11y-large-text ? 1.25 : 1.0);
                                     horizontal-alignment: center;
@@ -1516,6 +1535,11 @@ export component AppWindow inherits Window {
                                 pw-inner := VerticalLayout {
                                     alignment: start;
                                     spacing: 14px;
+                                    if State.wifi-hidden : Field {
+                                        label: @tr("Nombre de la red");
+                                        icon: "M2 6.5 A9 9 0 0 1 14 6.5 M4.2 9 A5.8 5.8 0 0 1 11.8 9 M6.5 11.4 A2.4 2.4 0 0 1 9.5 11.4";
+                                        text <=> State.wifi-ssid;
+                                    }
                                     Field {
                                         label: @tr("Contraseña");
                                         password: true;
@@ -1785,7 +1809,7 @@ export component AppWindow inherits Window {
                                 IconRow {
                                     title: @tr("Ajustar automáticamente");
                                     desc: State.tz-auto
-                                        ? @tr("Según tu ubicación: ") + State.city-names[State.city-index]
+                                        ? @tr("Según tu ubicación: ") + State.city-selected-name
                                         : @tr("Usa tu ubicación aproximada (requiere red)");
                                     icon: "M8 14.5 S12.5 10.3 12.5 7 A4.5 4.5 0 0 0 3.5 7 C3.5 10.3 8 14.5 8 14.5 Z M8 8.5 A1.5 1.5 0 1 0 8 5.5 A1.5 1.5 0 1 0 8 8.5 Z";
                                     tint: Tokens.sysBlue;
@@ -1798,16 +1822,22 @@ export component AppWindow inherits Window {
                                 spacing: 12px;
                                 opacity: State.tz-auto ? 0.45 : 1.0;
                                 animate opacity { duration: Motion.base; }
-                                SearchField { placeholder: @tr("Buscar ciudad"); }
+                                SearchField {
+                                    placeholder: @tr("Buscar ciudad");
+                                    text <=> State.city-search;
+                                    edited(t) => { root.city-search-changed(t); }
+                                }
                                 ListCard {
                                     SectionLabel { text: @tr("CIUDADES"); }
                                     for name[i] in State.city-names : OptionRow {
                                         label: name;
                                         trailing: State.city-tz[i];
                                         check: true;
-                                        selected: i == State.city-index;
+                                        selected: State.city-selected == State.city-tz[i];
                                         divider: i > 0;
-                                        picked => { if (!State.tz-auto) { State.city-index = i; } }
+                                        picked => {
+                                            if (!State.tz-auto) { root.pick-city(name, State.city-tz[i]); }
+                                        }
                                     }
                                 }
                             }
@@ -1956,7 +1986,7 @@ export component AppWindow inherits Window {
                             }
                             SummaryRow {
                                 k: @tr("Zona horaria");
-                                v: State.city-tz[State.city-index] + (State.tz-auto ? " · " + @tr("automática") : "");
+                                v: State.city-selected + (State.tz-auto ? " · " + @tr("automática") : "");
                                 icon: "M8 1.5 A6.5 6.5 0 1 0 8 14.5 A6.5 6.5 0 1 0 8 1.5 Z M8 4.5 V8 L10.5 9.5";
                                 tint: Tokens.sysOrange;
                             }
@@ -1981,39 +2011,98 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
-            }
+        }
 
-            // Puntos de progreso (8), centrados.
-            HorizontalLayout {
+        // Pie de 64 px separado por una línea de 1 px en `line`. No se anima
+        // entre pasos: sólo cambia el enlace/nota con un fundido.
+        footer := Rectangle {
+            y: 584px;
+            width: 100%;
+            height: 64px;
+            background: transparent;
+            Rectangle {
                 width: 100%;
-                height: 6px;
-                alignment: center;
-                spacing: 6px;
+                height: 1px;
+                background: Tokens.line;
+            }
+            HorizontalLayout {
+                y: 1px;
+                width: 100%;
+                height: 63px;
+                padding-left: 20px;
+                padding-right: 20px;
+                spacing: 12px;
+                alignment: start;
                 accessible-role: none;
                 accessible-label: @tr("Paso") + " " + State.step + " " + @tr("de") + " 8";
-                for di in 8 : Rectangle {
-                    height: 6px;
-                    width: (di + 1) == State.step ? 18px : 6px;
-                    border-radius: 3px;
-                    background: (di + 1) == State.step ? Theme.accent : Tokens.lineStrong;
-                    animate width { duration: Motion.base; }
-                    animate background { duration: Motion.base; }
+                // Botón de accesibilidad: desde cualquier paso, al paso 2.
+                Rectangle {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: Tokens.radiuspill;
+                    background: a11y-ta.has-hover ? Tokens.bgHover : transparent;
+                    border-width: 1px;
+                    border-color: Tokens.lineStrong;
+                    animate background { duration: Motion.fast; }
+                    MiniIcon {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        size: 16px;
+                        ink: Tokens.inkMuted;
+                        commands: "M8 8 A2.5 2.5 0 1 0 8 3 A2.5 2.5 0 1 0 8 8 Z M3 13.5 C3.8 11.3 5.7 10 8 10 C10.3 10 12.2 11.3 13 13.5";
+                    }
+                    a11y-ta := TouchArea {
+                        clicked => { State.step = 2; }
+                    }
                 }
-            }
-
-            // Atrás (izquierda) y Continuar/Aplicar (derecha).
-            HorizontalLayout {
-                width: 100%;
-                height: 38px;
-                alignment: space-between;
+                // Enlace o nota del paso, con fundido.
+                Rectangle {
+                    width: 320px;
+                    height: 30px;
+                    background: transparent;
+                    Text {
+                        x: 0;
+                        width: parent.width;
+                        height: parent.height;
+                        text: @tr("El idioma del sistema se aplica al reiniciar.");
+                        color: Tokens.inkMuted;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        opacity: State.step == 1 ? 1 : 0;
+                        animate opacity { duration: Motion.base; }
+                    }
+                    Text {
+                        x: 0;
+                        width: parent.width;
+                        height: parent.height;
+                        text: @tr("Otras opciones de red…");
+                        color: Theme.accent-strong;
+                        font-size: 13px;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                        wrap: no-wrap;
+                        opacity: State.step == 3 ? 1 : 0;
+                        animate opacity { duration: Motion.base; }
+                    }
+                    TouchArea {
+                        clicked => { if (State.step == 3) { State.wifi-options = !State.wifi-options; } }
+                    }
+                }
+                // Empuja los botones a la derecha.
+                Rectangle { horizontal-stretch: 1; background: transparent; }
                 Button {
                     label: @tr("Atrás");
+                    h: Tokens.controlmd;
+                    w: 96px;
                     opacity: State.step > 1 ? 1 : 0;
                     clicked => { if (State.step > 1) { State.step = root.prev-step(State.step); } }
                 }
                 Button {
                     label: State.step == 8 ? @tr("Aplicar") : @tr("Continuar");
                     primary: true;
+                    h: Tokens.controlmd;
+                    w: 96px;
                     clicked => { root.continue-clicked(); }
                 }
             }
@@ -2029,6 +2118,44 @@ export component AppWindow inherits Window {
             background: transparent;
             border-width: 1px;
             border-color: Tokens.windowInner;
+        }
+
+        // Opciones de red: popover sobre el pie. El fondo cierra al pulsar.
+        if State.wifi-options : TouchArea {
+            width: 100%;
+            height: 100%;
+            clicked => { State.wifi-options = false; }
+        }
+        if State.wifi-options : Rectangle {
+            x: 20px;
+            y: 584px - self.height - 8px;
+            width: 300px;
+            height: opts.preferred-height;
+            border-radius: Tokens.radiuslg;
+            background: Tokens.dark ? Tokens.bgRaised : Tokens.bgWindow;
+            border-width: 1px;
+            border-color: Tokens.line;
+            drop-shadow-color: rgba(0, 0, 0, Tokens.dark ? 0.5 : 0.18);
+            drop-shadow-blur: 24px;
+            drop-shadow-offset-y: 8px;
+            opts := VerticalLayout {
+                padding-top: 4px;
+                padding-bottom: 4px;
+                OptionRow {
+                    label: @tr("Conectar a una red oculta…");
+                    icon: "M2 6.5 A9 9 0 0 1 14 6.5 M4.2 9 A5.8 5.8 0 0 1 11.8 9 M6.5 11.4 A2.4 2.4 0 0 1 9.5 11.4";
+                    icon-tint: Tokens.sysCyan;
+                    picked => { root.open-hidden-network(); }
+                }
+                OptionRow {
+                    label: @tr("Mi equipo no se conecta a Internet");
+                    divider: false;
+                    picked => {
+                        State.wifi-options = false;
+                        State.step = root.next-step(3);
+                    }
+                }
+            }
         }
     }
 
