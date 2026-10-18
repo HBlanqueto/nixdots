@@ -60,11 +60,11 @@ jobs:
           NIXDOTS_LOCALE_DIR: /usr/share/i18n/locales
           NIXDOTS_XKB_BASE_LST: /usr/share/X11/xkb/rules/base.lst
           NIXDOTS_ZONE1970_TAB: /usr/share/zoneinfo/zone1970.tab
-        run: cargo build --release --locked --target ${{ matrix.target }} -p nixdots-installer
+        run: cargo build --profile dist --locked --target ${{ matrix.target }} -p nixdots-installer
 
       - name: Rename the binary
         run: |
-          cp target/${{ matrix.target }}/release/nixdots-installer \
+          cp target/${{ matrix.target }}/dist/nixdots-installer \
             nixdots-installer-${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4

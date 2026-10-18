@@ -2,10 +2,17 @@
 resolver = "2"
 members = ["tools/installer", "tools/nixdots-common", "tools/setup", "tools/lists", "tools/setup-gui"]
 
-# Small, self-contained release binary for the precompiled GitHub release.
+# Nix compila con `release`: se queda en lo justo para no cambiar el
+# comportamiento (los binarios abortan en vez de desenrollar).
 [profile.release]
+panic = "abort"
+
+# Perfil de las releases de GitHub (`--profile dist`): pequeño y autocontenido,
+# aunque tarde más en compilar. `strip` y `opt-level = "z"` son solo para esos
+# binarios; Nix no los usa.
+[profile.dist]
+inherits = "release"
 opt-level = "z"
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = true
