@@ -1,5 +1,13 @@
 # Compositor Wayland Otto (nongio/otto) y sus aplicaciones de escritorio.
 #
+# Fuentes: Otto y sus dos dependencias git (nongio/layers y el fork
+# nongio/smithay) se fijan aquí, una vez, por commit y hash NAR. Con
+# `useMirror = true` se descargan de las copias privadas de HBlanqueto
+# (otto, layers, smithay-otto); si no, de nongio. El contenido es el mismo, así
+# que la ruta del store y la derivación también: da igual de dónde salga. Las dos dependencias git se compilan como dependencias
+# `path` (no como `git`), porque el vendoreo de Cargo en el sandbox no tiene
+# credenciales para leer un repo privado.
+#
 # Se compila todo el workspace menos otto-rdp (necesita GStreamer de desarrollo
 # y es un extra opcional) y los sample-clients/tools, y se instalan los mismos
 # binarios y recursos que su paquete de Arch (.deb/.rpm declaran). La sesión se
@@ -46,17 +54,85 @@
     polkit,
     zlib,
     gst_all_1,
+    writeText,
+    # true: descargar de las copias privadas de HBlanqueto (ver arriba).
+    useMirror ? false,
 }:
 
 let
     version = "1.7.1";
 
-    src = fetchFromGitHub {
-        owner = "nongio";
-        repo = "otto";
-        rev = "0ffa2ea50bca75ddd779341be5d81e9cedfbd0b5";
-        hash = "sha256-HRTc0CqQVR1leDWKQvaTOlymI24ZHvvYW3o2HdyaVlA=";
+    # Commits fijados. `hash` es el hash NAR del árbol (sin .git), el mismo en
+    # nongio y en la copia. `ref` es como los cita el Cargo.lock de Otto; al
+    # subir de versión, cópialo de ahí.
+    pins = {
+        otto = {
+            repo = "otto";
+            mirror = "otto";
+            rev = "0ffa2ea50bca75ddd779341be5d81e9cedfbd0b5";
+            hash = "sha256-HRTc0CqQVR1leDWKQvaTOlymI24ZHvvYW3o2HdyaVlA=";
+        };
+        layers = {
+            repo = "layers";
+            mirror = "layers";
+            rev = "744fb23948cce807cfe13e41583b68d056b7d387";
+            ref = "tag=v1.18.2";
+            hash = "sha256-H/LMPE1CWpgLitMfRjFGNXHNvKw3puL8A8aIGU4ErLs=";
+        };
+        smithay = {
+            repo = "smithay";
+            mirror = "smithay-otto";
+            rev = "9341e4d190db994690b4af91ac86f83b5597e9b2";
+            ref = "rev=9341e4d190db994690b4af91ac86f83b5597e9b2";
+            hash = "sha256-8ZpQvdjgsXtlH1KDnDxYnt9mG9S83pcpcojwBmvEZ3E=";
+        };
     };
+
+    # Salidas de hash fijo: la ruta del store depende solo del nombre y del
+    # hash, no de la URL. Copia y upstream dan la misma ruta (y la misma
+    # derivación de Otto), así que cambiar de origen no recompila nada y solo se
+    # descarga lo que falte en el store. La copia privada usa la API de GitHub
+    # con NIX_GITHUB_PRIVATE_{USERNAME,PASSWORD} del nix-daemon (core/nix.nix).
+    fetchPin =
+        pin:
+        fetchFromGitHub (
+            if useMirror then
+                {
+                    owner = "HBlanqueto";
+                    repo = pin.mirror;
+                    private = true;
+                    inherit (pin) rev hash;
+                }
+            else
+                {
+                    owner = "nongio";
+                    inherit (pin) repo rev hash;
+                }
+        );
+
+    src = fetchPin pins.otto;
+    layers = fetchPin pins.layers;
+    smithay = fetchPin pins.smithay;
+
+    # Cargo.lock sin el `source` de las dos dependencias git: como `path` no
+    # llevan source. Si un pin deja de coincidir con el lock, la assert falla
+    # aquí en vez de bajar las fuentes de nongio a escondidas.
+    gitSource =
+        pin: "source = \"git+https://github.com/nongio/${pin.repo}?${pin.ref}#${pin.rev}\"\n";
+    upstreamLock = builtins.readFile "${src}/Cargo.lock";
+    lockContents =
+        let
+            patched =
+                builtins.replaceStrings [ (gitSource pins.layers) (gitSource pins.smithay) ] [ "" "" ]
+                    upstreamLock;
+        in
+        # (builtins.split y no lib.hasInfix: su regex `.*….*` desborda la
+        # pila con un Cargo.lock de este tamaño.)
+        assert lib.assertMsg
+            (builtins.length (builtins.split (lib.escapeRegex ''source = "git+'') patched) == 1)
+            "otto: el Cargo.lock tiene dependencias git que no están en `pins`";
+        patched;
+    cargoLockFile = writeText "Cargo.lock" lockContents;
 
     # El árbol de Skia que espera skia-bindings 0.93 (tag y externals: ver
     # skia-bindings/Cargo.toml#package.metadata y skia/DEPS).
@@ -116,16 +192,36 @@ rustPlatform.buildRustPackage.override { stdenv = clangStdenv; } {
     pname = "otto";
     inherit version src;
 
-    cargoLock = {
-        lockFile = "${src}/Cargo.lock";
-        # Dependencias git: nongio/layers (laye-rs) y el fork de smithay.
-        outputHashes = {
-            "laye-rs-1.18.2" = "sha256-H/LMPE1CWpgLitMfRjFGNXHNvKw3puL8A8aIGU4ErLs=";
-            "layers-debug-server-0.3.0" = "sha256-H/LMPE1CWpgLitMfRjFGNXHNvKw3puL8A8aIGU4ErLs=";
-            "smithay-0.7.0" = "sha256-8ZpQvdjgsXtlH1KDnDxYnt9mG9S83pcpcojwBmvEZ3E=";
-            "smithay-drm-extras-0.1.0" = "sha256-8ZpQvdjgsXtlH1KDnDxYnt9mG9S83pcpcojwBmvEZ3E=";
-        };
-    };
+    # Solo crates.io: laye-rs/layers-debug-server y smithay/smithay-drm-extras
+    # son dependencias `path` (ver postPatch).
+    cargoLock.lockFileContents = lockContents;
+
+    # Copias escribibles de las dependencias junto a source/: el build.rs de
+    # laye-rs escribe su cabecera C en el directorio del crate.
+    postUnpack = ''
+        mkdir -p otto-deps
+        cp -r --no-preserve=mode ${layers} otto-deps/layers
+        cp -r --no-preserve=mode ${smithay} otto-deps/smithay
+    '';
+
+    # Las dependencias git pasan a `path` con las mismas fuentes. --replace-fail:
+    # si upstream cambia esas líneas, el build se para aquí.
+    postPatch = ''
+        substituteInPlace Cargo.toml \
+            --replace-fail \
+                'smithay = { git = "https://github.com/nongio/smithay", rev = "${pins.smithay.rev}", default-features = false }' \
+                'smithay = { path = "../otto-deps/smithay", default-features = false }' \
+            --replace-fail \
+                'laye-rs = { git = "https://github.com/nongio/layers", tag = "v1.18.2", features = [' \
+                'laye-rs = { path = "../otto-deps/layers", features = [' \
+            --replace-fail \
+                'git = "https://github.com/nongio/smithay"' \
+                'path = "../otto-deps/smithay/smithay-drm-extras"' \
+            --replace-fail \
+                'rev = "${pins.smithay.rev}" # feat/vulkan-device; keep in step with smithay below' \
+                ""
+        install -m644 ${cargoLockFile} Cargo.lock
+    '';
 
     # Todo el escritorio (barra, islas, launcher, Files, ajustes…), sin los
     # extras que no hacen falta para una sesión.
