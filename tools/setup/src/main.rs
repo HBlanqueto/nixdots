@@ -1,14 +1,16 @@
 //! `nixdots-setup` — CLI del asistente de primer arranque: aplica los datos del
-//! usuario (JSON), escribe el hash y `user.json`, y deja la nueva generación
-//! para el próximo arranque.
+//! usuario (JSON), escribe el hash y `users/<usuario>.json`, fusiona los campos
+//! de sistema en `machine.json` y deja la nueva generación para el próximo
+//! arranque.
 //!
 //!   nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
 //!
 //! La contraseña se lee de stdin (nunca del JSON ni de argv).
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
+use nixdots_common::machine;
 use nixdots_common::runner::{self, Cmd, Stream};
-use nixdots_common::user_data::UserData;
+use nixdots_common::user_data::{self, Git, UserData};
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -19,11 +21,13 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
   datos.json  fullName, username, locale, region, keyboardLayout,
               keyboardVariant, timeZone, timeZoneAuto, a11y, colorScheme,
               accentColor, avatarColor, autoLogin y, opcionalmente, gitName,
-              gitEmail y avatarPath.
+              gitEmail, avatarPath, admin, template y personalConfig.
   --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
-La contraseña se lee de stdin.";
+Los datos personales van a users/<usuario>.json; los de sistema (locale, zona,
+teclado, prettyHostName, autoLoginUser) se fusionan en machine.json. La
+contraseña se lee de stdin.";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +63,13 @@ struct Data {
     git_name: Option<String>,
     #[serde(default)]
     git_email: Option<String>,
+    /// Primera cuenta: admin y plantilla completa por defecto.
+    #[serde(default)]
+    admin: Option<bool>,
+    #[serde(default)]
+    template: Option<String>,
+    #[serde(default)]
+    personal_config: Option<bool>,
 }
 
 fn main() {
@@ -135,40 +146,69 @@ fn apply(args: &[String]) -> Result<()> {
         set_mode(&hash_path, 0o600)?;
     }
 
-    // 2. user.json, fuera del repo (el flake lo mezcla con settings.nix).
+    // 2. Datos personales a users/<usuario>.json y campos de sistema a
+    //    machine.json (fusión: conserva lo que ya escribió el instalador).
     phase(1, dry_run);
     if sim_fail {
         bail!("Fallo simulado al aplicar la configuración");
     }
     let user = UserData {
         username: data.username.clone(),
-        userdescription: Some(data.full_name.clone()),
-        pretty_host_name: Some(localized_pretty_host_name(
-            &current_pretty_hostname(),
-            &data.full_name,
-            &data.locale,
-        )),
-        git_name: data.git_name,
-        git_email: data.git_email,
-        default_locale: Some(data.locale),
-        region: data.region.and_then(non_empty),
-        time_zone: Some(data.time_zone),
-        time_zone_auto: data.time_zone_auto,
-        keyboard_layout: non_empty(data.keyboard_layout),
-        keyboard_variant: non_empty(data.keyboard_variant),
-        color_scheme: data.color_scheme.and_then(non_empty),
-        accent_color: data.accent_color.and_then(non_empty),
-        avatar_color: data.avatar_color.and_then(non_empty),
-        avatar_path: data.avatar_path.and_then(non_empty),
-        auto_login: data.auto_login,
-        a11y: data.a11y,
+        full_name: data.full_name.clone(),
+        admin: data.admin.unwrap_or(true),
+        template: data.template.clone().unwrap_or_else(|| "nixdots".into()),
+        personal_config: data.personal_config.unwrap_or(false),
+        git: match (data.git_name.clone(), data.git_email.clone()) {
+            (Some(name), Some(email))
+                if !name.trim().is_empty() && !email.trim().is_empty() =>
+            {
+                Some(Git { name, email })
+            }
+            _ => None,
+        },
+        color_scheme: data.color_scheme.clone().and_then(non_empty),
+        accent_color: data.accent_color.clone().and_then(non_empty),
+        avatar_color: data.avatar_color.clone().and_then(non_empty),
+        avatar_path: data.avatar_path.clone().and_then(non_empty),
+        a11y: data.a11y.clone(),
     };
-    println!(
-        "$ escribir {} (0644)",
-        nixdots_common::user_data::path().display()
-    );
+    println!("$ escribir {} (0644)", user_data::path_for(&data.username).display());
     if !dry_run {
         user.write()?;
+    }
+
+    let mut fields = serde_json::Map::new();
+    fields.insert(
+        "prettyHostName".into(),
+        localized_pretty_host_name(&current_pretty_hostname(), &data.full_name, &data.locale)
+            .into(),
+    );
+    fields.insert("defaultLocale".into(), data.locale.clone().into());
+    if let Some(region) = data.region.clone().and_then(non_empty) {
+        fields.insert("region".into(), region.into());
+    }
+    fields.insert("timeZone".into(), data.time_zone.clone().into());
+    fields.insert(
+        "timeZoneAuto".into(),
+        data.time_zone_auto.unwrap_or(false).into(),
+    );
+    if let Some(layout) = non_empty(data.keyboard_layout.clone()) {
+        fields.insert("keyboardLayout".into(), layout.into());
+    }
+    if let Some(variant) = non_empty(data.keyboard_variant.clone()) {
+        fields.insert("keyboardVariant".into(), variant.into());
+    }
+    fields.insert(
+        "autoLoginUser".into(),
+        if data.auto_login.unwrap_or(false) {
+            data.username.clone().into()
+        } else {
+            serde_json::Value::Null
+        },
+    );
+    println!("$ fusionar {} (0644)", machine::path().display());
+    if !dry_run {
+        machine::merge_fields(fields)?;
     }
 
     // 3. boot, no switch: activar en caliente apagaría greetd y mataría esta

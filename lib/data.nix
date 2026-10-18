@@ -1,7 +1,8 @@
-# Único punto de lectura de los datos externos (no versionados): user.json,
-# machine.json y la ruta del informe de facter, bajo ${NIXDOTS_ROOT}/persist/nixdots.
-# El flake y los módulos consumen este attrset; nadie más llama a getEnv,
-# pathExists ni readFile para leerlos.
+# Único punto de lectura de los datos externos (no versionados), bajo
+# ${NIXDOTS_ROOT}/persist/nixdots: machine.json (sistema), users/<usuario>.json
+# (una cuenta por archivo) y la ruta del informe de facter. El flake y los
+# módulos consumen este attrset; nadie más llama a getEnv, pathExists ni
+# readFile para leerlos.
 #
 # `impure` por defecto es `builtins ? currentSystem` (evaluación pura => valores
 # seguros). Las variantes de CI lo fuerzan a false para NO leer /persist ni
@@ -18,31 +19,80 @@ let
         then builtins.fromJSON (builtins.readFile path)
         else { };
 
-    user = readJson "user.json";
+    # Datos del sistema: hostName, cifrado, extras y los campos que elige el
+    # asistente (defaultLocale, region, timeZone, timeZoneAuto, keyboardLayout,
+    # keyboardVariant, prettyHostName, autoLoginUser).
     machine = readJson "machine.json";
+
+    # Una cuenta por archivo users/<usuario>.json. Solo *.json, y el nombre del
+    # archivo debe coincidir con el campo `username` (ver `usersValid`).
+    usersDir = "${persist}/users";
+    userFiles =
+        if impure && builtins.pathExists usersDir
+        then builtins.filter (n: builtins.match ".*\\.json" n != null)
+            (builtins.attrNames (builtins.readDir usersDir))
+        else [ ];
+    usersFromDir = builtins.listToAttrs (map (file:
+        let
+            name = builtins.head (builtins.match "(.*)\\.json" file);
+            value = builtins.fromJSON (builtins.readFile "${usersDir}/${file}");
+        in
+        {
+            inherit name;
+            value = value // { username = value.username or name; };
+        }
+    ) userFiles);
+    mismatched = builtins.filter
+        (file:
+            let name = builtins.head (builtins.match "(.*)\\.json" file);
+            in usersFromDir.${name}.username != name)
+        userFiles;
+
+    # Respaldo (se retira cuando exista el comando de migración): el user.json
+    # antiguo como un único usuario admin con la plantilla completa.
+    legacy = readJson "user.json";
+    legacyUsers = if legacy ? username then {
+        ${legacy.username} = legacy // {
+            username = legacy.username;
+            fullName = legacy.fullName or legacy.userdescription or "";
+            admin = true;
+            template = "nixdots";
+        };
+    } else { };
+
+    users = if usersFromDir != { } then usersFromDir else legacyUsers;
+    hasUsers = users != { };
+
+    # Compat temporal (se retira en la fase de cuentas): mientras los módulos
+    # lean `settings`, los campos personales del único usuario siguen ahí.
+    userNames = builtins.attrNames users;
+    soleUser = if builtins.length userNames == 1 then users.${builtins.head userNames} else null;
+
+    # settings.nix son los valores del sistema por defecto; machine.json manda
+    # en las claves que define.
+    settings = import ../settings.nix // machine // (if soleUser == null then { } else soleUser);
 
     facterFile = "${persist}/facter.json";
 
-    hasUser = user ? username;
-
-    # settings.nix del repo más los datos personales que escribe el asistente.
-    settings = import ../settings.nix // user;
-
-    # Usuario normal, o null en evaluación pura / primer arranque.
-    username = settings.username or null;
+    username = if soleUser == null then null else soleUser.username;
 in
 {
-    inherit impure root user machine settings;
+    inherit impure root machine settings users hasUsers username;
 
     # Ruta del informe de facter, o null si no hay (evaluación pura, o máquina
     # sin informe). nixpkgs lo lee y lo parsea él mismo.
     facterReport = if impure && builtins.pathExists facterFile then facterFile else null;
 
-    inherit hasUser username;
+    # Cada archivo de users/ debe llamarse como su `username`.
+    usersValid = mismatched == [ ];
+    usersError =
+        "En ${usersDir} cada cuenta debe llamarse <username>.json y su campo "
+        + "`username` coincidir con el nombre del archivo. Revisa: "
+        + builtins.concatStringsSep ", " mismatched;
 
-    # Primer arranque en un host real: impuro y sin user.json. En la VM de
-    # prueba el flake fuerza firstBoot = !hasUser.
-    firstBoot = impure && !hasUser;
+    # Primer arranque en un host real: impuro y sin ninguna cuenta. En la VM de
+    # prueba el flake fuerza firstBoot = !hasUsers.
+    firstBoot = impure && !hasUsers;
 
     # Existencia de un archivo bajo root (p. ej. el hash de contraseña), para
     # no repetir pathExists fuera de aquí.

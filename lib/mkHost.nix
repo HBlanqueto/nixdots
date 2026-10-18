@@ -35,7 +35,11 @@ inputs.nixpkgs.lib.nixosSystem {
             assertions = [
                 {
                     assertion = !requireImpure || data.impure;
-                    message = "nixdots necesita evaluación impura para leer /persist/nixdots/user.json: usa nixdots-rebuild o añade --impure";
+                    message = "nixdots necesita evaluación impura para leer /persist/nixdots: usa nixdots-rebuild o añade --impure";
+                }
+                {
+                    assertion = data.usersValid;
+                    message = data.usersError;
                 }
             ];
         })

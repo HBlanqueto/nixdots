@@ -1559,17 +1559,47 @@ fn step_hardware(
     }
 
     let machine = dir.join("machine.json");
-    let json = serde_json::json!({
-        "hostName": plan.settings.host_name,
-        "encrypt": plan.encrypt,
-        "luksUuid": luks.map(|l| l.uuid.clone()).unwrap_or_default(),
-        "espUuid": plan.esp_uuid(),
-        "secureBoot": plan.secure_boot,
-        "tpmUnlock": plan.luks_tpm,
-        "extras": {},
-    });
+    // machine.json es el archivo del sistema: hostName/cifrado/extras y los
+    // campos de sistema (locale, zona, teclado, prettyHostName). Se fusiona
+    // para no pisar claves ajenas; el asistente añadirá las suyas.
+    let mut fields = serde_json::Map::new();
+    fields.insert("hostName".into(), plan.settings.host_name.clone().into());
+    fields.insert("encrypt".into(), plan.encrypt.into());
+    fields.insert(
+        "luksUuid".into(),
+        luks.map(|l| l.uuid.clone()).unwrap_or_default().into(),
+    );
+    fields.insert("espUuid".into(), plan.esp_uuid().into());
+    fields.insert("secureBoot".into(), plan.secure_boot.into());
+    fields.insert("tpmUnlock".into(), plan.luks_tpm.into());
+    fields.insert("extras".into(), serde_json::json!({}));
+    if !plan.settings.default_locale.is_empty() {
+        fields.insert(
+            "defaultLocale".into(),
+            plan.settings.default_locale.clone().into(),
+        );
+    }
+    if !plan.settings.time_zone.is_empty() {
+        fields.insert("timeZone".into(), plan.settings.time_zone.clone().into());
+    }
+    if !plan.settings.keyboard_layout.is_empty() {
+        fields.insert(
+            "keyboardLayout".into(),
+            plan.settings.keyboard_layout.clone().into(),
+        );
+    }
+    fields.insert(
+        "keyboardVariant".into(),
+        plan.settings.keyboard_variant.clone().into(),
+    );
+    if !plan.settings.pretty_host_name.is_empty() {
+        fields.insert(
+            "prettyHostName".into(),
+            plan.settings.pretty_host_name.clone().into(),
+        );
+    }
     report.log(format!("$ escribir {}", machine.display()));
-    fs::write(&machine, serde_json::to_string_pretty(&json)? + "\n")?;
+    nixdots_common::machine::merge_fields_at(&machine, fields)?;
     if !plan.dry_run {
         set_mode_file(&machine, 0o644)?;
     }

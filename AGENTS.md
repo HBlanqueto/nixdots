@@ -28,14 +28,20 @@ actualiza este archivo en el mismo cambio.
   `nixdots-aarch64-linux` (no leen /persist). VMs de prueba del primer
   arranque: `firstboot-vm` y `firstboot-vm-aarch64` (`run-firstboot-vm.sh`).
 - **Datos fuera del repo**, en `/persist/nixdots/`:
-  - `machine.json` — lo escribe el instalador (hostName, encrypt, luksUuid,
-    espUuid, secureBoot, tpmUnlock, extras). `espUuid` es el UUID de la ESP de
+  - `machine.json` — el archivo del sistema. Lo escriben el instalador
+    (hostName, encrypt, luksUuid, espUuid, secureBoot, tpmUnlock, extras) y el
+    asistente (prettyHostName, defaultLocale, region, timeZone, timeZoneAuto,
+    keyboardLayout/Variant, autoLoginUser); gana el último en escribir. La
+    escritura fusiona sobre el JSON existente. `espUuid` es el UUID de la ESP de
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
     en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
-  - `user.json` — lo escribe el asistente de primer arranque (usuario, nombre,
-    prettyHostName localizado, locale, región, teclado, zona, a11y, git,
-    colorScheme, accentColor y autoLogin).
+  - `users/<usuario>.json` — una cuenta por archivo, lo escribe el asistente
+    (username, fullName, admin, template, personalConfig, git, colorScheme,
+    accentColor y a11y). El nombre del archivo debe coincidir con `username`.
+  - `user.json` — **respaldo transitorio**: si no hay `users/*.json`, `data.nix`
+    lo lee como un único usuario `admin = true` y `template = "nixdots"`. Se
+    retira cuando exista el comando de migración.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
@@ -77,12 +83,13 @@ actualiza este archivo en el mismo cambio.
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
 - Workspace Rust (`Cargo.toml` raíz); los crates viven en `tools/`:
-  - `tools/nixdots-common` — settings, user.json, hash, ejecución de comandos.
+  - `tools/nixdots-common` — settings, users/<usuario>.json, machine.json, hash,
+    ejecución de comandos.
   - `tools/lists` — locales, zonas y teclados embebidos al compilar.
   - `tools/installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
-    contraseña ni Git, ni escribe `user.json` ni el hash (eso lo hace el
+    contraseña ni Git, ni escribe `users/*.json` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
   - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`).
   - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita).
