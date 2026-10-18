@@ -50,13 +50,12 @@ actualiza este archivo en el mismo cambio.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
-  - `/persist/secrets/nix-github.env` — opcional, root `0600`:
+  - `/persist/secrets/nix-github.env` — root `0600`:
     `NIX_GITHUB_PRIVATE_USERNAME` y `NIX_GITHUB_PRIVATE_PASSWORD` (token de
     GitHub de solo lectura) en el entorno del nix-daemon (`core/nix.nix`), para
-    `fetchFromGitHub { private = true; }`. Si existe, Otto descarga de las copias
-    privadas `HBlanqueto/{otto,layers,smithay-otto}`; si no, de `nongio`
-    (`nixdots.desktop.otto.source`). Mismos commits y hashes en los dos: la
-    ruta del store y la derivación no cambian.
+    que `fetchFromGitHub { private = true; }` baje los forks privados de Otto.
+    Sin él Otto queda apagado (`autoEnable` lo exige); forzarlo con `"otto":
+    true` en machine.json y sin token es un error de configuración.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
@@ -97,11 +96,13 @@ actualiza este archivo en el mismo cambio.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Otto (sesión opcional, `nixdots.desktop.otto`): `packages/otto.nix` fija
-  Otto, layers y el fork de smithay en `pins` (rev + hash NAR). Los revs de
-  layers y smithay no son el HEAD de sus forks: los fija el Cargo.lock de Otto,
-  y `tools/otto-pins.sh` los relee de ahí (hash vía `nix flake prefetch`, cae a
-  nongio sin acceso) y reescribe `pins`. `"otto"` en machine.json fuerza o
-  apaga la sesión; sin token de GitHub se usan las fuentes de nongio.
+  Otto, layers y smithay-otto en `pins` (rev + hash NAR) y los baja de los forks
+  privados de HBlanqueto (`private = true`, token del nix-daemon). Los revs de
+  layers y smithay no son el HEAD de sus forks: los fija el Cargo.lock de Otto, y
+  `tools/otto-pins.sh` los relee de ahí (rama `neptunia`) y reescribe `pins`.
+  Flujo al subir un fork: en Otto, `scripts/bump-forks.sh` actualiza
+  Cargo.toml/Cargo.lock; aquí, `tools/otto-pins.sh`. `"otto"` en machine.json
+  fuerza o apaga la sesión; sin token, Otto queda apagado.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
