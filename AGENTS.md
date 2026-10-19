@@ -26,7 +26,7 @@ actualiza este archivo en el mismo cambio.
   lo añade. La salida también se expone con el hostname de la máquina.
 - Variantes puras solo para CI: `nixdots-x86_64-linux` y
   `nixdots-aarch64-linux` (no leen /persist). VMs de prueba del primer
-  arranque: `firstboot-vm` y `firstboot-vm-aarch64` (`run-firstboot-vm.sh`).
+  arranque: `firstboot-vm` y `firstboot-vm-aarch64` (`dev.sh vm`).
 - **Datos fuera del repo**, en `/persist/nixdots/`:
   - `machine.toml` — el archivo del sistema. Lo escriben el instalador
     (hostName, encrypt, luksUuid, espUuid, secureBoot, tpmUnlock, extras) y el
@@ -187,3 +187,5 @@ actualiza este archivo en el mismo cambio.
   `cargo build --profile dist`).
 - devShell: uno solo (`nix develop`), con Rust, Slint, formateadores y el CLI
   `nixdots-setup` para las simulaciones.
+- Atajos: `./dev.sh sim installer|setup [--here]`, `./dev.sh vm [arch]` y
+  `./dev.sh test [--no-build]`.

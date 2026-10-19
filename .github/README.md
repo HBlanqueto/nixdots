@@ -40,7 +40,7 @@ This NixOS system features the following core components:
 * **`machine.toml` / `users/<user>.toml` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.toml` and `facter.json`, the first-boot assistant writes the account (plus its `.prefs.toml` seed and the password hash), and `lib/data.nix` merges them.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `cryptroot` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`tools/installer/`:** text-mode installer. See [tools/installer/README.md](tools/installer/README.md).
-* **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
+* **`dev.sh`:** development shortcuts (`sim installer`, `sim setup`, `vm [arch]`, `test`); the test runs `cargo clippy`/`cargo test`, the flake check, builds the installer and drives its TUI through a pty in simulation.
 
 ## Installer
 

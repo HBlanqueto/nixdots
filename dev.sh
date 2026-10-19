@@ -1,0 +1,338 @@
+#!/bin/sh
+#
+# dev.sh — atajos de desarrollo de nixdots.
+#
+# Uso:
+#   ./dev.sh sim installer [--here]   # instalador en simulación
+#   ./dev.sh sim setup [--here]       # asistente Slint en simulación
+#   ./dev.sh vm [x86_64|aarch64]      # VM del primer arranque
+#   ./dev.sh test [--no-build]        # lints, tests, flake, TUI por pty
+#   ./dev.sh -h|--help
+#
+# Nada de esto toca discos ni necesita root.
+set -eu
+
+REPO=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+cd "$REPO"
+
+usage() {
+    sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+die() {
+    code=$1
+    shift
+    printf '%s\n' "$*" >&2
+    exit "$code"
+}
+
+require() {
+    command -v "$1" >/dev/null 2>&1 || die 1 "falta $1"
+}
+
+# Ejecuta la orden en esta terminal.
+here() {
+    exec nix develop --command "$@"
+}
+
+# Ventana WezTerm independiente con watchexec; $1 clase, $2 rutas -w,
+# $3 extensiones, el resto es la orden.
+run_window() {
+    class=$1
+    watches=$2
+    exts=$3
+    shift 3
+
+    if [ -z "${WAYLAND_DISPLAY:-}" ] || [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+        printf 'Sin WAYLAND_DISPLAY/XDG_RUNTIME_DIR; ejecutando en esta terminal.\n' >&2
+        here "$@"
+    fi
+
+    if pgrep -f -- "--class $class --cwd $REPO " >/dev/null 2>&1; then
+        printf 'Ya hay una ventana %s de %s abierta (se recarga al guardar).\n' "$class" "$REPO"
+        exit 0
+    fi
+
+    # Sin comillas en $watches: son varios argumentos -w.
+    setsid -f wezterm start --always-new-process --class "$class" \
+        --cwd "$REPO" -- nix develop --command \
+        watchexec -r -c $watches -e "$exts" -- "$@"
+
+    printf 'Ventana de simulación lanzada (%s).\n' "$class"
+}
+
+sim_installer() {
+    if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
+        here cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
+    fi
+    run_window nixdots-installer-dev \
+        "-w tools/installer/src -w tools/nixdots-common/src -w tools/installer/Cargo.toml -w tools/nixdots-common/Cargo.toml -w Cargo.toml" \
+        rs,toml \
+        cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
+}
+
+sim_setup() {
+    if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
+        here cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
+    fi
+    run_window nixdots-setup-sim \
+        "-w tools/setup-gui/ui -w tools/setup-gui/src -w tools/setup-gui/Cargo.toml -w tools/setup-gui/build.rs -w Cargo.toml" \
+        slint,rs,toml \
+        cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
+}
+
+vm() {
+    arch=${1:-x86_64}
+    case "$arch" in
+        x86_64) host="firstboot-vm" ;;
+        aarch64 | arm64) host="firstboot-vm-aarch64" ;;
+        *) die 2 "uso: $0 vm [x86_64|aarch64]" ;;
+    esac
+
+    # Directorio vacío: el flake no encuentra user.json y la VM arranca el
+    # asistente.
+    NIXDOTS_ROOT=$(mktemp -d)
+    export NIXDOTS_ROOT
+
+    nix build "$REPO#nixosConfigurations.$host.config.system.build.vm"
+
+    cat <<EOF
+
+VM construida. Dentro, el asistente corre solo (cage) con datos de prueba en
+/etc/nixdots-setup.json: escribe /persist/nixdots/user.json, hace
+'nixos-rebuild boot' y reinicia. Tras el reinicio arranca GDM con el usuario
+"prueba" (contraseña de prueba: test1234).
+
+Si cambias la config del host, borra ./$host.qcow2 para partir de cero (las
+generaciones del rebuild viven ahí).
+EOF
+
+    exec "./result/bin/run-$host-vm"
+}
+
+run_test() {
+    build=1
+    for arg in "$@"; do
+        case "$arg" in
+            --no-build) build=0 ;;
+            -h | --help)
+                printf 'uso: %s test [--no-build]\n' "$0"
+                exit 0
+                ;;
+            *) die 2 "argumento desconocido: $arg" ;;
+        esac
+    done
+
+    require python3
+
+    say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+    fail() { printf '\033[31mFALLO: %s\033[0m\n' "$*" >&2; exit 1; }
+    ok() { printf '\033[32mok\033[0m  %s\n' "$*"; }
+
+    say "cargo clippy -D warnings"
+    nix develop -c cargo clippy --workspace --all-targets -- -D warnings
+    ok "clippy"
+
+    say "cargo test"
+    nix develop -c cargo test --workspace
+    ok "tests"
+
+    # La evaluación pura no puede leer user.json: los hosts reales abortan, así
+    # que el chequeo va con --impure (y --no-build: solo evalúa).
+    say "nix flake check --impure --no-build"
+    nix flake check --impure --no-build
+    ok "flake"
+
+    if [ "$build" -eq 1 ]; then
+        say "nix build .#installer"
+        nix build .#installer
+    fi
+
+    installer="$REPO/result/bin/nixdots-installer"
+    [ -x "$installer" ] || fail "no se encontró $installer (¿falta --no-build?)"
+
+    # pty driver: runs the installer, sends keys, prints the raw output.
+    driver() {
+        python3 - "$1" "$2" <<'PY'
+import os, pty, sys, time, fcntl, termios, struct, select
+
+binpath, repo = sys.argv[1], sys.argv[2]
+args = [binpath, "--repo", repo]
+
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ["TERM"] = os.environ.get("PTY_TERM", "xterm-256color")
+    os.execv(binpath, args)
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 110, 0, 0))
+
+buf = bytearray()
+def pump(sec):
+    end = time.time() + sec
+    while time.time() < end:
+        r, _, _ = select.select([fd], [], [], 0.1)
+        if r:
+            try:
+                d = os.read(fd, 65536)
+            except OSError:
+                return
+            if not d:
+                return
+            buf.extend(d)
+
+def kick():
+    # Force a full repaint so the current screen is emitted contiguously
+    # (crossterm otherwise only writes changed cells).
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 41, 110, 0, 0)); pump(0.15)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 110, 0, 0)); pump(0.15)
+
+def send(s, wait=0.5):
+    os.write(fd, s)
+    pump(wait)
+    kick()
+
+def wait_for(marker, timeout=15):
+    end = time.time() + timeout
+    while time.time() < end:
+        pump(0.2)
+        if marker.encode() in buf:
+            return True
+    return False
+
+# Inicio (splash) -> Licencia
+wait_for("Continuar")
+send(b"\r")
+# Licencia: Intro abre el diálogo (Acepto enfocado) y otro Intro lo acepta.
+wait_for("Licencia")
+send(b"\r")
+wait_for("Leí y acepto")
+send(b"\r")                       # Acepto -> Red
+# Red: elegir la primera red (WPA), escribir la frase y conectar
+wait_for("Red")
+send(b"\r")
+wait_for("contraseña")
+for c in b"contrasena-larga":
+    send(bytes([c]), 0.05)
+send(b"\r")                       # Conectando
+wait_for("conectado a", 12)       # Conectado
+send(b"\r")                       # Continuar -> Lenguaje
+# Lenguaje -> Teclado -> Zona horaria (elegir la primera entrada de cada lista)
+wait_for("Lenguaje")
+send(b"\x1b[B")
+send(b"\r")
+wait_for("Teclado")
+send(b"\x1b[B")
+send(b"\r")
+wait_for("Zona horaria")
+send(b"\x1b[B")
+send(b"\r")                       # -> Equipo
+wait_for("Equipo")
+send(b"\r")                       # -> Disco
+wait_for("Disco")
+send(b"\r")                       # -> Cifrado
+# Cifrado: frase, confirmar y marcar «La anoté en un lugar seguro»
+wait_for("Cifrado")
+for c in b"frase-larga-123":
+    send(bytes([c]), 0.05)
+send(b"\x1b[B")                   # -> Confirmar
+for c in b"frase-larga-123":
+    send(bytes([c]), 0.05)
+send(b"\x1b[B")                   # -> TPM (si lo hay) o «La anoté»
+if b"Desbloquear con TPM" in buf:
+    send(b"\x1b[B")               # -> La anoté
+send(b" ")                        # marcar
+send(b"\x1b[B")                   # -> botones
+send(b"\r")                       # Continuar -> Resumen
+wait_for("Resumen")
+send(b"\r")                       # Resumen -> Instalando (dry run ~20 s)
+wait_for("Instalando")
+wait_for("Reiniciar", 40)         # Instalando -> Listo (auto)
+send(b"\r", 1.0)                  # Listo -> Reiniciar (dry run sale)
+
+pump(0.5)
+try:
+    os.close(fd)
+except OSError:
+    pass
+sys.stdout.buffer.write(bytes(buf))
+PY
+    }
+
+    # Capture with retries: crossterm only emits changed cells, so a title can
+    # occasionally land between frames. Prints the raw capture on success.
+    MISSING=""
+    capture() { # binary
+        bin=$1
+        out=$(mktemp)
+        attempt=1
+        while [ "$attempt" -le 3 ]; do
+            driver "$bin" "$REPO" >"$out"
+            missing=""
+            while IFS= read -r want; do
+                [ -z "$want" ] && continue
+                grep -aq -- "$want" "$out" || { missing="$want"; break; }
+            done <<'EOF'
+Inicio
+Licencia
+Red
+Lenguaje
+Teclado
+Zona horaria
+Equipo
+Disco
+Cifrado
+Resumen
+Instalando
+Reiniciar
+simulación
+conectado a
+Acepto
+clave de recuperación
+La anoté en un lugar seguro
+EOF
+            if [ -z "$missing" ]; then
+                rm -f "$out"
+                return 0
+            fi
+            attempt=$((attempt + 1))
+        done
+        MISSING="$missing"
+        rm -f "$out"
+        return 1
+    }
+
+    say "simulación: recorrido completo"
+    if capture "$installer"; then
+        ok "installer: 17 comprobaciones"
+    else
+        fail "installer: no apareció «$MISSING»"
+    fi
+
+    say "paleta en TERM=linux (OSC P / OSC R)"
+    linux=$(mktemp)
+    PTY_TERM=linux driver "$installer" "$REPO" >"$linux"
+    grep -aqU "$(printf '\033]P4')" "$linux" || fail "no se programó el slot OSC P 4 en TERM=linux"
+    grep -aqU "$(printf '\033]R')" "$linux" || fail "no se restauró la paleta (OSC R)"
+    rm -f "$linux"
+    ok "TERM=linux: 16 slots + restauración"
+
+    printf '\n\033[32mTODO OK\033[0m\n'
+}
+
+cmd=${1:-}
+case "$cmd" in
+    sim)
+        shift
+        what=${1:-}
+        [ -n "$what" ] || die 2 "uso: $0 sim {installer|setup} [--here]"
+        shift
+        case "$what" in
+            installer) sim_installer "$@" ;;
+            setup) sim_setup "$@" ;;
+            *) die 2 "uso: $0 sim {installer|setup} [--here]" ;;
+        esac
+        ;;
+    vm) shift; vm "$@" ;;
+    test) shift; run_test "$@" ;;
+    -h | --help | "") usage ;;
+    *) usage >&2; exit 2 ;;
+esac

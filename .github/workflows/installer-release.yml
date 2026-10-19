@@ -19,6 +19,7 @@ on:
       - "disko.nix"
       - "lib/**"
       - "install.sh"
+      - "dev.sh"
       - ".github/workflows/installer-release.yml"
 
 permissions:
