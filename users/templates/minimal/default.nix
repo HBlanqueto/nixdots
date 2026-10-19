@@ -1,9 +1,7 @@
 # Plantilla «minimal»: fish, starship, git y el tema neptunia; sin apps ni IA.
-{ pkgs, lib, userData, osConfig ? { }, ... }:
+{ config, pkgs, ... }:
 
 let
-    git = userData.git or null;
-
     # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
     # fuente XNU solo tiene los 256 glifos Latin-1.
     starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
@@ -13,8 +11,6 @@ in
 
 {
     imports = [ ../style.nix ];
-
-    home.stateVersion = osConfig.system.stateVersion or "26.05";
 
     programs = {
         fish = {
@@ -30,11 +26,10 @@ in
 
         starship.enable = true;
 
-        git = lib.mkIf (git != null) {
+        git = {
             enable = true;
             settings.user = {
-                name = git.name;
-                email = git.email;
+                inherit (config.nixdots.git) name email;
             };
         };
     };

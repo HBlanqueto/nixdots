@@ -4,15 +4,31 @@
 # pasar `theme`.
 let
     theme = import ../../share/themes;
+
+    # Identidad de git del usuario: se rellena en home.nix.
+    gitOptions = { lib, ... }: {
+        options.nixdots.git = {
+            name = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = "Nombre de git del usuario.";
+            };
+            email = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = "Correo de git del usuario.";
+            };
+        };
+    };
 in
 {
     nixdots = { ... }: {
-        imports = [ ./nixdots ];
+        imports = [ gitOptions ./nixdots ];
         _module.args.theme = theme;
     };
 
     minimal = { ... }: {
-        imports = [ ./minimal ];
+        imports = [ gitOptions ./minimal ];
         _module.args.theme = theme;
     };
 }

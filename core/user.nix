@@ -1,6 +1,6 @@
 # Sistema: locale, zona, teclado, consola y ajustes de cuenta independientes
 # del usuario. Los datos de sistema salen de settings.nix (defaults) y
-# machine.json (manda); las cuentas concretas las crea users/default.nix.
+# machine.toml (manda); las cuentas concretas las crea users/default.nix.
 { config, lib, pkgs, inputs, data, ... }:
 
 let
@@ -12,7 +12,7 @@ let
     region = data.settings.region or null;
     timeZoneAuto = data.settings.timeZoneAuto or false;
 
-    # Entrada automática: un único usuario, de machine.json.
+    # Entrada automática: un único usuario, de machine.toml.
     autoLoginUser = data.machine.autoLoginUser or null;
 
     # El nombre visible puede traer `\` o `"`; hay que escaparlos.
@@ -83,10 +83,19 @@ in
 
     programs.fish.enable = true;
 
+    # Herramientas de administración del sistema. Solo sirven a admins: todas
+    # acaban en sudo/nixos-rebuild. El home solo conserva `home-update`.
+    programs.fish.shellAliases = {
+        delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
+        nix-update = "nixdots-rebuild sw";
+        flake-update-rb = "nix flake update --flake $HOME/nixdots && nixdots-rebuild rb";
+        flake-update-sw = "nix flake update --flake $HOME/nixdots && nixdots-rebuild sw";
+    };
+
     environment = {
         binsh = "${pkgs.dash}/bin/dash";
 
-        # El nombre visible de `hostnamectl` (/etc/machine-info), de machine.json.
+        # El nombre visible de `hostnamectl` (/etc/machine-info), de machine.toml.
         etc."machine-info" = lib.mkIf (data.machine ? prettyHostName) {
             text = ''
                 PRETTY_HOSTNAME="${escapedPretty}"
@@ -102,6 +111,9 @@ in
             # Con el home fuera del sistema, el CLI va aquí para poder hacer
             # `home-manager switch` en ~/.config/home-manager.
             inputs.home.packages.${pkgs.stdenv.hostPlatform.system}.home-manager
+
+            # Wrapper seguro de nixos-rebuild (backend de los alias de admin).
+            inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nixdots-rebuild
 
             wget
             curl

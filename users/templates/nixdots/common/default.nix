@@ -20,10 +20,6 @@
             NO_AT_BRIDGE = "1";
             NIXOS_OZONE_WL = "1";
         };
-
-        file = {
-            ".config/chime/chime.wav".source = ../../../../share/chime.wav;
-        };
     };
 
     xdg = {

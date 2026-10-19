@@ -7,11 +7,6 @@
   home.stateVersion = "26.05";
 
   # Identidad de git (nombre y correo).
-  _module.args.userData = {
-    username = "USUARIO";
-    git = {
-      name = "TU NOMBRE";
-      email = "tu@correo";
-    };
-  };
+  nixdots.git.name = "TU NOMBRE";
+  nixdots.git.email = "tu@correo";
 }

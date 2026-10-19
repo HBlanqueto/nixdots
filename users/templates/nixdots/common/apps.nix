@@ -1,8 +1,6 @@
-{ pkgs, lib, nixdots, userData, prefs ? { }, osConfig ? { }, theme, ... }:
+{ config, pkgs, lib, nixdots, prefs ? { }, theme, ... }:
 
 let
-    git = userData.git or null;
-
     yaziConfig = import ./config/yazi { inherit theme; };
 
     # rgba() a partir del rgb de la paleta (misma fuente que la consola).
@@ -97,8 +95,6 @@ in
     };
 
     home = {
-        stateVersion = osConfig.system.stateVersion or "26.05";
-
         file = {
             ".config/Code/User/settings.json".text = builtins.toJSON vscodeSettings;
 
@@ -161,20 +157,13 @@ in
 
             cava
             firefox
-            trezor-suite
             vscode
             nautilus
 
             karere
-            telegram-desktop
-            bitwarden-desktop
 
             imagemagick
             quickemu
-
-            # Safe nixos-rebuild wrapper (flake package); also the backend of
-            # the flake-update-* aliases below.
-            nixdots.packages.${pkgs.stdenv.hostPlatform.system}.nixdots-rebuild
         ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             # OnlyOffice ships no aarch64 build in nixpkgs.
             onlyoffice-desktopeditors
@@ -195,14 +184,10 @@ in
             });
         };
 
-        # Solo se configura git si el asistente recogió nombre y correo.
-        git = lib.mkIf (git != null) {
+        git = {
             enable = true;
-            settings = {
-                user = {
-                    name = git.name;
-                    email = git.email;
-                };
+            settings.user = {
+                inherit (config.nixdots.git) name email;
             };
         };
 
@@ -221,11 +206,6 @@ in
                     ControlMaster = "no";
                     ControlPath = "~/.ssh/master-%r@%n:%p";
                     ControlPersist = "no";
-                };
-                "github.com" = {
-                    User = "git";
-                    IdentityFile = "~/.ssh/id_ed25519_github";
-                    IdentitiesOnly = true;
                 };
             };
         };
@@ -258,15 +238,13 @@ in
                 set -g fish_greeting
                 set -g fish_color_command --bold green
 
-                # La TTY del sistema instalado usa la XNU (solo Latin-1): ni el
-                # prompt ni eza llevan iconos Nerd Font. En la terminal gráfica
-                # todo sigue igual.
+                # La TTY usa la XNU (solo Latin-1): el prompt va sin iconos,
+                # pero eza decide con --icons=auto (no dibuja los que no
+                # existen en la fuente).
                 if test "$XDG_SESSION_TYPE" = tty
                     set -gx STARSHIP_CONFIG ${starshipPlain}
-                    set -g eza_icons
-                else
-                    set -g eza_icons --icons
                 end
+                set -g eza_icons --icons=auto
                 alias ls "eza --color=auto $eza_icons"
                 alias l "ls -l"
                 alias la "ls -a"
@@ -274,11 +252,6 @@ in
                 alias lt "ls --tree"
             '';
             shellAliases = {
-                delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
-                # Sistema (nixdots en ~/nixdots).
-                nix-update = "nixdots-rebuild sw";
-                flake-update-rb = "nix flake update --flake $HOME/nixdots && nixdots-rebuild rb";
-                flake-update-sw = "nix flake update --flake $HOME/nixdots && nixdots-rebuild sw";
                 # Home independiente (~/.config/home-manager).
                 home-update = "nix flake update --flake $HOME/.config/home-manager nixdots && home-manager switch -b backup --flake $HOME/.config/home-manager#default";
 
