@@ -7,15 +7,14 @@
 
     nixpkgs.follows = "nixdots/nixpkgs";
 
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixdots/nixpkgs";
-    };
+    # La misma revisión de home-manager que usa nixdots.
+    home-manager.follows = "nixdots/home";
   };
 
   outputs = { home-manager, nixpkgs, nixdots, ... }:
     let
-      system = "x86_64-linux";
+      # nixdots-home-init sustituye SYSTEM por la arquitectura real del sistema.
+      system = "SYSTEM";
     in
     {
       homeConfigurations.default = home-manager.lib.homeManagerConfiguration {
