@@ -16,6 +16,15 @@ in
         libvirt = lib.mkEnableOption "libvirt + virt-manager";
         brightnessctl = lib.mkEnableOption "brightnessctl and its backlight hotkey rules";
         remoteAccess = lib.mkEnableOption "the Remmina and RustDesk remote access clients";
+        iphoneTethering = lib.mkEnableOption "USB tethering from an iPhone" // {
+            default = true;
+        };
+    };
+
+    options.keel.chimeCard = lib.mkOption {
+        type = lib.types.int;
+        default = 1;
+        description = "ALSA card used by the boot chime.";
     };
 
     config = {
@@ -26,7 +35,10 @@ in
             libvirt = lib.mkDefault (extraData.libvirt or false);
             brightnessctl = lib.mkDefault (extraData.brightnessctl or false);
             remoteAccess = lib.mkDefault (extraData.remoteAccess or false);
+            iphoneTethering = lib.mkDefault (extraData.iphoneTethering or true);
         };
+
+        keel.chimeCard = lib.mkDefault (extraData.chimeCard or 1);
 
         # Epson L3250: printing plus the in-tree sane backend. State under
         # /var/lib/cups survives the impermanence rollback.
@@ -55,10 +67,10 @@ in
             serviceConfig = {
                 Type = "oneshot";
                 ExecStartPre = [
-                    "-${pkgs.alsa-utils}/bin/amixer -c 1 sset Master 100% unmute"
-                    "-${pkgs.alsa-utils}/bin/amixer -c 1 sset Speaker 100% unmute"
+                    "-${pkgs.alsa-utils}/bin/amixer -c ${toString config.keel.chimeCard} sset Master 100% unmute"
+                    "-${pkgs.alsa-utils}/bin/amixer -c ${toString config.keel.chimeCard} sset Speaker 100% unmute"
                 ];
-                ExecStart = "${pkgs.alsa-utils}/bin/aplay -c 2 -D plughw:1,0 ${../share/chime.wav}";
+                ExecStart = "${pkgs.alsa-utils}/bin/aplay -c 2 -D plughw:${toString config.keel.chimeCard},0 ${../share/chime.wav}";
                 RemainAfterExit = false;
                 SupplementaryGroups = "audio";
             };

@@ -1,20 +1,31 @@
 # nixdots-rebuild — safe wrapper around nixos-rebuild.
 #
-# Usage: nixdots-rebuild [sw|rb|build]
-#   sw     build, run the safety checks and activate (default)
-#   rb     same, but stage for the next boot instead of switching
-#   build  only build; never activate
+# Usage: nixdots-rebuild [sw|rb|build|update-sw|update-rb]
+#   sw         build, run the safety checks and activate (default)
+#   rb         same, but stage for the next boot instead of switching
+#   build      only build; never activate
+#   update-sw  nix flake update, then sw
+#   update-rb  nix flake update, then rb
 #
 # The canonical repo path is ~/dotfiles (override with KEEL_REPO). The
 # configuration is always #keel.
 
 mode="${1:-sw}"
+update=0
 case "$mode" in
     sw | switch) mode="switch" ;;
     rb | boot) mode="boot" ;;
     build) mode="build" ;;
+    update-sw)
+        update=1
+        mode="switch"
+        ;;
+    update-rb)
+        update=1
+        mode="boot"
+        ;;
     *)
-        echo "uso: nixdots-rebuild [sw|rb|build]" >&2
+        echo "uso: nixdots-rebuild [sw|rb|build|update-sw|update-rb]" >&2
         exit 2
         ;;
 esac
@@ -31,6 +42,11 @@ if [ ! -e "$repo/flake.nix" ]; then
 fi
 
 cd "$repo"
+
+if [ "$update" = 1 ]; then
+    echo "== nix flake update ($repo) =="
+    nix flake update --flake "$repo"
+fi
 
 ref="$repo#keel"
 

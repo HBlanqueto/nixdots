@@ -19,6 +19,8 @@
                 "/var/lib/systemd/backlight"
                 # secret_key de MAC aleatoria y leases DHCP.
                 "/var/lib/NetworkManager"
+                # Perfiles de energía elegidos por el usuario.
+                "/var/lib/power-profiles-daemon"
                 "/etc/NetworkManager/system-connections"
                 "/var/lib/AccountsService"
                 "/etc/nixos"

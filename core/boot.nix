@@ -12,9 +12,11 @@
         initrd.verbose = false;
 
         # Con el disco cifrado, quien llega a esa consola ya pasó la frase
-        # LUKS. Sin cifrar, es un acceso de root físico: se activa a mano solo
-        # para diagnosticar puntualmente.
-        initrd.systemd.emergencyAccess = config.keel.machine.encrypt;
+        # LUKS. Salvo con TPM, que desbloquea sin que nadie teclee nada: ahí
+        # esa consola sería un acceso de root físico sin credencial. Sin
+        # cifrar también lo es, así que se activa a mano solo para diagnosticar.
+        initrd.systemd.emergencyAccess =
+            config.keel.machine.encrypt && !config.keel.machine.tpmUnlock;
 
         plymouth = {
             enable = true;

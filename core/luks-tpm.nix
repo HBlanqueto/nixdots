@@ -22,7 +22,7 @@ let
 
     # Message shown in the journal and notified on the desktop when the bridge
     # token survived: the last auto-cryptenroll did not replace it.
-    warning = "El desbloqueo con TPM no se completó; el disco está protegido solo por la entrada temporal. Ejecuta steward rebuild o revisa auto-cryptenroll.";
+    warning = "El desbloqueo con TPM no se completó; el disco está protegido solo por la entrada temporal. Ejecuta nixdots-rebuild sw o revisa auto-cryptenroll.";
 
     # Succeeds when a systemd-tpm2 token with no policy is still enrolled: the
     # installer's bridge token, which auto-cryptenroll should have replaced. Its

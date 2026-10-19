@@ -8,6 +8,5 @@ final: _: {
     xnu-console-font = final.callPackage ../packages/xnu-console-font.nix { };
 
     # brave-previews is intentionally not exposed here: the input only ships
-    # x86_64-linux outputs, so referencing it would break aarch64 evaluation.
-    # It is used directly (guarded by isx86_64) in users/templates/deck/common/apps.nix.
+    # x86_64-linux outputs. Its overlay is applied directly in core/nix.nix.
 }

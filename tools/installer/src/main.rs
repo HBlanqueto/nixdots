@@ -7,7 +7,6 @@
 use color_eyre::eyre::{bail, Result};
 use nixdots_installer::app::App;
 use nixdots_installer::detect;
-use nixdots_installer::settings;
 use nixdots_installer::theme;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::execute;
@@ -100,9 +99,7 @@ fn run(args: Args) -> Result<()> {
 
     let repo_dir = std::env::temp_dir().join("keel-installer-repo");
     let cloned = prepare_repo(&args.repo, &repo_dir).is_ok();
-    if !cloned && args.dry_run {
-        write_stub_repo(&repo_dir).ok();
-    } else if !cloned {
+    if !cloned && !args.dry_run {
         prepare_repo(&args.repo, &repo_dir)?;
     }
 
@@ -200,19 +197,6 @@ fn git_clone(url: &str, dest: &Path) -> Result<()> {
     if !status.success() {
         bail!("git clone de {url} falló");
     }
-    Ok(())
-}
-
-fn write_stub_repo(dest: &Path) -> Result<()> {
-    std::fs::create_dir_all(dest.join("lib"))?;
-    std::fs::write(
-        dest.join("lib/defaults.nix"),
-        settings::Settings::fallback().without_user().render(),
-    )?;
-    std::fs::write(
-        dest.join("LICENSE"),
-        "GNU GENERAL PUBLIC LICENSE\nVersion 2, June 1991\n",
-    )?;
     Ok(())
 }
 

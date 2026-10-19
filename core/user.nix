@@ -86,10 +86,10 @@ in
     # Herramientas de administración del sistema. Solo sirven a admins: todas
     # acaban en sudo/nixos-rebuild. El home solo conserva `home-update`.
     programs.fish.shellAliases = {
-        delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
+        delgen = "sudo nix-collect-garbage --delete-older-than 1d";
         nix-update = "nixdots-rebuild sw";
-        flake-update-rb = "nix flake update --flake $HOME/nixdots && nixdots-rebuild rb";
-        flake-update-sw = "nix flake update --flake $HOME/nixdots && nixdots-rebuild sw";
+        flake-update-rb = "nixdots-rebuild update-rb";
+        flake-update-sw = "nixdots-rebuild update-sw";
     };
 
     environment = {

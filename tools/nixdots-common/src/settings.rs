@@ -1,16 +1,15 @@
-//! Reads and rewrites the flake's `lib/defaults.nix`.
+//! Reads the flake's `lib/defaults.nix`.
 //!
-//! The file is regenerated from a template that mirrors the original layout
-//! (same key order, 4-space indentation). `lib/defaults.nix` is never edited
-//! with `sed`.
+//! The installer only needs `stateVersion` from there (the rest of the system
+//! data comes from `machine.toml`); the file is never rewritten.
 
 use color_eyre::eyre::{eyre, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// Mirror of `lib/defaults.nix`. `hashedPasswordFile` is intentionally absent: it
-/// is always derived from `username` when writing, and ignored when reading.
+/// Mirror of `lib/defaults.nix` used while reading it. `hashedPasswordFile` is
+/// intentionally absent: it is derived from `username` elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -49,23 +48,6 @@ fn default_keyboard() -> String {
 }
 
 impl Settings {
-    /// `hashedPasswordFile`, derived from the username. `None` when there is no
-    /// account yet, in which case the key is not written.
-    pub fn password_file(&self) -> Option<String> {
-        self.username
-            .as_deref()
-            .map(|username| format!("/persist/secrets/{username}.hash"))
-    }
-
-    /// A copy without the user fields: the installed `lib/defaults.nix` does not
-    /// carry them (they live in `users/<usuario>.toml`).
-    pub fn without_user(&self) -> Self {
-        let mut copy = self.clone();
-        copy.username = None;
-        copy.userdescription = None;
-        copy
-    }
-
     /// Values used when `lib/defaults.nix` cannot be evaluated (e.g. the simulation
     /// run on a machine without nix). Mirrors the repo's defaults.
     ///
@@ -116,107 +98,11 @@ impl Settings {
         settings.userdescription = settings.userdescription.filter(|value| !value.is_empty());
         Ok(settings)
     }
-
-    /// Renders the template. `username`/`userdescription`/`hashedPasswordFile`
-    /// are omitted when there is no account, so `first-boot.nix` can detect it.
-    pub fn render(&self) -> String {
-        let pretty = if self.pretty_host_name.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "    prettyHostName = {};\n",
-                nix_str(&self.pretty_host_name)
-            )
-        };
-        let user = match (&self.username, self.password_file()) {
-            (Some(username), Some(password_file)) => format!(
-                "    username = {};\n    userdescription = {};\n{pretty}    hashedPasswordFile = {};\n",
-                nix_str(username),
-                nix_str(self.userdescription.as_deref().unwrap_or("")),
-                nix_str(&password_file),
-            ),
-            _ => pretty,
-        };
-        format!(
-            "{{\n    stateVersion = {state_version};\n\n    timeZone = {time_zone};\n    defaultLocale = {default_locale};\n    keyboardLayout = {keyboard_layout};\n    keyboardVariant = {keyboard_variant};\n\n{user}\n    gitName = {git_name};\n    gitEmail = {git_email};\n}}\n",
-            state_version = nix_str(&self.state_version),
-            time_zone = nix_str(&self.time_zone),
-            keyboard_layout = nix_str(&self.keyboard_layout),
-            keyboard_variant = nix_str(&self.keyboard_variant),
-            default_locale = nix_str(&self.default_locale),
-            user = user,
-            git_name = nix_opt(&self.git_name),
-            git_email = nix_opt(&self.git_email),
-        )
-    }
-}
-
-/// A Nix double-quoted string literal. Besides `\` and `"`, `${` must be
-/// escaped: unescaped it starts an interpolation, so a value like
-/// `${builtins.readFile /etc/shadow}` would be evaluated as Nix code.
-fn nix_str(value: &str) -> String {
-    let escaped = value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace("${", "\\${");
-    format!("\"{escaped}\"")
-}
-
-fn nix_opt(value: &Option<String>) -> String {
-    match value {
-        Some(value) => nix_str(value),
-        None => "null".to_string(),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn sample() -> Settings {
-        Settings {
-            state_version: "26.05".into(),
-            host_name: "nixos".into(),
-            time_zone: "America/Merida".into(),
-            default_locale: "es_MX.UTF-8".into(),
-            username: Some("humbe".into()),
-            userdescription: Some("H. Blanqueto".into()),
-            pretty_host_name: String::new(),
-            keyboard_layout: "us".into(),
-            keyboard_variant: String::new(),
-            git_name: Some("H. Blanqueto".into()),
-            git_email: Some("a@b.c".into()),
-        }
-    }
-
-    #[test]
-    fn render_matches_expected_layout() {
-        let rendered = sample().render();
-        assert!(rendered.contains("    hashedPasswordFile = \"/persist/secrets/humbe.hash\";"));
-        assert!(rendered.contains("    stateVersion = \"26.05\";"));
-        // 4-space indentation, no tabs.
-        assert!(!rendered.contains('\t'));
-    }
-
-    #[test]
-    fn password_file_follows_username() {
-        let mut s = sample();
-        s.username = Some("ana".into());
-        assert_eq!(
-            s.password_file().as_deref(),
-            Some("/persist/secrets/ana.hash")
-        );
-    }
-
-    #[test]
-    fn render_null_git_when_omitted() {
-        let mut s = sample();
-        s.git_name = None;
-        s.git_email = None;
-        let rendered = s.render();
-        assert!(rendered.contains("    gitName = null;"));
-        assert!(rendered.contains("    gitEmail = null;"));
-    }
 
     #[test]
     fn json_null_git_parses() {

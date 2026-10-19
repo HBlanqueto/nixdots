@@ -47,6 +47,7 @@ in
         (lib.mkIf (!m.secureBoot) {
             boot.loader.systemd-boot.enable = lib.mkDefault true;
             boot.loader.systemd-boot.configurationLimit = lib.mkDefault 5;
+            boot.loader.systemd-boot.editor = false;
         })
     ];
 }

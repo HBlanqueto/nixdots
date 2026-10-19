@@ -36,7 +36,7 @@ inputs.nixpkgs.lib.nixosSystem {
             assertions = [
                 {
                     assertion = !requireImpure || data.impure;
-                    message = "keel necesita evaluación impura para leer /persist/keel: usa steward rebuild o añade --impure";
+                    message = "keel necesita evaluación impura para leer /persist/keel: usa nixdots-rebuild sw o añade --impure";
                 }
                 {
                     assertion = data.usersValid;
