@@ -41,9 +41,9 @@ actualiza este archivo en el mismo cambio.
     `username`.
   - `users/<usuario>.prefs.toml` — semilla de un solo uso para el home:
     apariencia y accesibilidad (colorScheme, accentColor, avatar*, a11y) y git.
-    La escribe el asistente (y `nixdots-userd`); `nixdots-home-init` copia git a
-    `home.nix` y el resto a `~/.config/home-manager/prefs.toml`, y borra la
-    semilla.
+    La escribe el asistente (y `nixdots-userd`) con modo 0600 y dueño del
+    usuario; `nixdots-home-init` copia git a `home.nix` y el resto a
+    `~/.config/home-manager/prefs.toml`, y borra la semilla.
   - `user.json` — **respaldo transitorio**: si no hay `users/*`, `data.nix` lo
     lee como un único usuario `admin = true`.
     `nixdots-setup migrate` lo convierte a `users/<usuario>.toml` (+ su
@@ -89,15 +89,21 @@ actualiza este archivo en el mismo cambio.
   - `users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
     `minimal` (fish, starship, git y el tema). `users/templates/default.nix` los
     envuelve e inyecta `theme`; el flake los exporta como `homeModules` para el
-    home independiente. Reciben `userData` (username y git) y `prefs`
-    (apariencia/a11y desde `prefs.toml`) por `_module.args`; `stateVersion` y
-    `timeZoneAuto` salen de `osConfig` (con valores por defecto fuera de NixOS).
+    home independiente. Reciben `prefs` (apariencia/a11y desde `prefs.toml`)
+    por `extraSpecialArgs`, y la identidad de git por las opciones
+    `nixdots.git.{name,email}`. `stateVersion` solo se define en `home.nix`;
+    `timeZoneAuto` sale de `osConfig` (con valor por defecto fuera de NixOS).
+    El home no instala herramientas de administración (nixdots-rebuild,
+    flake-update-*…): viven en el sistema (`core/user.nix`).
 - `templates/home/` — esqueleto (`flake.nix` + `home.nix`) que el flake publica
   como `templates.home`: un flake de home-manager que importa
   `nixdots.homeModules.{nixdots,minimal}` (una línea para cambiar), fija
-  `nixpkgs.follows = "nixdots/nixpkgs"`, aplica el overlay `nixdots.overlays.brave`
-  y lee `./prefs.toml` para pasar `prefs`. El home real vive en
-  `~/.config/home-manager`; se aplica con `home-manager switch`.
+  `nixpkgs.follows = "nixdots/nixpkgs"` y `home-manager.follows = "nixdots/home"`,
+  aplica el overlay `nixdots.overlays.brave` y lee `./prefs.toml` para pasar
+  `prefs`. El marcador `SYSTEM` lo rellena `nixdots-home-init`. El home real vive
+  en `~/.config/home-manager`; se aplica con `home-manager switch`. Si ese
+  directorio es un repo git, `flake.nix`, `home.nix` y `prefs.toml` deben estar
+  rastreados (ver `templates/home/README.md`).
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
