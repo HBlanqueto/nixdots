@@ -99,10 +99,9 @@
                     ./core/console.nix
                     ./core/first-boot.nix
                     ./core/user.nix
-                    # Cuentas desde users/*.json, pero sin plantilla de
-                    # home-manager: la VM solo comprueba el primer arranque.
+                    # Cuentas desde users/*.toml; la VM solo comprueba el
+                    # primer arranque (el home es independiente).
                     ./users/default.nix
-                    { nixdots.users.homeManager.enable = false; }
                     { system.stateVersion = data.settings.stateVersion; }
                     # Solo en la VM de prueba: root con contraseña para poder
                     # depurar desde tty2. Nunca en los hosts reales.

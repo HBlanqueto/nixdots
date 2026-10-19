@@ -1,7 +1,7 @@
 # Sistema: locale, zona, teclado, consola y ajustes de cuenta independientes
 # del usuario. Los datos de sistema salen de settings.nix (defaults) y
 # machine.json (manda); las cuentas concretas las crea users/default.nix.
-{ config, lib, pkgs, data, ... }:
+{ config, lib, pkgs, inputs, data, ... }:
 
 let
     # La ruta final la comprueba el sistema instalado; el instalador evalúa
@@ -98,6 +98,10 @@ in
         # plantilla del usuario.
         systemPackages = with pkgs; [
             comma
+
+            # Con el home fuera del sistema, el CLI va aquí para poder hacer
+            # `home-manager switch` en ~/.config/home-manager.
+            inputs.home.packages.${pkgs.stdenv.hostPlatform.system}.home-manager
 
             wget
             curl

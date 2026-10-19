@@ -275,9 +275,12 @@ in
             '';
             shellAliases = {
                 delgen = "sudo nix-collect-garbage --delete-older-than 1d && sudo nix-store --gc && sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations old";
+                # Sistema (nixdots en ~/nixdots).
                 nix-update = "nixdots-rebuild sw";
                 flake-update-rb = "nix flake update --flake $HOME/nixdots && nixdots-rebuild rb";
                 flake-update-sw = "nix flake update --flake $HOME/nixdots && nixdots-rebuild sw";
+                # Home independiente (~/.config/home-manager).
+                home-update = "nix flake update --flake $HOME/.config/home-manager nixdots && home-manager switch -b backup --flake $HOME/.config/home-manager#default";
 
                 g = "git";
                 c = "clear";
