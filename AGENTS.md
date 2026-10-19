@@ -185,4 +185,5 @@ actualiza este archivo en el mismo cambio.
   Nix) y `dist` (hereda el anterior y añade `opt-level = "z"`, `lto = true`,
   `codegen-units = 1` y `strip = true`; es el de las releases de GitHub,
   `cargo build --profile dist`).
-- devShells: `.#installer` (TUI) y `.#setup-gui` (Slint).
+- devShell: uno solo (`nix develop`), con Rust, Slint, formateadores y el CLI
+  `nixdots-setup` para las simulaciones.

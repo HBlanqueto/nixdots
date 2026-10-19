@@ -71,84 +71,10 @@
                     };
             };
 
-            # VM de prueba del primer arranque, en ambas arquitecturas. Vive
-            # solo en el flake, no en la config real. Solo desktop + first-boot
-            # + user.
-            #
-            # Se construye con NIXDOTS_ROOT vacío (ver run-firstboot-vm.sh), así
-            # el flake no ve ningún user.json, firstBoot = !(settings ? username)
-            # es true y arranca el asistente. El asistente escribe user.json,
-            # reconstruye y el reinicio ya crea la cuenta.
-            mkFirstBootVm = { system, hostName }: nixpkgs.lib.nixosSystem {
-                inherit system;
-
-                specialArgs = {
-                    inherit inputs theme;
-                    # hostName es lo único per-config que los módulos necesitan
-                    # además de data; se inyecta en data para no tener más
-                    # specialArgs sueltos.
-                    data = data // { inherit hostName; };
-                };
-
-                modules = [
-                    ./core/desktop
-                    # nix.nix aporta el overlay (pkgs.xnu-console-font), que
-                    # console.nix y user.nix usan directamente: la XNU es la
-                    # única fuente de la TTY.
-                    ./core/nix.nix
-                    ./core/console.nix
-                    ./core/first-boot.nix
-                    ./core/user.nix
-                    # Cuentas desde users/*.toml; la VM solo comprueba el
-                    # primer arranque (el home es independiente).
-                    ./users/default.nix
-                    { system.stateVersion = data.settings.stateVersion; }
-                    # Solo en la VM de prueba: root con contraseña para poder
-                    # depurar desde tty2. Nunca en los hosts reales.
-                    { users.users.root.password = "test"; }
-
-                    # La config base ES la VM (qemu-vm.nix importado aquí, no
-                    # como virtualisation.vmVariant): así el `nixos-rebuild
-                    # boot` interno construye el mismo sistema que arranca, con
-                    # sus fileSystems y su bootloader.
-                    (nixpkgs.outPath + "/nixos/modules/virtualisation/qemu-vm.nix")
-
-                    ({ pkgs, ... }: {
-                        virtualisation = {
-                            memorySize = 4096;
-                            cores = 4;
-
-                            # Sin bootloader, QEMU arranca el toplevel original
-                            # (kernel/initrd directos) y un reinicio tras
-                            # `nixos-rebuild boot` no vería la nueva generación.
-                            useBootLoader = true;
-                            useEFIBoot = true;
-                        };
-
-                        # El bootloader que instala en la imagen de la VM.
-                        boot.loader.systemd-boot.enable = true;
-
-                        # El asistente reconstruye desde esta copia del repo.
-                        # Solo se siembra si no existe (persiste en el qcow2).
-                        systemd.services.nixdots-seed = {
-                            wantedBy = [ "multi-user.target" ];
-                            before = [ "greetd.service" ];
-                            serviceConfig.Type = "oneshot";
-                            path = with pkgs; [ git coreutils ];
-                            script = ''
-                                if [ -e /persist/nixdots/repo ]; then exit 0; fi
-                                mkdir -p /persist/nixdots
-                                cp -a ${inputs.self} /persist/nixdots/repo
-                                chmod -R u+w /persist/nixdots/repo
-                                git -C /persist/nixdots/repo init -q
-                                git -C /persist/nixdots/repo add -A
-                                git -C /persist/nixdots/repo \
-                                    -c user.name=seed -c user.email=seed@localhost \
-                                    commit -qm seed
-                            '';
-                        };
-                    })
-                ];
+            # VM de prueba del primer arranque, en ambas arquitecturas (ver
+            # lib/firstboot-vm.nix).
+            mkFirstBootVm = import ./lib/firstboot-vm.nix {
+                inherit nixpkgs inputs theme data;
             };
 
             # The installer is built for both architectures the ISO is offered
@@ -172,58 +98,12 @@
                 NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
             };
 
-            # One rust package builder for the three binaries. `runtimeInputs`
-            # are put on PATH by makeWrapper; `description` goes into meta and
-            # `extra` overrides or adds any buildRustPackage attribute.
-            mkRustTool = system: { pname, subdir, description, runtimeInputs ? [ ], extra ? { } }:
-                let
-                    pkgs = nixpkgs.legacyPackages.${system};
-                    base = {
-                        inherit pname;
-                        version = "0.1.0";
-
-                        # Solo el código Rust y lo que embebe: cambios en el
-                        # resto del repo (por ejemplo un .nix) no recompilan
-                        # estas herramientas.
-                        src = pkgs.lib.fileset.toSource {
-                            root = ./.;
-                            fileset = pkgs.lib.fileset.unions [
-                                ./Cargo.toml
-                                ./Cargo.lock
-                                ./tools
-                                ./.cargo
-                                # include_str!/include_bytes! de las herramientas.
-                                ./assets
-                                ./LICENSE
-                                # El test de tools/installer lee la paleta del tema.
-                                ./share/neptunia/neptunia.nix
-                                # Import de tools/setup-gui/ui/theme.slint.
-                                ./share/neptunia/generated/neptunia.slint
-                                # include_str! de nixdots-home-init.
-                                ./templates/home
-                            ];
-                        };
-                        # buildAndTestSubdir makes the hooks run cargo inside the
-                        # crate dir; the Cargo.lock lives at the workspace root.
-                        buildAndTestSubdir = subdir;
-                        cargoLock.lockFile = ./Cargo.lock;
-
-                        nativeBuildInputs = [ pkgs.makeWrapper ];
-
-                        postInstall = ''
-                            wrapProgram $out/bin/${pname} \
-                                --prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}
-                        '';
-
-                        meta = {
-                            inherit description;
-                            mainProgram = pname;
-                            license = pkgs.lib.licenses.gpl2Only;
-                            platforms = supportedSystems;
-                        };
-                    };
-                in
-                pkgs.rustPlatform.buildRustPackage (base // extra);
+            # Constructor común de los binarios Rust (ver lib/rustTool.nix).
+            mkRustTool = system: import ./lib/rustTool.nix {
+                pkgs = nixpkgs.legacyPackages.${system};
+                root = ./.;
+                inherit supportedSystems;
+            };
 
             # Everything the installer shells out to; makeWrapper puts these on
             # its PATH so the binary works from a minimal ISO.
@@ -448,71 +328,11 @@
             # `nix fmt`: el formateador oficial (RFC 166).
             formatter = forAllSystems ({ pkgs, ... }: pkgs.nixfmt);
 
-            devShells = forAllSystems ({ system, pkgs, ... }: {
-                installer = pkgs.mkShell ((tablesEnv pkgs) // {
-                    packages = with pkgs; [
-                        cargo
-                        rustc
-                        rustfmt
-                        rust-analyzer
-                        clippy
-                        watchexec
-                        gcc
-                        # The released musl binaries link with clang + lld
-                        # (see .cargo/config.toml).
-                        clang
-                        lld
-                        pkg-config
-                    ];
+            # Un único devShell para todo el repo (ver lib/devShells.nix).
+            devShells = forAllSystems ({ system, pkgs, ... }:
+                import ./lib/devShells.nix {
+                    inherit pkgs tablesEnv;
+                    setup = setups.${system};
                 });
-                # Shell del asistente Slint: compila (winit + femtovg) y abre
-                # la UI; slint-viewer/slint-lsp para editar .slint. Incluye el
-                # CLI nixdots-setup para que «Aplicar» (--dry-run) funcione.
-                setup-gui = pkgs.mkShell ((tablesEnv pkgs) // {
-                    packages = with pkgs; [
-                        cargo
-                        rustc
-                        rustfmt
-                        rust-analyzer
-                        clippy
-                        watchexec
-                        pkg-config
-                        slint-viewer
-                        slint-lsp
-                        fontconfig
-                        freetype
-                        libxkbcommon
-                        libglvnd
-                        wayland
-                        libx11
-                        setups.${system}
-                    ];
-                    # winit/femtovg cargan libwayland, libEGL… con dlopen, que
-                    # no mira el PATH: hacen falta en el loader path.
-                    LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
-                        wayland
-                        libxkbcommon
-                        libglvnd
-                        fontconfig
-                        freetype
-                        libx11
-                    ]);
-                });
-                default = pkgs.mkShell {
-                    packages = with pkgs; [
-                        cargo
-                        rustc
-                        clippy
-                        rustfmt
-                        rust-analyzer
-                        gcc
-                        pkg-config
-                        nixfmt
-                        statix
-                        deadnix
-                        nil
-                    ];
-                };
-            });
         };
 }
