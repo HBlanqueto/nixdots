@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["installer", "kits/nixcore", "tools/nixdots-userd", "tools/nixdots-home-init", "welcome/cli", "kits/localekit", "welcome/gui"]
+members = ["installer", "kits/nixcore", "system/services/crewd", "system/services/home-init", "welcome/cli", "kits/localekit", "welcome/gui"]
 
 # Nix compila con `release`: se queda en lo justo para no cambiar el
 # comportamiento (los binarios abortan en vez de desenrollar).

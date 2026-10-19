@@ -1,5 +1,5 @@
 //! `nixdots-setup` — CLI del asistente de primer arranque: aplica los datos del
-//! usuario (JSON), escribe el hash y `users/<usuario>.toml` (+ su semilla
+//! usuario (JSON), escribe el hash y `/persist/keel/users/<usuario>.toml` (+ su semilla
 //! `.prefs.toml`), fusiona los campos
 //! de sistema en `machine.toml` y deja la nueva generación para el próximo
 //! arranque.
@@ -26,18 +26,18 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
   --repo      repositorio a reconstruir (defecto /persist/keel/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
-Los datos personales van a users/<usuario>.json; los de sistema (locale, zona,
+Los datos personales van a /persist/keel/users/<usuario>.json; los de sistema (locale, zona,
 teclado, prettyHostName, autoLoginUser) se fusionan en machine.toml. La
 contraseña se lee de stdin.
 
 nixdots-setup migrate [--dry-run]
 
-  migrate     convierte el user.json antiguo en users/<usuario>.toml y mueve
+  migrate     convierte el user.json antiguo en /persist/keel/users/<usuario>.toml y mueve
               sus campos de sistema a machine.toml, dejando user.json.bak.
 
 nixdots-setup migrate-toml
 
-  migrate-toml  convierte machine.json y users/*.json a .toml conservando los
+  migrate-toml  convierte machine.json y /persist/keel/users/*.json a .toml conservando los
                 originales como respaldo (los seguirá leyendo si falta el .toml).";
 
 #[derive(Debug, Deserialize)]
@@ -155,8 +155,8 @@ fn apply(args: &[String]) -> Result<()> {
         set_mode(&hash_path, 0o600)?;
     }
 
-    // 2. Datos personales a users/<usuario>.toml, apariencia/accesibilidad a
-    //    users/<usuario>.prefs.toml y campos de sistema a machine.toml
+    // 2. Datos personales a /persist/keel/users/<usuario>.toml, apariencia/accesibilidad a
+    //    /persist/keel/users/<usuario>.prefs.toml y campos de sistema a machine.toml
     //    (fusión: conserva lo que ya escribió el instalador).
     phase(1, dry_run);
     if sim_fail {
@@ -255,7 +255,7 @@ fn apply(args: &[String]) -> Result<()> {
 }
 
 /// Migra el `user.json` antiguo (un único usuario con campos de sistema
-/// mezclados) a `users/<usuario>.toml` + `users/<usuario>.prefs.toml` +
+/// mezclados) a `/persist/keel/users/<usuario>.toml` + `/persist/keel/users/<usuario>.prefs.toml` +
 /// `machine.toml` y deja `user.json.bak`.
 fn migrate(args: &[String]) -> Result<()> {
     let mut dry_run = false;
@@ -362,9 +362,9 @@ fn migrate(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Convierte `machine.json` y `users/*.json` a `.toml` sin borrar los
+/// Convierte `machine.json` y `/persist/keel/users/*.json` a `.toml` sin borrar los
 /// originales (quedan como respaldo y el sistema los sigue leyendo si falta el
-/// `.toml`). Pensado para máquinas que ya migraron a `users/`.
+/// `.toml`). Pensado para máquinas que ya migraron a `/persist/keel/users/`.
 fn migrate_toml(args: &[String]) -> Result<()> {
     if let Some(arg) = args.first() {
         match arg.as_str() {
@@ -438,7 +438,7 @@ fn timezone_known(zone: &str) -> bool {
 }
 
 /// `None` para cadenas vacías: así el `//` del flake deja el valor de
-/// `lib/defaults.nix` en vez de sobrescribirlo con "".
+/// `system/lib/defaults.nix` en vez de sobrescribirlo con "".
 fn non_empty(value: String) -> Option<String> {
     if value.trim().is_empty() {
         None
@@ -552,7 +552,7 @@ fn set_mode(path: &Path, mode: u32) -> Result<()> {
 }
 
 /// Deja `~<usuario>/dotfiles` como enlace al repo y pone el repo en manos del
-/// usuario. El uid está fijado a 1000 en `core/user.nix` (el asistente
+/// usuario. El uid está fijado a 1000 en `system/core/user.nix` (el asistente
 /// corre antes de que exista la cuenta).
 fn link_home(username: &str, repo: &Path) -> Result<()> {
     let home = format!("/home/{username}");

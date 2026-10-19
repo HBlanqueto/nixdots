@@ -1,4 +1,4 @@
-//! Reads the flake's `lib/defaults.nix`.
+//! Reads the flake's `system/lib/defaults.nix`.
 //!
 //! The installer only needs `stateVersion` from there (the rest of the system
 //! data comes from `machine.toml`); the file is never rewritten.
@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// Mirror of `lib/defaults.nix` used while reading it. `hashedPasswordFile` is
+/// Mirror of `system/lib/defaults.nix` used while reading it. `hashedPasswordFile` is
 /// intentionally absent: it is derived from `username` elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub state_version: String,
-    /// The chosen hostname. Not stored in lib/defaults.nix anymore (the machine's
+    /// The chosen hostname. Not stored in system/lib/defaults.nix anymore (the machine's
     /// name lives in machine.toml); kept here as the installer's current
     /// selection.
     #[serde(default)]
@@ -29,7 +29,7 @@ pub struct Settings {
     #[serde(default)]
     pub userdescription: Option<String>,
     /// macOS-style visible name («ThinkPad L14 de Humberto»). Empty on old
-    /// lib/defaults.nix files, in which case the line is not written.
+    /// system/lib/defaults.nix files, in which case the line is not written.
     #[serde(default)]
     pub pretty_host_name: String,
     #[serde(default = "default_keyboard")]
@@ -48,7 +48,7 @@ fn default_keyboard() -> String {
 }
 
 impl Settings {
-    /// Values used when `lib/defaults.nix` cannot be evaluated (e.g. the simulation
+    /// Values used when `system/lib/defaults.nix` cannot be evaluated (e.g. the simulation
     /// run on a machine without nix). Mirrors the repo's defaults.
     ///
     /// Personal fields stay empty: the installer and the first-boot assistant
@@ -70,9 +70,9 @@ impl Settings {
         }
     }
 
-    /// `nix eval --json -f lib/defaults.nix`.
+    /// `nix eval --json -f system/lib/defaults.nix`.
     pub fn read(repo: &Path) -> Result<Self> {
-        let file = repo.join("lib/defaults.nix");
+        let file = repo.join("system/lib/defaults.nix");
         let output = Command::new("nix")
             .arg("eval")
             .arg("--extra-experimental-features")
@@ -86,12 +86,12 @@ impl Settings {
             .wrap_err("no se pudo ejecutar `nix eval`")?;
         if !output.status.success() {
             return Err(eyre!(
-                "`nix eval -f lib/defaults.nix` falló: {}",
+                "`nix eval -f system/lib/defaults.nix` falló: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
             ));
         }
         let mut settings: Self = serde_json::from_slice(&output.stdout)
-            .wrap_err("lib/defaults.nix no tiene el formato esperado")?;
+            .wrap_err("system/lib/defaults.nix no tiene el formato esperado")?;
         // An empty string counts as absent, so `settings.username or null` stays
         // null (otherwise the first-boot assistant would never open).
         settings.username = settings.username.filter(|value| !value.is_empty());

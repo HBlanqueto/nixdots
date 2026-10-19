@@ -1,0 +1,8 @@
+[package]
+name = "nixdots-home-init"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+color-eyre = "0.6.5"
+nixcore = { path = "../../../kits/nixcore" }

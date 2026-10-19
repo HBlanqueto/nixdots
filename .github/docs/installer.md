@@ -27,7 +27,7 @@ The installed system's TTY uses **only** the XNU (macOS text-console) font, read
   nix run .#installer                     # simulation: no disk, no root
   ```
 
-The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](../../installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
+The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](../../installer/README.md) for the full flow and options, and `system/disko.nix` for the disk layout it applies.
 
 ## Secure Boot (Lanzaboote)
 
@@ -53,7 +53,7 @@ sudo ./nixdots/install.sh
 ```
 
 (development: `sudo nix run .#installer -- --install`). It partitions with
-`disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
+`system/disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
 `machine.toml` and runs `nixos-install --flake <repo>#nixdots` for you. The
 account is **not** created here: on the first reboot a Slint assistant asks for
 the user, the password and git, writes the account files and the hash, and rebuilds.
@@ -66,13 +66,13 @@ nixos-install --root /mnt --flake ~/nixdots#nixdots --impure --show-trace
 
 ## Disk encryption (LUKS + TPM)
 
-`disko.nix` formats the root as a **LUKS2** container (`cryptroot`) holding the
+`system/disko.nix` formats the root as a **LUKS2** container (`cryptroot`) holding the
 btrfs subvolumes; only the ESP stays unencrypted (Lanzaboote must read the
 kernel and initrd before unlocking). The installer asks for a dedicated LUKS
 passphrase on the **Cifrado** screen (separate from the account password, which
 does not exist yet) and early boots ask for it.
 
-`core/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
+`system/core/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
 (`systemd-pcrlock`) on machines that ask for it. The installer enrolls a bridge
 TPM2 token with no PCRs so Lanzaboote's `autoCryptenroll` can unlock on the
 first boot and re-enroll, this time bound to the firmware, bootloader and

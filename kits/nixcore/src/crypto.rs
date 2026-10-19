@@ -2,7 +2,7 @@
 //!
 //! The LUKS recovery key is generated here, shown once on the Cifrado screen
 //! and handed to `systemd-cryptenroll`/`cryptsetup` during the install. It is
-//! never written to the log, to `lib/defaults.nix` or to anything inside the
+//! never written to the log, to `system/lib/defaults.nix` or to anything inside the
 //! encrypted disk; [`zeroize`] wipes it as soon as it goes out of scope. The
 //! password hash (`mkpasswd`) also lives here because it is another secret.
 

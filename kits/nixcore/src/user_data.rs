@@ -8,7 +8,7 @@
 //!
 //! Los datos del sistema (locale, zona, teclado, autologin…) NO van aquí: van
 //! en `machine.toml` (ver [`crate::machine`]). La semilla de apariencia y
-//! accesibilidad vive aparte, en `users/<usuario>.prefs.toml`.
+//! accesibilidad vive aparte, en `/persist/keel/users/<usuario>.prefs.toml`.
 
 use crate::store;
 use color_eyre::eyre::{Context, Result};
@@ -48,7 +48,7 @@ fn default_version() -> u32 {
     1
 }
 
-/// Lo que se escribe en `users/<usuario>.toml` (camelCase, como lo lee el
+/// Lo que se escribe en `/persist/keel/users/<usuario>.toml` (camelCase, como lo lee el
 /// flake): solo la cuenta. El git y la apariencia viven en el home.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,7 +63,7 @@ pub struct UserData {
     pub admin: bool,
 }
 
-/// Semilla de un solo uso para el home, en `users/<usuario>.prefs.toml`:
+/// Semilla de un solo uso para el home, en `/persist/keel/users/<usuario>.prefs.toml`:
 /// apariencia, accesibilidad y git. `steward home prepare` la copia al flake del
 /// usuario (git a `home.nix`, lo demás a `prefs.toml`) y borra el original.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,12 +91,12 @@ pub fn users_dir() -> PathBuf {
     crate::paths::persist().join("users")
 }
 
-/// `users/<username>.toml`.
+/// `/persist/keel/users/<username>.toml`.
 pub fn path_for(username: &str) -> PathBuf {
     users_dir().join(format!("{username}.toml"))
 }
 
-/// `users/<username>.prefs.toml`.
+/// `/persist/keel/users/<username>.prefs.toml`.
 pub fn prefs_path_for(username: &str) -> PathBuf {
     users_dir().join(format!("{username}.prefs.toml"))
 }
@@ -111,7 +111,7 @@ fn set_str(doc: &mut toml_edit::DocumentMut, key: &str, s: Option<&str>) {
 }
 
 impl UserData {
-    /// Lee la cuenta de `users/<usuario>.toml` (o del respaldo JSON).
+    /// Lee la cuenta de `/persist/keel/users/<usuario>.toml` (o del respaldo JSON).
     pub fn read(username: &str) -> Result<Option<Self>> {
         let path = path_for(username);
         if !path.exists() && !store::json_sibling(&path).exists() {
@@ -135,7 +135,7 @@ impl UserData {
         }))
     }
 
-    /// Todas las cuentas de `users/*.toml` (sin las semillas `.prefs.toml`).
+    /// Todas las cuentas de `/persist/keel/users/*.toml` (sin las semillas `.prefs.toml`).
     pub fn list() -> Result<Vec<Self>> {
         let mut users = Vec::new();
         let Ok(entries) = std::fs::read_dir(users_dir()) else {
@@ -156,7 +156,7 @@ impl UserData {
         Ok(users)
     }
 
-    /// Escritura atómica en `users/<usuario>.toml` conservando comentarios,
+    /// Escritura atómica en `/persist/keel/users/<usuario>.toml` conservando comentarios,
     /// orden y claves desconocidas; copia la versión anterior a `.bak`.
     pub fn write(&self) -> Result<()> {
         let path = path_for(&self.username);
@@ -208,7 +208,7 @@ impl Default for Prefs {
 }
 
 impl Prefs {
-    /// Escribe la semilla en `users/<usuario>.prefs.toml`.
+    /// Escribe la semilla en `/persist/keel/users/<usuario>.prefs.toml`.
     pub fn write(&self, username: &str) -> Result<()> {
         let path = prefs_path_for(username);
         self.write_seed(&path)?;
@@ -323,7 +323,7 @@ pub fn legacy_path() -> PathBuf {
 }
 
 /// Formato antiguo de `user.json` (un único usuario con los campos de sistema
-/// mezclados). Solo se usa para migrarlo a `users/<usuario>.toml` + machine.toml.
+/// mezclados). Solo se usa para migrarlo a `/persist/keel/users/<usuario>.toml` + machine.toml.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyUser {
@@ -377,7 +377,7 @@ impl LegacyUser {
     }
 }
 
-/// Convierte `machine.json` y `users/*.json` a TOML sin borrar los originales
+/// Convierte `machine.json` y `/persist/keel/users/*.json` a TOML sin borrar los originales
 /// (quedan como respaldo). Devuelve cuántos archivos se escribieron.
 pub fn migrate_to_toml() -> Result<usize> {
     let mut written = 0;

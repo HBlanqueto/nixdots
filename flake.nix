@@ -29,33 +29,19 @@
       # evaluación pura (nix flake check sin --impure) no ve /persist y
       # todo cae a los valores seguros, por eso la config real exige
       # impure (ver mkHost).
-      data = import ./lib/data.nix { };
+      data = import ./system/lib/data.nix { };
 
       # Variante sin datos externos: las salidas de CI no deben leer
       # /persist ni con --impure (no tienen user.json/machine.json/facter).
-      emptyData = import ./lib/data.nix { impure = false; };
+      emptyData = import ./system/lib/data.nix { impure = false; };
 
       # El tema (colores, filecolors, vscode) y el diseño se importan una
       # sola vez y bajan por specialArgs/extraSpecialArgs a los módulos,
       # y como argumento a los paquetes que los usan.
       theme = import ./kits/neptunia;
 
-      mkHost = import ./lib/mkHost.nix { inherit inputs theme; };
-
-      # Módulos exclusivos del perfil único (asumen el layout de disko y/o
-      # un informe de facter). lanzaboote y luks-tpm se importan siempre:
-      # secure-boot.nix decide con mkIf y luks-tpm define boot.lanzaboote.
-      genericModules = [
-        ./core/facter.nix
-        ./core/filesystems.nix
-        ./core/rollback.nix
-        # Igual que lanzaboote: el módulo se importa siempre y
-        # hardware-detect.nix activa ucodenix solo si el informe de
-        # facter ve una CPU AMD en bare-metal.
-        inputs.ucodenix.nixosModules.default
-        inputs.lanzaboote.nixosModules.lanzaboote
-        ./core/luks-tpm.nix
-      ];
+      system = import ./system { inherit inputs theme; };
+      inherit (system) mkHost genericModules;
 
       # El perfil único detecta el hardware en tiempo de evaluación, así
       # que necesita impure (builtins.currentSystem + los .json en
@@ -148,28 +134,12 @@
         }
       );
 
-      # Servicio D-Bus de gestión de cuentas y preparación del home.
-      userd = forAllSystems (
-        { system, ... }:
-        mkRustTool system {
-          pname = "nixdots-userd";
-          subdir = "tools/nixdots-userd";
-          description = "D-Bus user management service for Keel";
-        }
-      );
-
-      homeInit = forAllSystems (
+      # Servicios y paquetes del sistema (ver system/packages.nix).
+      systemPackages = forAllSystems (
         { system, pkgs }:
-        mkRustTool system {
-          pname = "nixdots-home-init";
-          subdir = "tools/nixdots-home-init";
-          description = "First-login home setup for Keel";
-          runtimeInputs = [
-            pkgs.home-manager
-            pkgs.systemd
-            pkgs.git
-            pkgs.coreutils
-          ];
+        import ./system/packages.nix {
+          inherit pkgs;
+          mkRustTool = mkRustTool system;
         }
       );
 
@@ -216,17 +186,17 @@
       };
 
       # Overlay que el flake `home` importa para tener brave-origin-beta
-      # (el sistema ya lo aplica en core/nix.nix).
+      # (el sistema ya lo aplica en system/core/nix.nix).
       overlays.brave = inputs.brave-previews.overlays.default;
 
       # Módulos de home-manager reutilizables: `deck` (el home completo
       # de este repo) y `minimal` (fish, starship, git y el tema). El
       # template `home` genera un flake de usuario que los importa.
-      homeModules = import ./users/templates;
+      inherit (system) homeModules;
 
       templates = {
         home = {
-          path = ./templates/home;
+          path = ./system/templates/home;
           description = "Home independiente de Keel (home-manager)";
         };
       };
@@ -265,8 +235,8 @@
           installer = installerPackages.${system}.installer;
           setup = welcomePackages.${system}.setup;
           assist-setup = welcomePackages.${system}.assist-setup;
-          crewd = userd.${system};
-          home-init = homeInit.${system};
+          crewd = systemPackages.${system}.crewd;
+          home-init = systemPackages.${system}.home-init;
           launcher = installerPackages.${system}.launcher;
           default = installerPackages.${system}.launcher;
 
@@ -276,11 +246,8 @@
           # `nix build .#kmscon-palette --print-out-paths`.
           kmscon-palette = installerPackages.${system}.kmscon-palette;
 
-          # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
-          nixdots-rebuild = pkgs.callPackage ./packages/nixdots-rebuild.nix { };
-
-          # The macOS XNU console font, as PSF2 (kernel and kmscon).
-          xnu-console-font = pkgs.callPackage ./packages/xnu-console-font.nix { };
+          nixdots-rebuild = systemPackages.${system}.nixdots-rebuild;
+          xnu-console-font = systemPackages.${system}.xnu-console-font;
         }
       );
 

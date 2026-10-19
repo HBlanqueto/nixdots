@@ -11,7 +11,7 @@ actualiza este archivo en el mismo cambio.
   o adapta sus tests existentes para que el workspace siga compilando.
 - Commits pequeños y lógicos con conventional commits
   (`feat(installer): …`, `fix(console): …`, `refactor(common): …`).
-- No cambies `stateVersion` (lib/defaults.nix, "26.05").
+- No cambies `stateVersion` (system/lib/defaults.nix, "26.05").
 - No añadas dependencias pesadas (inputs, crates, servicios) sin justificarlo en
   el commit.
 - Si algo es ambiguo, elige la opción más simple y anótalo en el resumen final.
@@ -36,29 +36,29 @@ actualiza este archivo en el mismo cambio.
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
     en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
-  - `users/<usuario>.toml` — una cuenta por archivo, solo lo esencial: `version`,
+  - `/persist/keel//persist/keel/users/<usuario>.toml` — una cuenta por archivo, solo lo esencial: `version`,
     `username`, `fullName` y `admin`. El nombre del archivo debe coincidir con
     `username`.
-  - `users/<usuario>.prefs.toml` — semilla de un solo uso para el home:
+  - `/persist/keel/users/<usuario>.prefs.toml` — semilla de un solo uso para el home:
     apariencia y accesibilidad (colorScheme, accentColor, avatar*, a11y) y git.
     La escribe el asistente (y `nixdots-userd`) con modo 0600 y dueño del
     usuario; `nixdots-home-init` copia git a `home.nix` y el resto a
     `~/.config/home-manager/prefs.toml`, y borra la semilla.
-  - `user.json` — **respaldo transitorio**: si no hay `users/*`, `data.nix` lo
+  - `user.json` — **respaldo transitorio**: si no hay usuarios en `/persist/keel/users/*`, `data.nix` lo
     lee como un único usuario `admin = true`.
-    `nixdots-setup migrate` lo convierte a `users/<usuario>.toml` (+ su
+    `nixdots-setup migrate` lo convierte a `/persist/keel//persist/keel/users/<usuario>.toml` (+ su
     `.prefs.toml` con git) + `machine.toml` y deja `user.json.bak`.
   - Durante la migración el sistema lee el `.json` hermano cuando falta el
-    `.toml` (en `lib/data.nix` y en `kits/nixcore/src/store.rs`); retira ese
+    `.toml` (en `system/lib/data.nix` y en `kits/nixcore/src/store.rs`); retira ese
     respaldo cuando todas las máquinas hayan corrido `migrate-toml`.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
-- `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
+- `system/lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
-- `lib/defaults.nix` solo tiene valores independientes de la máquina (stateVersion,
+- `system/lib/defaults.nix` solo tiene valores independientes de la máquina (stateVersion,
   zona, locale, teclado por defecto).
-- Diferencias de hardware: `core/hardware-detect.nix` decide con
+- Diferencias de hardware: `system/core/hardware-detect.nix` decide con
   `config.hardware.facter.detected/report` (bare-metal AMD → ucodenix y amdgpu
   en initrd; portátil → acpid/upower; QEMU/UTM → spice-vdagent, qemu-guest).
   No uses condicionales por nombre de host.
@@ -78,24 +78,24 @@ actualiza este archivo en el mismo cambio.
 ## Componentes
 
 - Tres capas:
-  - `core/` — sistema (hardware, boot, consola, nix, seguridad,
+  - `system/core/` — sistema (hardware, boot, consola, nix, seguridad,
     filesystems/rollback/persistence, servicios, GNOME, fuentes, extras y
     first-boot). No referencia a ningún usuario concreto ni rutas de `/home`.
-    Incluye el paquete `home-manager` (core/user.nix) para el home
+    Incluye el paquete `home-manager` (system/core/user.nix) para el home
     independiente.
-  - `users/` — cuentas: `users/default.nix` lee `data.users` y genera
+  - `system/users/` — cuentas: `system/users/default.nix` lee `data.users` y genera
     `users.users.<nombre>` (`hashedPasswordFile` derivado, `wheel` solo si
     `admin`). Ya **no** cablea home-manager: el home es independiente.
-  - `users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
-    `minimal` (fish, starship, git y el tema). `users/templates/default.nix` los
+  - `system/users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
+    `minimal` (fish, starship, git y el tema). `system/users/templates/default.nix` los
     envuelve e inyecta `theme`; el flake los exporta como `homeModules` para el
     home independiente. Reciben `prefs` (apariencia/a11y desde `prefs.toml`)
     por `extraSpecialArgs`, y la identidad de git por las opciones
     `nixdots.git.{name,email}`. `stateVersion` solo se define en `home.nix`;
     `timeZoneAuto` sale de `osConfig` (con valor por defecto fuera de NixOS).
     El home no instala herramientas de administración (nixdots-rebuild,
-    flake-update-*…): viven en el sistema (`core/user.nix`).
-- `templates/home/` — esqueleto (`flake.nix` + `home.nix`) que el flake publica
+    flake-update-*…): viven en el sistema (`system/core/user.nix`).
+- `system/templates/home/` — esqueleto (`flake.nix` + `home.nix`) que el flake publica
   como `templates.home`: un flake de home-manager que importa
   `nixdots.homeModules.{nixdots,minimal}` (una línea para cambiar), fija
   `nixpkgs.follows = "nixdots/nixpkgs"` y `home-manager.follows = "nixdots/home"`,
@@ -103,8 +103,8 @@ actualiza este archivo en el mismo cambio.
   `prefs`. El marcador `SYSTEM` lo rellena `nixdots-home-init`. El home real vive
   en `~/.config/home-manager`; se aplica con `home-manager switch`. Si ese
   directorio es un repo git, `flake.nix`, `home.nix` y `prefs.toml` deben estar
-  rastreados (ver `templates/home/README.md`).
-- `core/snapshot.sh` (ayudante de rollback) vive junto a `core/rollback.nix`.
+  rastreados (ver `system/templates/home/README.md`).
+- `system/core/snapshot.sh` (ayudante de rollback) vive junto a `system/core/rollback.nix`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Otto (fork `github:HBlanqueto/otto`, con `layers` y `smithay-otto`) salió del
@@ -118,32 +118,32 @@ actualiza este archivo en el mismo cambio.
   lanzador del instalador sí abre kmscon con JetBrainsMono Nerd Font Mono 14 y la
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
-- Workspace Rust (`Cargo.toml` raíz); los crates viven en `tools/`:
-  - `kits/nixcore` — settings, users/<usuario>.toml, machine.toml, hash,
+- Workspace Rust (`Cargo.toml` raíz); los crates viven en `installer/`, `welcome/`, `system/services/` y `kits/`:
+  - `kits/nixcore` — settings, /persist/keel/users/<usuario>.toml, machine.toml, hash,
     ejecución de comandos.
   - `kits/localekit` — locales, zonas y teclados embebidos al compilar.
   - `installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
-    contraseña ni Git, ni escribe `users/*.toml` ni el hash (eso lo hace el
+    contraseña ni Git, ni escribe `/persist/keel/users/*.toml` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
   - `welcome/cli` — CLI del primer arranque (`nixdots-setup apply`) y de
     migración (`nixdots-setup migrate`).
   - `welcome/gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita);
     su modo `--home-init` muestra «Preparando tu escritorio» al primer inicio.
-  - `tools/nixdots-userd` — servicio de sistema por D-Bus
+  - `system/services/crewd` — servicio de sistema por D-Bus
     (`org.nixdots.Users1`, política propia en el bus): `ListUsers`,
     `CreateUser`, `DeleteUser(keepHome)`, `SetAdmin`, `SetFullName`,
     `SetPassword` y `DeletePrefsSeed` (solo para el propio usuario). Las
     mutaciones devuelven un id de trabajo y publican `Progress`, `Finished`,
     `Failed` y `Warning`; la reconstrucción corre en `spawn_blocking`. Exige
     polkit `org.nixdots.users.manage` (auth_admin, acción en
-    `share/polkit-1/actions`). Valida nombres (sin control, sin `:`, longitud) y
+    las acciones de polkit del sistema). Valida nombres (sin control, sin `:`, longitud) y
     reconstruye la versión instalada (`/etc/nixdots/flake-ref`) con la misma
-    protección de usuarios que `nixdots-rebuild` (`nixcore::rebuild`);
+    protección de usuarios que `nixdots-rebuild` (`kits/nixcore::rebuild`);
     un código 4 de `nixos-rebuild` no revierte, solo avisa de las unidades en
     fallo. `NIXDOTS_ROOT` va vacío (`/persist`).
-  - `tools/nixdots-home-init` — servicio de usuario: si falta
+  - `system/services/home-init` — servicio de usuario: si falta
     `~/.config/home-manager`, lo crea fijando `nixdots` a
     `github:HBlanqueto/nixdots` en la rev de `/etc/nixdots/rev` (o `path:` si la
     rev no es un commit), rellena `SYSTEM` con la arquitectura real, copia la

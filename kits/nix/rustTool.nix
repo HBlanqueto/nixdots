@@ -25,9 +25,9 @@ let
       fileset = pkgs.lib.fileset.unions [
         (root + "/Cargo.toml")
         (root + "/Cargo.lock")
-        (root + "/tools")
         (root + "/welcome")
         (root + "/installer")
+        (root + "/system/services")
         (root + "/kits/nixcore")
         (root + "/kits/localekit")
         (root + "/.cargo")
@@ -37,7 +37,7 @@ let
         # Import de welcome/gui/ui/theme.slint.
         (root + "/kits/neptunia/generated/neptunia.slint")
         # include_str! de nixdots-home-init.
-        (root + "/templates/home")
+        (root + "/system/templates/home")
       ];
     };
     # buildAndTestSubdir makes the hooks run cargo inside the crate dir;

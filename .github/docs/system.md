@@ -4,15 +4,15 @@
 
 Two details matter when partitioning by hand (the installer handles them):
 
-- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems (NixOS already marks `/persist` and `/var/log` in `core/filesystems.nix`).
-- For boot rollback, `core/snapshot.sh` must mount the Btrfs partition at the top level (`subvolid=5`, via the drive's UUID) so both `@rootfs` and `old_roots/` are visible; expired snapshots are pruned bottom-up (deepest nested subvolume first), because Btrfs refuses to delete a parent subvolume while children exist.
+- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems (NixOS already marks `/persist` and `/var/log` in `system/core/filesystems.nix`).
+- For boot rollback, `system/core/snapshot.sh` must mount the Btrfs partition at the top level (`subvolid=5`, via the drive's UUID) so both `@rootfs` and `old_roots/` are visible; expired snapshots are pruned bottom-up (deepest nested subvolume first), because Btrfs refuses to delete a parent subvolume while children exist.
 
 ## Herramientas del sistema
 
 ### nixdots-rebuild
 
 `nixdots-rebuild` es el wrapper seguro de `nixos-rebuild`; vive en
-`packages/nixdots-rebuild.nix` y su lógica en `packages/nixdots-rebuild.sh`.
+`system/packages/nixdots-rebuild.nix` y su lógica en `system/packages/nixdots-rebuild.sh`.
 Siempre construye primero, compara los usuarios normales del sistema en marcha
 con la configuración nueva para no perder cuentas y solo entonces activa. El
 repositorio canónico es `~/dotfiles` (se puede cambiar con `KEEL_REPO`) y la
@@ -26,7 +26,7 @@ Modos:
 - `update-sw`: ejecuta `nix flake update` y después `sw`.
 - `update-rb`: ejecuta `nix flake update` y después `rb`.
 
-Los alias de fish de `core/user.nix` son:
+Los alias de fish de `system/core/user.nix` son:
 
 - `nix-update` → `nixdots-rebuild sw`
 - `flake-update-rb` → `nixdots-rebuild update-rb`
@@ -35,7 +35,7 @@ Los alias de fish de `core/user.nix` son:
 
 ### Home Manager
 
-El home es independiente del sistema. La plantilla `templates/home` (publicada
+El home es independiente del sistema. La plantilla `system/templates/home` (publicada
 como `templates.home`) genera un flake de home-manager con `flake.nix` y
 `home.nix`, importa `nixdots.homeModules.{nixdots,minimal}`, fija
 `nixpkgs.follows = "nixdots/nixpkgs"` y `home-manager.follows = "nixdots/home"`,
@@ -49,11 +49,11 @@ home-manager switch -b backup --flake ~/.config/home-manager#default
 ```
 
 Si ese directorio es un repo git, `flake.nix`, `home.nix` y `prefs.toml` deben
-estar rastreados (ver `templates/home/README.md`).
+estar rastreados (ver `system/templates/home/README.md`).
 
 ### keel.features
 
-Las prestaciones opcionales se declaran en `core/extras.nix` bajo
+Las prestaciones opcionales se declaran en `system/core/extras.nix` bajo
 `options.keel.features` y se activan por máquina desde `machine.toml`
 (`"extras": { ... }`); sin datos quedan todas apagadas salvo
 `iphoneTethering`, que está activa por defecto:
@@ -76,7 +76,7 @@ red local.
   con **Remmina** como cliente en la ThinkPad.
 - **RustDesk**: alternativa más cómoda para el día a día.
 
-Lado NixOS: `core/extras.nix` (`nixdots.extras.remoteAccess`) sólo
+Lado NixOS: `system/core/extras.nix` (`nixdots.extras.remoteAccess`) sólo
 instala los paquetes `remmina` y `rustdesk-flutter`. Se activa por máquina en
 `machine.toml` (`"extras": { "remoteAccess": true }`), así que en el ThinkPad
 está activo y en la VM queda desactivado.

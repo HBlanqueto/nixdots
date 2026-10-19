@@ -124,7 +124,7 @@ fn main() -> Result<(), slint::PlatformError> {
     spawn_greeting(&ui, reduce);
 
     // Esc cierra la ventana solo en simulación. En modo real el asistente lo
-    // relanza lib/data.nix al salir con 0 y reiniciaría el equipo, así que se
+    // relanza system/lib/data.nix al salir con 0 y reiniciaría el equipo, así que se
     // ignora: para salir están «Apagar» y «Reiniciar».
     ui.on_quit_app({
         let weak = ui.as_weak();

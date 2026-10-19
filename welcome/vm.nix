@@ -25,16 +25,16 @@ nixpkgs.lib.nixosSystem {
   };
 
   modules = [
-    ../core/desktop
+    ../system/core/desktop
     # nix.nix aporta el overlay (pkgs.xnu-console-font), que console.nix y
     # user.nix usan directamente: la XNU es la única fuente de la TTY.
-    ../core/nix.nix
-    ../core/console.nix
-    ../core/first-boot.nix
-    ../core/user.nix
-    # Cuentas desde users/*.toml; la VM solo comprueba el primer arranque
+    ../system/core/nix.nix
+    ../system/core/console.nix
+    ../system/core/first-boot.nix
+    ../system/core/user.nix
+    # Cuentas desde /persist/keel/users/*.toml; la VM solo comprueba el primer arranque
     # (el home es independiente).
-    ../users/default.nix
+    ../system/users/default.nix
     { system.stateVersion = data.settings.stateVersion; }
     # Solo en la VM de prueba: root con contraseña para poder depurar desde
     # tty2. Nunca en los hosts reales.

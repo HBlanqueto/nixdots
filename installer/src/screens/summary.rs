@@ -123,7 +123,7 @@ pub fn commands(app: &App) -> Vec<String> {
         .unwrap_or_else(|| "/dev/xxx".into());
     let mut commands = vec![
         format!(
-            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {device}"
+            "disko --mode destroy,format,mount --yes-wipe-all-disks system/disko.nix --argstr device {device}"
         ),
         "nixos-install --flake /mnt/persist/keel/repo#keel --root /mnt --no-root-passwd --impure"
             .into(),

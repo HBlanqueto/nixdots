@@ -96,7 +96,7 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
 - Si se omite el paso **Equipo** se usa el hostname generado del modelo. Todas
   las elecciones por máquina (hostname, locale, zona, teclado, prettyHostName)
   van a `machine.toml` bajo `/persist/nixdots`; el instalador no modifica el
-  repo (`lib/defaults.nix` se queda como está).
+  repo (`system/lib/defaults.nix` se queda como está).
 - El instalador **no crea la cuenta**: al reiniciar, el asistente de primer
   arranque pide usuario, contraseña y git, escribe la cuenta y el hash, y
   reconstruye el sistema.

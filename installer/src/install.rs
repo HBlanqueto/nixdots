@@ -542,7 +542,7 @@ fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
     if plan.dry_run {
         report.log(format!(
-            "[simulación] $ disko --mode mount disko.nix --argstr device {}{}",
+            "[simulación] $ disko --mode mount system/disko.nix --argstr device {}{}",
             plan.device,
             if plan.encrypt {
                 " --argstr encrypt true"
@@ -557,7 +557,7 @@ fn ensure_disk_ready(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let mut cmd = Cmd::new("disko")
         .arg("--mode")
         .arg("mount")
-        .arg("disko.nix")
+        .arg("system/disko.nix")
         .arg("--argstr")
         .arg("device")
         .arg(&plan.device);
@@ -671,7 +671,7 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
         .arg("--mode")
         .arg("destroy,format,mount")
         .arg("--yes-wipe-all-disks")
-        .arg("disko.nix")
+        .arg("system/disko.nix")
         .arg("--argstr")
         .arg("device")
         .arg(&plan.device);
@@ -684,12 +684,12 @@ fn step_disk_whole(plan: &Plan, report: &mut Reporter) -> Result<Option<detect::
                 .arg_path(pass.path());
         }
         cmd = cmd.with_display(format!(
-            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {} --argstr encrypt true",
+            "disko --mode destroy,format,mount --yes-wipe-all-disks system/disko.nix --argstr device {} --argstr encrypt true",
             plan.device
         ));
     } else {
         cmd = cmd.with_display(format!(
-            "disko --mode destroy,format,mount --yes-wipe-all-disks disko.nix --argstr device {}",
+            "disko --mode destroy,format,mount --yes-wipe-all-disks system/disko.nix --argstr device {}",
             plan.device
         ));
     }
@@ -1428,7 +1428,7 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
 
 fn step_license(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // El repo no se toca: locale, zona, teclado y prettyHostName ya van a
-    // machine.toml, y el flake lee el resto de lib/defaults.nix tal cual.
+    // machine.toml, y el flake lee el resto de system/lib/defaults.nix tal cual.
     let repo = plan.installed_repo();
     let lic_dst = plan.root.join("etc/keel");
     let lic_src = repo.join("LICENSE");

@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-/// `share/i18n/SUPPORTED` de glibc, embebido por el paquete (`KEEL_LOCALES`).
+/// la tabla `SUPPORTED` de glibc, embebido por el paquete (`KEEL_LOCALES`).
 const SUPPORTED: &str = include_str!(env!("KEEL_LOCALES"));
 
 include!(concat!(env!("OUT_DIR"), "/locale_names.rs"));

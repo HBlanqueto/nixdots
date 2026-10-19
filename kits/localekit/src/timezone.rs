@@ -1,6 +1,6 @@
 //! Zonas horarias, desde `zone1970.tab` de tzdata.
 
-/// `share/zoneinfo/zone1970.tab`, embebido por el paquete
+/// la tabla `zone1970.tab` de tzdata, embebido por el paquete
 /// (`KEEL_ZONE1970_TAB`).
 const ZONE1970_TAB: &str = include_str!(env!("KEEL_ZONE1970_TAB"));
 
