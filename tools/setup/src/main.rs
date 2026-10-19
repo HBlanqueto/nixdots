@@ -433,7 +433,7 @@ fn timezone_known(zone: &str) -> bool {
 }
 
 /// `None` para cadenas vacías: así el `//` del flake deja el valor de
-/// `settings.nix` en vez de sobrescribirlo con "".
+/// `lib/defaults.nix` en vez de sobrescribirlo con "".
 fn non_empty(value: String) -> Option<String> {
     if value.trim().is_empty() {
         None

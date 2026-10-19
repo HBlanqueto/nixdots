@@ -1386,7 +1386,7 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 /// Stages everything the installer wrote into the copied repo and commits it,
-/// because a flake only sees git-tracked paths: without this, `settings.nix`
+/// because a flake only sees git-tracked paths: without this, `lib/defaults.nix`
 /// would be invisible to `nix eval`/`nix build`. The identity and
 /// `safe.directory` are passed per-invocation (`-c`), so nothing is written to
 /// the user's git config; the Git screen's identity is used when provided.
@@ -1488,8 +1488,9 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
 fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     // Enough of a repo for the later (simulated) steps to operate on.
     fs::create_dir_all(dest.join("core"))?;
+    fs::create_dir_all(dest.join("lib"))?;
     fs::write(
-        dest.join("settings.nix"),
+        dest.join("lib/defaults.nix"),
         plan.settings.without_user().render(),
     )?;
     fs::write(dest.join("core/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
@@ -1501,8 +1502,8 @@ const SNAPSHOT_TEMPLATE: &str =
 
 fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
-    report.log("escribiendo settings.nix");
-    report.log(format!("$ escribir {}/settings.nix", repo.display()));
+    report.log("escribiendo lib/defaults.nix");
+    report.log(format!("$ escribir {}/lib/defaults.nix", repo.display()));
     plan.settings.without_user().write(&repo)?;
 
     // Keep a copy of the license in the installed system.
@@ -1613,7 +1614,7 @@ fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     let persist = plan.root.join("persist");
 
-    // The flake only sees git-tracked paths, so stage settings.nix before
+    // The flake only sees git-tracked paths, so stage lib/defaults.nix before
     // evaluating the config.
     git_snapshot(plan, report)?;
 

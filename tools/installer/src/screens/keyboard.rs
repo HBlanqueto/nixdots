@@ -110,7 +110,7 @@ pub fn commands(app: &App) -> Vec<String> {
     vec![
         format!("loadkeys {}", app.keyboard_layout),
         format!(
-            "settings.nix: keyboardLayout = \"{}\";",
+            "lib/defaults.nix: keyboardLayout = \"{}\";",
             app.keyboard_layout
         ),
     ]

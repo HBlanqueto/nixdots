@@ -49,7 +49,7 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![format!(
-        "settings.nix: timeZone = \"{}\";",
+        "lib/defaults.nix: timeZone = \"{}\";",
         app.settings.time_zone
     )]
 }

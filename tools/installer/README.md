@@ -95,7 +95,7 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
   también ante un pánico o Ctrl+C.
 - Si se omite el paso **Equipo** se usa el hostname generado del modelo; el
   instalador lo escribe en `machine.toml` y deja `prettyHostName` en
-  `settings.nix`.
+  `lib/defaults.nix`.
 - El instalador **no crea la cuenta**: al reiniciar, el asistente de primer
   arranque pide usuario, contraseña y git, escribe la cuenta y el hash, y
   reconstruye el sistema.

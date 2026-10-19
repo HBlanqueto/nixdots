@@ -84,9 +84,9 @@ let
     soleUser = if builtins.length (builtins.attrNames users) == 1
         then users.${builtins.head (builtins.attrNames users)} else null;
 
-    # settings.nix son los valores del sistema por defecto; machine.toml manda
+    # lib/defaults.nix son los valores del sistema por defecto; machine.toml manda
     # en las claves que define. Los datos de cada cuenta viven en `users`.
-    settings = import ../settings.nix // machine;
+    settings = import ./defaults.nix // machine;
 
     facterFile = "${persist}/facter.json";
 

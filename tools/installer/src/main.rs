@@ -208,9 +208,9 @@ fn git_clone(url: &str, dest: &Path) -> Result<()> {
 }
 
 fn write_stub_repo(dest: &Path) -> Result<()> {
-    std::fs::create_dir_all(dest)?;
+    std::fs::create_dir_all(dest.join("lib"))?;
     std::fs::write(
-        dest.join("settings.nix"),
+        dest.join("lib/defaults.nix"),
         settings::Settings::fallback().without_user().render(),
     )?;
     std::fs::write(

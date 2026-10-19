@@ -11,7 +11,7 @@ actualiza este archivo en el mismo cambio.
   o adapta sus tests existentes para que el workspace siga compilando.
 - Commits pequeños y lógicos con conventional commits
   (`feat(installer): …`, `fix(console): …`, `refactor(common): …`).
-- No cambies `stateVersion` (settings.nix, "26.05").
+- No cambies `stateVersion` (lib/defaults.nix, "26.05").
 - No añadas dependencias pesadas (inputs, crates, servicios) sin justificarlo en
   el commit.
 - Si algo es ambiguo, elige la opción más simple y anótalo en el resumen final.
@@ -56,7 +56,7 @@ actualiza este archivo en el mismo cambio.
     de root. Nunca hashes ni secretos en el repo.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
-- `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
+- `lib/defaults.nix` solo tiene valores independientes de la máquina (stateVersion,
   zona, locale, teclado por defecto).
 - Diferencias de hardware: `core/hardware-detect.nix` decide con
   `config.hardware.facter.detected/report` (bare-metal AMD → ucodenix y amdgpu

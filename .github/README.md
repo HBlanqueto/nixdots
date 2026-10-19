@@ -29,15 +29,14 @@ This NixOS system features the following core components:
 │   ├── desktop/             # GNOME/GDM
 │   └── snapshot.sh          # ayudante de rollback (initrd)
 ├── users/                   # cuentas y plantillas de home-manager
-├── lib/                     # mkHost, data, helpers
+├── lib/                     # mkHost, data, defaults, helpers
 ├── overlays/  packages/  share/
 ├── disko.nix                # standalone disk layout applied by the installer
-├── settings.nix             # machine-independent values (locale, keyboard, stateVersion)
 └── flake.nix  flake.lock
 ```
 
 * **`flake.nix`:** emits the generic `nixdots` configuration (plus pure CI variants and the first-boot test VMs); also packages the installer for `x86_64-linux` and `aarch64-linux`.
-* **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
+* **`lib/defaults.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
 * **`machine.toml` / `users/<user>.toml` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.toml` and `facter.json`, the first-boot assistant writes the account (plus its `.prefs.toml` seed and the password hash), and `lib/data.nix` merges them.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `cryptroot` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`tools/installer/`:** text-mode installer. See [tools/installer/README.md](tools/installer/README.md).

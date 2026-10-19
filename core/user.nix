@@ -1,5 +1,5 @@
 # Sistema: locale, zona, teclado, consola y ajustes de cuenta independientes
-# del usuario. Los datos de sistema salen de settings.nix (defaults) y
+# del usuario. Los datos de sistema salen de lib/defaults.nix (defaults) y
 # machine.toml (manda); las cuentas concretas las crea users/default.nix.
 { config, lib, pkgs, inputs, data, ... }:
 

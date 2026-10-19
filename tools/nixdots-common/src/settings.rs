@@ -1,21 +1,21 @@
-//! Reads and rewrites the flake's `settings.nix`.
+//! Reads and rewrites the flake's `lib/defaults.nix`.
 //!
 //! The file is regenerated from a template that mirrors the original layout
-//! (same key order, 4-space indentation). `settings.nix` is never edited with
-//! `sed`.
+//! (same key order, 4-space indentation). `lib/defaults.nix` is never edited
+//! with `sed`.
 
 use color_eyre::eyre::{eyre, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// Mirror of `settings.nix`. `hashedPasswordFile` is intentionally absent: it
+/// Mirror of `lib/defaults.nix`. `hashedPasswordFile` is intentionally absent: it
 /// is always derived from `username` when writing, and ignored when reading.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub state_version: String,
-    /// The chosen hostname. Not stored in settings.nix anymore (the machine's
+    /// The chosen hostname. Not stored in lib/defaults.nix anymore (the machine's
     /// name lives in machine.toml); kept here as the installer's current
     /// selection.
     #[serde(default)]
@@ -30,7 +30,7 @@ pub struct Settings {
     #[serde(default)]
     pub userdescription: Option<String>,
     /// macOS-style visible name («ThinkPad L14 de Humberto»). Empty on old
-    /// settings.nix files, in which case the line is not written.
+    /// lib/defaults.nix files, in which case the line is not written.
     #[serde(default)]
     pub pretty_host_name: String,
     #[serde(default = "default_keyboard")]
@@ -57,7 +57,7 @@ impl Settings {
             .map(|username| format!("/persist/secrets/{username}.hash"))
     }
 
-    /// A copy without the user fields: the installed `settings.nix` does not
+    /// A copy without the user fields: the installed `lib/defaults.nix` does not
     /// carry them (they live in `users/<usuario>.toml`).
     pub fn without_user(&self) -> Self {
         let mut copy = self.clone();
@@ -66,7 +66,7 @@ impl Settings {
         copy
     }
 
-    /// Values used when `settings.nix` cannot be evaluated (e.g. the simulation
+    /// Values used when `lib/defaults.nix` cannot be evaluated (e.g. the simulation
     /// run on a machine without nix). Mirrors the repo's defaults.
     ///
     /// Personal fields stay empty: the installer and the first-boot assistant
@@ -88,9 +88,9 @@ impl Settings {
         }
     }
 
-    /// `nix eval --json -f settings.nix`.
+    /// `nix eval --json -f lib/defaults.nix`.
     pub fn read(repo: &Path) -> Result<Self> {
-        let file = repo.join("settings.nix");
+        let file = repo.join("lib/defaults.nix");
         let output = Command::new("nix")
             .arg("eval")
             .arg("--extra-experimental-features")
@@ -104,12 +104,12 @@ impl Settings {
             .wrap_err("no se pudo ejecutar `nix eval`")?;
         if !output.status.success() {
             return Err(eyre!(
-                "`nix eval -f settings.nix` falló: {}",
+                "`nix eval -f lib/defaults.nix` falló: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
             ));
         }
         let mut settings: Self = serde_json::from_slice(&output.stdout)
-            .wrap_err("settings.nix no tiene el formato esperado")?;
+            .wrap_err("lib/defaults.nix no tiene el formato esperado")?;
         // An empty string counts as absent, so `settings.username or null` stays
         // null (otherwise the first-boot assistant would never open).
         settings.username = settings.username.filter(|value| !value.is_empty());
@@ -150,21 +150,22 @@ impl Settings {
         )
     }
 
-    /// Writes `settings.nix` atomically: a sibling temporary file is fully
+    /// Writes `lib/defaults.nix` atomically: a sibling temporary file is fully
     /// written and synced, then renamed over the original, so an interrupted
     /// install never leaves a truncated file the flake cannot evaluate.
     pub fn write(&self, repo: &Path) -> Result<()> {
-        let target = repo.join("settings.nix");
-        let tmp = repo.join(".settings.nix.tmp");
+        std::fs::create_dir_all(repo.join("lib"))?;
+        let target = repo.join("lib/defaults.nix");
+        let tmp = repo.join("lib/.defaults.nix.tmp");
         {
             use std::io::Write;
             let mut file = std::fs::File::create(&tmp)
-                .wrap_err("no se pudo crear el temporal de settings.nix")?;
+                .wrap_err("no se pudo crear el temporal de lib/defaults.nix")?;
             file.write_all(self.render().as_bytes())
                 .and_then(|()| file.sync_all())
-                .wrap_err("no se pudo escribir settings.nix")?;
+                .wrap_err("no se pudo escribir lib/defaults.nix")?;
         }
-        std::fs::rename(&tmp, &target).wrap_err("no se pudo reemplazar settings.nix")?;
+        std::fs::rename(&tmp, &target).wrap_err("no se pudo reemplazar lib/defaults.nix")?;
         Ok(())
     }
 }
