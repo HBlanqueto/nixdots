@@ -29,8 +29,36 @@ _: {
                 # del equipo; con la raíz efímera se perdería en cada arranque y
                 # libvirtd no arrancaría. Cualquier servicio con credenciales
                 # cifradas la necesita.
+                #
+                # systemd NO sigue enlaces simbólicos para esta clave, así que
+                # debe ser un archivo real (bind mount). Impermanence
+                # (rev 7b1d382) bind-montea los `files` con `method = "auto"`
+                # solo si el destino ya existe; el script de abajo lo crea antes.
                 "/var/lib/systemd/credential.secret"
             ];
         };
     };
+
+    system.activationScripts.nixdotsCredentialSecret = {
+        deps = [ "specialfs" ];
+        text = ''
+            # Clave de systemd-creds: archivo real, nunca symlink. Se retira el
+            # enlace roto que pudo dejar una activación anterior y se crea la
+            # clave (32 bytes) solo si no existe, para conservarla entre
+            # arranques.
+            if [ -L /var/lib/systemd/credential.secret ]; then
+                rm -f /var/lib/systemd/credential.secret
+            fi
+            mkdir -p /persist/var/lib/systemd
+            if [ ! -s /persist/var/lib/systemd/credential.secret ]; then
+                umask 077
+                head -c 32 /dev/urandom > /persist/var/lib/systemd/credential.secret
+            fi
+            chmod 0600 /persist/var/lib/systemd/credential.secret
+        '';
+    };
+
+    # `persist-files` (impermanence) corre después: al existir ya el destino,
+    # `method = "auto"` hace bind mount en vez de symlink.
+    system.activationScripts.persist-files.deps = [ "nixdotsCredentialSecret" ];
 }
