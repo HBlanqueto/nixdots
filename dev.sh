@@ -73,12 +73,12 @@ sim_installer() {
 
 sim_setup() {
     if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
-        here cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
+        here cargo run --manifest-path welcome/gui/Cargo.toml -- --sim
     fi
     run_window keel-setup-sim \
-        "-w tools/setup-gui/ui -w tools/setup-gui/src -w tools/setup-gui/Cargo.toml -w tools/setup-gui/build.rs -w Cargo.toml" \
+        "-w welcome/gui/ui -w welcome/gui/src -w welcome/gui/Cargo.toml -w welcome/gui/build.rs -w Cargo.toml" \
         slint,rs,toml \
-        cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
+        cargo run --manifest-path welcome/gui/Cargo.toml -- --sim
 }
 
 vm() {

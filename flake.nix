@@ -80,8 +80,8 @@
         };
 
       # VM de prueba del primer arranque, en ambas arquitecturas (ver
-      # lib/firstboot-vm.nix).
-      mkFirstBootVm = import ./lib/firstboot-vm.nix {
+      # welcome/vm.nix).
+      mkFirstBootVm = import ./welcome/vm.nix {
         inherit
           nixpkgs
           inputs
@@ -139,54 +139,12 @@
         }
       );
 
-      # El asistente de primer arranque: solo orquesta mkpasswd, git, nix
-      # y nixos-rebuild.
-      setups = forAllSystems (
+      # Asistente de primer arranque (CLI + GUI) y su VM.
+      welcomePackages = forAllSystems (
         { system, pkgs }:
-        mkRustTool system {
-          pname = "nixdots-setup";
-          subdir = "tools/setup";
-          runtimeInputs = with pkgs; [
-            git
-            nix
-            nixos-rebuild
-            mkpasswd
-            coreutils
-          ];
-          description = "First-boot assistant CLI for the Keel configuration";
-          # Tablas que `localekit` embebe para validar locale y zona.
-          extra = tablesEnv pkgs;
-        }
-      );
-
-      # Asistente gráfico (Slint): llama al CLI nixdots-setup.
-      #
-      # Licencia: Slint es GPL-3.0-only (o comercial/royalty-free). El
-      # flake declara gpl2Only y GPLv2-only es incompatible con GPLv3.
-      # Ver tools/setup-gui/Cargo.toml.
-      setupsGui = forAllSystems (
-        { system, pkgs }:
-        mkRustTool system {
-          pname = "nixdots-setup-gui";
-          subdir = "tools/setup-gui";
-          description = "Graphical first-boot assistant for the Keel configuration (Slint)";
-          runtimeInputs = [ setups.${system} ];
-          # Tablas que `localekit` embebe (locales) para la lista
-          # de idiomas del asistente.
-          extra = (tablesEnv pkgs) // {
-            nativeBuildInputs = [
-              pkgs.pkg-config
-              pkgs.makeWrapper
-            ];
-            buildInputs = with pkgs; [
-              fontconfig
-              freetype
-              libxkbcommon
-              libglvnd
-              wayland
-              libx11
-            ];
-          };
+        import ./welcome {
+          inherit pkgs tablesEnv;
+          mkRustTool = mkRustTool system;
         }
       );
 
@@ -305,8 +263,8 @@
       packages = forAllSystems (
         { system, pkgs }: {
           installer = installerPackages.${system}.installer;
-          setup = setups.${system};
-          assist-setup = setupsGui.${system};
+          setup = welcomePackages.${system}.setup;
+          assist-setup = welcomePackages.${system}.assist-setup;
           crewd = userd.${system};
           home-init = homeInit.${system};
           launcher = installerPackages.${system}.launcher;
@@ -349,7 +307,7 @@
         { system, pkgs, ... }:
         import ./kits/nix/devShells.nix {
           inherit pkgs tablesEnv;
-          setup = setups.${system};
+          setup = welcomePackages.${system}.setup;
         }
       );
     };

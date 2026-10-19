@@ -127,9 +127,9 @@ actualiza este archivo en el mismo cambio.
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
     contraseña ni Git, ni escribe `users/*.toml` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
-  - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`) y de
+  - `welcome/cli` — CLI del primer arranque (`nixdots-setup apply`) y de
     migración (`nixdots-setup migrate`).
-  - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita);
+  - `welcome/gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita);
     su modo `--home-init` muestra «Preparando tu escritorio» al primer inicio.
   - `tools/nixdots-userd` — servicio de sistema por D-Bus
     (`org.nixdots.Users1`, política propia en el bus): `ListUsers`,
