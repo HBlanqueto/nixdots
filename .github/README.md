@@ -102,7 +102,7 @@ sudo ./nixdots/install.sh
 `disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
 `machine.toml` and runs `nixos-install --flake <repo>#nixdots` for you. The
 account is **not** created here: on the first reboot a Slint assistant asks for
-the user, the password and git, writes `user.json` and the hash, and rebuilds.
+the user, the password and git, writes the account files and the hash, and rebuilds.
 
 To install manually, the flake provides the single `nixdots` configuration:
 

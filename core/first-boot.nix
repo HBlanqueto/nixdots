@@ -1,4 +1,4 @@
-# Primer arranque: `firstBoot` lo calcula lib/data.nix (impuro y sin user.json
+# Primer arranque: `firstBoot` lo calcula lib/data.nix (impuro y sin cuentas
 # en un host real). Con `firstBoot` false el módulo no hace nada.
 { config, lib, pkgs, inputs, data, ... }:
 
@@ -14,7 +14,7 @@ let
     '';
 
     # Contrato del asistente: salir con código 0 significa que ya escribió
-    # user.json y ejecutó `nixos-rebuild boot`; entonces se reinicia para
+    # las cuentas y ejecutó `nixos-rebuild boot`; entonces se reinicia para
     # arrancar con GDM. Mientras salga != 0 se relanza (con una espera de un
     # segundo para no girar en vacío si cage no llega a arrancar). El bucle
     # nunca deja salir a la sesión de greetd: greetd no ve un greeter que muere

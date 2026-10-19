@@ -3,14 +3,14 @@
 # `system` comes from the caller (builtins.currentSystem with --impure, a fixed
 # value in pure evaluation), never hardcoded, so the flake can emit both an
 # x86_64-linux and an aarch64-linux configuration. `data` carries
-# user.json/machine.json/facter.json; hostName sale de data.machine.
+# users/*.toml/machine.toml/facter.json; hostName sale de data.machine.
 { inputs, theme }:
 { system, modules ? [ ], requireImpure ? true, data }:
 inputs.nixpkgs.lib.nixosSystem {
     inherit system;
 
     # Todo llega por `data` (más inputs/theme); no hay argumentos sueltos. El
-    # hostName por defecto cubre CI y evaluación pura (sin machine.json).
+    # hostName por defecto cubre CI y evaluación pura (sin machine.toml).
     specialArgs = {
         inherit inputs theme;
         data = data // { hostName = data.machine.hostName or "nixdots"; };
@@ -28,7 +28,7 @@ inputs.nixpkgs.lib.nixosSystem {
         ../core
         ../core/desktop
         ../users
-        # Sin evaluación impura no se puede leer user.json; abortar en vez de
+        # Sin evaluación impura no se pueden leer las cuentas; abortar en vez de
         # tratar el host como primer arranque (que borraría la cuenta). Las
         # salidas puras de CI (requireImpure = false) se saltan la assertion: no
         # activan la cuenta ni el cifrado, solo sirven para `nix flake check`.

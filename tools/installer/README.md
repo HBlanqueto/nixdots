@@ -94,8 +94,8 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
   arrancar se programan los 16 slots con OSC P y se restauran con OSC R al salir,
   también ante un pánico o Ctrl+C.
 - Si se omite el paso **Equipo** se usa el hostname generado del modelo; el
-  instalador lo escribe en `machine.json` y deja `prettyHostName` en
+  instalador lo escribe en `machine.toml` y deja `prettyHostName` en
   `settings.nix`.
 - El instalador **no crea la cuenta**: al reiniciar, el asistente de primer
-  arranque pide usuario, contraseña y git, escribe `user.json` y el hash, y
+  arranque pide usuario, contraseña y git, escribe la cuenta y el hash, y
   reconstruye el sistema.

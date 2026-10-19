@@ -1,5 +1,5 @@
 # Per-machine facts that are not committed to the repo. lib/data.nix reads them
-# from ${NIXDOTS_ROOT}/persist/nixdots/machine.json and mkHost exposes them as
+# from ${NIXDOTS_ROOT}/persist/nixdots/machine.toml and mkHost exposes them as
 # `data.machine`. In a pure evaluation (CI, `nix flake check`), or for a host
 # with its own hardware file, `data.machine` is { }, so every option below falls
 # back to a safe default: no encryption, no Secure Boot, no extra peripherals.

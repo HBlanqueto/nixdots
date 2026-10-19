@@ -10,7 +10,7 @@ red local.
 
 Lado NixOS: `modules/common/extras.nix` (`nixdots.extras.remoteAccess`) sólo
 instala los paquetes `remmina` y `rustdesk-flutter`. Se activa por máquina en
-`machine.json` (`"extras": { "remoteAccess": true }`), así que en el ThinkPad
+`machine.toml` (`"extras": { "remoteAccess": true }`), así que en el ThinkPad
 está activo y en la VM queda desactivado.
 
 > No guardes en el repo contraseñas de VNC ni el ID de RustDesk. Todo eso se
@@ -79,7 +79,7 @@ el Mac está a la espera de desbloqueo, sólo queda un reinicio local.
    sudo nixos-rebuild switch --flake ~/nixdots#nixdots
    ```
 
-   (con `"remoteAccess": true` en `machine.json` se instalan los paquetes
+   (con `"remoteAccess": true` en `machine.toml` se instalan los paquetes
    `remmina` y `rustdesk-flutter`.)
 
 2. En Remmina, **Nueva conexión**:

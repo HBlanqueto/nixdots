@@ -2248,7 +2248,7 @@ pub fn check_source(repo: &Path) -> Result<(), String> {
         .arg(&tmp)
         .status();
 
-    // Sin user.json (NIXDOTS_ROOT=tmp) el config no declara cuenta, así que no
+    // Sin cuentas (NIXDOTS_ROOT=tmp) el config no declara usuario, así que no
     // hace falta un hash marcador: la evaluación solo valida la estructura.
     ensure_git_tree(&tmp);
 

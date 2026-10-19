@@ -1,6 +1,6 @@
 # Hardware detection from a nixos-facter report. The report is generated on the
 # machine (`nixos-facter` needs root) and is not versioned; it lives next to
-# user.json in /persist/nixdots. In a pure evaluation, or when the file does not
+# users data in /persist/nixdots. In a pure evaluation, or when it does not
 # exist yet, the whole facter layer stays off (facterReport = null) and nothing
 # below applies.
 #
@@ -11,7 +11,7 @@
 
 let
     # lib/data.nix already checks impure + pathExists (same NIXDOTS_ROOT dance
-    # as user.json): the installer evaluates with the variable pointing at the
+    # as the users data): the installer evaluates with the variable pointing at the
     # target (e.g. "/mnt"); on a running system it is unset ("").
     readable = data.facterReport != null;
 in
