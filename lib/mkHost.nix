@@ -13,7 +13,7 @@ inputs.nixpkgs.lib.nixosSystem {
     # hostName por defecto cubre CI y evaluación pura (sin machine.toml).
     specialArgs = {
         inherit inputs theme;
-        data = data // { hostName = data.machine.hostName or "nixdots"; };
+        data = data // { hostName = data.machine.hostName or "keel"; };
     };
 
     modules = [
@@ -36,7 +36,7 @@ inputs.nixpkgs.lib.nixosSystem {
             assertions = [
                 {
                     assertion = !requireImpure || data.impure;
-                    message = "nixdots necesita evaluación impura para leer /persist/nixdots: usa nixdots-rebuild o añade --impure";
+                    message = "keel necesita evaluación impura para leer /persist/keel: usa steward rebuild o añade --impure";
                 }
                 {
                     assertion = data.usersValid;

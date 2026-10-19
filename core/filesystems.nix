@@ -1,4 +1,4 @@
-# Device-agnostic filesystems for the generic `nixdots` configuration. The
+# Device-agnostic filesystems for the generic `keel` configuration. The
 # installer's disko layout labels the btrfs filesystem `nixos` and the ESP
 # `BOOT` (see disko.nix), so the mounts are addressed by label instead of by
 # UUID and the same config is valid on every disk. Módulo exclusivo del perfil
@@ -25,7 +25,7 @@ let
     # Opciones de un subvolumen: la base más los flags de endurecimiento.
     subvol = name: extra: [ "subvol=${name}" ] ++ btrfsOptions ++ extra;
 
-    m = config.nixdots.machine;
+    m = config.keel.machine;
 in
 {
     fileSystems = {
@@ -71,7 +71,7 @@ in
     assertions = [
         {
             assertion = !m.encrypt || config.boot.initrd.luks.devices ? "cryptroot";
-            message = "nixdots.machine.encrypt está activo pero no hay boot.initrd.luks.devices.cryptroot";
+            message = "keel.machine.encrypt está activo pero no hay boot.initrd.luks.devices.cryptroot";
         }
     ];
 }

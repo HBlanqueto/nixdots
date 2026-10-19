@@ -35,7 +35,7 @@ in
     packageJson = builtins.toJSON {
         name = "neptunia-theme";
         displayName = "Neptunia";
-        description = "Neptunia colorscheme, generated from the nixdots theme";
+        description = "Neptunia colorscheme, generated from the Keel theme";
         version = "1.0.0";
         publisher = "nix";
         engines.vscode = "^1.75.0";

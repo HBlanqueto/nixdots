@@ -1,6 +1,6 @@
 # TPM2 auto-unlock of the LUKS2 root, via Lanzaboote's Measured Boot
 # (systemd-pcrlock). It needs a TPM2 chip and Secure Boot, so it is inert unless
-# `nixdots.machine.secureBoot` and `nixdots.machine.tpmUnlock` are both set (the
+# `keel.machine.secureBoot` and `keel.machine.tpmUnlock` are both set (the
 # latter requires the former; machine.nix asserts it).
 #
 # lanzaboote's autoCryptenroll runs last: it unlocks with
@@ -15,21 +15,21 @@
 { config, lib, pkgs, ... }:
 
 let
-    m = config.nixdots.machine;
+    m = config.keel.machine;
 
     # The LUKS2 partition holding the root.
     device = config.boot.initrd.luks.devices."cryptroot".device;
 
     # Message shown in the journal and notified on the desktop when the bridge
     # token survived: the last auto-cryptenroll did not replace it.
-    warning = "El desbloqueo con TPM no se completó; el disco está protegido solo por la entrada temporal. Ejecuta nixdots-rebuild o revisa auto-cryptenroll.";
+    warning = "El desbloqueo con TPM no se completó; el disco está protegido solo por la entrada temporal. Ejecuta steward rebuild o revisa auto-cryptenroll.";
 
     # Succeeds when a systemd-tpm2 token with no policy is still enrolled: the
     # installer's bridge token, which auto-cryptenroll should have replaced. Its
     # luksDump block carries neither PCRs nor a pcrlock policy. The awk reads the
     # human-readable dump: tokens start with `N: systemd-tpm2`, fields are
     # indented under them. It never writes to the disk.
-    tpmBridgeLeft = pkgs.writeShellScript "nixdots-tpm-check" ''
+    tpmBridgeLeft = pkgs.writeShellScript "lookout" ''
         ${pkgs.cryptsetup}/bin/cryptsetup \
             --external-tokens-path=${config.systemd.package}/lib/cryptsetup \
             luksDump ${lib.escapeShellArg device} | ${pkgs.gawk}/bin/awk '
@@ -46,8 +46,8 @@ let
     '';
 
     # Warns the user at graphical login if the check left a warning file.
-    tpmWarn = pkgs.writeShellScript "nixdots-tpm-warning" ''
-        if [ -e /run/nixdots-tpm/warning ]; then
+    tpmWarn = pkgs.writeShellScript "lookout-notice" ''
+        if [ -e /run/lookout/warning ]; then
             ${pkgs.libnotify}/bin/notify-send --urgency=critical --icon=dialog-warning \
                 "Desbloqueo con TPM incompleto" ${lib.escapeShellArg warning}
         fi
@@ -86,7 +86,7 @@ in
         # enrolled the pcrlock policy. If a policy-less systemd-tpm2 token is
         # still there, log it and leave a flag for the login notification. It
         # never deletes anything by itself.
-        systemd.services.nixdots-tpm-check = {
+        systemd.services.lookout = {
             description = "Comprueba que auto-cryptenroll sustituyó el token TPM puente";
             after = [ "auto-cryptenroll.service" ];
             wants = [ "auto-cryptenroll.service" ];
@@ -94,20 +94,20 @@ in
             serviceConfig = {
                 Type = "oneshot";
                 RemainAfterExit = true;
-                RuntimeDirectory = "nixdots-tpm";
+                RuntimeDirectory = "lookout";
                 RuntimeDirectoryMode = "0755";
             };
             script = ''
                 if ${tpmBridgeLeft}; then
                     printf '%s\n' ${lib.escapeShellArg warning} \
-                        | ${config.systemd.package}/bin/systemd-cat -t nixdots-tpm-check -p err
+                        | ${config.systemd.package}/bin/systemd-cat -t lookout -p err
                     printf '%s\n' ${lib.escapeShellArg warning} > "$RUNTIME_DIRECTORY/warning"
                 fi
             '';
         };
 
         # GNOME notification, at graphical login, when the check flagged.
-        systemd.user.services.nixdots-tpm-warning = {
+        systemd.user.services.lookout-notice = {
             description = "Avisa si el token TPM puente sigue activo";
             after = [ "graphical-session.target" ];
             wantedBy = [ "graphical-session.target" ];

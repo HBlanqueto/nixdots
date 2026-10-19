@@ -1,4 +1,4 @@
-# Standalone disko layout for nixdots.
+# Standalone disko layout for Keel.
 #
 # This file is deliberately *not* a NixOS module and is *not* imported by
 # flake.nix. `disko` evaluates it directly, e.g.:
@@ -16,7 +16,7 @@
 #
 # The LUKS passphrase comes from a single source: the installer writes the exact
 # bytes typed on the password screen (no trailing newline) to a short-lived
-# /run/nixdots/luks.pass and passes it here as `--argstr luksPasswordFile`; the
+# /run/keel/luks.pass and passes it here as `--argstr luksPasswordFile`; the
 # same file is reused for the slot check, the recovery key and the TPM enroll.
 # A manual run without it (null) makes disko prompt for the passphrase on stdin.
 # The unencrypted ESP keeps lanzaboote / Secure Boot (which read the kernel and
@@ -24,7 +24,7 @@
 {
     device ? "/dev/vda",
     # Absolute path to the file holding the LUKS passphrase, passed by the
-    # installer as `--argstr luksPasswordFile /run/nixdots/luks.pass`. `null`
+    # installer as `--argstr luksPasswordFile /run/keel/luks.pass`. `null`
     # (the default) makes disko ask for it on stdin.
     luksPasswordFile ? null,
     # Passed by the installer as `--argstr encrypt true` when the user checked

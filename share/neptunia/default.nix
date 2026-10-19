@@ -1,4 +1,4 @@
-# Neptunia: la única fuente de tema y diseño de nixdots.
+# Neptunia: la única fuente de tema y diseño de Keel.
 #
 # tokens.json y components.json son los datos (neutros, sin framework). Este
 # archivo los traduce a cada formato y compone también la paleta de terminal

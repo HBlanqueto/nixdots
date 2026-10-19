@@ -1,4 +1,4 @@
-{ config, pkgs, lib, nixdots, prefs ? { }, theme, ... }:
+{ config, pkgs, lib, prefs ? { }, theme, ... }:
 
 let
     yaziConfig = import ./config/yazi { inherit theme; };
@@ -187,7 +187,7 @@ in
         git = {
             enable = true;
             settings.user = {
-                inherit (config.nixdots.git) name email;
+                inherit (config.keel.git) name email;
             };
         };
 
@@ -253,7 +253,7 @@ in
             '';
             shellAliases = {
                 # Home independiente (~/.config/home-manager).
-                home-update = "nix flake update --flake $HOME/.config/home-manager nixdots && home-manager switch -b backup --flake $HOME/.config/home-manager#default";
+                home-update = "nix flake update --flake $HOME/.config/home-manager keel && home-manager switch -b backup --flake $HOME/.config/home-manager#default";
 
                 g = "git";
                 c = "clear";

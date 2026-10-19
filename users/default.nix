@@ -1,5 +1,5 @@
 # Capa de cuentas: crea `users.users.<nombre>` a partir de
-# /persist/nixdots/users/<nombre>.toml (vía lib/data.nix → data.users). No
+# /persist/keel/users/<nombre>.toml (vía lib/data.nix → data.users). No
 # conoce ningún usuario concreto ni rutas de /home: todo sale de data.users.
 #
 # El home ya no vive aquí: home-manager es independiente (templates.home y

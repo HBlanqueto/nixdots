@@ -1,12 +1,12 @@
 # Per-machine facts that are not committed to the repo. lib/data.nix reads them
-# from ${NIXDOTS_ROOT}/persist/nixdots/machine.toml and mkHost exposes them as
+# from ${KEEL_ROOT}/persist/keel/machine.toml and mkHost exposes them as
 # `data.machine`. In a pure evaluation (CI, `nix flake check`), or for a host
 # with its own hardware file, `data.machine` is { }, so every option below falls
 # back to a safe default: no encryption, no Secure Boot, no extra peripherals.
 { config, lib, data, ... }:
 
 {
-    options.nixdots.machine = {
+    options.keel.machine = {
         encrypt = lib.mkOption {
             type = lib.types.bool;
             default = false;
@@ -43,7 +43,7 @@
     };
 
     config = {
-        nixdots.machine = {
+        keel.machine = {
             encrypt = lib.mkDefault (data.machine.encrypt or false);
             luksUuid = lib.mkDefault (data.machine.luksUuid or "");
             espUuid = lib.mkDefault (data.machine.espUuid or "");
@@ -55,8 +55,8 @@
             {
                 # El desbloqueo por TPM2 lo inscribe lanzaboote (measured boot),
                 # que solo existe con Secure Boot.
-                assertion = !config.nixdots.machine.tpmUnlock || config.nixdots.machine.secureBoot;
-                message = "nixdots.machine.tpmUnlock requiere nixdots.machine.secureBoot";
+                assertion = !config.keel.machine.tpmUnlock || config.keel.machine.secureBoot;
+                message = "keel.machine.tpmUnlock requiere keel.machine.secureBoot";
             }
         ];
     };

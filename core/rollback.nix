@@ -1,7 +1,7 @@
 # Btrfs subvolume rollback (impermanence): on every boot the initrd replaces
 # @rootfs with the pristine @rootfs-blank snapshot created by disko. The script
 # mounts the top-level subvolume by label, so this only applies to machines
-# using the disko layout (the generic `nixdots` configuration imports it; a VM
+# using the disko layout (the generic `keel` configuration imports it; a VM
 # without the layout does not).
 { pkgs, ... }:
 

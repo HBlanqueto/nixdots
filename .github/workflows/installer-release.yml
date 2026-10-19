@@ -57,10 +57,10 @@ jobs:
           CC_x86_64_unknown_linux_musl: clang
           CC_aarch64_unknown_linux_musl: clang
           # Data tables the installer embeds at compile time (same as flake.nix).
-          NIXDOTS_LOCALES: /usr/share/i18n/SUPPORTED
-          NIXDOTS_LOCALE_DIR: /usr/share/i18n/locales
-          NIXDOTS_XKB_BASE_LST: /usr/share/X11/xkb/rules/base.lst
-          NIXDOTS_ZONE1970_TAB: /usr/share/zoneinfo/zone1970.tab
+          KEEL_LOCALES: /usr/share/i18n/SUPPORTED
+          KEEL_LOCALE_DIR: /usr/share/i18n/locales
+          KEEL_XKB_BASE_LST: /usr/share/X11/xkb/rules/base.lst
+          KEEL_ZONE1970_TAB: /usr/share/zoneinfo/zone1970.tab
         run: cargo build --profile dist --locked --target ${{ matrix.target }} -p nixdots-installer
 
       - name: Rename the binary

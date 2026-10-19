@@ -14,7 +14,7 @@
         # Con el disco cifrado, quien llega a esa consola ya pasó la frase
         # LUKS. Sin cifrar, es un acceso de root físico: se activa a mano solo
         # para diagnosticar puntualmente.
-        initrd.systemd.emergencyAccess = config.nixdots.machine.encrypt;
+        initrd.systemd.emergencyAccess = config.keel.machine.encrypt;
 
         plymouth = {
             enable = true;

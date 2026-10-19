@@ -1,4 +1,4 @@
-# Rellena estos valores; el resto del home sale de nixdots.homeModules.
+# Rellena estos valores; el resto del home sale de keel.homeModules.
 { ... }:
 
 {
@@ -7,6 +7,6 @@
   home.stateVersion = "26.05";
 
   # Identidad de git (nombre y correo).
-  nixdots.git.name = "TU NOMBRE";
-  nixdots.git.email = "tu@correo";
+  keel.git.name = "TU NOMBRE";
+  keel.git.email = "tu@correo";
 }

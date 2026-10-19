@@ -19,11 +19,11 @@ pkgs.writeShellApplication {
         # needs), and unless opted out, open kmscon with Nerd Fonts and the
         # neptunia palette, then run the installer inside it.
         if [ "''${TERM:-}" = linux ] \
-            && [ -z "''${NIXDOTS_IN_KMSCON:-}" ] \
-            && [ -z "''${NIXDOTS_NO_KMSCON:-}" ] \
+            && [ -z "''${KEEL_IN_KMSCON:-}" ] \
+            && [ -z "''${KEEL_NO_KMSCON:-}" ] \
             && [ -c "$(tty 2>/dev/null || true)" ] \
             && [ -e /dev/dri/renderD128 ]; then
-            if FONTCONFIG_FILE="$fonts_conf" NIXDOTS_IN_KMSCON=1 \
+            if FONTCONFIG_FILE="$fonts_conf" KEEL_IN_KMSCON=1 \
                 kmscon --vt auto --switchvt --hwaccel \
                     --font-name "JetBrainsMono Nerd Font Mono" --font-size 14 \
                     ${pkgs.lib.escapeShellArgs paletteArgs} --login -- "$installer" "$@"; then

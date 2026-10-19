@@ -5,7 +5,7 @@
 
 let
     # La ruta final la comprueba el sistema instalado; el instalador evalúa
-    # desde el ISO, así que lib/data.nix apunta NIXDOTS_ROOT al destino.
+    # desde el ISO, así que lib/data.nix apunta KEEL_ROOT al destino.
     inherit (data) root;
 
     inherit (data.settings) timeZone defaultLocale keyboardLayout keyboardVariant;

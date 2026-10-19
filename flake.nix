@@ -90,12 +90,12 @@
             # `timedatectl` for their choices. Shared by the installer, the
             # setup GUI and the devShell.
             tablesEnv = pkgs: {
-                NIXDOTS_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
+                KEEL_LOCALES = "${pkgs.glibcLocales}/share/i18n/SUPPORTED";
                 # Source locale files (country_name / lang_name) for the
                 # generated readable names; only the full glibc ships them.
-                NIXDOTS_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
-                NIXDOTS_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
-                NIXDOTS_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
+                KEEL_LOCALE_DIR = "${pkgs.glibc}/share/i18n/locales";
+                KEEL_XKB_BASE_LST = "${pkgs.xkeyboard_config}/share/X11/xkb/rules/base.lst";
+                KEEL_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
             };
 
             # Constructor común de los binarios Rust (ver lib/rustTool.nix).
@@ -125,7 +125,7 @@
                         git
                         nix
                     ];
-                    description = "Text-mode installer for the nixdots NixOS configuration";
+                    description = "Text-mode installer for the Keel NixOS configuration";
                     extra = tablesEnv pkgs;
                 });
 
@@ -142,7 +142,7 @@
                         mkpasswd
                         coreutils
                     ];
-                    description = "First-boot assistant CLI for the nixdots configuration";
+                    description = "First-boot assistant CLI for the Keel configuration";
                     # Tablas que `nixdots-lists` embebe para validar locale y zona.
                     extra = tablesEnv pkgs;
                 });
@@ -156,7 +156,7 @@
                 mkRustTool system {
                     pname = "nixdots-setup-gui";
                     subdir = "tools/setup-gui";
-                    description = "Graphical first-boot assistant for the nixdots configuration (Slint)";
+                    description = "Graphical first-boot assistant for the Keel configuration (Slint)";
                     runtimeInputs = [ setups.${system} ];
                     # Tablas que `nixdots-lists` embebe (locales) para la lista
                     # de idiomas del asistente.
@@ -178,14 +178,14 @@
                 mkRustTool system {
                     pname = "nixdots-userd";
                     subdir = "tools/nixdots-userd";
-                    description = "D-Bus user management service for nixdots";
+                    description = "D-Bus user management service for Keel";
                 });
 
             homeInit = forAllSystems ({ system, pkgs }:
                 mkRustTool system {
                     pname = "nixdots-home-init";
                     subdir = "tools/nixdots-home-init";
-                    description = "First-login home setup for nixdots";
+                    description = "First-login home setup for Keel";
                     runtimeInputs = [
                         pkgs.home-manager
                         pkgs.systemd
@@ -204,7 +204,7 @@
 
             # Perfil único: hardware detectado por facter + machine.json. La
             # forma impura resuelve la arquitectura con builtins.currentSystem.
-            nixdots = mkGeneric {
+            keel = mkGeneric {
                 system = if data.impure then builtins.currentSystem else "x86_64-linux";
                 requireImpure = true;
                 inherit data;
@@ -212,18 +212,18 @@
         in
         {
             nixosConfigurations = {
-                inherit nixdots;
+                inherit keel;
 
                 # Variantes puras para CI (`nix flake check` / `nix build`
                 # sin --impure): sin user.json/machine.json/facter.json, no
                 # arrancan, solo comprueban que el árbol evalúa en ambas
                 # arquitecturas.
-                nixdots-x86_64-linux = mkGeneric {
+                keel-x86_64-linux = mkGeneric {
                     system = "x86_64-linux";
                     requireImpure = false;
                     data = emptyData;
                 };
-                nixdots-aarch64-linux = mkGeneric {
+                keel-aarch64-linux = mkGeneric {
                     system = "aarch64-linux";
                     requireImpure = false;
                     data = emptyData;
@@ -239,16 +239,16 @@
                 };
             }
             # El mismo sistema expuesto con el hostname del equipo, para que
-            # `nixos-rebuild --flake ~/nixdots` sin `#…` también funcione.
+            # `nixos-rebuild --flake ~/dotfiles` sin `#…` también funcione.
             // nixpkgs.lib.optionalAttrs (data.machine ? hostName) {
-                ${data.machine.hostName} = nixdots;
+                ${data.machine.hostName} = keel;
             };
 
             # Overlay que el flake `home` importa para tener brave-origin-beta
             # (el sistema ya lo aplica en core/nix.nix).
             overlays.brave = inputs.brave-previews.overlays.default;
 
-            # Módulos de home-manager reutilizables: `nixdots` (el home completo
+            # Módulos de home-manager reutilizables: `deck` (el home completo
             # de este repo) y `minimal` (fish, starship, git y el tema). El
             # template `home` genera un flake de usuario que los importa.
             homeModules = import ./users/templates;
@@ -256,7 +256,7 @@
             templates = {
                 home = {
                     path = ./templates/home;
-                    description = "Home independiente de nixdots (home-manager)";
+                    description = "Home independiente de Keel (home-manager)";
                 };
             };
 
@@ -290,8 +290,8 @@
             packages = forAllSystems ({ system, pkgs }: {
                 installer = installers.${system};
                 setup = setups.${system};
-                setup-gui = setupsGui.${system};
-                userd = userd.${system};
+                assist-setup = setupsGui.${system};
+                crewd = userd.${system};
                 home-init = homeInit.${system};
                 launcher = launchers.${system};
                 default = launchers.${system};

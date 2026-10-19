@@ -3,14 +3,14 @@
 { config, lib, pkgs, inputs, data, ... }:
 
 let
-    cfg = config.nixdots.firstBoot;
+    cfg = config.keel.assistSetup;
 
     # Asistente gráfico (Slint) bajo cage, como root, con un bus de sesión
     # propio.
-    guiCommand = pkgs.writeShellScript "nixdots-first-boot-gui" ''
+    guiCommand = pkgs.writeShellScript "assist-setup-gui" ''
         export XDG_RUNTIME_DIR=/run/user/0
         exec ${pkgs.dbus}/bin/dbus-run-session -- \
-            ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.setup-gui}/bin/nixdots-setup-gui
+            ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.assist-setup}/bin/nixdots-setup-gui
     '';
 
     # Contrato del asistente: salir con código 0 significa que ya escribió
@@ -19,7 +19,7 @@ let
     # segundo para no girar en vacío si cage no llega a arrancar). El bucle
     # nunca deja salir a la sesión de greetd: greetd no ve un greeter que muere
     # y no se cae. El propio asistente ofrece «Apagar» y «Reiniciar».
-    firstBootSession = pkgs.writeShellScript "nixdots-first-boot" ''
+    firstBootSession = pkgs.writeShellScript "assist-setup" ''
         until ${pkgs.cage}/bin/cage -s -- ${cfg.command}; do
             ${pkgs.coreutils}/bin/sleep 1
         done
@@ -28,7 +28,7 @@ let
 in
 
 {
-    options.nixdots.firstBoot.command = lib.mkOption {
+    options.keel.assistSetup.command = lib.mkOption {
         type = lib.types.str;
         default = "${guiCommand}";
         description = "Comando que se ejecuta en el primer arranque (el asistente gráfico).";

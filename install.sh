@@ -1,13 +1,13 @@
 #!/bin/sh
-# nixdots installer bootstrap.
+# Keel installer bootstrap.
 #
 # Downloads the precompiled installer for this machine's architecture from the
 # latest GitHub release, verifies it against SHA256SUMS and runs it. On a real
 # virtual terminal it opens kmscon (Nerd Font + the neptunia palette, read from
 # the generated share/neptunia/generated/kmscon-palette) and runs the installer inside it.
 #
-#   git clone --depth 1 https://github.com/HBlanqueto/nixdots ~/nixdots
-#   sudo ~/nixdots/install.sh
+#   git clone --depth 1 https://github.com/HBlanqueto/dotfiles ~/dotfiles
+#   sudo ~/dotfiles/install.sh
 #
 # The static binary orchestrates external tools. The live ISO already has most
 # of them; the rest are provided with `nix shell` (prebuilt from
@@ -28,11 +28,11 @@
 #     git  nix  nixos-install  nixos-generate-config  NetworkManager  nmcli
 set -eu
 
-REPO="github:HBlanqueto/nixdots"
+REPO="github:HBlanqueto/dotfiles"
 # The rolling `latest` release (replaced on every master push that touches the
 # installer); tags publish their own release.
-RELEASES="https://github.com/HBlanqueto/nixdots/releases/download/latest"
-WORK="/tmp/nixdots-installer"
+RELEASES="https://github.com/HBlanqueto/dotfiles/releases/download/latest"
+WORK="/tmp/keel-installer"
 
 # Every nix invocation below may use flakes.
 NIX_CONFIG="experimental-features = nix-command flakes"
@@ -117,7 +117,7 @@ fi
 chmod +x "$binary"
 
 # 5. Real VT: open kmscon with the Nerd Font and the neptunia palette.
-if [ "${TERM:-}" = linux ] && [ -z "${NIXDOTS_NO_KMSCON:-}" ]; then
+if [ "${TERM:-}" = linux ] && [ -z "${KEEL_NO_KMSCON:-}" ]; then
     case "$(tty 2>/dev/null || true)" in
         /dev/tty*)
             palette_file="$here/share/neptunia/generated/kmscon-palette"

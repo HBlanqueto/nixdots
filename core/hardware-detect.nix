@@ -41,6 +41,6 @@ in
         };
 
         # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.
-        nixdots.console.hwRender = lib.mkIf isQemu false;
+        keel.console.hwRender = lib.mkIf isQemu false;
     };
 }

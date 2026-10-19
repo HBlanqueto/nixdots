@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# dev.sh — atajos de desarrollo de nixdots.
+# dev.sh — atajos de desarrollo de Keel.
 #
 # Uso:
 #   ./dev.sh sim installer [--here]   # instalador en simulación
@@ -65,7 +65,7 @@ sim_installer() {
     if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
         here cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
     fi
-    run_window nixdots-installer-dev \
+    run_window keel-installer-dev \
         "-w tools/installer/src -w tools/nixdots-common/src -w tools/installer/Cargo.toml -w tools/nixdots-common/Cargo.toml -w Cargo.toml" \
         rs,toml \
         cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
@@ -75,7 +75,7 @@ sim_setup() {
     if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
         here cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
     fi
-    run_window nixdots-setup-sim \
+    run_window keel-setup-sim \
         "-w tools/setup-gui/ui -w tools/setup-gui/src -w tools/setup-gui/Cargo.toml -w tools/setup-gui/build.rs -w Cargo.toml" \
         slint,rs,toml \
         cargo run --manifest-path tools/setup-gui/Cargo.toml -- --sim
@@ -91,15 +91,15 @@ vm() {
 
     # Directorio vacío: el flake no encuentra user.json y la VM arranca el
     # asistente.
-    NIXDOTS_ROOT=$(mktemp -d)
-    export NIXDOTS_ROOT
+    KEEL_ROOT=$(mktemp -d)
+    export KEEL_ROOT
 
     nix build "$REPO#nixosConfigurations.$host.config.system.build.vm"
 
     cat <<EOF
 
 VM construida. Dentro, el asistente corre solo (cage) con datos de prueba en
-/etc/nixdots-setup.json: escribe /persist/nixdots/user.json, hace
+/etc/keel/assist-setup.json: escribe /persist/keel/user.json, hace
 'nixos-rebuild boot' y reinicia. Tras el reinicio arranca GDM con el usuario
 "prueba" (contraseña de prueba: test1234).
 

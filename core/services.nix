@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 {
-    options.nixdots.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
+    options.keel.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
 
     config = {
     networking = {
@@ -24,7 +24,7 @@
     services = {
         bpftune.enable = true;
 
-        openssh = lib.mkIf config.nixdots.ssh.enable {
+        openssh = lib.mkIf config.keel.ssh.enable {
             enable = true;
             settings = {
                 PasswordAuthentication = false;
@@ -41,7 +41,7 @@
         };
 
         # Solo para descubrir la impresora Epson; no anunciar servicios.
-        avahi = lib.mkIf config.nixdots.extras.epson {
+        avahi = lib.mkIf config.keel.features.epson {
             enable = true;
             nssmdns4 = true;
             publish.enable = false;

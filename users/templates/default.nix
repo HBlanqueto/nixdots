@@ -7,7 +7,11 @@ let
 
     # Identidad de git del usuario: se rellena en home.nix.
     gitOptions = { lib, ... }: {
-        options.nixdots.git = {
+        # shortcut: el home antiguo aún escribe nixdots.git; retíralo tras
+        # migrar ~/.config/home-manager con `steward home prepare`.
+        imports = [ (lib.mkAliasOptionModule [ "nixdots" "git" ] [ "keel" "git" ]) ];
+
+        options.keel.git = {
             name = lib.mkOption {
                 type = lib.types.str;
                 default = "";
@@ -21,14 +25,19 @@ let
         };
     };
 in
-{
-    nixdots = { ... }: {
-        imports = [ gitOptions ./nixdots ];
+rec {
+    deck = { ... }: {
+        imports = [ gitOptions ./deck ];
         _module.args.theme = theme;
     };
 
-    minimal = { ... }: {
-        imports = [ gitOptions ./minimal ];
+    raft = { ... }: {
+        imports = [ gitOptions ./raft ];
         _module.args.theme = theme;
     };
+
+    # shortcut: alias para ~/.config/home-manager antes de migrarlo. Retíralos
+    # cuando el home use deck/raft.
+    nixdots = deck;
+    minimal = raft;
 }

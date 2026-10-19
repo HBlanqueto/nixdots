@@ -1,19 +1,19 @@
 {
-  description = "Mi home de nixdots";
+  description = "Mi home de Keel";
 
   inputs = {
-    # Fijado a la revisión del sistema; `nixdots-home-init` lo ajusta al crearlo.
-    nixdots.url = "github:HBlanqueto/nixdots";
+    # Fijado a la revisión del sistema; `steward home prepare` lo ajusta al crearlo.
+    keel.url = "github:HBlanqueto/dotfiles";
 
-    nixpkgs.follows = "nixdots/nixpkgs";
+    nixpkgs.follows = "keel/nixpkgs";
 
-    # La misma revisión de home-manager que usa nixdots.
-    home-manager.follows = "nixdots/home";
+    # La misma revisión de home-manager que usa Keel.
+    home-manager.follows = "keel/home";
   };
 
-  outputs = { home-manager, nixpkgs, nixdots, ... }:
+  outputs = { home-manager, nixpkgs, keel, ... }:
     let
-      # nixdots-home-init sustituye SYSTEM por la arquitectura real del sistema.
+      # steward home prepare sustituye SYSTEM por la arquitectura real del sistema.
       system = "SYSTEM";
     in
     {
@@ -26,18 +26,18 @@
           # brave-previews publica brave-origin-beta usando `xorg.libxcb`, que
           # nixpkgs renombró; el alias evita el aviso y el overlay da el paquete.
           overlays = [
-            nixdots.overlays.brave
+            keel.overlays.brave
             (_final: prev: {
               xorg = prev.xorg // { inherit (prev) libxcb; };
             })
           ];
         };
 
-        # `nixdots` (el flake) lo usa apps.nix para el paquete nixdots-rebuild.
+        # `keel` (el flake) lo usa apps.nix para las herramientas del sistema.
         # `prefs` sale de ./prefs.toml (apariencia y accesibilidad), que
-        # `nixdots-home-init` copia aquí; sin él, valores por defecto.
+        # `steward home prepare` copia aquí; sin él, valores por defecto.
         extraSpecialArgs = {
-          inherit nixdots;
+          inherit keel;
           prefs =
             if builtins.pathExists ./prefs.toml
             then builtins.fromTOML (builtins.readFile ./prefs.toml)
@@ -45,9 +45,9 @@
         };
 
         modules = [
-          # Cambia esta línea por nixdots.homeModules.minimal si prefieres el
-          # home mínimo (fish, starship, git y el tema neptunia).
-          nixdots.homeModules.nixdots
+          # Cambia esta línea por keel.homeModules.raft si prefieres el home
+          # mínimo (fish, starship, git y el tema neptunia).
+          keel.homeModules.deck
           ./home.nix
         ];
       };

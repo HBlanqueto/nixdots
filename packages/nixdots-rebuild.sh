@@ -5,8 +5,8 @@
 #   rb     same, but stage for the next boot instead of switching
 #   build  only build; never activate
 #
-# The canonical repo path is ~/nixdots (override with NIXDOTS_REPO). The
-# configuration is always #nixdots.
+# The canonical repo path is ~/dotfiles (override with KEEL_REPO). The
+# configuration is always #keel.
 
 mode="${1:-sw}"
 case "$mode" in
@@ -19,16 +19,20 @@ case "$mode" in
         ;;
 esac
 
-repo="${NIXDOTS_REPO:-$HOME/nixdots}"
+repo="${KEEL_REPO:-${NIXDOTS_REPO:-$HOME/dotfiles}}"
+# shortcut: acepta ~/nixdots mientras se mueve el repo a ~/dotfiles.
+if [ "$repo" = "$HOME/dotfiles" ] && [ ! -e "$repo/flake.nix" ] && [ -e "$HOME/nixdots/flake.nix" ]; then
+    repo="$HOME/nixdots"
+fi
 
 if [ ! -e "$repo/flake.nix" ]; then
-    echo "No existe $repo/flake.nix (usa NIXDOTS_REPO para cambiar la ruta canónica)." >&2
+    echo "No existe $repo/flake.nix (usa KEEL_REPO para cambiar la ruta canónica)." >&2
     exit 1
 fi
 
 cd "$repo"
 
-ref="$repo#nixdots"
+ref="$repo#keel"
 
 # 1. Always build first; only activate once the checks below pass.
 echo "== nixos-rebuild build ($ref) =="
@@ -40,7 +44,7 @@ fi
 
 # 2. Compare the normal users of the running system (uid >= 1000) with the new
 #    configuration, so no account silently disappears.
-new_users="$(nix eval --impure --json "$repo#nixosConfigurations.nixdots.config.users.users" --apply '
+new_users="$(nix eval --impure --json "$repo#nixosConfigurations.keel.config.users.users" --apply '
     users: builtins.mapAttrs (_: u: {
         isNormalUser = u.isNormalUser or false;
     }) users')"

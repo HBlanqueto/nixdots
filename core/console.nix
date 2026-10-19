@@ -9,7 +9,7 @@ let
     xnuFont = "${pkgs.xnu-console-font}/share/consolefonts/xnu-console.psf";
 in
 {
-    options.nixdots.console.hwRender = lib.mkOption {
+    options.keel.console.hwRender = lib.mkOption {
         type = lib.types.bool;
         default = true;
         description = "Aceleración 3D (DRM) en kmscon. Falso en UTM/virtio, donde no aporta.";
@@ -31,7 +31,7 @@ in
         enable = true;
         useXkbConfig = true;
         config = {
-            hwaccel = config.nixdots.console.hwRender;
+            hwaccel = config.keel.console.hwRender;
             font-engine = "psf";
             font-name = xnuFont;
             font-size = 16;

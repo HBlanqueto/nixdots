@@ -5,11 +5,11 @@
 { config, lib, pkgs, data, ... }:
 
 let
-    cfg = config.nixdots.extras;
+    cfg = config.keel.features;
     extraData = data.machine.extras or { };
 in
 {
-    options.nixdots.extras = {
+    options.keel.features = {
         epson = lib.mkEnableOption "the Epson L3250 printer/scanner";
         trezor = lib.mkEnableOption "the Trezor hardware wallet (trezord)";
         chime = lib.mkEnableOption "the boot chime";
@@ -19,7 +19,7 @@ in
     };
 
     config = {
-        nixdots.extras = {
+        keel.features = {
             epson = lib.mkDefault (extraData.epson or false);
             trezor = lib.mkDefault (extraData.trezor or false);
             chime = lib.mkDefault (extraData.chime or false);

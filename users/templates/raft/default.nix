@@ -1,4 +1,4 @@
-# Plantilla «minimal»: fish, starship, git y el tema neptunia; sin apps ni IA.
+# Plantilla «raft»: fish, starship, git y el tema neptunia; sin apps ni IA.
 { config, pkgs, ... }:
 
 let
@@ -29,7 +29,7 @@ in
         git = {
             enable = true;
             settings.user = {
-                inherit (config.nixdots.git) name email;
+                inherit (config.keel.git) name email;
             };
         };
     };

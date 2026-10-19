@@ -40,7 +40,7 @@
         };
     };
 
-    system.activationScripts.nixdotsCredentialSecret = {
+    system.activationScripts.keelCredentialSecret = {
         deps = [ "specialfs" ];
         text = ''
             # Clave de systemd-creds: archivo real, nunca symlink. systemd
@@ -61,5 +61,5 @@
 
     # `persist-files` (impermanence) corre después: al existir ya el destino,
     # `method = "auto"` hace bind mount en vez de symlink.
-    system.activationScripts.persist-files.deps = [ "nixdotsCredentialSecret" ];
+    system.activationScripts.persist-files.deps = [ "keelCredentialSecret" ];
 }

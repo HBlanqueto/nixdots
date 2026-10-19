@@ -1,4 +1,4 @@
-# Bootloader, driven by nixdots.machine.secureBoot.
+# Bootloader, driven by keel.machine.secureBoot.
 #
 #   secureBoot = true  -> lanzaboote signs the kernel/initrd with the machine's
 #                         own keys (auto-generated under /var/lib/sbctl and
@@ -11,7 +11,7 @@
 { config, lib, pkgs, ... }:
 
 let
-    m = config.nixdots.machine;
+    m = config.keel.machine;
 in
 {
     config = lib.mkMerge [

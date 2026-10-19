@@ -1,5 +1,5 @@
 # Único punto de lectura de los datos externos (no versionados), bajo
-# ${NIXDOTS_ROOT}/persist/nixdots: machine.toml (sistema), users/<usuario>.toml
+# ${KEEL_ROOT}/persist/keel: machine.toml (sistema), users/<usuario>.toml
 # (una cuenta por archivo) y la ruta del informe de facter. El flake y los
 # módulos consumen este attrset; nadie más llama a getEnv, pathExists ni
 # readFile para leerlos.
@@ -9,9 +9,19 @@
 # siquiera con --impure.
 { impure ? (builtins ? currentSystem) }:
 let
-    root = builtins.getEnv "NIXDOTS_ROOT";
+    keelRoot = builtins.getEnv "KEEL_ROOT";
+    legacyRoot = builtins.getEnv "NIXDOTS_ROOT";
+    # KEEL_ROOT manda; NIXDOTS_ROOT solo como respaldo durante la transición.
+    root = if keelRoot != "" then keelRoot else legacyRoot;
 
-    persist = "${root}/persist/nixdots";
+    persistKeel = "${root}/persist/keel";
+    persistLegacy = "${root}/persist/nixdots";
+
+    # shortcut: si aún no existe /persist/keel se lee /persist/nixdots. Retira
+    # este respaldo cuando todas las máquinas hayan corrido `steward migrate`.
+    persist = if impure && !builtins.pathExists persistKeel
+        && builtins.pathExists persistLegacy
+        then persistLegacy else persistKeel;
 
     readRaw = file:
         let path = "${persist}/${file}";
@@ -21,7 +31,7 @@ let
 
     # TOML primero; el .json hermano solo como respaldo transitorio.
     # shortcut: sin .toml se sigue leyendo el .json; retíralo cuando todas las
-    # máquinas hayan migrado con `nixdots-setup migrate-toml`.
+    # máquinas hayan migrado con `steward migrate`.
     readData = base:
         let toml = readRaw "${base}.toml";
         in if toml != null then builtins.fromTOML toml

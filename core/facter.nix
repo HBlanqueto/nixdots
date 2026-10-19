@@ -1,16 +1,16 @@
 # Hardware detection from a nixos-facter report. The report is generated on the
 # machine (`nixos-facter` needs root) and is not versioned; it lives next to
-# users data in /persist/nixdots. In a pure evaluation, or when it does not
+# users data in /persist/keel. In a pure evaluation, or when it does not
 # exist yet, the whole facter layer stays off (facterReport = null) and nothing
 # below applies.
 #
 # This module is deliberately NOT in core/default.nix: it is imported
-# only by the generic `nixdots` configuration, so the existing per-host
+# only by the generic `keel` configuration, so the existing per-host
 # configurations keep evaluating exactly as before.
 { lib, data, ... }:
 
 let
-    # lib/data.nix already checks impure + pathExists (same NIXDOTS_ROOT dance
+    # lib/data.nix already checks impure + pathExists (same KEEL_ROOT dance
     # as the users data): the installer evaluates with the variable pointing at the
     # target (e.g. "/mnt"); on a running system it is unset ("").
     readable = data.facterReport != null;

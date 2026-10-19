@@ -1,7 +1,7 @@
 # VM de prueba del primer arranque, en ambas arquitecturas. Vive solo en el
 # flake, no en la config real. Solo desktop + first-boot + user.
 #
-# Se construye con NIXDOTS_ROOT vacío (ver `dev.sh vm`), así el flake no ve
+# Se construye con KEEL_ROOT vacío (ver `dev.sh vm`), así el flake no ve
 # ningún user.json, firstBoot = !(settings ? username) es true y arranca el
 # asistente. El asistente escribe user.json, reconstruye y el reinicio ya crea
 # la cuenta.
@@ -55,19 +55,19 @@
 
             # El asistente reconstruye desde esta copia del repo. Solo se
             # siembra si no existe (persiste en el qcow2).
-            systemd.services.nixdots-seed = {
+            systemd.services.firstboot-vm-seed = {
                 wantedBy = [ "multi-user.target" ];
                 before = [ "greetd.service" ];
                 serviceConfig.Type = "oneshot";
                 path = with pkgs; [ git coreutils ];
                 script = ''
-                    if [ -e /persist/nixdots/repo ]; then exit 0; fi
-                    mkdir -p /persist/nixdots
-                    cp -a ${inputs.self} /persist/nixdots/repo
-                    chmod -R u+w /persist/nixdots/repo
-                    git -C /persist/nixdots/repo init -q
-                    git -C /persist/nixdots/repo add -A
-                    git -C /persist/nixdots/repo \
+                    if [ -e /persist/keel/repo ]; then exit 0; fi
+                    mkdir -p /persist/keel
+                    cp -a ${inputs.self} /persist/keel/repo
+                    chmod -R u+w /persist/keel/repo
+                    git -C /persist/keel/repo init -q
+                    git -C /persist/keel/repo add -A
+                    git -C /persist/keel/repo \
                         -c user.name=seed -c user.email=seed@localhost \
                         commit -qm seed
                 '';
