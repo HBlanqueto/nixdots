@@ -66,7 +66,7 @@ pub fn run(flake_ref: &Path, mode: Mode, allow_missing: &[String]) -> Result<Out
     let ref_arg = format!("path:{}#nixdots", flake_ref.display());
 
     let build = Command::new("nixos-rebuild")
-        .args(["build", "--impure", "--flake", &ref_arg])
+        .args(["build", "--impure", "--no-link", "--flake", &ref_arg])
         .env("NIX_CONFIG", runner::nix_config())
         .output()
         .wrap_err("no se pudo ejecutar nixos-rebuild")?;
@@ -113,7 +113,10 @@ pub fn run(flake_ref: &Path, mode: Mode, allow_missing: &[String]) -> Result<Out
 /// Usuarios normales del sistema que no están en la configuración nueva y no
 /// están en `allow_missing`.
 fn disappearing_users(flake_ref: &Path, allow_missing: &[String]) -> Result<Vec<String>> {
-    let ref_arg = format!("path:{}#nixdots", flake_ref.display());
+    let ref_arg = format!(
+        "path:{}#nixosConfigurations.nixdots.config.users.users",
+        flake_ref.display()
+    );
     let apply = "u: builtins.filter (n: u.${n}.isNormalUser or false) (builtins.attrNames u)";
     let output = Command::new("nix")
         .args([
