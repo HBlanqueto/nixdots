@@ -83,22 +83,23 @@ actualiza este archivo en el mismo cambio.
   - `core/` — sistema (hardware, boot, consola, nix, seguridad,
     filesystems/rollback/persistence, servicios, GNOME, fuentes, extras y
     first-boot). No referencia a ningún usuario concreto ni rutas de `/home`.
+    Incluye el paquete `home-manager` (core/user.nix) para el home
+    independiente.
   - `users/` — cuentas: `users/default.nix` lee `data.users` y genera
     `users.users.<nombre>` (`hashedPasswordFile` derivado, `wheel` solo si
-    `admin`) y cablea home-manager desde `users/templates/<template>`.
-    `nixdots.users.homeManager.enable` (default true) lo desactiva en la VM de
-    primer arranque.
+    `admin`). Ya **no** cablea home-manager: el home es independiente.
   - `users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
     `minimal` (fish, starship, git y el tema). `users/templates/default.nix` los
     envuelve e inyecta `theme`; el flake los exporta como `homeModules` para el
-    home independiente. Reciben `userData` (su propio usuario) por
-    `_module.args`; `stateVersion` y `timeZoneAuto` salen de `osConfig` (con
-    valores por defecto fuera de NixOS). El personal opcional va en
-    `/persist/nixdots/users/<nombre>/home.nix`.
+    home independiente. Reciben `userData` (username y git) y `prefs`
+    (apariencia/a11y desde `prefs.toml`) por `_module.args`; `stateVersion` y
+    `timeZoneAuto` salen de `osConfig` (con valores por defecto fuera de NixOS).
 - `templates/home/` — esqueleto (`flake.nix` + `home.nix`) que el flake publica
   como `templates.home`: un flake de home-manager que importa
-  `nixdots.homeModules.{nixdots,minimal}` (una línea para cambiar) y fija
-  `nixpkgs.follows = "nixdots/nixpkgs"`.
+  `nixdots.homeModules.{nixdots,minimal}` (una línea para cambiar), fija
+  `nixpkgs.follows = "nixdots/nixpkgs"`, aplica el overlay `nixdots.overlays.brave`
+  y lee `./prefs.toml` para pasar `prefs`. El home real vive en
+  `~/.config/home-manager`; se aplica con `home-manager switch`.
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
