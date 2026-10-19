@@ -1,5 +1,5 @@
 # Plantilla «minimal»: fish, starship, git y el tema neptunia; sin apps ni IA.
-{ pkgs, lib, userData, osConfig, ... }:
+{ pkgs, lib, userData, osConfig ? { }, ... }:
 
 let
     git = userData.git or null;
@@ -14,7 +14,7 @@ in
 {
     imports = [ ../style.nix ];
 
-    home.stateVersion = osConfig.system.stateVersion;
+    home.stateVersion = osConfig.system.stateVersion or "26.05";
 
     programs = {
         fish = {

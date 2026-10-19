@@ -1,16 +1,13 @@
 # Capa de cuentas: crea `users.users.<nombre>` a partir de
-# /persist/nixdots/users/<nombre>.json (vía lib/data.nix → data.users) y cablea
+# /persist/nixdots/users/<nombre>.toml (vía lib/data.nix → data.users) y cablea
 # home-manager desde users/templates/<template>. No conoce ningún usuario
 # concreto ni rutas de /home: todo sale de data.users.
-{ config, lib, inputs, theme, data, ... }:
+{ config, lib, inputs, data, ... }:
 
 let
     cfg = config.nixdots.users;
 
-    templates = {
-        nixdots = ./templates/nixdots;
-        minimal = ./templates/minimal;
-    };
+    homeModules = import ./templates;
 
     mkUser = name: u: {
         isNormalUser = true;
@@ -33,7 +30,7 @@ let
 
     mkHome = _: u: {
         imports = [
-            (templates.${u.template} or (throw "nixdots: plantilla desconocida '${u.template}'"))
+            (homeModules.${u.template} or (throw "nixdots: plantilla desconocida '${u.template}'"))
         ] ++ personal u;
         _module.args.userData = u;
     };
@@ -69,7 +66,9 @@ in
 
             # `userData` (los datos del propio usuario) entra por `_module.args`
             # en cada cuenta; el tema y los inputs son comunes.
-            extraSpecialArgs = { inherit inputs theme; };
+            # `nixdots` (el propio flake) lo usa apps.nix para el paquete
+            # nixdots-rebuild; `theme` lo inyecta homeModules desde el repo.
+            extraSpecialArgs = { nixdots = inputs.self; };
 
             users = lib.mapAttrs mkHome data.users;
         };

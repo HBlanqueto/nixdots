@@ -342,6 +342,22 @@
                 ${data.machine.hostName} = nixdots;
             };
 
+            # Overlay que el flake `home` importa para tener brave-origin-beta
+            # (el sistema ya lo aplica en core/nix.nix).
+            overlays.brave = inputs.brave-previews.overlays.default;
+
+            # Módulos de home-manager reutilizables: `nixdots` (el home completo
+            # de este repo) y `minimal` (fish, starship, git y el tema). El
+            # template `home` genera un flake de usuario que los importa.
+            homeModules = import ./users/templates;
+
+            templates = {
+                home = {
+                    path = ./templates/home;
+                    description = "Home independiente de nixdots (home-manager)";
+                };
+            };
+
             # install.sh lee la copia versionada de la paleta sin pasar por
             # Nix; este check falla si dejó de coincidir con lo que genera
             # packages/kmscon-palette.nix.

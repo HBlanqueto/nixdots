@@ -89,9 +89,16 @@ actualiza este archivo en el mismo cambio.
     `nixdots.users.homeManager.enable` (default true) lo desactiva en la VM de
     primer arranque.
   - `users/templates/` — `nixdots` (home completo: apps, IA, escritorio) y
-    `minimal` (fish, starship, git y el tema). Reciben `userData` (su propio
-    usuario) por `_module.args`; `stateVersion` y `timeZoneAuto` salen de
-    `osConfig`. El personal opcional va en `/persist/nixdots/users/<nombre>/home.nix`.
+    `minimal` (fish, starship, git y el tema). `users/templates/default.nix` los
+    envuelve e inyecta `theme`; el flake los exporta como `homeModules` para el
+    home independiente. Reciben `userData` (su propio usuario) por
+    `_module.args`; `stateVersion` y `timeZoneAuto` salen de `osConfig` (con
+    valores por defecto fuera de NixOS). El personal opcional va en
+    `/persist/nixdots/users/<nombre>/home.nix`.
+- `templates/home/` — esqueleto (`flake.nix` + `home.nix`) que el flake publica
+  como `templates.home`: un flake de home-manager que importa
+  `nixdots.homeModules.{nixdots,minimal}` (una línea para cambiar) y fija
+  `nixpkgs.follows = "nixdots/nixpkgs"`.
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.

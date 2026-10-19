@@ -1,4 +1,4 @@
-{ pkgs, lib, inputs, userData, osConfig, theme, ... }:
+{ pkgs, lib, nixdots, userData, osConfig ? { }, theme, ... }:
 
 let
     git = userData.git or null;
@@ -97,7 +97,7 @@ in
     };
 
     home = {
-        stateVersion = osConfig.system.stateVersion;
+        stateVersion = osConfig.system.stateVersion or "26.05";
 
         file = {
             ".config/Code/User/settings.json".text = builtins.toJSON vscodeSettings;
@@ -174,7 +174,7 @@ in
 
             # Safe nixos-rebuild wrapper (flake package); also the backend of
             # the flake-update-* aliases below.
-            inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.nixdots-rebuild
+            nixdots.packages.${pkgs.stdenv.hostPlatform.system}.nixdots-rebuild
         ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             # OnlyOffice ships no aarch64 build in nixpkgs.
             onlyoffice-desktopeditors
