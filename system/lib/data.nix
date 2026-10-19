@@ -83,7 +83,7 @@ let
     map (
       name:
       let
-        value = readData "users/${name}";
+        value = readData ("users" + "/${name}");
       in
       {
         inherit name;
