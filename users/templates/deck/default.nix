@@ -2,8 +2,8 @@
 { ... }:
 
 {
-    imports = [
-        ./common
-        ./desktop
-    ];
+  imports = [
+    ./common
+    ./desktop
+  ];
 }

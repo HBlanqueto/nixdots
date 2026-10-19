@@ -13,65 +13,83 @@
 { config, lib, ... }:
 
 let
-    # Base compartida con disko.nix; space_cache=v2 es el extra del sistema
-    # instalado (en disko es inocuo no ponerlo).
-    btrfsOptions = import ../lib/btrfs-mount-options.nix ++ [ "space_cache=v2" ];
+  # Base compartida con disko.nix; space_cache=v2 es el extra del sistema
+  # instalado (en disko es inocuo no ponerlo).
+  btrfsOptions = import ../lib/btrfs-mount-options.nix ++ [ "space_cache=v2" ];
 
-    btrfs = {
-        device = "/dev/disk/by-label/nixos";
-        fsType = "btrfs";
-    };
+  btrfs = {
+    device = "/dev/disk/by-label/nixos";
+    fsType = "btrfs";
+  };
 
-    # Opciones de un subvolumen: la base más los flags de endurecimiento.
-    subvol = name: extra: [ "subvol=${name}" ] ++ btrfsOptions ++ extra;
+  # Opciones de un subvolumen: la base más los flags de endurecimiento.
+  subvol = name: extra: [ "subvol=${name}" ] ++ btrfsOptions ++ extra;
 
-    m = config.keel.machine;
+  m = config.keel.machine;
 in
 {
-    fileSystems = {
-        "/" = btrfs // { options = subvol "@rootfs" [ ]; };
-        "/nix" = btrfs // { options = subvol "@nix" [ ]; };
-        "/home" = btrfs // { options = subvol "@home" [ "nodev" "nosuid" ]; };
-        # Sin noexec: impermanence monta con bind desde aquí y heredan sus flags.
-        "/persist" = btrfs // {
-            neededForBoot = true;
-            options = subvol "@persist" [ "nodev" "nosuid" ];
-        };
-        # /var/log ya es neededForBoot por defecto en NixOS.
-        "/var/log" = btrfs // { options = subvol "@log" [ "nodev" "nosuid" "noexec" ]; };
-
-        "/boot" = {
-            # Una ESP reutilizada de Windows conserva su etiqueta, así que se
-            # monta por UUID; una creada por disko lleva la etiqueta BOOT.
-            device =
-                if m.espUuid != ""
-                then "/dev/disk/by-uuid/${m.espUuid}"
-                else "/dev/disk/by-label/BOOT";
-            fsType = "vfat";
-            # Solo root lee el ESP (random-seed, claves de lanzaboote).
-            options = [ "fmask=0077" "dmask=0077" ];
-        };
+  fileSystems = {
+    "/" = btrfs // {
+      options = subvol "@rootfs" [ ];
+    };
+    "/nix" = btrfs // {
+      options = subvol "@nix" [ ];
+    };
+    "/home" = btrfs // {
+      options = subvol "@home" [
+        "nodev"
+        "nosuid"
+      ];
+    };
+    # Sin noexec: impermanence monta con bind desde aquí y heredan sus flags.
+    "/persist" = btrfs // {
+      neededForBoot = true;
+      options = subvol "@persist" [
+        "nodev"
+        "nosuid"
+      ];
+    };
+    # /var/log ya es neededForBoot por defecto en NixOS.
+    "/var/log" = btrfs // {
+      options = subvol "@log" [
+        "nodev"
+        "nosuid"
+        "noexec"
+      ];
     };
 
-    # Un scrub cubre todo el btrfs; un solo punto de montaje basta.
-    services.btrfs.autoScrub = {
-        enable = true;
-        interval = "monthly";
-        fileSystems = [ "/" ];
+    "/boot" = {
+      # Una ESP reutilizada de Windows conserva su etiqueta, así que se
+      # monta por UUID; una creada por disko lleva la etiqueta BOOT.
+      device = if m.espUuid != "" then "/dev/disk/by-uuid/${m.espUuid}" else "/dev/disk/by-label/BOOT";
+      fsType = "vfat";
+      # Solo root lee el ESP (random-seed, claves de lanzaboote).
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
     };
+  };
 
-    # Only a host that was actually encrypted gets a cryptroot; the passphrase
-    # prompt is skipped entirely otherwise. boot.initrd.systemd.enable lo activa
-    # siempre rollback.nix, así que no se duplica aquí.
-    boot.initrd.luks.devices.cryptroot = lib.mkIf m.encrypt {
-        device = "/dev/disk/by-uuid/${m.luksUuid}";
-        allowDiscards = true;
-    };
+  # Un scrub cubre todo el btrfs; un solo punto de montaje basta.
+  services.btrfs.autoScrub = {
+    enable = true;
+    interval = "monthly";
+    fileSystems = [ "/" ];
+  };
 
-    assertions = [
-        {
-            assertion = !m.encrypt || config.boot.initrd.luks.devices ? "cryptroot";
-            message = "keel.machine.encrypt está activo pero no hay boot.initrd.luks.devices.cryptroot";
-        }
-    ];
+  # Only a host that was actually encrypted gets a cryptroot; the passphrase
+  # prompt is skipped entirely otherwise. boot.initrd.systemd.enable lo activa
+  # siempre rollback.nix, así que no se duplica aquí.
+  boot.initrd.luks.devices.cryptroot = lib.mkIf m.encrypt {
+    device = "/dev/disk/by-uuid/${m.luksUuid}";
+    allowDiscards = true;
+  };
+
+  assertions = [
+    {
+      assertion = !m.encrypt || config.boot.initrd.luks.devices ? "cryptroot";
+      message = "keel.machine.encrypt está activo pero no hay boot.initrd.luks.devices.cryptroot";
+    }
+  ];
 }

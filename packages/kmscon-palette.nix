@@ -6,7 +6,8 @@
 { pkgs, theme }:
 
 let
-    palette = import ../share/neptunia/palette.nix { inherit theme; };
+  palette = import ../share/neptunia/palette.nix { inherit theme; };
 in
-pkgs.writeText "kmscon-palette"
-    (pkgs.lib.concatMapStrings (e: "--${palette.name e.suffix}\n${e.value}\n") palette.entries)
+pkgs.writeText "kmscon-palette" (
+  pkgs.lib.concatMapStrings (e: "--${palette.name e.suffix}\n${e.value}\n") palette.entries
+)

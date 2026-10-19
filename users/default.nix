@@ -8,18 +8,21 @@
 { lib, data, ... }:
 
 let
-    mkUser = name: u: {
-        isNormalUser = true;
-        description = u.fullName or name;
-        # wheel solo para admins; el resto de grupos son del sistema.
-        extraGroups = [ "networkmanager" "video" ]
-            ++ lib.optional (u.admin or false) "wheel";
-        createHome = true;
-        # La ruta de siempre; uid y gid los asigna NixOS (persistidos en
-        # /var/lib/nixos).
-        hashedPasswordFile = "/persist/secrets/${name}.hash";
-    };
+  mkUser = name: u: {
+    isNormalUser = true;
+    description = u.fullName or name;
+    # wheel solo para admins; el resto de grupos son del sistema.
+    extraGroups = [
+      "networkmanager"
+      "video"
+    ]
+    ++ lib.optional (u.admin or false) "wheel";
+    createHome = true;
+    # La ruta de siempre; uid y gid los asigna NixOS (persistidos en
+    # /var/lib/nixos).
+    hashedPasswordFile = "/persist/secrets/${name}.hash";
+  };
 in
 {
-    users.users = lib.mapAttrs mkUser data.users;
+  users.users = lib.mapAttrs mkUser data.users;
 }

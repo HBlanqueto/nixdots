@@ -8,48 +8,57 @@
 # flake.nix importa inputs.lanzaboote.nixosModules.lanzaboote y luks-tpm.nix
 # siempre en genericModules, así que boot.lanzaboote existe en todos los hosts y
 # aquí basta mkIf (sin optionalAttrs ni assertions).
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
-    m = config.keel.machine;
+  m = config.keel.machine;
 in
 {
-    config = lib.mkMerge [
-        # Secure Boot: lanzaboote owns the ESP, systemd-boot steps aside.
-        (lib.mkIf m.secureBoot {
-            boot.loader.systemd-boot.enable = lib.mkForce false;
+  config = lib.mkMerge [
+    # Secure Boot: lanzaboote owns the ESP, systemd-boot steps aside.
+    (lib.mkIf m.secureBoot {
+      boot.loader.systemd-boot.enable = lib.mkForce false;
 
-            boot.lanzaboote = {
-                enable = true;
-                pkiBundle = "/var/lib/sbctl";
+      boot.lanzaboote = {
+        enable = true;
+        pkiBundle = "/var/lib/sbctl";
 
-                # Cap what lands on the (511 MiB) ESP. 4 also keeps the pcrlock PCR4
-                # variants (2 bootloader stubs x N generations) under the hard limit
-                # of 8.
-                configurationLimit = 4;
+        # Cap what lands on the (511 MiB) ESP. 4 also keeps the pcrlock PCR4
+        # variants (2 bootloader stubs x N generations) under the hard limit
+        # of 8.
+        configurationLimit = 4;
 
-                autoGenerateKeys.enable = true;
+        autoGenerateKeys.enable = true;
 
-                autoEnrollKeys = {
-                    enable = true;
-                    autoReboot = false;
-                };
-            };
+        autoEnrollKeys = {
+          enable = true;
+          autoReboot = false;
+        };
+      };
 
-            environment.persistence."/persist".directories =
-                [ "/var/lib/sbctl" ]
-                ++ lib.optional (m.encrypt && m.tpmUnlock) "/var/lib/auto-cryptenroll";
+      environment.persistence."/persist".directories = [
+        "/var/lib/sbctl"
+      ]
+      ++ lib.optional (m.encrypt && m.tpmUnlock) "/var/lib/auto-cryptenroll";
 
-            environment.systemPackages = with pkgs; [ sbctl efibootmgr ];
-        })
+      environment.systemPackages = with pkgs; [
+        sbctl
+        efibootmgr
+      ];
+    })
 
-        # Sin Secure Boot basta con systemd-boot.
-        (lib.mkIf (!m.secureBoot) {
-            boot.loader.systemd-boot = {
-                enable = lib.mkDefault true;
-                configurationLimit = lib.mkDefault 5;
-                editor = false;
-            };
-        })
-    ];
+    # Sin Secure Boot basta con systemd-boot.
+    (lib.mkIf (!m.secureBoot) {
+      boot.loader.systemd-boot = {
+        enable = lib.mkDefault true;
+        configurationLimit = lib.mkDefault 5;
+        editor = false;
+      };
+    })
+  ];
 }

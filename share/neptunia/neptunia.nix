@@ -35,8 +35,8 @@ rec {
 
   # Tonos de interfaz (no son colores ANSI): los usan el instalador y el
   # toolkit Neptunia para estados que la paleta de 16 no cubre.
-  uiDim = "1c2430";      # superficie elevada / fondo atenuado tras un diálogo
-  uiRule = "2a3442";     # subrayado de un campo de texto
+  uiDim = "1c2430"; # superficie elevada / fondo atenuado tras un diálogo
+  uiRule = "2a3442"; # subrayado de un campo de texto
   uiDisabled = "2f3a49"; # control desactivado
-  logoLight = "7fb7ff";  # azul claro oficial del logo de NixOS
+  logoLight = "7fb7ff"; # azul claro oficial del logo de NixOS
 }

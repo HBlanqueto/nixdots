@@ -2,35 +2,35 @@
 { config, pkgs, ... }:
 
 let
-    # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
-    # fuente XNU solo tiene los 256 glifos Latin-1.
-    starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
-        ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
-    '';
+  # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
+  # fuente XNU solo tiene los 256 glifos Latin-1.
+  starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
+    ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
+  '';
 in
 
 {
-    imports = [ ../style.nix ];
+  imports = [ ../style.nix ];
 
-    programs = {
-        fish = {
-            enable = true;
-            interactiveShellInit = ''
-                set -g fish_greeting
+  programs = {
+    fish = {
+      enable = true;
+      interactiveShellInit = ''
+        set -g fish_greeting
 
-                if test "$XDG_SESSION_TYPE" = tty
-                    set -gx STARSHIP_CONFIG ${starshipPlain}
-                end
-            '';
-        };
-
-        starship.enable = true;
-
-        git = {
-            enable = true;
-            settings.user = {
-                inherit (config.keel.git) name email;
-            };
-        };
+        if test "$XDG_SESSION_TYPE" = tty
+            set -gx STARSHIP_CONFIG ${starshipPlain}
+        end
+      '';
     };
+
+    starship.enable = true;
+
+    git = {
+      enable = true;
+      settings.user = {
+        inherit (config.keel.git) name email;
+      };
+    };
+  };
 }

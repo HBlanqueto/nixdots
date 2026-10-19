@@ -11,7 +11,13 @@
     home-manager.follows = "keel/home";
   };
 
-  outputs = { home-manager, nixpkgs, keel, ... }:
+  outputs =
+    {
+      home-manager,
+      nixpkgs,
+      keel,
+      ...
+    }:
     let
       # steward home prepare sustituye SYSTEM por la arquitectura real del sistema.
       system = "SYSTEM";
@@ -28,7 +34,9 @@
           overlays = [
             keel.overlays.brave
             (_final: prev: {
-              xorg = prev.xorg // { inherit (prev) libxcb; };
+              xorg = prev.xorg // {
+                inherit (prev) libxcb;
+              };
             })
           ];
         };
@@ -39,9 +47,10 @@
         extraSpecialArgs = {
           inherit keel;
           prefs =
-            if builtins.pathExists ./prefs.toml
-            then builtins.fromTOML (builtins.readFile ./prefs.toml)
-            else { };
+            if builtins.pathExists ./prefs.toml then
+              builtins.fromTOML (builtins.readFile ./prefs.toml)
+            else
+              { };
         };
 
         modules = [

@@ -1,88 +1,93 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
-    options.keel.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
+  options.keel.ssh.enable = lib.mkEnableOption "the SSH server (keys only, persistent host keys)";
 
-    config = {
+  config = {
     networking = {
-        networkmanager.enable = true;
+      networkmanager.enable = true;
     };
 
     security = {
-        sudo-rs = {
-            enable = true;
-            # El binario solo es ejecutable por wheel: reduce la superficie de
-            # ataque de un setuid para cualquier otra cuenta.
-            execWheelOnly = true;
-        };
+      sudo-rs = {
+        enable = true;
+        # El binario solo es ejecutable por wheel: reduce la superficie de
+        # ataque de un setuid para cualquier otra cuenta.
+        execWheelOnly = true;
+      };
 
-        rtkit = {
-            enable = true;
-        };
+      rtkit = {
+        enable = true;
+      };
     };
 
     services = {
-        bpftune.enable = true;
+      bpftune.enable = true;
 
-        openssh = lib.mkIf config.keel.ssh.enable {
-            enable = true;
-            settings = {
-                PasswordAuthentication = false;
-                KbdInteractiveAuthentication = false;
-                PermitRootLogin = "no";
-            };
-            # Solo ed25519, en /persist para que no se regenere en cada arranque.
-            hostKeys = [
-                {
-                    path = "/persist/etc/ssh/ssh_host_ed25519_key";
-                    type = "ed25519";
-                }
-            ];
+      openssh = lib.mkIf config.keel.ssh.enable {
+        enable = true;
+        settings = {
+          PasswordAuthentication = false;
+          KbdInteractiveAuthentication = false;
+          PermitRootLogin = "no";
         };
+        # Solo ed25519, en /persist para que no se regenere en cada arranque.
+        hostKeys = [
+          {
+            path = "/persist/etc/ssh/ssh_host_ed25519_key";
+            type = "ed25519";
+          }
+        ];
+      };
 
-        # Solo para descubrir la impresora Epson; no anunciar servicios.
-        avahi = lib.mkIf config.keel.features.epson {
-            enable = true;
-            nssmdns4 = true;
-            publish.enable = false;
+      # Solo para descubrir la impresora Epson; no anunciar servicios.
+      avahi = lib.mkIf config.keel.features.epson {
+        enable = true;
+        nssmdns4 = true;
+        publish.enable = false;
+      };
+
+      pipewire = {
+        enable = true;
+        wireplumber.enable = true;
+
+        alsa = {
+          enable = true;
+
+          # 32-bit ALSA (pkgsi686Linux) only exists on x86; enabling it
+          # breaks evaluation on aarch64, so gate it on the host platform.
+          support32Bit = pkgs.stdenv.hostPlatform.isx86_64;
         };
-
-        pipewire = {
-            enable = true;
-            wireplumber.enable = true;
-
-            alsa = {
-                enable = true;
-
-                # 32-bit ALSA (pkgsi686Linux) only exists on x86; enabling it
-                # breaks evaluation on aarch64, so gate it on the host platform.
-                support32Bit = pkgs.stdenv.hostPlatform.isx86_64;
-            };
-            jack.enable = true;
-            pulse.enable = true;
-        };
+        jack.enable = true;
+        pulse.enable = true;
+      };
     };
 
     systemd = {
-        # Nada de este escritorio espera a la red antes de arrancar; NM ya
-        # conecta en segundo plano. Ahorra hasta varios segundos de arranque.
-        services.NetworkManager-wait-online.enable = false;
+      # Nada de este escritorio espera a la red antes de arrancar; NM ya
+      # conecta en segundo plano. Ahorra hasta varios segundos de arranque.
+      services.NetworkManager-wait-online.enable = false;
 
-        oomd = {
-            enable = true;
-            enableRootSlice = true;
-            enableUserSlices = true;
-            enableSystemSlice = true;
-            settings.OOM = {
-                "DefaultMemoryPressureDurationSec" = "20s";
-            };
+      oomd = {
+        enable = true;
+        enableRootSlice = true;
+        enableUserSlices = true;
+        enableSystemSlice = true;
+        settings.OOM = {
+          "DefaultMemoryPressureDurationSec" = "20s";
         };
+      };
     };
 
     zramSwap = {
-        enable = true;
-        algorithm = "zstd";
-        memoryPercent = 50;
+      enable = true;
+      algorithm = "zstd";
+      memoryPercent = 50;
     };
-    };
+  };
 }

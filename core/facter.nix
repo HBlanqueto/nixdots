@@ -10,23 +10,23 @@
 { lib, data, ... }:
 
 let
-    # lib/data.nix already checks impure + pathExists (same KEEL_ROOT dance
-    # as the users data): the installer evaluates with the variable pointing at the
-    # target (e.g. "/mnt"); on a running system it is unset ("").
-    readable = data.facterReport != null;
+  # lib/data.nix already checks impure + pathExists (same KEEL_ROOT dance
+  # as the users data): the installer evaluates with the variable pointing at the
+  # target (e.g. "/mnt"); on a running system it is unset ("").
+  readable = data.facterReport != null;
 in
 {
-    hardware.facter = {
-        # nixpkgs reads and parses reportPath itself (report defaults to it).
-        reportPath = lib.mkIf readable data.facterReport;
+  hardware.facter = {
+    # nixpkgs reads and parses reportPath itself (report defaults to it).
+    reportPath = lib.mkIf readable data.facterReport;
 
-        # facter would hand the network to DHCP when it sees a wired/wireless
-        # NIC, but NetworkManager already manages every interface here; two
-        # managers on the same link fight over the address.
-        detected.dhcp.enable = lib.mkIf readable false;
+    # facter would hand the network to DHCP when it sees a wired/wireless
+    # NIC, but NetworkManager already manages every interface here; two
+    # managers on the same link fight over the address.
+    detected.dhcp.enable = lib.mkIf readable false;
 
-        # El lector de huellas de esta máquina no funciona bien en Linux, así
-        # que no se usa: fprintd/libfprint fuera aunque el informe lo detecte.
-        detected.fingerprint.enable = false;
-    };
+    # El lector de huellas de esta máquina no funciona bien en Linux, así
+    # que no se usa: fprintd/libfprint fuera aunque el informe lo detecte.
+    detected.fingerprint.enable = false;
+  };
 }

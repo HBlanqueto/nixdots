@@ -1,6 +1,6 @@
 {
-    directory = "blue";
-    executable = "green";
-    symlink = "cyan";
-    orphan = "red";
+  directory = "blue";
+  executable = "green";
+  symlink = "cyan";
+  orphan = "red";
 }

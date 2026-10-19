@@ -110,23 +110,31 @@ let
         // Colores (por tema)
     ${lines (
       n:
-      "    out property <color> ${n}: mode == NeptuniaMode.dark ? ${tokens.themes.dark.${n}} : mode == NeptuniaMode.dark-tint ? ${
-        tokens.themes."dark-tint".${n}
-      } : ${tokens.themes.light.${n}};"
+      "    out property <color> ${n}: mode == NeptuniaMode.dark ? ${tokens.themes.dark.${n}} : mode == NeptuniaMode.dark-tint ? ${tokens.themes."dark-tint".${n}} : ${tokens.themes.light.${n}};"
     ) colorNames}
 
         // Redondeo, espacio, tamaños y duraciones
-    ${lines (n: "    out property <length> radius-${n}: ${num tokens.radius.${n}}px;") (attrNames tokens.radius)}
-    ${lines (n: "    out property <length> space-${n}: ${num tokens.space.${n}}px;") (attrNames tokens.space)}
+    ${lines (n: "    out property <length> radius-${n}: ${num tokens.radius.${n}}px;") (
+      attrNames tokens.radius
+    )}
+    ${lines (n: "    out property <length> space-${n}: ${num tokens.space.${n}}px;") (
+      attrNames tokens.space
+    )}
     ${lines (n: "    out property <length> ${n}: ${num tokens.size.${n}}px;") (attrNames tokens.size)}
-    ${lines (n: "    out property <duration> dur-${n}: ${num tokens.duration.${n}}ms;") (attrNames tokens.duration)}
+    ${lines (n: "    out property <duration> dur-${n}: ${num tokens.duration.${n}}ms;") (
+      attrNames tokens.duration
+    )}
 
         // Tipografía
         out property <string> font-sans: "Inter";
         out property <string> font-mono: "SF Mono Ligaturized";
         out property <string> font-script: "Dancing Script";
-    ${lines (s: "    out property <length> text-${s}-size: ${num tokens.font.styles.${s}.size}px;") styleNames}
-    ${lines (s: "    out property <int> text-${s}-weight: ${num tokens.font.styles.${s}.weight};") styleNames}
+    ${lines (
+      s: "    out property <length> text-${s}-size: ${num tokens.font.styles.${s}.size}px;"
+    ) styleNames}
+    ${lines (
+      s: "    out property <int> text-${s}-weight: ${num tokens.font.styles.${s}.weight};"
+    ) styleNames}
 
         // Sombras (Slint admite una por elemento)
         out property <length> shadow-window-offset-y: ${num sh.window."offset-y"}px;
@@ -141,7 +149,9 @@ let
 
         // Acentos de sistema (GNOME), seleccionables junto al de Neptunia.
         out property <[NeptuniaAccent]> accents: [
-    ${lines (a: "        { id: \"${a.id}\", color: ${a.color}, label: \"${a.label}\" },") tokens.accents}
+    ${lines (
+      a: "        { id: \"${a.id}\", color: ${a.color}, label: \"${a.label}\" },"
+    ) tokens.accents}
         ];
     }
 
@@ -159,12 +169,18 @@ let
       --shadow-window: ${tokens.shadow.window.light};
       --shadow-float: ${tokens.shadow.float.light};
     }
-    ${lines (th: ''
-      [data-theme="${th}"] {
-      ${cssVars th}
-        --shadow-window: ${tokens.shadow.window.${th}};
-        --shadow-float: ${tokens.shadow.float.${th}};
-      }'') [ "dark" "dark-tint" ]}
+    ${lines
+      (th: ''
+        [data-theme="${th}"] {
+        ${cssVars th}
+          --shadow-window: ${tokens.shadow.window.${th}};
+          --shadow-float: ${tokens.shadow.float.${th}};
+        }'')
+      [
+        "dark"
+        "dark-tint"
+      ]
+    }
     :root {
     ${lines (n: "  --radius-${n}: ${num tokens.radius.${n}}px;") (attrNames tokens.radius)}
     ${lines (n: "  --space-${n}: ${num tokens.space.${n}}px;") (attrNames tokens.space)}
