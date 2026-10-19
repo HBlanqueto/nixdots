@@ -5,8 +5,9 @@
         settings = {
             experimental-features = [ "nix-command" "flakes" ];
 
-            # Solo root y el grupo wheel hablan con el daemon de Nix.
-            allowed-users = [ "@wheel" ];
+            # Todos los usuarios necesitan el daemon para home-manager (el home
+            # ya no lo aplica el sistema). trusted-users se queda en root.
+            allowed-users = [ "@users" ];
         };
 
         # Solo flakes: sin nix-channel. NIX_PATH y el registro apuntan al nixpkgs
