@@ -190,7 +190,14 @@ impl Prefs {
                 doc.remove("git");
             }
         }
-        store::write_document_atomic(&path, &doc)
+        store::write_document_atomic(&path, &doc)?;
+        // La semilla la lee nixdots-home-init como el propio usuario: 0600 y
+        // dueño correcto (el asistente/userd corren como root).
+        store::set_mode(&path, 0o600)?;
+        if let Some((uid, gid)) = owner(username) {
+            std::os::unix::fs::chown(&path, Some(uid), Some(gid))?;
+        }
+        Ok(())
     }
 
     /// Lee la semilla si existe.
@@ -224,6 +231,19 @@ impl Prefs {
             git,
         }))
     }
+}
+
+/// uid/gid de `username` según `/etc/passwd` (para chown de la semilla).
+fn owner(username: &str) -> Option<(u32, u32)> {
+    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+    passwd.lines().find_map(|line| {
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields.len() > 3 && fields[0] == username {
+            Some((fields[2].parse().ok()?, fields[3].parse().ok()?))
+        } else {
+            None
+        }
+    })
 }
 
 /// `${NIXDOTS_ROOT}/persist/nixdots/user.json`, el formato antiguo.

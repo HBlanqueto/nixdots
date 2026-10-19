@@ -1,7 +1,7 @@
 //! `nixdots-setup` — CLI del asistente de primer arranque: aplica los datos del
 //! usuario (JSON), escribe el hash y `users/<usuario>.toml` (+ su semilla
 //! `.prefs.toml`), fusiona los campos
-//! de sistema en `machine.json` y deja la nueva generación para el próximo
+//! de sistema en `machine.toml` y deja la nueva generación para el próximo
 //! arranque.
 //!
 //!   nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
@@ -27,7 +27,7 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
   --dry-run   solo imprime lo que haría, sin escribir nada
 
 Los datos personales van a users/<usuario>.json; los de sistema (locale, zona,
-teclado, prettyHostName, autoLoginUser) se fusionan en machine.json. La
+teclado, prettyHostName, autoLoginUser) se fusionan en machine.toml. La
 contraseña se lee de stdin.
 
 nixdots-setup migrate [--dry-run]
@@ -127,7 +127,7 @@ fn apply(args: &[String]) -> Result<()> {
     let password = read_password()?;
     let sim_fail = std::env::var_os("NIXDOTS_SIM_FAIL").is_some();
 
-    // 1. Hash (0600) antes de user.json: user.nix exige que exista.
+    // 1. Hash (0600) antes de la cuenta: user.nix exige que exista.
     phase(0, dry_run);
     let hash = nixdots_common::crypto::hash_password(&password)?;
     let secrets = Path::new("/persist/secrets");
