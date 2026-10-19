@@ -98,7 +98,7 @@ in
       ++ lib.optionals cfg.remoteAccess [
         # Clientes de escritorio: Remmina (VNC) y RustDesk. El otro
         # extremo (un Mac mini sin Nix) se configura a mano, ver
-        # docs/remote-access.md.
+        # .github/docs/system.md.
         pkgs.remmina
         pkgs.rustdesk-flutter
       ];
