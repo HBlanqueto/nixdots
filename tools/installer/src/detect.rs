@@ -302,7 +302,7 @@ impl Disk {
     }
 
     /// Why this disk cannot be used, if it cannot: the install medium, a disk
-    /// in use by the running system, or one too small for nixdots.
+    /// in use by the running system, or one too small for Keel.
     pub fn unusable_reason(&self) -> Option<&'static str> {
         if self
             .partitions
@@ -561,7 +561,7 @@ pub fn efi_free(efi: &Partition) -> Option<u64> {
     if let Some(mp) = efi.mountpoints.iter().find(|m| !m.is_empty()) {
         return df_free(mp);
     }
-    let dir = std::env::temp_dir().join("nixdots-efi");
+    let dir = std::env::temp_dir().join("keel-efi");
     let _ = std::fs::create_dir_all(&dir);
     let mounted = Command::new("mount")
         .args(["-o", "ro"])

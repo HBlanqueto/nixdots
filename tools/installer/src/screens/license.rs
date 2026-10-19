@@ -60,7 +60,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(
-                "nixdots es la configuración personal de NixOS de ",
+                "Keel es la configuración personal de NixOS de ",
                 Style::default().fg(app.palette.muted),
             ),
             Span::styled("HBlanqueto", Style::default().fg(app.palette.highlight)),
@@ -80,7 +80,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     y += box_h;
 
     let gray = format!(
-        "Se guardará una copia en /etc/nixdots/LICENSE · línea {} de {}",
+        "Se guardará una copia en /etc/keel/LICENSE · línea {} de {}",
         app.license_line.min(app.license_total).max(1),
         app.license_total
     );
@@ -381,5 +381,5 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 }
 
 pub fn commands(_app: &App) -> Vec<String> {
-    vec!["cp LICENSE /mnt/etc/nixdots/LICENSE".into()]
+    vec!["cp LICENSE /mnt/etc/keel/LICENSE".into()]
 }

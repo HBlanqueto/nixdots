@@ -72,7 +72,7 @@ pub enum DiskMode {
 #[derive(Debug, Clone)]
 pub struct ShrinkSpec {
     pub ntfs: String,
-    /// Space to free for nixdots, in bytes.
+    /// Space to free for Keel, in bytes.
     pub free_bytes: u64,
 }
 
@@ -132,11 +132,11 @@ pub struct Plan {
 impl Plan {
     pub fn installed_repo(&self) -> PathBuf {
         // El repo vive en /persist (persistente), no en el home del usuario.
-        self.root.join("persist/nixdots/repo")
+        self.root.join("persist/keel/repo")
     }
 
     pub fn log_path(&self) -> PathBuf {
-        PathBuf::from("/tmp/nixdots-install.log")
+        PathBuf::from("/tmp/keel-install.log")
     }
 
     /// UUID of the reused Windows ESP, or empty when a new one is created. The
@@ -247,7 +247,7 @@ fn run(plan: Plan, tx: Sender<Msg>) {
     };
 
     // Kept in the on-disk log only; the UI log starts with the steps.
-    report.raw("== nixdots installer ==");
+    report.raw("== Keel installer ==");
     report.raw(&format!(
         "modo: {}",
         if plan.dry_run { "simulación" } else { "real" }
@@ -290,11 +290,11 @@ fn run(plan: Plan, tx: Sender<Msg>) {
     if !plan.dry_run {
         let _ = fs::remove_dir_all(plan.root.join("tmp"));
         let _ = fs::remove_dir_all(target_build_dir(&plan));
-        // The LUKS passphrase and recovery key live in /run/nixdots (the live
+        // The LUKS passphrase and recovery key live in /run/keel (the live
         // ISO's tmpfs) and each SecretFile shreds its own file on drop; drop the
         // whole directory too in case a run was interrupted. They are never
         // written under /mnt, so they never reach /persist.
-        let _ = fs::remove_dir_all("/run/nixdots");
+        let _ = fs::remove_dir_all("/run/keel");
     }
 
     if let Some(file) = report.file.as_mut() {
@@ -379,8 +379,8 @@ fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
     }
     std::env::set_var("TMPDIR", &tmp);
     // The external data the flake reads (machine.toml, facter.json) lives under
-    // `${NIXDOTS_ROOT}/persist/nixdots`; point it at the target.
-    std::env::set_var("NIXDOTS_ROOT", &plan.root);
+    // `${KEEL_ROOT}/persist/keel`; point it at the target.
+    std::env::set_var("KEEL_ROOT", &plan.root);
     report.log(format!("$ TMPDIR={}", tmp.display()));
     Ok(())
 }
@@ -452,7 +452,7 @@ struct TempSwap {
 
 impl TempSwap {
     fn create(plan: &Plan, report: &mut Reporter) -> Result<Self> {
-        let path = plan.root.join("persist/.nixdots-install.swap");
+        let path = plan.root.join("persist/.keel-install.swap");
         // Clear any leftover from an attempt that was cut short; it may still be
         // active. Failures are ignored (nothing to clean on a first run).
         let mut sink = |_: Stream| {};
@@ -1128,7 +1128,7 @@ fn clean_target(plan: &Plan, report: &mut Reporter) {
         let _ = runner::run(&Cmd::new("wipefs").arg("-a").arg(&luks.path), &mut sink);
     }
     // Drop stale /run secrets; the next step rewrites the ones it needs.
-    let _ = fs::remove_dir_all("/run/nixdots");
+    let _ = fs::remove_dir_all("/run/keel");
 }
 
 /// Runs `cryptsetup open --test-passphrase` with `key_file`, so a key that does
@@ -1164,7 +1164,7 @@ struct SecretFile {
 
 impl SecretFile {
     fn write(name: &str, secret: &str) -> Result<Self> {
-        let dir = Path::new("/run/nixdots");
+        let dir = Path::new("/run/keel");
         fs::create_dir_all(dir)?;
         set_mode_dir(dir, 0o700)?;
         let path = dir.join(name);
@@ -1385,7 +1385,7 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 /// Makes the repo copied into `/mnt` usable by the flake. A snapshot copied from
-/// the ISO (`/etc/nixdots-src`, a read-only store path) arrives read-only and
+/// the ISO (`/etc/keel/repo`, a read-only store path) arrives read-only and
 /// without `.git`; give it write permission and an initial commit.
 fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<()> {
     let chmod = Cmd::new("chmod")
@@ -1417,7 +1417,7 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
             email_arg.as_str(),
             "commit",
             "-m",
-            "nixdots: initial import",
+            "keel: initial import",
         ],
     );
     ensure_ok(
@@ -1430,7 +1430,7 @@ fn step_license(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // El repo no se toca: locale, zona, teclado y prettyHostName ya van a
     // machine.toml, y el flake lee el resto de lib/defaults.nix tal cual.
     let repo = plan.installed_repo();
-    let lic_dst = plan.root.join("etc/nixdots");
+    let lic_dst = plan.root.join("etc/keel");
     let lic_src = repo.join("LICENSE");
     report.log(format!(
         "$ cp {} {}/LICENSE",
@@ -1446,7 +1446,7 @@ fn step_license(plan: &Plan, report: &mut Reporter) -> Result<()> {
 
 /// Detects the hardware with `nixos-facter` and writes the per-machine data the
 /// flake reads: `facter.json` (the hardware report) and `machine.toml` (the
-/// installer's choices), both under /persist/nixdots. `NIXDOTS_ROOT` already
+/// installer's choices), both under /persist/keel. `KEEL_ROOT` already
 /// points at the target (prepare_target_tmp), so the flake picks them up when
 /// the system is built.
 fn step_hardware(
@@ -1454,7 +1454,7 @@ fn step_hardware(
     report: &mut Reporter,
     luks: Option<&detect::LuksPartition>,
 ) -> Result<()> {
-    let dir = plan.root.join("persist/nixdots");
+    let dir = plan.root.join("persist/keel");
     fs::create_dir_all(&dir)?;
 
     let facter = dir.join("facter.json");
@@ -1766,7 +1766,7 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     // The single generic configuration; the machine's hostname lives in
     // machine.toml, not in the flake output name.
-    let flake = format!("{}#nixdots", repo.display());
+    let flake = format!("{}#keel", repo.display());
     let build = target_build_dir(plan);
 
     // `nixos-install --flake` builds the system with `--store /mnt`, so the
@@ -2145,7 +2145,7 @@ fn shell_command(cmd: &Cmd) -> String {
 /// Evaluates the repo in a temporary copy to catch configuration errors before
 /// the install starts, without touching the real target.
 pub fn check_source(repo: &Path) -> Result<(), String> {
-    let tmp = std::env::temp_dir().join("nixdots-eval");
+    let tmp = std::env::temp_dir().join("keel-eval");
     let _ = fs::remove_dir_all(&tmp);
     copy_tree(repo, &tmp).map_err(|err| format!("no se pudo copiar el repo: {err}"))?;
     let _ = std::process::Command::new("chmod")
@@ -2153,12 +2153,12 @@ pub fn check_source(repo: &Path) -> Result<(), String> {
         .arg(&tmp)
         .status();
 
-    // Sin cuentas (NIXDOTS_ROOT=tmp) el config no declara usuario, así que no
+    // Sin cuentas (KEEL_ROOT=tmp) el config no declara usuario, así que no
     // hace falta un hash marcador: la evaluación solo valida la estructura.
     ensure_git_tree(&tmp);
 
     let expr = format!(
-        "{}#nixosConfigurations.nixdots.config.system.build.toplevel.drvPath",
+        "{}#nixosConfigurations.keel.config.system.build.toplevel.drvPath",
         tmp.display()
     );
     let output = std::process::Command::new("nix")
@@ -2170,7 +2170,7 @@ pub fn check_source(repo: &Path) -> Result<(), String> {
             "nix-command flakes",
         ])
         .arg(&expr)
-        .env("NIXDOTS_ROOT", &tmp)
+        .env("KEEL_ROOT", &tmp)
         .env("NIX_CONFIG", runner::nix_config())
         .stdin(std::process::Stdio::null())
         .output()
@@ -2214,13 +2214,13 @@ fn ensure_git_tree(repo: &Path) {
     run(&["add", "-A"]);
     run(&[
         "-c",
-        "user.name=nixdots-installer",
+        "user.name=keel-installer",
         "-c",
         "user.email=installer@localhost",
         "commit",
         "-q",
         "-m",
-        "nixdots: check snapshot",
+        "keel: check snapshot",
     ]);
 }
 
@@ -2253,7 +2253,7 @@ fn copy_log_to_persist(plan: &Plan, report: &mut Reporter) {
     if !dest_dir.is_dir() {
         return;
     }
-    let dest = dest_dir.join("nixdots-install.log");
+    let dest = dest_dir.join("keel-install.log");
     match fs::copy(plan.log_path(), &dest) {
         Ok(_) => report.log(format!("log copiado a {}", dest.display())),
         Err(err) => report.log(format!("no se pudo copiar el log: {err}")),

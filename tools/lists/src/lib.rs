@@ -2,8 +2,8 @@
 //! idiomas, teclados y zonas horarias.
 //!
 //! El build necesita las variables que fija el flake:
-//! `NIXDOTS_LOCALES`, `NIXDOTS_LOCALE_DIR`, `NIXDOTS_XKB_BASE_LST` y
-//! `NIXDOTS_ZONE1970_TAB`. Ni `core` ni el CLI `setup` dependen de este crate.
+//! `KEEL_LOCALES`, `KEEL_LOCALE_DIR`, `KEEL_XKB_BASE_LST` y
+//! `KEEL_ZONE1970_TAB`. Ni `core` ni el CLI `setup` dependen de este crate.
 
 pub mod keyboard;
 pub mod locale;

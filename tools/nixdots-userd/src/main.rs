@@ -1,10 +1,10 @@
-//! `nixdots-userd` — servicio de sistema para gestionar cuentas de nixdots.
+//! `crewd` — servicio de sistema para gestionar cuentas de Keel.
 //!
-//! Habla por D-Bus del sistema (`org.nixdots.Users1`) y exige la acción polkit
-//! `org.nixdots.users.manage` para cualquier cambio. Los datos se escriben en
-//! `/persist/nixdots/users/<usuario>.toml` y el hash en `/persist/secrets`; el
-//! sistema se reconstruye **desde la referencia instalada** (`/etc/nixdots/`),
-//! nunca desde el repo de trabajo, con la misma protección que `nixdots-rebuild`.
+//! Habla por D-Bus del sistema (`io.github.HBlanqueto.Keel.Crew1`) y exige la acción polkit
+//! `io.github.HBlanqueto.Keel.crew.manage` para cualquier cambio. Los datos se escriben en
+//! `/persist/keel/users/<usuario>.toml` y el hash en `/persist/secrets`; el
+//! sistema se reconstruye **desde la referencia instalada** (`/etc/keel/`),
+//! nunca desde el repo de trabajo, con la misma protección que `steward rebuild`.
 //!
 //! Las operaciones largas devuelven un id de trabajo al instante y publican su
 //! avance, fin, aviso o error por señales; la reconstrucción corre siempre en un
@@ -29,9 +29,9 @@ use zbus::zvariant::OwnedValue;
 use zbus::{fdo, interface, proxy, Connection};
 use zeroize::Zeroizing;
 
-const BUS_NAME: &str = "org.nixdots.Users1";
-const OBJECT_PATH: &str = "/org/nixdots/Users1";
-const ACTION: &str = "org.nixdots.users.manage";
+const BUS_NAME: &str = "io.github.HBlanqueto.Keel.Crew1";
+const OBJECT_PATH: &str = "/io/github/HBlanqueto/Keel/Crew1";
+const ACTION: &str = "io.github.HBlanqueto.Keel.crew.manage";
 const MAX_FULL_NAME: usize = 128;
 
 #[proxy(
@@ -81,7 +81,7 @@ impl Default for Users {
     }
 }
 
-#[interface(name = "org.nixdots.Users1")]
+#[interface(name = "io.github.HBlanqueto.Keel.Crew1")]
 impl Users {
     async fn list_users(&self) -> Vec<(String, String, bool)> {
         UserData::list()
@@ -346,9 +346,7 @@ async fn delete(
     let _ = std::fs::remove_file(user_data::prefs_path_for(username));
 
     progress(emitter, job, "delete", 2, 50, "Reconstruyendo el sistema").await;
-    if let Err(err) =
-        rebuild_system(emitter, job, "delete", vec![username.to_string()]).await
-    {
+    if let Err(err) = rebuild_system(emitter, job, "delete", vec![username.to_string()]).await {
         restore(
             username,
             user_bak.as_deref(),
@@ -399,7 +397,15 @@ async fn set_password(
     job: u32,
 ) -> Result<()> {
     let _ = existing_user(username)?;
-    progress(emitter, job, "set-password", 1, 30, "Cambiando la contraseña").await;
+    progress(
+        emitter,
+        job,
+        "set-password",
+        1,
+        30,
+        "Cambiando la contraseña",
+    )
+    .await;
     let hash = nixdots_common::crypto::hash_password(password)?;
     let old = std::fs::read(hash_path(username)).ok();
     write_hash(username, &hash)?;
@@ -432,12 +438,7 @@ async fn apply(
 
 // ------------------------------------------------------------ señales / rebuild
 
-async fn finish(
-    emitter: &SignalEmitter<'static>,
-    job: u32,
-    action: &str,
-    result: Result<()>,
-) {
+async fn finish(emitter: &SignalEmitter<'static>, job: u32, action: &str, result: Result<()>) {
     match result {
         Ok(()) => {
             let _ = Users::finished(emitter, job, action).await;
@@ -467,21 +468,15 @@ async fn rebuild_system(
     allow_missing: Vec<String>,
 ) -> Result<()> {
     let (flake_ref, _rev) = rebuild::system_ref()?;
-    let outcome = tokio::task::spawn_blocking(move || {
-        rebuild::run(&flake_ref, Mode::Switch, &allow_missing)
-    })
-    .await
-    .wrap_err("la reconstrucción se interrumpió")??;
+    let outcome =
+        tokio::task::spawn_blocking(move || rebuild::run(&flake_ref, Mode::Switch, &allow_missing))
+            .await
+            .wrap_err("la reconstrucción se interrumpió")??;
     warn_failed(emitter, job, action, &outcome).await;
     Ok(())
 }
 
-async fn warn_failed(
-    emitter: &SignalEmitter<'static>,
-    job: u32,
-    action: &str,
-    outcome: &Outcome,
-) {
+async fn warn_failed(emitter: &SignalEmitter<'static>, job: u32, action: &str, outcome: &Outcome) {
     if outcome.failed_units.is_empty() {
         return;
     }
@@ -523,7 +518,8 @@ fn existing(username: &str) -> bool {
 }
 
 fn existing_user(username: &str) -> Result<UserData> {
-    UserData::read(username)?.ok_or_else(|| color_eyre::eyre::eyre!("el usuario '{username}' no existe"))
+    UserData::read(username)?
+        .ok_or_else(|| color_eyre::eyre::eyre!("el usuario '{username}' no existe"))
 }
 
 fn passwd_line(username: &str) -> Option<String> {

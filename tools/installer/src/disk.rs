@@ -4,7 +4,7 @@
 use crate::detect::{self, Disk};
 
 pub const GIB: u64 = 1024 * 1024 * 1024;
-/// Minimum space nixdots needs.
+/// Minimum space Keel needs.
 pub const MIN_GIB: u64 = 40;
 /// Safety margin kept for Windows when shrinking its NTFS.
 pub const SHRINK_MARGIN: u64 = 10 * GIB;

@@ -5,7 +5,7 @@
 //! `/run/psamathe/wallpaper-blur.png` y se muestra como `Image`.
 //!
 //! El repo solo trae el fondo ya desenfocado del mockup
-//! (`ui/firstboot-blur.jpg`); `NIXDOTS_WALLPAPER` permite apuntar a la imagen
+//! (`ui/firstboot-blur.jpg`); `KEEL_WALLPAPER` permite apuntar a la imagen
 //! real sin desenfocar si está disponible.
 
 use std::path::Path;
@@ -50,9 +50,9 @@ pub fn load() -> Option<Image> {
     to_slint(full)
 }
 
-/// Los bytes del fondo: `NIXDOTS_WALLPAPER` si se indicó, o el jpg embebido.
+/// Los bytes del fondo: `KEEL_WALLPAPER` si se indicó, o el jpg embebido.
 fn source_bytes() -> Vec<u8> {
-    match std::env::var_os("NIXDOTS_WALLPAPER") {
+    match std::env::var_os("KEEL_WALLPAPER") {
         Some(path) => std::fs::read(path).unwrap_or_else(|_| SOURCE.to_vec()),
         None => SOURCE.to_vec(),
     }

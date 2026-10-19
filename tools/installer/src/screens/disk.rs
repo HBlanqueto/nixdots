@@ -49,7 +49,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
 
     f.render_widget(
         Paragraph::new(Span::styled(
-            "¿Dónde quieres instalar nixdots?",
+            "¿Dónde quieres instalar Keel?",
             Style::default()
                 .fg(app.palette.white)
                 .add_modifier(Modifier::BOLD),
@@ -410,7 +410,7 @@ pub fn has_usable_disk(app: &App) -> bool {
         .any(|d| d.unusable_reason().is_none())
 }
 
-/// `Windows ████ nixdots ████` with ‹ › steppers.
+/// `Windows ████ Keel ████` with ‹ › steppers.
 fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64) {
     let freed = app.disks.shrink_bytes;
     let windows = volume.saturating_sub(freed);
@@ -429,7 +429,7 @@ fn draw_shrink(f: &mut Frame, app: &App, area: Rect, volume: u64, max_free: u64)
             "█".repeat(widths[1]),
             Style::default().fg(app.palette.primary),
         ),
-        Span::styled(" nixdots ", Style::default().fg(app.palette.primary)),
+        Span::styled(" Keel ", Style::default().fg(app.palette.primary)),
     ];
     let _ = max_free;
     f.render_widget(

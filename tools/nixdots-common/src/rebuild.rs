@@ -1,14 +1,15 @@
 //! Reconstrucción de la versión instalada con la misma protección que
-//! `nixdots-rebuild`: primero se construye, luego se comprueba que ningún
+//! `steward rebuild`: primero se construye, luego se comprueba que ningún
 //! usuario normal vaya a desaparecer, y solo entonces se activa.
 //!
-//! Lo usan `nixdots-userd` (y, en el futuro, el binario `nixdots`). Nunca
+//! Lo usan `crewd` y `steward`. Nunca
 //! reconstruye la copia de trabajo del repo: siempre el source instalado en
-//! `/etc/nixdots/flake-ref`.
+//! `/etc/keel/source`.
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use toml_edit::DocumentMut;
 
 use crate::runner;
 
@@ -40,16 +41,13 @@ pub struct Outcome {
     pub failed_units: Vec<String>,
 }
 
-/// `/etc/nixdots/flake-ref` y `/etc/nixdots/rev`, validados.
+/// `/etc/keel/source` y `/etc/keel/release`, validados.
 pub fn system_ref() -> Result<(PathBuf, String)> {
-    let raw = std::fs::read_to_string("/etc/nixdots/flake-ref")
-        .wrap_err("falta /etc/nixdots/flake-ref")?
+    let raw = std::fs::read_to_string("/etc/keel/source")
+        .wrap_err("falta /etc/keel/source")?
         .trim()
         .to_string();
-    let rev = std::fs::read_to_string("/etc/nixdots/rev")
-        .wrap_err("falta /etc/nixdots/rev")?
-        .trim()
-        .to_string();
+    let rev = release_commit()?;
     let path = PathBuf::from(&raw);
     if raw.is_empty() || !path.is_dir() || !path.join("flake.nix").is_file() {
         bail!("referencia del sistema no válida: {raw}");
@@ -60,10 +58,28 @@ pub fn system_ref() -> Result<(PathBuf, String)> {
     Ok((path, rev))
 }
 
+/// Commit de `/etc/keel/release` (TOML).
+pub fn release_commit() -> Result<String> {
+    let text = std::fs::read_to_string("/etc/keel/release").wrap_err("falta /etc/keel/release")?;
+    let doc: DocumentMut = text
+        .parse()
+        .wrap_err("/etc/keel/release no es TOML válido")?;
+    let commit = doc
+        .get("commit")
+        .and_then(|item| item.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if commit.is_empty() {
+        bail!("revisión del sistema vacía");
+    }
+    Ok(commit)
+}
+
 /// Ejecuta la reconstrucción desde `flake_ref`. `allow_missing` son los
 /// usuarios que pueden desaparecer en esta operación (p. ej. el que se borra).
 pub fn run(flake_ref: &Path, mode: Mode, allow_missing: &[String]) -> Result<Outcome> {
-    let ref_arg = format!("path:{}#nixdots", flake_ref.display());
+    let ref_arg = format!("path:{}#keel", flake_ref.display());
 
     let build = Command::new("nixos-rebuild")
         .args(["build", "--impure", "--no-link", "--flake", &ref_arg])
@@ -104,7 +120,8 @@ pub fn run(flake_ref: &Path, mode: Mode, allow_missing: &[String]) -> Result<Out
         code => bail!(
             "nixos-rebuild {} falló (código {}): {}",
             mode.arg(),
-            code.map(|c| c.to_string()).unwrap_or_else(|| "señal".into()),
+            code.map(|c| c.to_string())
+                .unwrap_or_else(|| "señal".into()),
             tail(&activate.stderr)
         ),
     }
@@ -114,19 +131,12 @@ pub fn run(flake_ref: &Path, mode: Mode, allow_missing: &[String]) -> Result<Out
 /// están en `allow_missing`.
 fn disappearing_users(flake_ref: &Path, allow_missing: &[String]) -> Result<Vec<String>> {
     let ref_arg = format!(
-        "path:{}#nixosConfigurations.nixdots.config.users.users",
+        "path:{}#nixosConfigurations.keel.config.users.users",
         flake_ref.display()
     );
     let apply = "u: builtins.filter (n: u.${n}.isNormalUser or false) (builtins.attrNames u)";
     let output = Command::new("nix")
-        .args([
-            "eval",
-            "--impure",
-            "--json",
-            &ref_arg,
-            "--apply",
-            apply,
-        ])
+        .args(["eval", "--impure", "--json", &ref_arg, "--apply", apply])
         .env("NIX_CONFIG", runner::nix_config())
         .output()
         .wrap_err("no se pudo evaluar la configuración nueva")?;

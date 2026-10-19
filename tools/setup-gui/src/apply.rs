@@ -14,8 +14,7 @@ fn write_json(json: &str) -> std::io::Result<PathBuf> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let dir =
-        std::env::temp_dir().join(format!("nixdots-setup-gui-{}-{nanos}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("keel-setup-gui-{}-{nanos}", std::process::id()));
     std::fs::create_dir(&dir)?;
     set_mode(&dir, 0o700)?;
     let path = dir.join("datos.json");

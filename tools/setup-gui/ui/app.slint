@@ -36,7 +36,7 @@ export global State {
     in-out property <bool> show-details: false;
     // Fase real del CLI (0..4) y fundido final a negro.
     in-out property <int> prep-phase: 0;
-    // Texto concreto de la fase (nixdots-home-init lo publica).
+    // Texto concreto de la fase (steward home prepare lo publica).
     in-out property <string> prep-status: "";
     in-out property <bool> prep-black: false;
     // A dónde vuelve «Volver a la configuración» (Cuenta si fue la contraseña).
@@ -824,7 +824,7 @@ component StepHeader inherits VerticalLayout {
 }
 
 export component AppWindow inherits Window {
-    title: "nixdots";
+    title: "Assist-setup";
     width: 1280px;
     height: 800px;
     background: Design.wallpaper-fallback;
@@ -1077,7 +1077,7 @@ export component AppWindow inherits Window {
                     horizontal-alignment: center;
                 }
                 Text {
-                    text: "NIXDOTS";
+                    text: "ASSIST-SETUP";
                     color: rgba(255, 255, 255, 0.7);
                     font-family: "Inter";
                     font-size: 12px;
@@ -2278,7 +2278,7 @@ export component AppWindow inherits Window {
                     wrap: word-wrap;
                 }
                 Text {
-                    text: State.apply-error == "" ? @tr("Aplicando la configuración de nixdots.") : State.apply-error;
+                    text: State.apply-error == "" ? @tr("Aplicando la configuración de Keel.") : State.apply-error;
                     color: Design.wallpaper-ink-muted;
                     font-size: 15px;
                     horizontal-alignment: center;

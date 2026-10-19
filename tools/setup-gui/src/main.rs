@@ -21,7 +21,7 @@ mod wallpaper;
 fn main() -> Result<(), slint::PlatformError> {
     let mut sim = false;
     let mut home_init = false;
-    let mut repo = "/persist/nixdots/repo".to_string();
+    let mut repo = "/persist/keel/repo".to_string();
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {

@@ -23,7 +23,7 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
               keyboardVariant, timeZone, timeZoneAuto, a11y, colorScheme,
               accentColor, avatarColor, autoLogin y, opcionalmente, gitName,
               gitEmail, avatarPath y admin.
-  --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
+  --repo      repositorio a reconstruir (defecto /persist/keel/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
 Los datos personales van a users/<usuario>.json; los de sistema (locale, zona,
@@ -104,7 +104,7 @@ fn run() -> Result<()> {
 
 fn apply(args: &[String]) -> Result<()> {
     let mut data_path = None;
-    let mut repo = PathBuf::from("/persist/nixdots/repo");
+    let mut repo = PathBuf::from("/persist/keel/repo");
     let mut dry_run = false;
     let mut it = args.iter();
     while let Some(arg) = it.next() {
@@ -125,7 +125,7 @@ fn apply(args: &[String]) -> Result<()> {
     let data = load_data(&data_path)?;
     validate(&data)?;
     let password = read_password()?;
-    let sim_fail = std::env::var_os("NIXDOTS_SIM_FAIL").is_some();
+    let sim_fail = std::env::var_os("KEEL_SIM_FAIL").is_some();
 
     // 1. Hash (0600) antes de la cuenta: user.nix exige que exista.
     phase(0, dry_run);
@@ -136,7 +136,7 @@ fn apply(args: &[String]) -> Result<()> {
     if !dry_run {
         std::fs::create_dir_all(secrets)?;
         // 0711, igual que el instalador: el archivo sigue ilegible, pero la
-        // evaluación de nix sin privilegios (nixdots-rebuild) puede hacerle
+        // evaluación de nix sin privilegios (steward rebuild) puede hacerle
         // stat; con 0700 la assertion de user.nix lo daría por inexistente.
         set_mode(secrets, 0o711)?;
         // Creado ya con 0600: nunca existe, ni un instante, con el umask.
@@ -176,18 +176,22 @@ fn apply(args: &[String]) -> Result<()> {
         avatar_path: data.avatar_path.clone().and_then(non_empty),
         a11y: data.a11y.clone(),
         git: match (data.git_name.clone(), data.git_email.clone()) {
-            (Some(name), Some(email))
-                if !name.trim().is_empty() && !email.trim().is_empty() =>
-            {
+            (Some(name), Some(email)) if !name.trim().is_empty() && !email.trim().is_empty() => {
                 Some(Git { name, email })
             }
             _ => None,
         },
     };
-    println!("$ escribir {} (0644)", user_data::path_for(&data.username).display());
+    println!(
+        "$ escribir {} (0644)",
+        user_data::path_for(&data.username).display()
+    );
     if !dry_run {
         user.write()?;
-        println!("$ escribir {} (0644)", user_data::prefs_path_for(&data.username).display());
+        println!(
+            "$ escribir {} (0644)",
+            user_data::prefs_path_for(&data.username).display()
+        );
         prefs.write(&data.username)?;
     }
 
@@ -234,10 +238,10 @@ fn apply(args: &[String]) -> Result<()> {
         .arg(format!("{}#{host}", repo.display()));
     run_step(&rebuild, dry_run, "nixos-rebuild")?;
 
-    // ~<usuario>/nixdots -> repo, y el repo en manos del usuario, solo cuando el
+    // ~<usuario>/dotfiles -> repo, y el repo en manos del usuario, solo cuando el
     // rebuild ha terminado bien: si falla no se tocan permisos.
     phase(3, dry_run);
-    let home_link = format!("/home/{}/nixdots", data.username);
+    let home_link = format!("/home/{}/dotfiles", data.username);
     println!(
         "$ ln -sfn {} {home_link} && chown -R 1000:users {}",
         repo.display(),
@@ -294,9 +298,7 @@ fn migrate(args: &[String]) -> Result<()> {
         avatar_path: old.avatar_path.clone().and_then(non_empty),
         a11y: old.a11y.clone(),
         git: match (old.git_name.clone(), old.git_email.clone()) {
-            (Some(name), Some(email))
-                if !name.trim().is_empty() && !email.trim().is_empty() =>
-            {
+            (Some(name), Some(email)) if !name.trim().is_empty() && !email.trim().is_empty() => {
                 Some(Git { name, email })
             }
             _ => None,
@@ -306,7 +308,10 @@ fn migrate(args: &[String]) -> Result<()> {
     if !dry_run {
         user.write()?;
         if prefs != Prefs::default() {
-            println!("$ escribir {}", user_data::prefs_path_for(&username).display());
+            println!(
+                "$ escribir {}",
+                user_data::prefs_path_for(&username).display()
+            );
             prefs.write(&username)?;
         }
     }
@@ -546,15 +551,15 @@ fn set_mode(path: &Path, mode: u32) -> Result<()> {
     Ok(())
 }
 
-/// Deja `~<usuario>/nixdots` como enlace al repo y pone el repo en manos del
+/// Deja `~<usuario>/dotfiles` como enlace al repo y pone el repo en manos del
 /// usuario. El uid está fijado a 1000 en `core/user.nix` (el asistente
 /// corre antes de que exista la cuenta).
 fn link_home(username: &str, repo: &Path) -> Result<()> {
     let home = format!("/home/{username}");
     std::fs::create_dir_all(&home).wrap_err_with(|| format!("no se pudo crear {home}"))?;
-    let link = format!("{home}/nixdots");
+    let link = format!("{home}/dotfiles");
     let _ = std::fs::remove_file(&link);
-    std::os::unix::fs::symlink(repo, &link).wrap_err("no se pudo crear el enlace ~/nixdots")?;
+    std::os::unix::fs::symlink(repo, &link).wrap_err("no se pudo crear el enlace ~/dotfiles")?;
 
     chown(&["-R", "1000:users"], repo)?;
     chown(&["1000:users"], Path::new(&home))?;

@@ -1,12 +1,12 @@
 //! Lectura y reescritura de los datos externos en TOML.
 //!
-//! Los archivos viven bajo `${NIXDOTS_ROOT}/persist/nixdots`. Para conservar
+//! Los archivos viven bajo `${KEEL_ROOT}/persist/keel`. Para conservar
 //! comentarios, orden y claves desconocidas se edita siempre un
 //! [`toml_edit::DocumentMut`] en vez de serializar un struct. Mientras dure la
 //! migración, si no existe el `.toml` se lee el `.json` hermano.
 //!
 //! shortcut: el respaldo JSON se retira cuando todas las máquinas hayan
-//! migrado con `nixdots-setup migrate-toml`.
+//! migrado con `steward migrate`.
 
 use color_eyre::eyre::{eyre, Context, Result};
 use std::path::Path;

@@ -428,7 +428,7 @@ fn run_connect(mut cmd: Command) -> Result<()> {
 pub fn sample_networks() -> Vec<Wifi> {
     vec![
         Wifi {
-            ssid: "nixdots-lab".into(),
+            ssid: "keel-lab".into(),
             signal: 90,
             secured: true,
         },

@@ -1,4 +1,4 @@
-//! `nixdots-installer` — a text-mode installer for the nixdots NixOS config.
+//! `installer` — a text-mode installer for the Keel NixOS config.
 //!
 //! With no arguments it runs in dry-run mode: every screen is shown, every
 //! command is displayed, but nothing outside a temporary directory is touched.
@@ -27,7 +27,7 @@ struct Args {
 
 fn parse_args() -> Result<Args> {
     let mut dry_run = true;
-    let mut repo = "github:HBlanqueto/nixdots".to_string();
+    let mut repo = "github:HBlanqueto/dotfiles".to_string();
     let mut help = false;
 
     let mut it = std::env::args().skip(1);
@@ -51,12 +51,12 @@ fn parse_args() -> Result<Args> {
 }
 
 fn help_text() -> String {
-    "nixdots-installer [--install] [--repo <ruta|url>]\n\n  (sin argumentos)  simulación\n  --install         instalación real (requiere root, desde la ISO)\n  --repo            repositorio a instalar (defecto github:HBlanqueto/nixdots)".to_string()
+    "nixdots-installer [--install] [--repo <ruta|url>]\n\n  (sin argumentos)  simulación\n  --install         instalación real (requiere root, desde la ISO)\n  --repo            repositorio a instalar (defecto github:HBlanqueto/dotfiles)".to_string()
 }
 
 /// Where the installer records that it started and how it exited, so
 /// `install.sh` can tell a kmscon failure from a real run and reuse the code.
-const STATE_DIR: &str = "/tmp/nixdots-installer";
+const STATE_DIR: &str = "/tmp/keel-installer";
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -98,7 +98,7 @@ fn run(args: Args) -> Result<()> {
 
     let _console = theme::console::Guard::activate();
 
-    let repo_dir = std::env::temp_dir().join("nixdots");
+    let repo_dir = std::env::temp_dir().join("keel-installer-repo");
     let cloned = prepare_repo(&args.repo, &repo_dir).is_ok();
     if !cloned && args.dry_run {
         write_stub_repo(&repo_dir).ok();
@@ -138,9 +138,9 @@ fn prepare_repo(spec: &str, dest: &Path) -> Result<()> {
         std::fs::remove_dir_all(dest).ok();
     }
 
-    // Prefer the repo embedded in the live ISO (`/etc/nixdots-src`), so the
+    // Prefer the repo embedded in the live ISO (`/etc/keel/repo`), so the
     // install does not depend on the network nor on what is pushed to GitHub.
-    let embedded = Path::new("/etc/nixdots-src");
+    let embedded = Path::new("/etc/keel/repo");
     if embedded.exists() {
         let src = std::fs::canonicalize(embedded).unwrap_or_else(|_| embedded.to_path_buf());
         return copy_dir(&src, dest);
@@ -171,27 +171,23 @@ fn copy_dir(src: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Checks out the commit recorded in `/etc/nixdots/rev` (written by the live
+/// Checks out the commit recorded in `/etc/keel/release` (written by the live
 /// ISO) so the install matches what was built, not the tip of the branch.
 /// Best-effort: a shallow clone may lack it, so it is fetched first.
 fn checkout_iso_rev(repo: &Path) {
-    let Ok(rev) = std::fs::read_to_string("/etc/nixdots/rev") else {
+    let Ok(rev) = nixdots_common::rebuild::release_commit() else {
         return;
     };
-    let rev = rev.trim();
-    if rev.is_empty() {
-        return;
-    }
     let safe = format!("safe.directory={}", repo.display());
     let _ = Command::new("git")
         .args(["-c", safe.as_str(), "-C"])
         .arg(repo)
-        .args(["fetch", "--depth", "1", "origin", rev])
+        .args(["fetch", "--depth", "1", "origin", &rev])
         .status();
     let _ = Command::new("git")
         .args(["-c", safe.as_str(), "-C"])
         .arg(repo)
-        .args(["checkout", rev])
+        .args(["checkout", &rev])
         .status();
 }
 

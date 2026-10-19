@@ -1,9 +1,9 @@
 //! Datos de cuentas fuera del repo, un archivo por usuario en
-//! `${NIXDOTS_ROOT}/persist/nixdots/users/<usuario>.toml` (respaldo: `.json`).
+//! `${KEEL_ROOT}/persist/keel/users/<usuario>.toml` (respaldo: `.json`).
 //!
 //! El flake los lee y crea con ellos `users.users.<nombre>` y su home-manager;
 //! no se versionan ni se pierden al reconstruir. `hashedPasswordFile` no se
-//! guarda: se deriva del usuario. El repo vive en `/persist/nixdots/repo`,
+//! guarda: se deriva del usuario. El repo vive en `/persist/keel/repo`,
 //! nunca dentro de estos archivos.
 //!
 //! Los datos del sistema (locale, zona, teclado, autologin…) NO van aquí: van
@@ -64,7 +64,7 @@ pub struct UserData {
 }
 
 /// Semilla de un solo uso para el home, en `users/<usuario>.prefs.toml`:
-/// apariencia, accesibilidad y git. `nixdots-home-init` la copia al flake del
+/// apariencia, accesibilidad y git. `steward home prepare` la copia al flake del
 /// usuario (git a `home.nix`, lo demás a `prefs.toml`) y borra el original.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,8 +85,8 @@ pub struct Prefs {
     pub git: Option<Git>,
 }
 
-/// `${NIXDOTS_ROOT}/persist/nixdots/users`. Construido como cadena: sin
-/// `NIXDOTS_ROOT` la ruta debe quedar absoluta (`/persist/...`), no relativa.
+/// `${KEEL_ROOT}/persist/keel/users`. Construido como cadena: sin
+/// `KEEL_ROOT` la ruta debe quedar absoluta (`/persist/...`), no relativa.
 pub fn users_dir() -> PathBuf {
     crate::paths::persist().join("users")
 }
@@ -212,7 +212,7 @@ impl Prefs {
     pub fn write(&self, username: &str) -> Result<()> {
         let path = prefs_path_for(username);
         self.write_seed(&path)?;
-        // La semilla la lee nixdots-home-init como el propio usuario: 0600 y
+        // La semilla la lee steward home prepare como el propio usuario: 0600 y
         // dueño correcto (el asistente/userd corren como root).
         store::set_mode(&path, 0o600)?;
         if let Some((uid, gid)) = owner(username) {
@@ -222,7 +222,7 @@ impl Prefs {
     }
 
     /// Escribe la apariencia/a11y (sin git) en `path`, modo 0600. Es lo que
-    /// `nixdots-home-init` copia a `~/.config/home-manager/prefs.toml`.
+    /// `steward home prepare` copia a `~/.config/home-manager/prefs.toml`.
     pub fn write_home_file(&self, path: &Path) -> Result<()> {
         self.write_seed(path)?;
         store::set_mode(path, 0o600)?;
@@ -265,11 +265,26 @@ impl Prefs {
         let doc = store::load_document(&path)?;
         let get = |key: &str| doc.get(key).and_then(|i| i.as_str()).map(str::to_string);
         let a11y = doc.get("a11y").and_then(|i| i.as_table()).map(|t| A11y {
-            large_text: t.get("largeText").and_then(|i| i.as_bool()).unwrap_or(false),
-            high_contrast: t.get("highContrast").and_then(|i| i.as_bool()).unwrap_or(false),
-            screen_reader: t.get("screenReader").and_then(|i| i.as_bool()).unwrap_or(false),
-            reduce_motion: t.get("reduceMotion").and_then(|i| i.as_bool()).unwrap_or(false),
-            screen_keyboard: t.get("screenKeyboard").and_then(|i| i.as_bool()).unwrap_or(false),
+            large_text: t
+                .get("largeText")
+                .and_then(|i| i.as_bool())
+                .unwrap_or(false),
+            high_contrast: t
+                .get("highContrast")
+                .and_then(|i| i.as_bool())
+                .unwrap_or(false),
+            screen_reader: t
+                .get("screenReader")
+                .and_then(|i| i.as_bool())
+                .unwrap_or(false),
+            reduce_motion: t
+                .get("reduceMotion")
+                .and_then(|i| i.as_bool())
+                .unwrap_or(false),
+            screen_keyboard: t
+                .get("screenKeyboard")
+                .and_then(|i| i.as_bool())
+                .unwrap_or(false),
         });
         let git = doc.get("git").and_then(|i| i.as_table()).and_then(|t| {
             Some(Git {
@@ -302,7 +317,7 @@ fn owner(username: &str) -> Option<(u32, u32)> {
     })
 }
 
-/// `${NIXDOTS_ROOT}/persist/nixdots/user.json`, el formato antiguo.
+/// `${KEEL_ROOT}/persist/keel/user.json`, el formato antiguo.
 pub fn legacy_path() -> PathBuf {
     crate::paths::persist().join("user.json")
 }

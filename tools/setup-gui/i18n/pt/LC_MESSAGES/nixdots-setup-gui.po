@@ -28,8 +28,8 @@ msgstr "Aparece ao digitar em um campo de texto"
 msgid "Aplicando idioma y región…"
 msgstr "Aplicando idioma e região…"
 
-msgid "Aplicando la configuración de nixdots."
-msgstr "Aplicando a configuração do nixdots."
+msgid "Aplicando la configuración de Keel."
+msgstr "Aplicando a configuração do Keel."
 
 msgid "Aplicar"
 msgstr "Aplicar"

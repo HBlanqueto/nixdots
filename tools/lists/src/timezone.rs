@@ -1,8 +1,8 @@
 //! Zonas horarias, desde `zone1970.tab` de tzdata.
 
 /// `share/zoneinfo/zone1970.tab`, embebido por el paquete
-/// (`NIXDOTS_ZONE1970_TAB`).
-const ZONE1970_TAB: &str = include_str!(env!("NIXDOTS_ZONE1970_TAB"));
+/// (`KEEL_ZONE1970_TAB`).
+const ZONE1970_TAB: &str = include_str!(env!("KEEL_ZONE1970_TAB"));
 
 /// Todas las zonas, empezando por UTC.
 pub fn zones() -> Vec<String> {

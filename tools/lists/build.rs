@@ -1,17 +1,17 @@
 //! Generates the locale name table from the glibc source locale files
 //! (`LC_ADDRESS`'s `country_name` and `lang_name`), so the UI can show
 //! «Español (Bolivia)» instead of «es_BO». The path comes from
-//! `NIXDOTS_LOCALE_DIR` (the full glibc package's `share/i18n/locales`).
+//! `KEEL_LOCALE_DIR` (the full glibc package's `share/i18n/locales`).
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=NIXDOTS_LOCALE_DIR");
+    println!("cargo:rerun-if-env-changed=KEEL_LOCALE_DIR");
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("locale_names.rs");
 
     let mut entries: Vec<(String, String, String)> = Vec::new();
-    if let Ok(dir) = std::env::var("NIXDOTS_LOCALE_DIR") {
+    if let Ok(dir) = std::env::var("KEEL_LOCALE_DIR") {
         if let Ok(read) = std::fs::read_dir(&dir) {
             for entry in read.flatten() {
                 let path = entry.path();

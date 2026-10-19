@@ -4,8 +4,8 @@
 use std::sync::OnceLock;
 
 /// `share/X11/xkb/rules/base.lst`, embebido por el paquete
-/// (`NIXDOTS_XKB_BASE_LST`).
-const XKB_BASE_LST: &str = include_str!(env!("NIXDOTS_XKB_BASE_LST"));
+/// (`KEEL_XKB_BASE_LST`).
+const XKB_BASE_LST: &str = include_str!(env!("KEEL_XKB_BASE_LST"));
 
 /// Un layout base o una de sus variantes.
 #[derive(Debug, Clone)]

@@ -71,7 +71,7 @@ pub fn host_name_error(name: &str) -> Option<&'static str> {
 /// Derives a macOS-style hostname from a display name: transliterate accents
 /// and ñ to ASCII, drop apostrophes without leaving a gap, turn every other
 /// non-alphanumeric character into a `-` (runs collapse, edges trimmed), keep
-/// the case, cap at 63 chars, and fall back to `nixdots` when nothing is left.
+/// the case, cap at 63 chars, and fall back to `keel` when nothing is left.
 pub fn host_name_from_pretty(pretty: &str) -> String {
     let mut out = String::new();
     for ch in pretty.chars() {
@@ -89,7 +89,7 @@ pub fn host_name_from_pretty(pretty: &str) -> String {
     name.truncate(63);
     let name = name.trim_end_matches('-');
     if name.is_empty() {
-        "nixdots".to_string()
+        "keel".to_string()
     } else {
         name.to_string()
     }

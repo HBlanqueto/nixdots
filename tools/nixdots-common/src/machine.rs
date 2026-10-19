@@ -1,5 +1,5 @@
 //! Datos del sistema fuera del repo, en
-//! `${NIXDOTS_ROOT}/persist/nixdots/machine.toml` (respaldo: `machine.json`).
+//! `${KEEL_ROOT}/persist/keel/machine.toml` (respaldo: `machine.json`).
 //!
 //! Es el archivo del sistema (hostName, cifrado, Secure Boot, extras) más los
 //! campos de sistema que elige el asistente (prettyHostName, defaultLocale,
@@ -13,7 +13,7 @@ use crate::store;
 use color_eyre::eyre::Result;
 use std::path::{Path, PathBuf};
 
-/// `${NIXDOTS_ROOT}/persist/nixdots/machine.toml`.
+/// `${KEEL_ROOT}/persist/keel/machine.toml`.
 pub fn path() -> PathBuf {
     crate::paths::persist().join("machine.toml")
 }
@@ -25,7 +25,7 @@ pub fn merge_fields(fields: serde_json::Map<String, serde_json::Value>) -> Resul
 }
 
 /// Igual que [`merge_fields`] pero sobre una ruta concreta (el instalador
-/// escribe en el destino, no en `${NIXDOTS_ROOT}`).
+/// escribe en el destino, no en `${KEEL_ROOT}`).
 pub fn merge_fields_at(
     path: &Path,
     fields: serde_json::Map<String, serde_json::Value>,

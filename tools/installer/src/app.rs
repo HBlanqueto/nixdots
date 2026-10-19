@@ -1121,7 +1121,7 @@ impl App {
         self.install.resume_from(resume);
 
         let root = if self.dry_run {
-            let dir = std::env::temp_dir().join("nixdots-mnt");
+            let dir = std::env::temp_dir().join("keel-mnt");
             let _ = std::fs::create_dir_all(&dir);
             dir
         } else {
@@ -2436,7 +2436,7 @@ impl App {
             y += 1;
             f.render_widget(
                 Paragraph::new(Span::styled(
-                    "registro completo: /tmp/nixdots-install.log",
+                    "registro completo: /tmp/keel-install.log",
                     Style::default().fg(self.palette.muted),
                 ))
                 .alignment(Alignment::Center),
@@ -2597,7 +2597,7 @@ impl App {
     /// Shortens the temp install root to `/mnt` and hides any secret a command
     /// might carry.
     fn shorten_command(&self, line: &str) -> String {
-        let root = std::env::temp_dir().join("nixdots-mnt");
+        let root = std::env::temp_dir().join("keel-mnt");
         let mut s = line.replace(&root.to_string_lossy().to_string(), "/mnt");
         for secret in [
             self.enc.pass.value().to_string(),

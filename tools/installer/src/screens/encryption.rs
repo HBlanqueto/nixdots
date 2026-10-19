@@ -407,15 +407,15 @@ pub fn draw_usb(f: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Writes the recovery key to the chosen medium as
-/// `nixdots-recovery-<hostname>.txt`. The key is the only secret ever written
+/// `keel-recovery-<hostname>.txt`. The key is the only secret ever written
 /// to a removable disk; it never touches the target disk.
 fn save_recovery(app: &mut App) {
     let Some(medium) = app.enc.usb.get(app.enc.usb_index).cloned() else {
         return;
     };
-    let name = format!("nixdots-recovery-{}.txt", app.settings.host_name);
+    let name = format!("keel-recovery-{}.txt", app.settings.host_name);
     let content = format!(
-        "nixdots · clave de recuperación LUKS2\n\
+        "Keel · clave de recuperación LUKS2\n\
          hostname: {}\n\
          disco: {}\n\n\
          {}\n\n\
@@ -431,7 +431,7 @@ fn save_recovery(app: &mut App) {
         return;
     }
 
-    let dir = "/tmp/nixdots-usb";
+    let dir = "/tmp/keel-usb";
     let _ = std::fs::create_dir_all(dir);
     let mount = Cmd::new("mount")
         .arg("-o")
