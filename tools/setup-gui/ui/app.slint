@@ -36,6 +36,8 @@ export global State {
     in-out property <bool> show-details: false;
     // Fase real del CLI (0..4) y fundido final a negro.
     in-out property <int> prep-phase: 0;
+    // Texto concreto de la fase (nixdots-home-init lo publica).
+    in-out property <string> prep-status: "";
     in-out property <bool> prep-black: false;
     // A dónde vuelve «Volver a la configuración» (Cuenta si fue la contraseña).
     in-out property <int> error-step: 8;
@@ -2302,7 +2304,7 @@ export component AppWindow inherits Window {
                 }
             }
             if State.apply-error == "" : Text {
-                text: prepare.status-text;
+                text: State.prep-status != "" ? State.prep-status : prepare.status-text;
                 color: Design.wallpaper-ink-muted;
                 font-size: 13px;
                 horizontal-alignment: center;

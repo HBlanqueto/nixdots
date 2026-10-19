@@ -16,6 +16,7 @@
     ./user.nix
     ./first-boot.nix
     ./services.nix
+    ./users-service.nix
     ./console.nix
     ./fonts.nix
     ./iphone-tethering.nix

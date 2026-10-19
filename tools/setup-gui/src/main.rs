@@ -7,6 +7,8 @@
 slint::include_modules!();
 
 use std::cell::Cell;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -18,11 +20,13 @@ mod wallpaper;
 
 fn main() -> Result<(), slint::PlatformError> {
     let mut sim = false;
+    let mut home_init = false;
     let mut repo = "/persist/nixdots/repo".to_string();
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--sim" => sim = true,
+            "--home-init" => home_init = true,
             "--repo" => {
                 if let Some(v) = it.next() {
                     repo = v;
@@ -33,6 +37,11 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     let ui = AppWindow::new()?;
+
+    if home_init {
+        start_home_init(&ui);
+        return ui.run();
+    }
 
     // Lista de locales (todos los UTF-8 de glibc, nombre nativo + código) y
     // selección inicial es_MX (o el primero).
@@ -602,4 +611,83 @@ fn nmcli_connect(ssid: &str, pass: &str) -> bool {
         cmd.args(["password", pass]);
     }
     matches!(cmd.output(), Ok(o) if o.status.success())
+}
+
+/// Muestra la pantalla «Preparando tu escritorio» mientras ejecuta
+/// `nixdots-home-init` y traduce sus líneas `PHASE n` / `STATUS texto`.
+fn start_home_init(ui: &AppWindow) {
+    {
+        let st = ui.global::<State>();
+        st.set_step(9);
+        st.set_apply_error("".into());
+        st.set_prep_phase(0);
+        st.set_prep_status("Preparando tu escritorio".into());
+    }
+
+    let mut child = match Command::new("nixdots-home-init")
+        .env("NO_COLOR", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            ui.global::<State>()
+                .set_apply_error(format!("No se pudo iniciar nixdots-home-init: {e}").into());
+            return;
+        }
+    };
+
+    let weak = ui.as_weak();
+
+    if let Some(stderr) = child.stderr.take() {
+        let weak = weak.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                let weak = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak.upgrade() {
+                        let st = ui.global::<State>();
+                        st.set_log_text(format!("{}{}\n", st.get_log_text(), line).into());
+                    }
+                });
+            }
+        });
+    }
+
+    if let Some(stdout) = child.stdout.take() {
+        let weak = weak.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                let line = line.clone();
+                let weak = weak.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak.upgrade() {
+                        let st = ui.global::<State>();
+                        if let Some(n) = line.strip_prefix("PHASE ") {
+                            if let Ok(n) = n.trim().parse::<i32>() {
+                                st.set_prep_phase(n);
+                            }
+                        } else if let Some(message) = line.strip_prefix("STATUS ") {
+                            st.set_prep_status(message.into());
+                        } else {
+                            st.set_log_text(format!("{}{}\n", st.get_log_text(), line).into());
+                        }
+                    }
+                });
+            }
+            let ok = child.wait().map(|s| s.success()).unwrap_or(false);
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = weak.upgrade() {
+                    if ok {
+                        let _ = ui.hide();
+                        let _ = slint::quit_event_loop();
+                    } else {
+                        ui.global::<State>()
+                            .set_apply_error("No se pudo preparar tu escritorio.".into());
+                    }
+                }
+            });
+        });
+    }
 }

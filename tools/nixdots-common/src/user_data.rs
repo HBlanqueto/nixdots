@@ -13,7 +13,7 @@
 use crate::store;
 use color_eyre::eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use toml_edit::{value, Item, Table};
 
 /// Preferencias de accesibilidad (todas `false` por defecto).
@@ -112,6 +112,51 @@ fn set_str(doc: &mut toml_edit::DocumentMut, key: &str, s: Option<&str>) {
 }
 
 impl UserData {
+    /// Lee la cuenta de `users/<usuario>.toml` (o del respaldo JSON).
+    pub fn read(username: &str) -> Result<Option<Self>> {
+        let path = path_for(username);
+        if !path.exists() && !store::json_sibling(&path).exists() {
+            return Ok(None);
+        }
+        let doc = store::load_document(&path)?;
+        let username = doc
+            .get("username")
+            .and_then(|i| i.as_str())
+            .unwrap_or(username)
+            .to_string();
+        Ok(Some(Self {
+            version: doc.get("version").and_then(|i| i.as_integer()).unwrap_or(1) as u32,
+            username,
+            full_name: doc
+                .get("fullName")
+                .and_then(|i| i.as_str())
+                .unwrap_or("")
+                .to_string(),
+            admin: doc.get("admin").and_then(|i| i.as_bool()).unwrap_or(false),
+        }))
+    }
+
+    /// Todas las cuentas de `users/*.toml` (sin las semillas `.prefs.toml`).
+    pub fn list() -> Result<Vec<Self>> {
+        let mut users = Vec::new();
+        let Ok(entries) = std::fs::read_dir(users_dir()) else {
+            return Ok(users);
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.ends_with(".toml") || name.ends_with(".prefs.toml") {
+                continue;
+            }
+            let username = name.trim_end_matches(".toml");
+            if let Some(user) = Self::read(username)? {
+                users.push(user);
+            }
+        }
+        users.sort_by(|a, b| a.username.cmp(&b.username));
+        Ok(users)
+    }
+
     /// Escritura atómica en `users/<usuario>.toml` conservando comentarios,
     /// orden y claves desconocidas; copia la versión anterior a `.bak`.
     pub fn write(&self) -> Result<()> {
@@ -167,7 +212,26 @@ impl Prefs {
     /// Escribe la semilla en `users/<usuario>.prefs.toml`.
     pub fn write(&self, username: &str) -> Result<()> {
         let path = prefs_path_for(username);
-        let mut doc = store::load_document(&path)?;
+        self.write_seed(&path)?;
+        // La semilla la lee nixdots-home-init como el propio usuario: 0600 y
+        // dueño correcto (el asistente/userd corren como root).
+        store::set_mode(&path, 0o600)?;
+        if let Some((uid, gid)) = owner(username) {
+            std::os::unix::fs::chown(&path, Some(uid), Some(gid))?;
+        }
+        Ok(())
+    }
+
+    /// Escribe la apariencia/a11y (sin git) en `path`, modo 0600. Es lo que
+    /// `nixdots-home-init` copia a `~/.config/home-manager/prefs.toml`.
+    pub fn write_home_file(&self, path: &Path) -> Result<()> {
+        self.write_seed(path)?;
+        store::set_mode(path, 0o600)?;
+        Ok(())
+    }
+
+    fn write_seed(&self, path: &Path) -> Result<()> {
+        let mut doc = store::load_document(path)?;
         doc["version"] = value(self.version as i64);
         set_str(&mut doc, "colorScheme", self.color_scheme.as_deref());
         set_str(&mut doc, "accentColor", self.accent_color.as_deref());
@@ -190,14 +254,7 @@ impl Prefs {
                 doc.remove("git");
             }
         }
-        store::write_document_atomic(&path, &doc)?;
-        // La semilla la lee nixdots-home-init como el propio usuario: 0600 y
-        // dueño correcto (el asistente/userd corren como root).
-        store::set_mode(&path, 0o600)?;
-        if let Some((uid, gid)) = owner(username) {
-            std::os::unix::fs::chown(&path, Some(uid), Some(gid))?;
-        }
-        Ok(())
+        store::write_document_atomic(path, &doc)
     }
 
     /// Lee la semilla si existe.

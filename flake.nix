@@ -199,6 +199,8 @@
                                 ./share/themes/neptunia.nix
                                 # Import de tools/setup-gui/ui/theme.slint.
                                 ./share/design/neptunia/generated/neptunia.slint
+                                # include_str! de nixdots-home-init.
+                                ./templates/home
                             ];
                         };
                         # buildAndTestSubdir makes the hooks run cargo inside the
@@ -289,6 +291,27 @@
                             libx11
                         ];
                     };
+                });
+
+            # Servicio D-Bus de gestión de cuentas y preparación del home.
+            userd = forAllSystems ({ system, pkgs }:
+                mkRustTool system {
+                    pname = "nixdots-userd";
+                    subdir = "tools/nixdots-userd";
+                    description = "D-Bus user management service for nixdots";
+                });
+
+            homeInit = forAllSystems ({ system, pkgs }:
+                mkRustTool system {
+                    pname = "nixdots-home-init";
+                    subdir = "tools/nixdots-home-init";
+                    description = "First-login home setup for nixdots";
+                    runtimeInputs = [
+                        pkgs.home-manager
+                        pkgs.systemd
+                        pkgs.git
+                        pkgs.coreutils
+                    ];
                 });
 
             # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
@@ -399,6 +422,8 @@
                 installer = installers.${system};
                 setup = setups.${system};
                 setup-gui = setupsGui.${system};
+                userd = userd.${system};
+                home-init = homeInit.${system};
                 launcher = launchers.${system};
                 default = launchers.${system};
 
