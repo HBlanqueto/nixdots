@@ -36,7 +36,7 @@ actualiza este archivo en el mismo cambio.
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
     en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
-  - `/persist/keel//persist/keel/users/<usuario>.toml` — una cuenta por archivo, solo lo esencial: `version`,
+  - `/persist/keel/users/<usuario>.toml` — una cuenta por archivo, solo lo esencial: `version`,
     `username`, `fullName` y `admin`. El nombre del archivo debe coincidir con
     `username`.
   - `/persist/keel/users/<usuario>.prefs.toml` — semilla de un solo uso para el home:
@@ -46,7 +46,7 @@ actualiza este archivo en el mismo cambio.
     `~/.config/home-manager/prefs.toml`, y borra la semilla.
   - `user.json` — **respaldo transitorio**: si no hay usuarios en `/persist/keel/users/*`, `data.nix` lo
     lee como un único usuario `admin = true`.
-    `nixdots-setup migrate` lo convierte a `/persist/keel//persist/keel/users/<usuario>.toml` (+ su
+    `nixdots-setup migrate` lo convierte a `/persist/keel/users/<usuario>.toml` (+ su
     `.prefs.toml` con git) + `machine.toml` y deja `user.json.bak`.
   - Durante la migración el sistema lee el `.json` hermano cuando falta el
     `.toml` (en `system/lib/data.nix` y en `kits/nixcore/src/store.rs`); retira ese
@@ -74,6 +74,32 @@ actualiza este archivo en el mismo cambio.
 - Impermanence: la raíz se restaura en cada arranque (Btrfs `@rootfs` desde
   `@rootfs-blank`). Todo estado que deba sobrevivir se declara en
   `environment.persistence."/persist"`.
+
+## Estructura
+
+```text
+dotfiles/
+├── .github/        README corto, docs/ (instalador y sistema) y workflows/
+├── system/         configuración NixOS, usuarios, servicios, plantillas y disko
+├── installer/      instalador TUI, install.sh, launcher de kmscon y logo
+├── welcome/        asistente del primer arranque (CLI, GUI Slint) y su VM
+├── kits/           lo compartido: nixcore, localekit, neptunia y helpers Nix
+├── flake.nix  flake.lock  Cargo.toml  Cargo.lock  .cargo/
+└── AGENTS.md  dev.sh  install.sh  LICENSE  .gitignore  .git-blame-ignore-revs
+```
+
+- `.github/`: README corto, documentación (instalador y sistema) y workflows.
+- `system/`: todo lo que acaba en el sistema instalado (NixOS, cuentas,
+  plantillas de home, servicios, paquetes, overlays y disko). No va aquí nada
+  que solo exista en la ISO o en el asistente.
+- `installer/`: solo lo que corre desde la ISO (TUI, `install.sh`, launcher de
+  kmscon y logo).
+- `welcome/`: solo el asistente del primer arranque (CLI, GUI Slint, diseño y
+  VM de prueba).
+- `kits/`: lo compartido entre al menos dos de los anteriores (nixcore,
+  localekit, neptunia y helpers Nix).
+
+Nada nuevo en la raíz salvo archivos del flake, del workspace de Cargo y de git.
 
 ## Componentes
 
