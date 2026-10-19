@@ -13,6 +13,5 @@
       name = "TU NOMBRE";
       email = "tu@correo";
     };
-    a11y = { };
   };
 }

@@ -35,7 +35,15 @@
         };
 
         # `nixdots` (el flake) lo usa apps.nix para el paquete nixdots-rebuild.
-        extraSpecialArgs = { inherit nixdots; };
+        # `prefs` sale de ./prefs.toml (apariencia y accesibilidad), que
+        # `nixdots-home-init` copia aquí; sin él, valores por defecto.
+        extraSpecialArgs = {
+          inherit nixdots;
+          prefs =
+            if builtins.pathExists ./prefs.toml
+            then builtins.fromTOML (builtins.readFile ./prefs.toml)
+            else { };
+        };
 
         modules = [
           # Cambia esta línea por nixdots.homeModules.minimal si prefieres el

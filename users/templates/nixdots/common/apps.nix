@@ -1,4 +1,4 @@
-{ pkgs, lib, nixdots, userData, osConfig ? { }, theme, ... }:
+{ pkgs, lib, nixdots, userData, prefs ? { }, osConfig ? { }, theme, ... }:
 
 let
     git = userData.git or null;
@@ -178,7 +178,7 @@ in
         ] ++ lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
             # OnlyOffice ships no aarch64 build in nixpkgs.
             onlyoffice-desktopeditors
-        ] ++ lib.optional (userData.a11y.screenReader or false) pkgs.orca;
+        ] ++ lib.optional (prefs.a11y.screenReader or false) pkgs.orca;
     };
 
     programs = {

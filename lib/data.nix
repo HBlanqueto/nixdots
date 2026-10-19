@@ -56,23 +56,12 @@ let
             value = null;
         }) (map (nameFrom "toml") (pick "toml") ++ map (nameFrom "json") (pick "json"))));
     usersFromDir = builtins.listToAttrs (map (name:
-        let
-            value = readData "users/${name}";
-            # La semilla de apariencia/accesibilidad (users/<u>.prefs.toml)
-            # manda sobre el archivo de cuenta; aquí se fusiona para no cambiar
-            # a quien ya la consumía por userData. Los templates leen
-            # ./prefs.toml en el home (fase 5).
-            prefs = readData "users/${name}.prefs";
+        let value = readData "users/${name}";
         in
         {
             inherit name;
             value = value // {
                 username = value.username or name;
-                colorScheme = prefs.colorScheme or value.colorScheme or null;
-                accentColor = prefs.accentColor or value.accentColor or null;
-                avatarColor = prefs.avatarColor or value.avatarColor or null;
-                avatarPath = prefs.avatarPath or value.avatarPath or null;
-                a11y = prefs.a11y or value.a11y or null;
                 # Ruta del home.nix personal, o null. Debe ser de root: el
                 # rebuild evalúa como root y el archivo podría leer secretos.
                 personalHome =

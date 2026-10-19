@@ -68,7 +68,12 @@ in
             # en cada cuenta; el tema y los inputs son comunes.
             # `nixdots` (el propio flake) lo usa apps.nix para el paquete
             # nixdots-rebuild; `theme` lo inyecta homeModules desde el repo.
-            extraSpecialArgs = { nixdots = inputs.self; };
+            # `prefs` vacío: la apariencia llega por el home independiente
+            # (prefs.toml), no por el sistema.
+            extraSpecialArgs = {
+                nixdots = inputs.self;
+                prefs = { };
+            };
 
             users = lib.mapAttrs mkHome data.users;
         };
