@@ -23,15 +23,6 @@
             dates = "weekly";
             options = "--delete-older-than 14d";
         };
-
-        # Token de GitHub para leer los forks privados (Otto y sus dependencias).
-        # Vive fuera del repo, en un archivo de root:wheel 0640 con
-        #   access-tokens = github.com=<token>
-        # El «!include» es opcional: sin el archivo, nix arranca igual y solo
-        # fallarán los inputs privados.
-        extraOptions = ''
-            !include /persist/secrets/nix-access-tokens.conf
-        '';
     };
 
     # Mantén vivos los sources de los inputs del flake (fuentes, temas...),
