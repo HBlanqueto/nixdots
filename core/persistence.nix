@@ -1,4 +1,5 @@
-_: {
+{ config, ... }:
+{
     # Impermanence roots common to every machine. Persistent dirs that depend on
     # the hardware/roles (cups, sbctl, auto-cryptenroll, fwupd, libvirt…) are
     # appended by core/extras.nix, secure-boot.nix, hardware-detect.nix
@@ -42,19 +43,19 @@ _: {
     system.activationScripts.nixdotsCredentialSecret = {
         deps = [ "specialfs" ];
         text = ''
-            # Clave de systemd-creds: archivo real, nunca symlink. Se retira el
-            # enlace roto que pudo dejar una activación anterior y se crea la
-            # clave (32 bytes) solo si no existe, para conservarla entre
-            # arranques.
+            # Clave de systemd-creds: archivo real, nunca symlink. systemd
+            # (261.3) exige un archivo regular de 4112 bytes (16 de machine-id
+            # hasheado + 4096 de clave), modo exacto 0400, y lo valida al leer
+            # (incluido que el machine-id coincida); si no, lo rechaza o borra.
+            # Por eso la genera `systemd-creds setup`, no nosotros.
             if [ -L /var/lib/systemd/credential.secret ]; then
                 rm -f /var/lib/systemd/credential.secret
             fi
-            mkdir -p /persist/var/lib/systemd
-            if [ ! -s /persist/var/lib/systemd/credential.secret ]; then
-                umask 077
-                head -c 32 /dev/urandom > /persist/var/lib/systemd/credential.secret
+            if [ ! -e /persist/var/lib/systemd/credential.secret ]; then
+                mkdir -p /persist/var/lib/systemd
+                SYSTEMD_CREDENTIAL_SECRET=/persist/var/lib/systemd/credential.secret \
+                    ${config.systemd.package}/bin/systemd-creds setup
             fi
-            chmod 0600 /persist/var/lib/systemd/credential.secret
         '';
     };
 
