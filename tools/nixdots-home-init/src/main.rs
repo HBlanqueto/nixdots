@@ -25,7 +25,7 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let username = std::env::var("USER").wrap_err("falta USER")?;
+    let username = username()?;
     let home = std::env::var("HOME").wrap_err("falta HOME")?;
     let config = Path::new(&home).join(".config/home-manager");
     let prefs = Prefs::read(&username).unwrap_or(None);
@@ -107,6 +107,26 @@ fn nixdots_url(flake_ref: &str, rev: &str) -> Result<(String, bool)> {
 
 fn is_rev(rev: &str) -> bool {
     rev.len() == 40 && rev.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// El usuario de la sesión: `USER`, `LOGNAME` o `id -un`.
+fn username() -> Result<String> {
+    for key in ["USER", "LOGNAME"] {
+        if let Ok(value) = std::env::var(key) {
+            if !value.is_empty() {
+                return Ok(value);
+            }
+        }
+    }
+    let out = Command::new("id")
+        .arg("-un")
+        .output()
+        .wrap_err("no se pudo determinar el usuario")?;
+    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if name.is_empty() {
+        bail!("no se pudo determinar el usuario");
+    }
+    Ok(name)
 }
 
 fn system_arch() -> Result<&'static str> {
