@@ -129,7 +129,23 @@ actualiza este archivo en el mismo cambio.
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
   - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`) y de
     migración (`nixdots-setup migrate`).
-  - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita).
+  - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita);
+    su modo `--home-init` muestra «Preparando tu escritorio» al primer inicio.
+  - `tools/nixdots-userd` — servicio de sistema por D-Bus
+    (`org.nixdots.Users1`): `ListUsers`, `CreateUser`, `DeleteUser(keepHome)`,
+    `SetAdmin`, `SetFullName`, `SetPassword` y `DeletePrefsSeed` (solo para el
+    propio usuario). Exige polkit `org.nixdots.users.manage` (auth_admin).
+    Valida los nombres, hashea la contraseña con `mkpasswd` y reconstruye la
+    versión instalada (`/etc/nixdots/flake-ref`), nunca el repo de trabajo.
+  - `tools/nixdots-home-init` — servicio de usuario: si falta
+    `~/.config/home-manager`, lo crea fijando `nixdots` a
+    `github:HBlanqueto/nixdots` en la rev de `/etc/nixdots/rev` (o `path:` si la
+    rev no es un commit), rellena `SYSTEM` con la arquitectura real, copia la
+    semilla de prefs y ejecuta `home-manager switch`. Si el home ya existe,
+    ignora la semilla y pide a userd que la borre.
+- El sistema publica en `/etc/nixdots/flake-ref` el source exacto del flake
+  instalado y en `/etc/nixdots/rev` su commit (`dirty` si se construyó con
+  cambios); ambos se retienen en el closure para que userd pueda reconstruir.
 - El instalador orquesta herramientas existentes (disko, nixos-facter, sbctl,
   nixos-install…); nunca reimplementa particionado. Los binarios se publican en
   la release `latest` desde `.github/workflows/installer-release.yml`;

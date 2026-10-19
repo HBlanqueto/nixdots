@@ -24,7 +24,7 @@ This NixOS system features the following core components:
 
 ```text
 .
-├── tools/                   # Rust crates (installer, nixdots-common, lists, setup, setup-gui)
+├── tools/                   # Rust crates (installer, nixdots-common, lists, setup, setup-gui, userd, home-init)
 ├── lib/mkHost.nix           # helper: mkHost { system, modules, data }
 ├── modules/                 # shared NixOS + home-manager configuration
 │   ├── common/              # users, fish, locale, nix, services, hardware-detect, boot
