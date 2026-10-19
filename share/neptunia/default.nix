@@ -1,16 +1,17 @@
-# Neptunia: la única fuente de diseño de nixdots.
+# Neptunia: la única fuente de tema y diseño de nixdots.
 #
 # tokens.json y components.json son los datos (neutros, sin framework). Este
-# archivo solo los traduce a cada formato. Usa únicamente builtins, así que se
-# evalúa sin nixpkgs:
+# archivo los traduce a cada formato y compone también la paleta de terminal
+# (colors/filecolors/vscode). Usa únicamente builtins, así que se evalúa sin
+# nixpkgs:
 #
-#   nix eval --raw -f share/design/neptunia slint > neptunia.slint
-#   nix eval --raw -f share/design/neptunia css   > neptunia.css
-#   nix eval --raw -f share/design/neptunia qml   > Neptunia.qml
+#   nix eval --raw -f share/neptunia slint > generated/neptunia.slint
+#   nix eval --raw -f share/neptunia css   > generated/neptunia.css
 #
-# Desde un módulo: (import ./share/design/neptunia).slint, o `files pkgs` para
-# una derivación con los tres archivos.
+# Desde un módulo: (import ./share/neptunia).slint, o `files pkgs` para una
+# derivación con los archivos generados.
 let
+  colors = import ./neptunia.nix;
   tokens = builtins.fromJSON (builtins.readFile ./tokens.json);
   components = builtins.fromJSON (builtins.readFile ./components.json);
 
@@ -26,31 +27,11 @@ let
     isInt
     isFloat
     match
-    substring
     toString
     ;
   colorNames = attrNames tokens.themes.light;
   lines = f: xs: concatStringsSep "\n" (map f xs);
   num = v: if isFloat v then toString v else toString v;
-
-  # kebab-case → camelCase (QML)
-  camel =
-    s:
-    let
-      parts = builtins.filter builtins.isString (builtins.split "-" s);
-      cap = p: (builtins.substring 0 1 (upper p)) + (builtins.substring 1 (-1) p);
-      upper =
-        p:
-        builtins.replaceStrings
-          [ "a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o" "p" "q" "r" "s" "t" "u" "v" "w" "x" "y" "z" ]
-          [ "A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z" ]
-          p;
-    in
-    concatStringsSep "" ([ (builtins.head parts) ] ++ map cap (builtins.tail parts));
-
-  # #rrggbbaa → #aarrggbb (Qt)
-  qtColor =
-    c: if builtins.stringLength c == 9 then "#" + substring 7 2 c + substring 1 6 c else c;
 
   # Medidas numéricas de components.json, aplanadas: switch.small.width → switch-small-width
   flatten =
@@ -113,8 +94,8 @@ let
   sh = tokens.shadow.slint;
 
   slint = ''
-    // Generado desde share/design/neptunia (tokens.json, components.json). No editar a mano:
-    // cambia los JSON y regenera con `nix eval --raw -f share/design/neptunia slint`.
+    // Generado desde share/neptunia (tokens.json, components.json). No editar a mano:
+    // cambia los JSON y regenera con `nix eval --raw -f share/neptunia slint`.
     export enum NeptuniaMode { light, dark, dark-tint }
 
     export struct NeptuniaAccent {
@@ -172,7 +153,7 @@ let
 
   cssVars = th: lines (n: "  --${n}: ${tokens.themes.${th}.${n}};") colorNames;
   css = ''
-    /* Generado desde share/design/neptunia. data-theme="dark" o "dark-tint" cambia el subárbol. */
+    /* Generado desde share/neptunia. data-theme="dark" o "dark-tint" cambia el subárbol. */
     :root, [data-theme="light"] {
     ${cssVars "light"}
       --shadow-window: ${tokens.shadow.window.light};
@@ -196,47 +177,28 @@ let
     }
   '';
 
-  qml = ''
-    // Generado desde share/design/neptunia. Úsalo como singleton (qmldir: singleton Neptunia 1.0 Neptunia.qml).
-    pragma Singleton
-    import QtQuick
-
-    QtObject {
-        property string mode: "light" // "light" | "dark" | "dark-tint"
-    ${lines (
-      n:
-      "    readonly property color ${camel n}: mode === \"dark\" ? \"${qtColor tokens.themes.dark.${n}}\" : mode === \"dark-tint\" ? \"${
-        qtColor tokens.themes."dark-tint".${n}
-      }\" : \"${qtColor tokens.themes.light.${n}}\""
-    ) colorNames}
-    ${lines (n: "    readonly property int ${camel "radius-${n}"}: ${num tokens.radius.${n}}") (attrNames tokens.radius)}
-    ${lines (n: "    readonly property int ${camel "space-${n}"}: ${num tokens.space.${n}}") (attrNames tokens.space)}
-    ${lines (n: "    readonly property int ${camel n}: ${num tokens.size.${n}}") (attrNames tokens.size)}
-    ${lines (n: "    readonly property int ${camel "dur-${n}"}: ${num tokens.duration.${n}}") (attrNames tokens.duration)}
-        readonly property string fontSans: "Inter"
-        readonly property string fontMono: "SF Mono Ligaturized"
-    }
-  '';
 in
-{
+rec {
   inherit
+    colors
     tokens
     components
     themes
     slint
     css
-    qml
     ;
 
+  filecolors = import ./filecolors.nix;
+  vscode = import ./vscode.nix { inherit colors; };
+
   # Derivación con los archivos generados, para home-manager o un paquete:
-  #   xdg.configFile."neptunia".source = (import ./share/design/neptunia).files pkgs;
+  #   xdg.configFile."neptunia".source = (import ./share/neptunia).files pkgs;
   files =
     pkgs:
     pkgs.runCommand "neptunia-design" { } ''
       mkdir -p $out
       cp ${pkgs.writeText "neptunia.slint" slint} $out/neptunia.slint
       cp ${pkgs.writeText "neptunia.css" css} $out/neptunia.css
-      cp ${pkgs.writeText "Neptunia.qml" qml} $out/Neptunia.qml
       cp ${./tokens.json} $out/tokens.json
       cp ${./components.json} $out/components.json
     '';

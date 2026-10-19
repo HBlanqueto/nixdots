@@ -88,7 +88,7 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
 - El TPM **no** se inscribe aquí: lo hace `lanzaboote` (`measuredBoot.autoCryptenroll`,
   vía `systemd-pcrlock`) en el primer arranque, de modo que la política se
   actualiza sola cuando cambian las PCR de Secure Boot.
-- La paleta proviene de `share/themes/neptunia.nix`; un test (`cargo test`) falla
+- La paleta proviene de `share/neptunia/neptunia.nix`; un test (`cargo test`) falla
   si las constantes de `src/theme.rs` se desincronizan.
 - En la consola Linux (`TERM=linux`, la tty de la ISO) no hay truecolor: al
   arrancar se programan los 16 slots con OSC P y se restauran con OSC R al salir,

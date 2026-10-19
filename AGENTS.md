@@ -159,18 +159,19 @@ actualiza este archivo en el mismo cambio.
 
 ## Tema
 
-- Dos fuentes, cada una para lo suyo; nada de colores hardcodeados en Nix, Lua,
-  Rust ni Slint:
-  - `share/themes/neptunia.nix` (vía `share/themes/default.nix`) — paleta de
-    **terminal** (kmscon, wezterm, instalador y yazi).
-  - `share/design/neptunia` (`tokens.json` + `components.json` → `generated/`) —
-    **interfaz gráfica** (Slint, CSS, QML). El asistente importa `Theme` y
-    `Metrics` de `generated/neptunia.slint`.
-- Copias generadas y versionadas (checks del flake que fallan si se
+- Una sola carpeta, `share/neptunia/`, con dos fuentes; nada de colores
+  hardcodeados en Nix, Lua, Rust ni Slint:
+  - `share/neptunia/neptunia.nix` (vía `share/neptunia/default.nix`) — paleta
+    de **terminal** (kmscon, wezterm, instalador y yazi), con `filecolors.nix`,
+    `vscode.nix` y `palette.nix`.
+  - `share/neptunia/{tokens,components}.json` → `generated/` — **interfaz
+    gráfica** (Slint, CSS). El asistente importa `Theme` y `Metrics` de
+    `generated/neptunia.slint`.
+- Copias generadas y versionadas (check `neptunia-generated` que falla si se
   desincronizan):
-  - `share/themes/kmscon-palette` ← `nix build .#kmscon-palette`
-  - `share/design/neptunia/generated/*` ←
-    `nix eval --raw -f share/design/neptunia {slint,css,qml}`
+  - `share/neptunia/generated/*` ←
+    `nix eval --raw -f share/neptunia {slint,css}`
+  - `share/neptunia/generated/kmscon-palette` ← `nix build .#kmscon-palette`
 
 ## Estilo
 

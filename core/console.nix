@@ -1,7 +1,7 @@
 { config, lib, pkgs, theme, ... }:
 
 let
-    palette = import ../lib/palette.nix { inherit theme; };
+    palette = import ../share/neptunia/palette.nix { inherit theme; };
 
     # La XNU (la consola de texto de macOS, 8x16, solo Latin-1) es la única
     # fuente de la TTY: el mismo .psf para el kernel (initrd, consola de
@@ -17,7 +17,7 @@ in
 
     config.console = {
         earlySetup = true;
-        # Los 16 colores ANSI (con el fondo negro puro) salen de lib/palette.nix.
+        # Los 16 colores ANSI (con el fondo negro puro) salen de share/neptunia/palette.nix.
         colors = palette.consoleColors;
         font = xnuFont;
         # The console uses the same xkb layout as the desktop.

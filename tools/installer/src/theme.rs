@@ -1,6 +1,6 @@
 //! Color palette.
 //!
-//! Every color is taken verbatim from `share/themes/neptunia.nix`; the test at
+//! Every color is taken verbatim from `share/neptunia/neptunia.nix`; the test at
 //! the bottom of this module parses that file and fails if the two ever drift
 //! apart. `bg`/`dbg` are intentionally never used as an application background:
 //! the terminal's own background (`Color::Reset`) always shows through.
@@ -16,7 +16,7 @@
 
 use ratatui::style::Color;
 
-/// Raw hex values mirroring `share/themes/neptunia.nix`.
+/// Raw hex values mirroring `share/neptunia/neptunia.nix`.
 pub mod hex {
     // A data table: not every entry is referenced by the UI, but all are
     // checked against the theme file by the test below.
@@ -280,7 +280,7 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
-            .join("share/themes/neptunia.nix");
+            .join("share/neptunia/neptunia.nix");
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("no se pudo leer {}: {e}", path.display()));
 

@@ -34,10 +34,10 @@
             # /persist ni con --impure (no tienen user.json/machine.json/facter).
             emptyData = import ./lib/data.nix { impure = false; };
 
-            # El tema (colores, filecolors, vscode) se importa una sola vez y
-            # baja por specialArgs/extraSpecialArgs a los módulos, y como
-            # argumento a los paquetes que lo usan.
-            theme = import ./share/themes;
+            # El tema (colores, filecolors, vscode) y el diseño se importan una
+            # sola vez y bajan por specialArgs/extraSpecialArgs a los módulos,
+            # y como argumento a los paquetes que los usan.
+            theme = import ./share/neptunia;
 
             mkHost = import ./lib/mkHost.nix { inherit inputs theme; };
 
@@ -196,9 +196,9 @@
                                 ./assets
                                 ./LICENSE
                                 # El test de tools/installer lee la paleta del tema.
-                                ./share/themes/neptunia.nix
+                                ./share/neptunia/neptunia.nix
                                 # Import de tools/setup-gui/ui/theme.slint.
-                                ./share/design/neptunia/generated/neptunia.slint
+                                ./share/neptunia/generated/neptunia.slint
                                 # include_str! de nixdots-home-init.
                                 ./templates/home
                             ];
@@ -385,33 +385,22 @@
             # packages/kmscon-palette.nix.
             checks = forAllSystems ({ pkgs, ... }:
                 let
-                    generated = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
+                    palette = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
                 in
                 {
-                    kmscon-palette = pkgs.runCommand "check-kmscon-palette" { } ''
-                        if ! ${pkgs.diffutils}/bin/diff -u ${./share/themes/kmscon-palette} ${generated}; then
-                            echo "" >&2
-                            echo "share/themes/kmscon-palette está desactualizado. Regéneralo con:" >&2
-                            echo "  cp \$(nix build .#kmscon-palette --print-out-paths) share/themes/kmscon-palette" >&2
-                            exit 1
-                        fi
-                        ${pkgs.coreutils}/bin/touch $out
-                    '';
-
-                    # Las salidas versionadas de share/design/neptunia/generated
-                    # deben coincidir con lo que genera default.nix (solo
-                    # builtins, sin nixpkgs).
-                    neptunia-design = pkgs.runCommand "check-neptunia-design" { } ''
+                    # Las copias versionadas de generated/ deben coincidir con
+                    # lo que generan default.nix y packages/kmscon-palette.nix.
+                    neptunia-generated = pkgs.runCommand "check-neptunia-generated" { } ''
                         ok=1
-                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" (import ./share/design/neptunia).slint} || ok=0
-                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" (import ./share/design/neptunia).css} || ok=0
-                        ${pkgs.diffutils}/bin/diff -u ${./share/design/neptunia/generated/Neptunia.qml} ${pkgs.writeText "g.qml" (import ./share/design/neptunia).qml} || ok=0
+                        ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" theme.slint} || ok=0
+                        ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" theme.css} || ok=0
+                        ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/kmscon-palette} ${palette} || ok=0
                         if [ "$ok" = 0 ]; then
                             echo "" >&2
-                            echo "share/design/neptunia/generated está desactualizado. Regéneralo con:" >&2
-                            echo "  nix eval --raw -f share/design/neptunia slint > share/design/neptunia/generated/neptunia.slint" >&2
-                            echo "  nix eval --raw -f share/design/neptunia css   > share/design/neptunia/generated/neptunia.css" >&2
-                            echo "  nix eval --raw -f share/design/neptunia qml   > share/design/neptunia/generated/Neptunia.qml" >&2
+                            echo "share/neptunia/generated está desactualizado. Regéneralo con:" >&2
+                            echo "  nix eval --raw -f share/neptunia slint > share/neptunia/generated/neptunia.slint" >&2
+                            echo "  nix eval --raw -f share/neptunia css   > share/neptunia/generated/neptunia.css" >&2
+                            echo "  cp \$(nix build .#kmscon-palette --print-out-paths) share/neptunia/generated/kmscon-palette" >&2
                             exit 1
                         fi
                         ${pkgs.coreutils}/bin/touch $out
@@ -429,7 +418,7 @@
 
                 # The kmscon `--palette*` arguments, generated from the theme.
                 # `install.sh` reads the committed copy at
-                # share/themes/kmscon-palette; regenerate it with
+                # share/neptunia/generated/kmscon-palette; regenerate it with
                 # `nix build .#kmscon-palette --print-out-paths`.
                 kmscon-palette =
                     pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
