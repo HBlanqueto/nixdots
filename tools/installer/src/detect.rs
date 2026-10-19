@@ -43,7 +43,7 @@ pub fn nix_system() -> Option<String> {
 /// Whether this machine is expected to use Lanzaboote Secure Boot: a bare-metal
 /// machine (never a VM, not even an x86_64 one, which has no firmware keys to
 /// enroll into; never the aarch64/UTM VM). Drives the sbctl step and the
-/// `secureBoot` field of machine.json.
+/// `secureBoot` field of machine.toml.
 pub fn secure_boot() -> bool {
     // Any virtualization means no Secure Boot, on every architecture.
     if run_trim("systemd-detect-virt", &[])

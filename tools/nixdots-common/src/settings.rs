@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 pub struct Settings {
     pub state_version: String,
     /// The chosen hostname. Not stored in settings.nix anymore (the machine's
-    /// name lives in machine.json); kept here as the installer's current
+    /// name lives in machine.toml); kept here as the installer's current
     /// selection.
     #[serde(default)]
     pub host_name: String,
@@ -58,7 +58,7 @@ impl Settings {
     }
 
     /// A copy without the user fields: the installed `settings.nix` does not
-    /// carry them (they live in `user.json`).
+    /// carry them (they live in `users/<usuario>.toml`).
     pub fn without_user(&self) -> Self {
         let mut copy = self.clone();
         copy.username = None;

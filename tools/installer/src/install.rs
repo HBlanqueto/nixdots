@@ -111,7 +111,7 @@ pub struct Plan {
     pub luks_passphrase: Zeroizing<String>,
     /// Recovery key enrolled as a second LUKS slot. Wiped after use.
     pub recovery_key: Zeroizing<String>,
-    /// Written to machine.json as `tpmUnlock`: the installer enrolls a TPM2
+    /// Written to machine.toml as `tpmUnlock`: the installer enrolls a TPM2
     /// bridge token (no PCRs) so lanzaboote's measured boot (pcrlock) can
     /// unlock and re-enroll on first boot.
     pub luks_tpm: bool,
@@ -120,7 +120,7 @@ pub struct Plan {
     /// How the chosen disk is prepared (whole disk vs. alongside Windows).
     pub disk_mode: DiskMode,
     /// Whether to install Lanzaboote/sbctl (x86_64 bare metal). Written to
-    /// machine.json as `secureBoot`.
+    /// machine.toml as `secureBoot`.
     pub secure_boot: bool,
     /// Wi-Fi connection to persist into /persist, if any.
     pub wifi: Option<WifiSave>,
@@ -378,7 +378,7 @@ fn prepare_target_tmp(plan: &Plan, report: &mut Reporter) -> Result<()> {
         set_mode_dir(&build, 0o700)?;
     }
     std::env::set_var("TMPDIR", &tmp);
-    // The external data the flake reads (machine.json, facter.json) lives under
+    // The external data the flake reads (machine.toml, facter.json) lives under
     // `${NIXDOTS_ROOT}/persist/nixdots`; point it at the target.
     std::env::set_var("NIXDOTS_ROOT", &plan.root);
     report.log(format!("$ TMPDIR={}", tmp.display()));
@@ -1533,7 +1533,7 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
 }
 
 /// Detects the hardware with `nixos-facter` and writes the per-machine data the
-/// flake reads: `facter.json` (the hardware report) and `machine.json` (the
+/// flake reads: `facter.json` (the hardware report) and `machine.toml` (the
 /// installer's choices), both under /persist/nixdots. `NIXDOTS_ROOT` already
 /// points at the target (prepare_target_tmp), so the flake picks them up when
 /// the system is built.
@@ -1558,8 +1558,8 @@ fn step_hardware(
         set_mode_file(&facter, 0o644)?;
     }
 
-    let machine = dir.join("machine.json");
-    // machine.json es el archivo del sistema: hostName/cifrado/extras y los
+    let machine = dir.join("machine.toml");
+    // machine.toml es el archivo del sistema: hostName/cifrado/extras y los
     // campos de sistema (locale, zona, teclado, prettyHostName). Se fusiona
     // para no pisar claves ajenas; el asistente añadirá las suyas.
     let mut fields = serde_json::Map::new();
@@ -1857,7 +1857,7 @@ fn step_secure_boot(plan: &Plan, report: &mut Reporter) -> Result<()> {
 fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     // The single generic configuration; the machine's hostname lives in
-    // machine.json, not in the flake output name.
+    // machine.toml, not in the flake output name.
     let flake = format!("{}#nixdots", repo.display());
     let build = target_build_dir(plan);
 

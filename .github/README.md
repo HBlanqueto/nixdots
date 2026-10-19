@@ -1,4 +1,4 @@
-These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The flake builds **one generic configuration** (`nixdots`): the hardware is detected at evaluation time by [nixos-facter](https://github.com/nix-community/nixos-facter) and the per-machine choices (hostname, encryption, Secure Boot, peripherals) live in `machine.json` under `/persist`. The same output name is also exposed as the machine's hostname, so `nixos-rebuild --flake ~/nixdots` without `#…` works.
+These files contain the foundation of my daily driver setup, tailored for both personal use and software development. The flake builds **one generic configuration** (`nixdots`): the hardware is detected at evaluation time by [nixos-facter](https://github.com/nix-community/nixos-facter) and the per-machine choices (hostname, encryption, Secure Boot, peripherals) live in `machine.toml` under `/persist`. The same output name is also exposed as the machine's hostname, so `nixos-rebuild --flake ~/nixdots` without `#…` works.
 
 This NixOS system features the following core components:
 
@@ -10,7 +10,7 @@ This NixOS system features the following core components:
 ## Environment
 
 - [x] **Flakes:** Fully flake-based system configuration
-- [x] **Single config:** one generic `nixdots` output; hardware detected by facter, per-machine facts in `machine.json`
+- [x] **Single config:** one generic `nixdots` output; hardware detected by facter, per-machine facts in `machine.toml`
 - [x] **Installer:** text-mode installer (`tools/installer/`, Rust)
 - [x] **Home Manager:** Declarative user environment
 - [x] **Impermanence:** Ephemeral root using Btrfs subvolumes
@@ -39,7 +39,7 @@ This NixOS system features the following core components:
 
 * **`flake.nix`:** emits the generic `nixdots` configuration (plus pure CI variants and the first-boot test VMs); also packages the installer for `x86_64-linux` and `aarch64-linux`.
 * **`settings.nix`:** machine-independent values (locale, keyboard, `stateVersion`).
-* **`machine.json` / `user.json` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.json` and `facter.json`, the first-boot assistant writes `user.json` (plus the password hash), and `lib/data.nix` merges them.
+* **`machine.toml` / `users/<user>.toml` / `facter.json`:** per-machine data under `/persist/nixdots/`; the installer writes `machine.toml` and `facter.json`, the first-boot assistant writes the account (plus its `.prefs.toml` seed and the password hash), and `lib/data.nix` merges them.
 * **`disko.nix`:** disk layout applied by the installer (1 GiB ESP + a LUKS2 container `cryptroot` holding the btrfs subvolumes `@rootfs @nix @home @persist @log` plus `@rootfs-blank`).
 * **`tools/installer/`:** text-mode installer. See [tools/installer/README.md](tools/installer/README.md).
 * **`test.sh`:** runs `cargo clippy`/`cargo test`, builds the flake outputs and drives both TUIs through a pty in simulation.
@@ -100,7 +100,7 @@ sudo ./nixdots/install.sh
 
 (development: `sudo nix run .#installer -- --install`). It partitions with
 `disko.nix` (no manual partitioning needed), runs `nixos-facter`, writes
-`machine.json` and runs `nixos-install --flake <repo>#nixdots` for you. The
+`machine.toml` and runs `nixos-install --flake <repo>#nixdots` for you. The
 account is **not** created here: on the first reboot a Slint assistant asks for
 the user, the password and git, writes `user.json` and the hash, and rebuilds.
 
@@ -134,7 +134,7 @@ because the root is ephemeral. A machine without a TPM or without Secure Boot
 > [!NOTE]
 > Verify support with
 > `/run/current-system/systemd/lib/systemd/systemd-pcrlock is-supported`
-> (must print `yes`). If it does not, leave `"tpmUnlock": false` in `machine.json`.
+> (must print `yes`). If it does not, leave `"tpmUnlock": false` in `machine.toml`.
 
 > [!NOTE]
 > The password hash is written by the first-boot assistant to

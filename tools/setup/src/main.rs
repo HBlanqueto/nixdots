@@ -1,5 +1,6 @@
 //! `nixdots-setup` — CLI del asistente de primer arranque: aplica los datos del
-//! usuario (JSON), escribe el hash y `users/<usuario>.json`, fusiona los campos
+//! usuario (JSON), escribe el hash y `users/<usuario>.toml` (+ su semilla
+//! `.prefs.toml`), fusiona los campos
 //! de sistema en `machine.json` y deja la nueva generación para el próximo
 //! arranque.
 //!
@@ -10,7 +11,7 @@
 use color_eyre::eyre::{bail, eyre, Context, Result};
 use nixdots_common::machine;
 use nixdots_common::runner::{self, Cmd, Stream};
-use nixdots_common::user_data::{self, Git, LegacyUser, UserData};
+use nixdots_common::user_data::{self, Git, LegacyUser, Prefs, UserData};
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -31,8 +32,13 @@ contraseña se lee de stdin.
 
 nixdots-setup migrate [--dry-run]
 
-  migrate     convierte el user.json antiguo en users/<usuario>.json y mueve
-              sus campos de sistema a machine.json, dejando user.json.bak.";
+  migrate     convierte el user.json antiguo en users/<usuario>.toml y mueve
+              sus campos de sistema a machine.toml, dejando user.json.bak.
+
+nixdots-setup migrate-toml
+
+  migrate-toml  convierte machine.json y users/*.json a .toml conservando los
+                originales como respaldo (los seguirá leyendo si falta el .toml).";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,6 +97,7 @@ fn run() -> Result<()> {
     match args.first().map(String::as_str) {
         Some("apply") => apply(&args[1..]),
         Some("migrate") => migrate(&args[1..]),
+        Some("migrate-toml") => migrate_toml(&args[1..]),
         Some("-h") | Some("--help") | None => {
             println!("{HELP}");
             Ok(())
@@ -152,13 +159,15 @@ fn apply(args: &[String]) -> Result<()> {
         set_mode(&hash_path, 0o600)?;
     }
 
-    // 2. Datos personales a users/<usuario>.json y campos de sistema a
-    //    machine.json (fusión: conserva lo que ya escribió el instalador).
+    // 2. Datos personales a users/<usuario>.toml, apariencia/accesibilidad a
+    //    users/<usuario>.prefs.toml y campos de sistema a machine.toml
+    //    (fusión: conserva lo que ya escribió el instalador).
     phase(1, dry_run);
     if sim_fail {
         bail!("Fallo simulado al aplicar la configuración");
     }
     let user = UserData {
+        version: 1,
         username: data.username.clone(),
         full_name: data.full_name.clone(),
         admin: data.admin.unwrap_or(true),
@@ -172,6 +181,14 @@ fn apply(args: &[String]) -> Result<()> {
             }
             _ => None,
         },
+        color_scheme: None,
+        accent_color: None,
+        avatar_color: None,
+        avatar_path: None,
+        a11y: None,
+    };
+    let prefs = Prefs {
+        version: 1,
         color_scheme: data.color_scheme.clone().and_then(non_empty),
         accent_color: data.accent_color.clone().and_then(non_empty),
         avatar_color: data.avatar_color.clone().and_then(non_empty),
@@ -181,6 +198,8 @@ fn apply(args: &[String]) -> Result<()> {
     println!("$ escribir {} (0644)", user_data::path_for(&data.username).display());
     if !dry_run {
         user.write()?;
+        println!("$ escribir {} (0644)", user_data::prefs_path_for(&data.username).display());
+        prefs.write(&data.username)?;
     }
 
     let mut fields = serde_json::Map::new();
@@ -243,7 +262,8 @@ fn apply(args: &[String]) -> Result<()> {
 }
 
 /// Migra el `user.json` antiguo (un único usuario con campos de sistema
-/// mezclados) a `users/<usuario>.json` + machine.json y deja `user.json.bak`.
+/// mezclados) a `users/<usuario>.toml` + `users/<usuario>.prefs.toml` +
+/// `machine.toml` y deja `user.json.bak`.
 fn migrate(args: &[String]) -> Result<()> {
     let mut dry_run = false;
     for arg in args {
@@ -268,6 +288,7 @@ fn migrate(args: &[String]) -> Result<()> {
         .ok_or_else(|| eyre!("user.json no tiene username"))?;
 
     let user = UserData {
+        version: 1,
         username: username.clone(),
         full_name: old
             .userdescription
@@ -285,6 +306,14 @@ fn migrate(args: &[String]) -> Result<()> {
             }
             _ => None,
         },
+        color_scheme: None,
+        accent_color: None,
+        avatar_color: None,
+        avatar_path: None,
+        a11y: None,
+    };
+    let prefs = Prefs {
+        version: 1,
         color_scheme: old.color_scheme.clone().and_then(non_empty),
         accent_color: old.accent_color.clone().and_then(non_empty),
         avatar_color: old.avatar_color.clone().and_then(non_empty),
@@ -294,6 +323,10 @@ fn migrate(args: &[String]) -> Result<()> {
     println!("$ escribir {}", user_data::path_for(&username).display());
     if !dry_run {
         user.write()?;
+        if prefs != Prefs::default() {
+            println!("$ escribir {}", user_data::prefs_path_for(&username).display());
+            prefs.write(&username)?;
+        }
     }
 
     let mut fields = serde_json::Map::new();
@@ -339,6 +372,24 @@ fn migrate(args: &[String]) -> Result<()> {
     }
 
     println!("Migración completada.");
+    Ok(())
+}
+
+/// Convierte `machine.json` y `users/*.json` a `.toml` sin borrar los
+/// originales (quedan como respaldo y el sistema los sigue leyendo si falta el
+/// `.toml`). Pensado para máquinas que ya migraron a `users/`.
+fn migrate_toml(args: &[String]) -> Result<()> {
+    if let Some(arg) = args.first() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                println!("{HELP}");
+                return Ok(());
+            }
+            other => bail!("opción desconocida: {other}"),
+        }
+    }
+    let written = user_data::migrate_to_toml()?;
+    println!("Convertidos {written} archivos a TOML (los .json quedan como respaldo).");
     Ok(())
 }
 

@@ -28,30 +28,34 @@ actualiza este archivo en el mismo cambio.
   `nixdots-aarch64-linux` (no leen /persist). VMs de prueba del primer
   arranque: `firstboot-vm` y `firstboot-vm-aarch64` (`run-firstboot-vm.sh`).
 - **Datos fuera del repo**, en `/persist/nixdots/`:
-  - `machine.json` — el archivo del sistema. Lo escriben el instalador
+  - `machine.toml` — el archivo del sistema. Lo escriben el instalador
     (hostName, encrypt, luksUuid, espUuid, secureBoot, tpmUnlock, extras) y el
     asistente (prettyHostName, defaultLocale, region, timeZone, timeZoneAuto,
     keyboardLayout/Variant, autoLoginUser); gana el último en escribir. La
-    escritura fusiona sobre el JSON existente. `espUuid` es el UUID de la ESP de
+    escritura fusiona sobre el TOML existente. `espUuid` es el UUID de la ESP de
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
     en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
-  - `users/<usuario>.json` — una cuenta por archivo, lo escribe el asistente
-    (username, fullName, admin, template, personalConfig, git, colorScheme,
-    accentColor y a11y). El nombre del archivo debe coincidir con `username`.
+  - `users/<usuario>.toml` — una cuenta por archivo, la escribe el asistente
+    (version, username, fullName, admin, template, personalConfig y git). El
+    nombre del archivo debe coincidir con `username`.
+  - `users/<usuario>.prefs.toml` — semilla de un solo uso con la apariencia y la
+    accesibilidad (colorScheme, accentColor, avatar*, a11y); el asistente y
+    `nixdots-userd` la escriben, `nixdots-home-init` la copia al flake del home
+    y borra el original.
   - `users/<usuario>/home.nix` — config personal opcional, se importa encima de
     la plantilla si `personalConfig` y el usuario es admin. Debe ser de **root**:
     el rebuild evalúa como root y el archivo podría leer `/persist/secrets`.
-  - `user.json` — **respaldo transitorio**: si no hay `users/*.json`, `data.nix`
-    lo lee como un único usuario `admin = true` y `template = "nixdots"`.
-    `nixdots-setup migrate` lo convierte a `users/<usuario>.json` + machine.json
-    y deja `user.json.bak`; el respaldo se retira en un commit aparte y al final.
+  - `user.json` — **respaldo transitorio**: si no hay `users/*`, `data.nix` lo
+    lee como un único usuario `admin = true` y `template = "nixdots"`.
+    `nixdots-setup migrate` lo convierte a `users/<usuario>.toml` (+ su
+    `.prefs.toml`) + `machine.toml` y deja `user.json.bak`.
+  - Durante la migración el sistema lee el `.json` hermano cuando falta el
+    `.toml` (en `lib/data.nix` y en `nixdots-common/src/store.rs`); retira ese
+    respaldo cuando todas las máquinas hayan corrido `migrate-toml`.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
-  - `/persist/secrets/nix-access-tokens.conf` — root:wheel `0640`, opcional:
-    `access-tokens = github.com=<token>`. Hoy no hay inputs privados; el archivo
-    se conserva por si vuelven.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
@@ -61,7 +65,7 @@ actualiza este archivo en el mismo cambio.
   en initrd; portátil → acpid/upower; QEMU/UTM → spice-vdagent, qemu-guest).
   No uses condicionales por nombre de host.
 - Opciones propias bajo `options.nixdots.*` (`machine`, `console`,
-  `firstBoot`…). `nixdots.machine` (machine.json) es la única capa de cifrado y
+  `firstBoot`…). `nixdots.machine` (machine.toml) es la única capa de cifrado y
   Secure Boot. El instalador inscribe un token TPM2 puente sin PCRs
   (`--tpm2-pcrs=`) para que lanzaboote (`measuredBoot.autoCryptenroll`, con
   `systemd-pcrlock`) pueda desbloquear y reinscribir en el primer arranque la
@@ -103,13 +107,13 @@ actualiza este archivo en el mismo cambio.
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
 - Workspace Rust (`Cargo.toml` raíz); los crates viven en `tools/`:
-  - `tools/nixdots-common` — settings, users/<usuario>.json, machine.json, hash,
+  - `tools/nixdots-common` — settings, users/<usuario>.toml, machine.toml, hash,
     ejecución de comandos.
   - `tools/lists` — locales, zonas y teclados embebidos al compilar.
   - `tools/installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
-    contraseña ni Git, ni escribe `users/*.json` ni el hash (eso lo hace el
+    contraseña ni Git, ni escribe `users/*.toml` ni el hash (eso lo hace el
     asistente). La frase de LUKS es siempre propia. Sin soporte de ratón.
   - `tools/setup` — CLI del primer arranque (`nixdots-setup apply`) y de
     migración (`nixdots-setup migrate`).
