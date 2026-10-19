@@ -132,11 +132,17 @@ actualiza este archivo en el mismo cambio.
   - `tools/setup-gui` — asistente gráfico «Hola» en **Slint** (no GTK/libadwaita);
     su modo `--home-init` muestra «Preparando tu escritorio» al primer inicio.
   - `tools/nixdots-userd` — servicio de sistema por D-Bus
-    (`org.nixdots.Users1`): `ListUsers`, `CreateUser`, `DeleteUser(keepHome)`,
-    `SetAdmin`, `SetFullName`, `SetPassword` y `DeletePrefsSeed` (solo para el
-    propio usuario). Exige polkit `org.nixdots.users.manage` (auth_admin).
-    Valida los nombres, hashea la contraseña con `mkpasswd` y reconstruye la
-    versión instalada (`/etc/nixdots/flake-ref`), nunca el repo de trabajo.
+    (`org.nixdots.Users1`, política propia en el bus): `ListUsers`,
+    `CreateUser`, `DeleteUser(keepHome)`, `SetAdmin`, `SetFullName`,
+    `SetPassword` y `DeletePrefsSeed` (solo para el propio usuario). Las
+    mutaciones devuelven un id de trabajo y publican `Progress`, `Finished`,
+    `Failed` y `Warning`; la reconstrucción corre en `spawn_blocking`. Exige
+    polkit `org.nixdots.users.manage` (auth_admin, acción en
+    `share/polkit-1/actions`). Valida nombres (sin control, sin `:`, longitud) y
+    reconstruye la versión instalada (`/etc/nixdots/flake-ref`) con la misma
+    protección de usuarios que `nixdots-rebuild` (`nixdots-common::rebuild`);
+    un código 4 de `nixos-rebuild` no revierte, solo avisa de las unidades en
+    fallo. `NIXDOTS_ROOT` va vacío (`/persist`).
   - `tools/nixdots-home-init` — servicio de usuario: si falta
     `~/.config/home-manager`, lo crea fijando `nixdots` a
     `github:HBlanqueto/nixdots` en la rev de `/etc/nixdots/rev` (o `path:` si la
