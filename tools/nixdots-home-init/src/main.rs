@@ -54,10 +54,7 @@ fn run() -> Result<()> {
 
     phase(1);
     status("Escribiendo la configuración");
-    let flake = FLAKE_TEMPLATE
-        .replace("github:HBlanqueto/nixdots", &url)
-        .replace("system = \"SYSTEM\";", &format!("system = \"{system}\";"));
-    std::fs::write(config.join("flake.nix"), flake)?;
+    write_flake(&config, &url, system)?;
     std::fs::write(config.join("home.nix"), home_nix(&username, &home, prefs.as_ref()))?;
 
     if let Some(prefs) = prefs.as_ref() {
@@ -76,12 +73,14 @@ fn run() -> Result<()> {
 
     phase(2);
     status("Aplicando tu escritorio");
-    let flake_arg = format!("{}#default", config.display());
-    let ok = Command::new("home-manager")
-        .args(["switch", "-b", "backup", "--flake", &flake_arg])
-        .status()
-        .wrap_err("no se pudo ejecutar home-manager")?
-        .success();
+    let mut ok = home_switch(&config);
+    if !ok && !used_fallback {
+        // La revisión de GitHub no se pudo traer (aún sin subir, o sin red).
+        status("Sin acceso a la revisión; uso la copia instalada");
+        let fallback = format!("path:{flake_ref}");
+        write_flake(&config, &fallback, system)?;
+        ok = home_switch(&config);
+    }
     if !ok {
         bail!("home-manager switch falló");
     }
@@ -90,6 +89,28 @@ fn run() -> Result<()> {
     phase(4);
     status("Escritorio listo.");
     Ok(())
+}
+
+fn write_flake(config: &Path, url: &str, system: &str) -> Result<()> {
+    let flake = FLAKE_TEMPLATE
+        .replace("github:HBlanqueto/nixdots", url)
+        .replace("system = \"SYSTEM\";", &format!("system = \"{system}\";"));
+    std::fs::write(config.join("flake.nix"), flake)?;
+    Ok(())
+}
+
+fn home_switch(config: &Path) -> bool {
+    Command::new("home-manager")
+        .args([
+            "switch",
+            "-b",
+            "backup",
+            "--flake",
+            &format!("{}#default", config.display()),
+        ])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn nixdots_url(flake_ref: &str, rev: &str) -> Result<(String, bool)> {
