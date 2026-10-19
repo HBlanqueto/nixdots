@@ -20,13 +20,6 @@
 
         brave-previews.url = "github:drishal/brave-browser-flake";
         brave-previews.inputs.nixpkgs.follows = "nixpkgs";
-
-        # Otto (compositor Wayland) y su módulo NixOS salen de este fork, no de
-        # nixpkgs. Es privado: se baja con /persist/secrets/nix-access-tokens.conf.
-        otto = {
-            url = "github:HBlanqueto/otto/neptunia";
-            inputs.nixpkgs.follows = "nixpkgs";
-        };
     };
 
     outputs = inputs@{ nixpkgs, ... }:
