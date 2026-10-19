@@ -49,7 +49,7 @@ actualiza este archivo en el mismo cambio.
     `nixdots-setup migrate` lo convierte a `users/<usuario>.toml` (+ su
     `.prefs.toml` con git) + `machine.toml` y deja `user.json.bak`.
   - Durante la migración el sistema lee el `.json` hermano cuando falta el
-    `.toml` (en `lib/data.nix` y en `nixdots-common/src/store.rs`); retira ese
+    `.toml` (en `lib/data.nix` y en `kits/nixcore/src/store.rs`); retira ese
     respaldo cuando todas las máquinas hayan corrido `migrate-toml`.
   - `/persist/secrets/<usuario>.hash` — hash de la contraseña
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
@@ -119,9 +119,9 @@ actualiza este archivo en el mismo cambio.
   paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
   Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
 - Workspace Rust (`Cargo.toml` raíz); los crates viven en `tools/`:
-  - `tools/nixdots-common` — settings, users/<usuario>.toml, machine.toml, hash,
+  - `kits/nixcore` — settings, users/<usuario>.toml, machine.toml, hash,
     ejecución de comandos.
-  - `tools/lists` — locales, zonas y teclados embebidos al compilar.
+  - `kits/localekit` — locales, zonas y teclados embebidos al compilar.
   - `tools/installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
@@ -140,7 +140,7 @@ actualiza este archivo en el mismo cambio.
     polkit `org.nixdots.users.manage` (auth_admin, acción en
     `share/polkit-1/actions`). Valida nombres (sin control, sin `:`, longitud) y
     reconstruye la versión instalada (`/etc/nixdots/flake-ref`) con la misma
-    protección de usuarios que `nixdots-rebuild` (`nixdots-common::rebuild`);
+    protección de usuarios que `nixdots-rebuild` (`nixcore::rebuild`);
     un código 4 de `nixos-rebuild` no revierte, solo avisa de las unidades en
     fallo. `NIXDOTS_ROOT` va vacío (`/persist`).
   - `tools/nixdots-home-init` — servicio de usuario: si falta
@@ -159,19 +159,19 @@ actualiza este archivo en el mismo cambio.
 
 ## Tema
 
-- Una sola carpeta, `share/neptunia/`, con dos fuentes; nada de colores
+- Una sola carpeta, `kits/neptunia/`, con dos fuentes; nada de colores
   hardcodeados en Nix, Lua, Rust ni Slint:
-  - `share/neptunia/neptunia.nix` (vía `share/neptunia/default.nix`) — paleta
+  - `kits/neptunia/neptunia.nix` (vía `kits/neptunia/default.nix`) — paleta
     de **terminal** (kmscon, wezterm, instalador y yazi), con `filecolors.nix`,
     `vscode.nix` y `palette.nix`.
-  - `share/neptunia/{tokens,components}.json` → `generated/` — **interfaz
+  - `kits/neptunia/{tokens,components}.json` → `generated/` — **interfaz
     gráfica** (Slint, CSS). El asistente importa `Theme` y `Metrics` de
     `generated/neptunia.slint`.
 - Copias generadas y versionadas (check `neptunia-generated` que falla si se
   desincronizan):
-  - `share/neptunia/generated/*` ←
-    `nix eval --raw -f share/neptunia {slint,css}`
-  - `share/neptunia/generated/kmscon-palette` ← `nix build .#kmscon-palette`
+  - `kits/neptunia/generated/*` ←
+    `nix eval --raw -f kits/neptunia {slint,css}`
+  - `kits/neptunia/generated/kmscon-palette` ← `nix build .#kmscon-palette`
 
 ## Estilo
 

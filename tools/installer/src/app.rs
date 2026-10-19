@@ -1057,7 +1057,7 @@ impl App {
             } else {
                 self.model.as_str()
             };
-            nixdots_common::user::host_name_from_pretty(model)
+            nixcore::user::host_name_from_pretty(model)
         }
     }
 
@@ -1067,7 +1067,7 @@ impl App {
         if !self.host.custom || self.host.name.value().is_empty() {
             return None;
         }
-        nixdots_common::user::host_name_error(self.host.name.value())
+        nixcore::user::host_name_error(self.host.name.value())
     }
 
     pub fn host_name_valid(&self) -> bool {

@@ -5,10 +5,10 @@
 # (colors/filecolors/vscode). Usa únicamente builtins, así que se evalúa sin
 # nixpkgs:
 #
-#   nix eval --raw -f share/neptunia slint > generated/neptunia.slint
-#   nix eval --raw -f share/neptunia css   > generated/neptunia.css
+#   nix eval --raw -f kits/neptunia slint > generated/neptunia.slint
+#   nix eval --raw -f kits/neptunia css   > generated/neptunia.css
 #
-# Desde un módulo: (import ./share/neptunia).slint, o `files pkgs` para una
+# Desde un módulo: (import ./kits/neptunia).slint, o `files pkgs` para una
 # derivación con los archivos generados.
 let
   colors = import ./neptunia.nix;
@@ -94,8 +94,8 @@ let
   sh = tokens.shadow.slint;
 
   slint = ''
-    // Generado desde share/neptunia (tokens.json, components.json). No editar a mano:
-    // cambia los JSON y regenera con `nix eval --raw -f share/neptunia slint`.
+    // Generado desde kits/neptunia (tokens.json, components.json). No editar a mano:
+    // cambia los JSON y regenera con `nix eval --raw -f kits/neptunia slint`.
     export enum NeptuniaMode { light, dark, dark-tint }
 
     export struct NeptuniaAccent {
@@ -163,7 +163,7 @@ let
 
   cssVars = th: lines (n: "  --${n}: ${tokens.themes.${th}.${n}};") colorNames;
   css = ''
-    /* Generado desde share/neptunia. data-theme="dark" o "dark-tint" cambia el subárbol. */
+    /* Generado desde kits/neptunia. data-theme="dark" o "dark-tint" cambia el subárbol. */
     :root, [data-theme="light"] {
     ${cssVars "light"}
       --shadow-window: ${tokens.shadow.window.light};
@@ -208,7 +208,7 @@ rec {
   vscode = import ./vscode.nix { inherit colors; };
 
   # Derivación con los archivos generados, para home-manager o un paquete:
-  #   xdg.configFile."neptunia".source = (import ./share/neptunia).files pkgs;
+  #   xdg.configFile."neptunia".source = (import ./kits/neptunia).files pkgs;
   files =
     pkgs:
     pkgs.runCommand "neptunia-design" { } ''

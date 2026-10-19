@@ -138,7 +138,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // Validación del usuario con nixdots_common, y derivación desde el nombre.
+    // Validación del usuario con nixcore, y derivación desde el nombre.
     let user_edited = Rc::new(Cell::new(false));
     ui.on_username_edited({
         let user_edited = user_edited.clone();
@@ -146,7 +146,7 @@ fn main() -> Result<(), slint::PlatformError> {
         move |text| {
             user_edited.set(true);
             if let Some(ui) = weak.upgrade() {
-                let err = nixdots_common::user::username_error(&text).unwrap_or("");
+                let err = nixcore::user::username_error(&text).unwrap_or("");
                 ui.global::<State>().set_username_error(err.into());
             }
         }
@@ -161,11 +161,11 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(ui) = weak.upgrade() {
                 let st = ui.global::<State>();
                 let full = text.to_string();
-                let username = nixdots_common::user::generate_username(&full);
+                let username = nixcore::user::generate_username(&full);
                 st.set_username(username.clone().into());
                 st.set_initials(initials(&full).into());
                 st.set_first_name(first_word(&full).into());
-                let err = nixdots_common::user::username_error(&username).unwrap_or("");
+                let err = nixcore::user::username_error(&username).unwrap_or("");
                 st.set_username_error(err.into());
             }
         }
@@ -508,16 +508,16 @@ fn reduced_motion() -> bool {
 }
 
 /// Todos los locales UTF-8, cacheados (se parsea la tabla una sola vez).
-fn locales() -> &'static [nixdots_lists::locale::Locale] {
-    static CACHE: OnceLock<Vec<nixdots_lists::locale::Locale>> = OnceLock::new();
-    CACHE.get_or_init(nixdots_lists::locale::all)
+fn locales() -> &'static [localekit::locale::Locale] {
+    static CACHE: OnceLock<Vec<localekit::locale::Locale>> = OnceLock::new();
+    CACHE.get_or_init(localekit::locale::all)
 }
 
 /// Rellena los modelos de la lista de idiomas filtrando por `query` (nombre o
 /// código, sin distinguir mayúsculas).
 fn fill_locales(ui: &AppWindow, query: &str) {
     let q = query.to_lowercase();
-    let items: Vec<&nixdots_lists::locale::Locale> = locales()
+    let items: Vec<&localekit::locale::Locale> = locales()
         .iter()
         .filter(|l| {
             q.is_empty() || l.name.to_lowercase().contains(&q) || l.code.to_lowercase().contains(&q)

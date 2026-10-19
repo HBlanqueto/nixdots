@@ -1511,7 +1511,7 @@ fn step_hardware(
         );
     }
     report.log(format!("$ escribir {}", machine.display()));
-    nixdots_common::machine::merge_fields_at(&machine, fields)?;
+    nixcore::machine::merge_fields_at(&machine, fields)?;
     if !plan.dry_run {
         set_mode_file(&machine, 0o644)?;
     }

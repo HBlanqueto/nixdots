@@ -11,7 +11,7 @@ let
   yaziConfig = import ./config/yazi { inherit theme; };
 
   # rgba() a partir del rgb de la paleta (misma fuente que la consola).
-  palette = import ../../../../share/neptunia/palette.nix { inherit theme; };
+  palette = import ../../../../kits/neptunia/palette.nix { inherit theme; };
   rgba = hex: alpha: "rgba(${palette.rgb hex},${alpha})";
 
   # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya

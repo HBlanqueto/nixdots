@@ -11,8 +11,8 @@ on:
       - master
     paths:
       - "tools/installer/**"
-      - "tools/nixdots-common/**"
-      - "tools/lists/**"
+      - "kits/nixcore/**"
+      - "kits/localekit/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".cargo/**"

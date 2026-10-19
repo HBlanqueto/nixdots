@@ -1,9 +1,9 @@
-//! Teclados: la tabla compartida vive en `nixdots-lists`; aquí queda lo que sí
+//! Teclados: la tabla compartida vive en `localekit`; aquí queda lo que sí
 //! toca el sistema: detectar el layout activo y aplicarlo a la consola.
 
 use std::process::{Command, Stdio};
 
-pub use nixdots_lists::keyboard::{all, by_id, display, suggest, Layout};
+pub use localekit::keyboard::{all, by_id, display, suggest, Layout};
 
 /// The layout currently in use, guessed from `localectl` (falls back to "us").
 pub fn detect_active() -> String {

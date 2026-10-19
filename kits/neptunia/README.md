@@ -5,7 +5,7 @@ son donde se diseña y se aprueba; aquí se guarda lo aprobado en un formato que
 cualquier proyecto puede leer, presente o futuro, sin depender de un framework.
 
 ```
-share/neptunia/
+kits/neptunia/
 ├── tokens.json        colores (claro, oscuro, oscuro tintado), radios, espacios, tamaños,
 │                      duraciones, tipografía y sombras
 ├── components.json    medidas y estados de cada componente aprobado (interruptor 32×18,
@@ -28,7 +28,7 @@ Nadie escribe un color ni una medida a mano. Si cambia el diseño, cambia
 `tokens.json` o `components.json` y se regenera:
 
 ```sh
-cd share/neptunia
+cd kits/neptunia
 nix eval --raw -f . slint > generated/neptunia.slint
 nix eval --raw -f . css   > generated/neptunia.css
 cp "$(nix build .#kmscon-palette --print-out-paths)" generated/kmscon-palette
@@ -48,11 +48,11 @@ u oscurece cada capa.
 
 | Proyecto | Cómo se sincroniza |
 | --- | --- |
-| Psamathe y apps Triton (Slint) | `import { Theme, Metrics } from "…/neptunia.slint";`. Desde Nix: `(import ./share/neptunia).slint`; o copia `generated/neptunia.slint`. Cambiar de tema es `Theme.mode = NeptuniaMode.dark;`. |
-| Instalador (ratatui) | Sigue con la paleta de terminal de `share/neptunia/neptunia.nix`. Si algún día quiere los grises de interfaz: `serde_json` sobre `tokens.json` con `include_str!`. |
+| Psamathe y apps Triton (Slint) | `import { Theme, Metrics } from "…/neptunia.slint";`. Desde Nix: `(import ./kits/neptunia).slint`; o copia `generated/neptunia.slint`. Cambiar de tema es `Theme.mode = NeptuniaMode.dark;`. |
+| Instalador (ratatui) | Sigue con la paleta de terminal de `kits/neptunia/neptunia.nix`. Si algún día quiere los grises de interfaz: `serde_json` sobre `tokens.json` con `include_str!`. |
 | GTK4 / web | `neptunia.css` con `data-theme="dark"` o `"dark-tint"` en la raíz. |
-| Home Manager | `xdg.configFile."neptunia".source = (import ./share/neptunia).files pkgs;` deja los archivos generados y los JSON en `~/.config/neptunia/`, y cualquier app los lee de ahí. |
-| Otro repo futuro | Como input del flake (`inputs.nixdots`) y `import "${inputs.nixdots}/share/neptunia"`, o leyendo `tokens.json` directamente. Cada proyecto genera lo suyo a su manera; los datos son los mismos. |
+| Home Manager | `xdg.configFile."neptunia".source = (import ./kits/neptunia).files pkgs;` deja los archivos generados y los JSON en `~/.config/neptunia/`, y cualquier app los lee de ahí. |
+| Otro repo futuro | Como input del flake (`inputs.nixdots`) y `import "${inputs.nixdots}/kits/neptunia"`, o leyendo `tokens.json` directamente. Cada proyecto genera lo suyo a su manera; los datos son los mismos. |
 
 ## Ajustar una pantalla sin recompilar Rust
 
@@ -61,7 +61,7 @@ guardas. Es lo más rápido para ajustar una sola pantalla, por ejemplo «Tu
 cuenta», sin tocar el resto:
 
 ```sh
-slint-viewer --auto-reload share/neptunia/demo.slint
+slint-viewer --auto-reload kits/neptunia/demo.slint
 slint-viewer --auto-reload setup-gui/ui/cuenta.slint   # una pantalla concreta
 ```
 
@@ -112,5 +112,5 @@ palabras y se queda como datos.
 
 1. Se diseña y se aprueba en los lienzos (sistema de diseño Neptunia).
 2. Lo aprobado se vuelca a `tokens.json` y `components.json`. Pide a Claude
-   «actualiza share/neptunia» y lo hace desde el sistema de diseño.
+   «actualiza kits/neptunia» y lo hace desde el sistema de diseño.
 3. Se regeneran las salidas y cada app las toma en su siguiente build.

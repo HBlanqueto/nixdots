@@ -2656,6 +2656,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
+name = "localekit"
+version = "0.1.0"
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2927,7 +2931,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixdots-common"
+name = "nixcore"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
@@ -2943,7 +2947,7 @@ name = "nixdots-home-init"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "nixdots-common",
+ "nixcore",
 ]
 
 [[package]]
@@ -2952,8 +2956,8 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "crossterm",
- "nixdots-common",
- "nixdots-lists",
+ "localekit",
+ "nixcore",
  "ratatui",
  "serde",
  "serde_json",
@@ -2962,16 +2966,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixdots-lists"
-version = "0.1.0"
-
-[[package]]
 name = "nixdots-setup"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "nixdots-common",
- "nixdots-lists",
+ "localekit",
+ "nixcore",
  "serde",
  "serde_json",
  "zeroize",
@@ -2982,8 +2982,8 @@ name = "nixdots-setup-gui"
 version = "0.1.0"
 dependencies = [
  "image",
- "nixdots-common",
- "nixdots-lists",
+ "localekit",
+ "nixcore",
  "serde_json",
  "slint",
  "slint-build",
@@ -2994,7 +2994,7 @@ name = "nixdots-userd"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "nixdots-common",
+ "nixcore",
  "tokio",
  "zbus",
  "zeroize",

@@ -3,7 +3,7 @@
 # (templates.home) compartan la misma definición sin que el consumidor tenga que
 # pasar `theme`.
 let
-  theme = import ../../share/neptunia;
+  theme = import ../../kits/neptunia;
 
   # Identidad de git del usuario: se rellena en home.nix.
   gitOptions = { lib, ... }: {

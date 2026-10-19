@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
-use nixdots_common::user_data::Prefs;
+use nixcore::user_data::Prefs;
 
 const FLAKE_TEMPLATE: &str = include_str!("../../../templates/home/flake.nix");
 
@@ -37,7 +37,7 @@ fn run() -> Result<()> {
 
     phase(0);
     status("Preparando el flake del home");
-    let (flake_ref, rev) = nixdots_common::rebuild::system_ref()
+    let (flake_ref, rev) = nixcore::rebuild::system_ref()
         .map(|(path, rev)| (path.display().to_string(), rev))
         .unwrap_or_default();
     let (url, used_fallback) = keel_url(&flake_ref, &rev)?;

@@ -18,10 +18,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use color_eyre::eyre::{bail, Context, Result};
-use nixdots_common::paths;
-use nixdots_common::rebuild::{self, Mode, Outcome};
-use nixdots_common::user;
-use nixdots_common::user_data::{self, UserData};
+use nixcore::paths;
+use nixcore::rebuild::{self, Mode, Outcome};
+use nixcore::user;
+use nixcore::user_data::{self, UserData};
 use tokio::sync::Mutex;
 use zbus::message::Header;
 use zbus::object_server::SignalEmitter;
@@ -298,7 +298,7 @@ async fn create(
         bail!("el usuario '{username}' ya existe");
     }
     progress(emitter, job, "create", 1, 10, "Validando").await;
-    let hash = nixdots_common::crypto::hash_password(password)?;
+    let hash = nixcore::crypto::hash_password(password)?;
     let user = UserData {
         version: 1,
         username: username.to_string(),
@@ -406,7 +406,7 @@ async fn set_password(
         "Cambiando la contraseña",
     )
     .await;
-    let hash = nixdots_common::crypto::hash_password(password)?;
+    let hash = nixcore::crypto::hash_password(password)?;
     let old = std::fs::read(hash_path(username)).ok();
     write_hash(username, &hash)?;
     if let Err(err) = rebuild_system(emitter, job, "set-password", Vec::new()).await {

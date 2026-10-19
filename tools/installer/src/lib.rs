@@ -11,6 +11,6 @@ pub mod screens;
 pub mod theme;
 pub mod widgets;
 
-// Shared, TUI-free logic lives in nixdots-common (also used by the first-boot
+// Shared, TUI-free logic lives in nixcore (also used by the first-boot
 // assistant); re-exported so `crate::settings`/`runner`/`crypto` keep resolving.
-pub use nixdots_common::{crypto, runner, settings};
+pub use nixcore::{crypto, runner, settings};

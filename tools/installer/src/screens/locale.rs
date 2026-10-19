@@ -2,7 +2,7 @@
 //! centered inside the shared box. The search field is always visible; typing
 //! filters. The chosen code is shown by the app under the box.
 //!
-//! La tabla vive en `nixdots-lists`; aquí solo se adapta al TUI.
+//! La tabla vive en `localekit`; aquí solo se adapta al TUI.
 
 use crate::app::{Action, App, PickItem};
 use crate::widgets::Btn;
@@ -10,7 +10,7 @@ use ratatui::crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-pub use nixdots_lists::locale::display;
+pub use localekit::locale::display;
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let Some(picker) = &app.loc else {
@@ -64,7 +64,7 @@ pub fn commands(app: &App) -> Vec<String> {
 
 /// Adapta la tabla compartida al tipo del TUI.
 pub fn load_items() -> Vec<PickItem> {
-    nixdots_lists::locale::all()
+    localekit::locale::all()
         .into_iter()
         .map(|l| PickItem {
             name: l.name,

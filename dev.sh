@@ -66,7 +66,7 @@ sim_installer() {
         here cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
     fi
     run_window keel-installer-dev \
-        "-w tools/installer/src -w tools/nixdots-common/src -w tools/installer/Cargo.toml -w tools/nixdots-common/Cargo.toml -w Cargo.toml" \
+        "-w tools/installer/src -w kits/nixcore/src -w tools/installer/Cargo.toml -w kits/nixcore/Cargo.toml -w Cargo.toml" \
         rs,toml \
         cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
 }

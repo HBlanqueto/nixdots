@@ -4,7 +4,7 @@
 # Downloads the precompiled installer for this machine's architecture from the
 # latest GitHub release, verifies it against SHA256SUMS and runs it. On a real
 # virtual terminal it opens kmscon (Nerd Font + the neptunia palette, read from
-# the generated share/neptunia/generated/kmscon-palette) and runs the installer inside it.
+# the generated kits/neptunia/generated/kmscon-palette) and runs the installer inside it.
 #
 #   git clone --depth 1 https://github.com/HBlanqueto/dotfiles ~/dotfiles
 #   sudo ~/dotfiles/install.sh
@@ -120,7 +120,7 @@ chmod +x "$binary"
 if [ "${TERM:-}" = linux ] && [ -z "${KEEL_NO_KMSCON:-}" ]; then
     case "$(tty 2>/dev/null || true)" in
         /dev/tty*)
-            palette_file="$here/share/neptunia/generated/kmscon-palette"
+            palette_file="$here/kits/neptunia/generated/kmscon-palette"
             if [ -r "$palette_file" ]; then
                 palette=$(cat "$palette_file")
 

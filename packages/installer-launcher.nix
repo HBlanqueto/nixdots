@@ -5,7 +5,7 @@
 }:
 
 let
-  palette = import ../share/neptunia/palette.nix { inherit theme; };
+  palette = import ../kits/neptunia/palette.nix { inherit theme; };
   nerd = pkgs.nerd-fonts.jetbrains-mono;
   fontsConf = pkgs.makeFontsConf { fontDirectories = [ nerd ]; };
 

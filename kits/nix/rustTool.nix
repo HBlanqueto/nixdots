@@ -26,14 +26,16 @@ let
         (root + "/Cargo.toml")
         (root + "/Cargo.lock")
         (root + "/tools")
+        (root + "/kits/nixcore")
+        (root + "/kits/localekit")
         (root + "/.cargo")
         # include_str!/include_bytes! de las herramientas.
         (root + "/assets")
         (root + "/LICENSE")
         # El test de tools/installer lee la paleta del tema.
-        (root + "/share/neptunia/neptunia.nix")
+        (root + "/kits/neptunia/neptunia.nix")
         # Import de tools/setup-gui/ui/theme.slint.
-        (root + "/share/neptunia/generated/neptunia.slint")
+        (root + "/kits/neptunia/generated/neptunia.slint")
         # include_str! de nixdots-home-init.
         (root + "/templates/home")
       ];

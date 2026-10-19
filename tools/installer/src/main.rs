@@ -172,7 +172,7 @@ fn copy_dir(src: &Path, dest: &Path) -> Result<()> {
 /// ISO) so the install matches what was built, not the tip of the branch.
 /// Best-effort: a shallow clone may lack it, so it is fetched first.
 fn checkout_iso_rev(repo: &Path) {
-    let Ok(rev) = nixdots_common::rebuild::release_commit() else {
+    let Ok(rev) = nixcore::rebuild::release_commit() else {
         return;
     };
     let safe = format!("safe.directory={}", repo.display());

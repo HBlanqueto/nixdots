@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.5"
-nixdots-common = { path = "../nixdots-common" }
+nixcore = { path = "../../kits/nixcore" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 zbus = { version = "5.19", default-features = false, features = ["tokio"] }
 zeroize = "1"

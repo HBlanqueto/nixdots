@@ -101,7 +101,7 @@
     },
     "layer-factors": { "bg-sunken": 1.4, "bg-control": 1.2, "bg-hover": 1.2, "line": 1.2, "bg-window": 1.0, "bg-surface": 0.6, "bg-raised": 0.6 },
     "never-tinted": ["sys-*", "danger", "danger-fill", "success", "warning", "info"],
-    "propagation": "regenerar Slint/CSS GTK/Kvantum/QML desde share/neptunia y anunciarlo por portal o D-Bus para que las apps abiertas se actualicen",
+    "propagation": "regenerar Slint/CSS GTK/Kvantum/QML desde kits/neptunia y anunciarlo por portal o D-Bus para que las apps abiertas se actualicen",
     "mockup": "https://claude.ai/artifact/N1WN3NJJftGL2CGdaUvaHf"
   }
 }

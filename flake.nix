@@ -38,7 +38,7 @@
       # El tema (colores, filecolors, vscode) y el diseño se importan una
       # sola vez y bajan por specialArgs/extraSpecialArgs a los módulos,
       # y como argumento a los paquetes que los usan.
-      theme = import ./share/neptunia;
+      theme = import ./kits/neptunia;
 
       mkHost = import ./lib/mkHost.nix { inherit inputs theme; };
 
@@ -121,10 +121,10 @@
         KEEL_ZONE1970_TAB = "${pkgs.tzdata}/share/zoneinfo/zone1970.tab";
       };
 
-      # Constructor común de los binarios Rust (ver lib/rustTool.nix).
+      # Constructor común de los binarios Rust (ver kits/nix/rustTool.nix).
       mkRustTool =
         system:
-        import ./lib/rustTool.nix {
+        import ./kits/nix/rustTool.nix {
           pkgs = nixpkgs.legacyPackages.${system};
           root = ./.;
           inherit supportedSystems;
@@ -171,7 +171,7 @@
             coreutils
           ];
           description = "First-boot assistant CLI for the Keel configuration";
-          # Tablas que `nixdots-lists` embebe para validar locale y zona.
+          # Tablas que `localekit` embebe para validar locale y zona.
           extra = tablesEnv pkgs;
         }
       );
@@ -188,7 +188,7 @@
           subdir = "tools/setup-gui";
           description = "Graphical first-boot assistant for the Keel configuration (Slint)";
           runtimeInputs = [ setups.${system} ];
-          # Tablas que `nixdots-lists` embebe (locales) para la lista
+          # Tablas que `localekit` embebe (locales) para la lista
           # de idiomas del asistente.
           extra = (tablesEnv pkgs) // {
             nativeBuildInputs = [
@@ -313,15 +313,15 @@
           # lo que generan default.nix y packages/kmscon-palette.nix.
           neptunia-generated = pkgs.runCommand "check-neptunia-generated" { } ''
             ok=1
-            ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" theme.slint} || ok=0
-            ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" theme.css} || ok=0
-            ${pkgs.diffutils}/bin/diff -u ${./share/neptunia/generated/kmscon-palette} ${palette} || ok=0
+            ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" theme.slint} || ok=0
+            ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" theme.css} || ok=0
+            ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/kmscon-palette} ${palette} || ok=0
             if [ "$ok" = 0 ]; then
                 echo "" >&2
-                echo "share/neptunia/generated está desactualizado. Regéneralo con:" >&2
-                echo "  nix eval --raw -f share/neptunia slint > share/neptunia/generated/neptunia.slint" >&2
-                echo "  nix eval --raw -f share/neptunia css   > share/neptunia/generated/neptunia.css" >&2
-                echo "  cp \$(nix build .#kmscon-palette --print-out-paths) share/neptunia/generated/kmscon-palette" >&2
+                echo "kits/neptunia/generated está desactualizado. Regéneralo con:" >&2
+                echo "  nix eval --raw -f kits/neptunia slint > kits/neptunia/generated/neptunia.slint" >&2
+                echo "  nix eval --raw -f kits/neptunia css   > kits/neptunia/generated/neptunia.css" >&2
+                echo "  cp \$(nix build .#kmscon-palette --print-out-paths) kits/neptunia/generated/kmscon-palette" >&2
                 exit 1
             fi
             ${pkgs.coreutils}/bin/touch $out
@@ -341,7 +341,7 @@
 
           # The kmscon `--palette*` arguments, generated from the theme.
           # `install.sh` reads the committed copy at
-          # share/neptunia/generated/kmscon-palette; regenerate it with
+          # kits/neptunia/generated/kmscon-palette; regenerate it with
           # `nix build .#kmscon-palette --print-out-paths`.
           kmscon-palette = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
 
@@ -371,10 +371,10 @@
       # `nix fmt`: el formateador oficial (RFC 166).
       formatter = forAllSystems ({ pkgs, ... }: pkgs.nixfmt);
 
-      # Un único devShell para todo el repo (ver lib/devShells.nix).
+      # Un único devShell para todo el repo (ver kits/nix/devShells.nix).
       devShells = forAllSystems (
         { system, pkgs, ... }:
-        import ./lib/devShells.nix {
+        import ./kits/nix/devShells.nix {
           inherit pkgs tablesEnv;
           setup = setups.${system};
         }

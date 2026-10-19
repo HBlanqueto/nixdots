@@ -9,9 +9,9 @@
 //! La contraseña se lee de stdin (nunca del JSON ni de argv).
 
 use color_eyre::eyre::{bail, eyre, Context, Result};
-use nixdots_common::machine;
-use nixdots_common::runner::{self, Cmd, Stream};
-use nixdots_common::user_data::{self, Git, LegacyUser, Prefs, UserData};
+use nixcore::machine;
+use nixcore::runner::{self, Cmd, Stream};
+use nixcore::user_data::{self, Git, LegacyUser, Prefs, UserData};
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -69,7 +69,7 @@ struct Data {
     #[serde(default)]
     auto_login: Option<bool>,
     #[serde(default)]
-    a11y: Option<nixdots_common::user_data::A11y>,
+    a11y: Option<nixcore::user_data::A11y>,
     #[serde(default)]
     git_name: Option<String>,
     #[serde(default)]
@@ -129,7 +129,7 @@ fn apply(args: &[String]) -> Result<()> {
 
     // 1. Hash (0600) antes de la cuenta: user.nix exige que exista.
     phase(0, dry_run);
-    let hash = nixdots_common::crypto::hash_password(&password)?;
+    let hash = nixcore::crypto::hash_password(&password)?;
     let secrets = Path::new("/persist/secrets");
     let hash_path = secrets.join(format!("{}.hash", data.username));
     println!("$ escribir {} (0600)", hash_path.display());
@@ -399,7 +399,7 @@ fn validate(data: &Data) -> Result<()> {
     if data.full_name.trim().is_empty() {
         bail!("fullName está vacío");
     }
-    if let Some(err) = nixdots_common::user::username_error(&data.username) {
+    if let Some(err) = nixcore::user::username_error(&data.username) {
         bail!("username inválido: {err}");
     }
     if data.locale.trim().is_empty() {
@@ -427,14 +427,14 @@ fn validate(data: &Data) -> Result<()> {
     Ok(())
 }
 
-/// ¿El locale existe en la tabla de `nixdots-lists`?
+/// ¿El locale existe en la tabla de `localekit`?
 fn locale_known(code: &str) -> bool {
-    nixdots_lists::locale::all().iter().any(|l| l.code == code)
+    localekit::locale::all().iter().any(|l| l.code == code)
 }
 
-/// ¿La zona horaria existe en la tabla de `nixdots-lists`?
+/// ¿La zona horaria existe en la tabla de `localekit`?
 fn timezone_known(zone: &str) -> bool {
-    nixdots_lists::timezone::zones().iter().any(|z| z == zone)
+    localekit::timezone::zones().iter().any(|z| z == zone)
 }
 
 /// `None` para cadenas vacías: así el `//` del flake deja el valor de
