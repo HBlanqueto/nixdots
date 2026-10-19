@@ -36,20 +36,18 @@ actualiza este archivo en el mismo cambio.
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
     en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
-  - `users/<usuario>.toml` — una cuenta por archivo, la escribe el asistente
-    (version, username, fullName, admin, template, personalConfig y git). El
-    nombre del archivo debe coincidir con `username`.
-  - `users/<usuario>.prefs.toml` — semilla de un solo uso con la apariencia y la
-    accesibilidad (colorScheme, accentColor, avatar*, a11y); el asistente y
-    `nixdots-userd` la escriben, `nixdots-home-init` la copia al flake del home
-    y borra el original.
-  - `users/<usuario>/home.nix` — config personal opcional, se importa encima de
-    la plantilla si `personalConfig` y el usuario es admin. Debe ser de **root**:
-    el rebuild evalúa como root y el archivo podría leer `/persist/secrets`.
+  - `users/<usuario>.toml` — una cuenta por archivo, solo lo esencial: `version`,
+    `username`, `fullName` y `admin`. El nombre del archivo debe coincidir con
+    `username`.
+  - `users/<usuario>.prefs.toml` — semilla de un solo uso para el home:
+    apariencia y accesibilidad (colorScheme, accentColor, avatar*, a11y) y git.
+    La escribe el asistente (y `nixdots-userd`); `nixdots-home-init` copia git a
+    `home.nix` y el resto a `~/.config/home-manager/prefs.toml`, y borra la
+    semilla.
   - `user.json` — **respaldo transitorio**: si no hay `users/*`, `data.nix` lo
-    lee como un único usuario `admin = true` y `template = "nixdots"`.
+    lee como un único usuario `admin = true`.
     `nixdots-setup migrate` lo convierte a `users/<usuario>.toml` (+ su
-    `.prefs.toml`) + `machine.toml` y deja `user.json.bak`.
+    `.prefs.toml` con git) + `machine.toml` y deja `user.json.bak`.
   - Durante la migración el sistema lee el `.json` hermano cuando falta el
     `.toml` (en `lib/data.nix` y en `nixdots-common/src/store.rs`); retira ese
     respaldo cuando todas las máquinas hayan corrido `migrate-toml`.

@@ -22,7 +22,7 @@ const HELP: &str = "nixdots-setup apply <datos.json> [--repo <ruta>] [--dry-run]
   datos.json  fullName, username, locale, region, keyboardLayout,
               keyboardVariant, timeZone, timeZoneAuto, a11y, colorScheme,
               accentColor, avatarColor, autoLogin y, opcionalmente, gitName,
-              gitEmail, avatarPath, admin, template y personalConfig.
+              gitEmail, avatarPath y admin.
   --repo      repositorio a reconstruir (defecto /persist/nixdots/repo)
   --dry-run   solo imprime lo que haría, sin escribir nada
 
@@ -74,13 +74,9 @@ struct Data {
     git_name: Option<String>,
     #[serde(default)]
     git_email: Option<String>,
-    /// Primera cuenta: admin y plantilla completa por defecto.
+    /// Primera cuenta: admin por defecto.
     #[serde(default)]
     admin: Option<bool>,
-    #[serde(default)]
-    template: Option<String>,
-    #[serde(default)]
-    personal_config: Option<bool>,
 }
 
 fn main() {
@@ -171,21 +167,6 @@ fn apply(args: &[String]) -> Result<()> {
         username: data.username.clone(),
         full_name: data.full_name.clone(),
         admin: data.admin.unwrap_or(true),
-        template: data.template.clone().unwrap_or_else(|| "nixdots".into()),
-        personal_config: data.personal_config.unwrap_or(false),
-        git: match (data.git_name.clone(), data.git_email.clone()) {
-            (Some(name), Some(email))
-                if !name.trim().is_empty() && !email.trim().is_empty() =>
-            {
-                Some(Git { name, email })
-            }
-            _ => None,
-        },
-        color_scheme: None,
-        accent_color: None,
-        avatar_color: None,
-        avatar_path: None,
-        a11y: None,
     };
     let prefs = Prefs {
         version: 1,
@@ -194,6 +175,14 @@ fn apply(args: &[String]) -> Result<()> {
         avatar_color: data.avatar_color.clone().and_then(non_empty),
         avatar_path: data.avatar_path.clone().and_then(non_empty),
         a11y: data.a11y.clone(),
+        git: match (data.git_name.clone(), data.git_email.clone()) {
+            (Some(name), Some(email))
+                if !name.trim().is_empty() && !email.trim().is_empty() =>
+            {
+                Some(Git { name, email })
+            }
+            _ => None,
+        },
     };
     println!("$ escribir {} (0644)", user_data::path_for(&data.username).display());
     if !dry_run {
@@ -296,21 +285,6 @@ fn migrate(args: &[String]) -> Result<()> {
             .and_then(non_empty)
             .unwrap_or_else(|| username.clone()),
         admin: true,
-        template: "nixdots".into(),
-        personal_config: false,
-        git: match (old.git_name.clone(), old.git_email.clone()) {
-            (Some(name), Some(email))
-                if !name.trim().is_empty() && !email.trim().is_empty() =>
-            {
-                Some(Git { name, email })
-            }
-            _ => None,
-        },
-        color_scheme: None,
-        accent_color: None,
-        avatar_color: None,
-        avatar_path: None,
-        a11y: None,
     };
     let prefs = Prefs {
         version: 1,
@@ -319,6 +293,14 @@ fn migrate(args: &[String]) -> Result<()> {
         avatar_color: old.avatar_color.clone().and_then(non_empty),
         avatar_path: old.avatar_path.clone().and_then(non_empty),
         a11y: old.a11y.clone(),
+        git: match (old.git_name.clone(), old.git_email.clone()) {
+            (Some(name), Some(email))
+                if !name.trim().is_empty() && !email.trim().is_empty() =>
+            {
+                Some(Git { name, email })
+            }
+            _ => None,
+        },
     };
     println!("$ escribir {}", user_data::path_for(&username).display());
     if !dry_run {

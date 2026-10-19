@@ -11,9 +11,9 @@
 //! accesibilidad vive aparte, en `users/<usuario>.prefs.toml`.
 
 use crate::store;
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use toml_edit::{value, Item, Table};
 
 /// Preferencias de accesibilidad (todas `false` por defecto).
@@ -44,16 +44,12 @@ fn default_true() -> bool {
     true
 }
 
-fn default_template() -> String {
-    "nixdots".into()
-}
-
 fn default_version() -> u32 {
     1
 }
 
-/// Lo que se escribe en `users/<usuario>.toml` (camelCase, como lo lee el flake).
-/// Los campos opcionales se omiten si son `None`.
+/// Lo que se escribe en `users/<usuario>.toml` (camelCase, como lo lee el
+/// flake): solo la cuenta. El git y la apariencia viven en el home.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
@@ -65,33 +61,11 @@ pub struct UserData {
     /// Miembro de `wheel`.
     #[serde(default = "default_true")]
     pub admin: bool,
-    /// Plantilla de home-manager (`"nixdots"` o `"minimal"`).
-    #[serde(default = "default_template")]
-    pub template: String,
-    /// Importar `/persist/nixdots/users/<usuario>/home.nix` sobre la plantilla.
-    #[serde(default)]
-    pub personal_config: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub git: Option<Git>,
-    /// `"light"` o `"dark"`: preferencia de tema elegida en el asistente.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub color_scheme: Option<String>,
-    /// Acento elegido (`"neptunia"` o un id de GNOME).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub accent_color: Option<String>,
-    /// Color del avatar elegido en el asistente (id de acento).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub avatar_color: Option<String>,
-    /// Ruta de la foto del avatar (variante con foto).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub avatar_path: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub a11y: Option<A11y>,
 }
 
-/// Semilla de un solo uso con la apariencia y accesibilidad del asistente, en
-/// `users/<usuario>.prefs.toml`. `nixdots-home-init` la copia al flake del
-/// usuario y borra el original.
+/// Semilla de un solo uso para el home, en `users/<usuario>.prefs.toml`:
+/// apariencia, accesibilidad y git. `nixdots-home-init` la copia al flake del
+/// usuario (git a `home.nix`, lo demás a `prefs.toml`) y borra el original.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Prefs {
@@ -107,6 +81,8 @@ pub struct Prefs {
     pub avatar_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub a11y: Option<A11y>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git: Option<Git>,
 }
 
 /// `${NIXDOTS_ROOT}/persist/nixdots/users`. Construido como cadena: sin
@@ -119,11 +95,6 @@ pub fn users_dir() -> PathBuf {
 /// `users/<username>.toml`.
 pub fn path_for(username: &str) -> PathBuf {
     users_dir().join(format!("{username}.toml"))
-}
-
-/// `users/<username>.json` (respaldo transitorio).
-pub fn json_path_for(username: &str) -> PathBuf {
-    users_dir().join(format!("{username}.json"))
 }
 
 /// `users/<username>.prefs.toml`.
@@ -150,23 +121,19 @@ impl UserData {
         doc["username"] = value(&self.username);
         doc["fullName"] = value(&self.full_name);
         doc["admin"] = value(self.admin);
-        doc["template"] = value(&self.template);
-        doc["personalConfig"] = value(self.personal_config);
-        // La apariencia y accesibilidad viven en la semilla `.prefs.toml`, no en
-        // la cuenta: se retiran del archivo de usuario al reescribirlo.
-        for key in [ "colorScheme", "accentColor", "avatarColor", "avatarPath", "a11y" ] {
+        // Lo demás vive fuera de la cuenta: git y apariencia van al home
+        // (semilla `.prefs.toml`), no a este archivo. Se retiran al reescribir.
+        for key in [
+            "template",
+            "personalConfig",
+            "git",
+            "colorScheme",
+            "accentColor",
+            "avatarColor",
+            "avatarPath",
+            "a11y",
+        ] {
             doc.remove(key);
-        }
-        match &self.git {
-            Some(git) => {
-                let mut table = Table::new();
-                table["name"] = value(&git.name);
-                table["email"] = value(&git.email);
-                doc["git"] = Item::Table(table);
-            }
-            None => {
-                doc.remove("git");
-            }
         }
         store::write_document_atomic(&path, &doc)
     }
@@ -191,6 +158,7 @@ impl Default for Prefs {
             avatar_color: None,
             avatar_path: None,
             a11y: None,
+            git: None,
         }
     }
 }
@@ -211,6 +179,17 @@ impl Prefs {
                 doc.remove("a11y");
             }
         }
+        match &self.git {
+            Some(git) => {
+                let mut table = Table::new();
+                table["name"] = value(&git.name);
+                table["email"] = value(&git.email);
+                doc["git"] = Item::Table(table);
+            }
+            None => {
+                doc.remove("git");
+            }
+        }
         store::write_document_atomic(&path, &doc)
     }
 
@@ -229,6 +208,12 @@ impl Prefs {
             reduce_motion: t.get("reduceMotion").and_then(|i| i.as_bool()).unwrap_or(false),
             screen_keyboard: t.get("screenKeyboard").and_then(|i| i.as_bool()).unwrap_or(false),
         });
+        let git = doc.get("git").and_then(|i| i.as_table()).and_then(|t| {
+            Some(Git {
+                name: t.get("name")?.as_str()?.to_string(),
+                email: t.get("email")?.as_str()?.to_string(),
+            })
+        });
         Ok(Some(Self {
             version: doc.get("version").and_then(|i| i.as_integer()).unwrap_or(1) as u32,
             color_scheme: get("colorScheme"),
@@ -236,6 +221,7 @@ impl Prefs {
             avatar_color: get("avatarColor"),
             avatar_path: get("avatarPath"),
             a11y,
+            git,
         }))
     }
 }
@@ -324,12 +310,4 @@ pub fn migrate_to_toml() -> Result<usize> {
         }
     }
     Ok(written)
-}
-
-/// Comprueba que `path` no existe todavía; error legible si sí.
-pub fn ensure_absent(path: &Path) -> Result<()> {
-    if path.exists() {
-        return Err(eyre!("{} ya existe", path.display()));
-    }
-    Ok(())
 }

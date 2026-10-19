@@ -60,14 +60,7 @@ let
         in
         {
             inherit name;
-            value = value // {
-                username = value.username or name;
-                # Ruta del home.nix personal, o null. Debe ser de root: el
-                # rebuild evalúa como root y el archivo podría leer secretos.
-                personalHome =
-                    let p = "${usersDir}/${name}/home.nix";
-                    in if impure && builtins.pathExists p then p else null;
-            };
+            value = value // { username = value.username or name; };
         }
     ) userNames);
     mismatched = builtins.filter
@@ -75,17 +68,14 @@ let
         userNames;
 
     # Respaldo (se retira cuando exista el comando de migración): el user.json
-    # antiguo como un único usuario admin con la plantilla completa.
+    # antiguo como un único usuario admin.
     legacy = readData "user";
     legacyUsers = if legacy ? username then {
-        ${legacy.username} = legacy // {
+        ${legacy.username} = {
             username = legacy.username;
             fullName = legacy.fullName or legacy.userdescription or "";
             admin = true;
-            template = "nixdots";
-        } // (if legacy ? gitName && legacy ? gitEmail then {
-            git = { name = legacy.gitName; email = legacy.gitEmail; };
-        } else { }) // { personalHome = null; };
+        };
     } else { };
 
     users = if usersFromDir != { } then usersFromDir else legacyUsers;
