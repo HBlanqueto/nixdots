@@ -25,8 +25,11 @@ let
       fileset = pkgs.lib.fileset.unions [
         (root + "/Cargo.toml")
         (root + "/Cargo.lock")
-        (root + "/welcome")
-        (root + "/installer")
+        (root + "/welcome/cli")
+        (root + "/welcome/gui")
+        (root + "/installer/Cargo.toml")
+        (root + "/installer/src")
+        (root + "/installer/assets")
         (root + "/system/services")
         (root + "/kits/nixcore")
         (root + "/kits/localekit")

@@ -100,6 +100,8 @@ dotfiles/
   localekit, neptunia y helpers Nix).
 
 Nada nuevo en la raíz salvo archivos del flake, del workspace de Cargo y de git.
+Los grep de rutas viejas pueden dar falsos positivos (p. ej. `/persist/keel/users`):
+nunca reescribas código solo para silenciarlos.
 
 ## Componentes
 

@@ -11,7 +11,7 @@ use ratatui::text::{Line, Span};
 const DARK_RGB: (u8, u8, u8) = (82, 119, 195);
 const LIGHT_RGB: (u8, u8, u8) = (127, 183, 255);
 
-const LOGO: &str = include_str!(concat!("../assets/", "nixos-logo.ans"));
+const LOGO: &str = include_str!("../assets/nixos-logo.ans");
 
 fn blue(rgb: (u8, u8, u8), console: bool) -> Color {
     if !console {

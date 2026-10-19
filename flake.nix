@@ -40,8 +40,8 @@
       # y como argumento a los paquetes que los usan.
       theme = import ./kits/neptunia;
 
-      system = import ./system { inherit inputs theme; };
-      inherit (system) mkHost genericModules;
+      keelSystem = import ./system { inherit inputs theme; };
+      inherit (keelSystem) mkHost genericModules;
 
       # El perfil único detecta el hardware en tiempo de evaluación, así
       # que necesita impure (builtins.currentSystem + los .json en
@@ -192,7 +192,7 @@
       # Módulos de home-manager reutilizables: `deck` (el home completo
       # de este repo) y `minimal` (fish, starship, git y el tema). El
       # template `home` genera un flake de usuario que los importa.
-      inherit (system) homeModules;
+      inherit (keelSystem) homeModules;
 
       templates = {
         home = {
