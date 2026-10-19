@@ -279,7 +279,6 @@ mod tests {
     fn neptunia() -> HashMap<String, String> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
-            .join("..")
             .join("kits/neptunia/neptunia.nix");
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("no se pudo leer {}: {e}", path.display()));

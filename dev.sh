@@ -63,12 +63,12 @@ run_window() {
 
 sim_installer() {
     if [ "${1:-}" = "--here" ] || [ "${1:-}" = "-t" ]; then
-        here cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
+        here cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
     fi
     run_window keel-installer-dev \
-        "-w tools/installer/src -w kits/nixcore/src -w tools/installer/Cargo.toml -w kits/nixcore/Cargo.toml -w Cargo.toml" \
+        "-w installer/src -w kits/nixcore/src -w installer/Cargo.toml -w kits/nixcore/Cargo.toml -w Cargo.toml" \
         rs,toml \
-        cargo run --manifest-path tools/installer/Cargo.toml -- --repo "$REPO"
+        cargo run --manifest-path installer/Cargo.toml -- --repo "$REPO"
 }
 
 sim_setup() {

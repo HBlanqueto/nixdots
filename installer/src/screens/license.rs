@@ -12,7 +12,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
 /// Embedded so the installer works without network or the repo.
-const LICENSE: &str = include_str!("../../../../LICENSE");
+const LICENSE: &str = include_str!("../../../LICENSE");
 
 pub fn draw(f: &mut Frame, app: &mut App, area: Rect) {
     let console = crate::theme::console::is_linux_console();

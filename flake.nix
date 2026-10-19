@@ -130,29 +130,12 @@
           inherit supportedSystems;
         };
 
-      # Everything the installer shells out to; makeWrapper puts these on
-      # its PATH so the binary works from a minimal ISO.
-      installers = forAllSystems (
+      # Instalador, lanzador de kmscon y paleta (ver installer/default.nix).
+      installerPackages = forAllSystems (
         { system, pkgs }:
-        mkRustTool system {
-          pname = "nixdots-installer";
-          subdir = "tools/installer";
-          runtimeInputs = with pkgs; [
-            disko
-            btrfs-progs
-            dosfstools
-            util-linux
-            cryptsetup
-            systemd
-            mkpasswd
-            sbctl
-            nixos-facter
-            less
-            git
-            nix
-          ];
-          description = "Text-mode installer for the Keel NixOS configuration";
-          extra = tablesEnv pkgs;
+        import ./installer {
+          inherit pkgs theme tablesEnv;
+          mkRustTool = mkRustTool system;
         }
       );
 
@@ -232,16 +215,6 @@
         }
       );
 
-      # `nix run .#installer` wrapper: opens kmscon (Nerd Fonts + the
-      # neptunia palette) on a real VT, then runs the installer inside it.
-      launchers = forAllSystems (
-        { system, pkgs }:
-        pkgs.callPackage ./packages/installer-launcher.nix {
-          installer = installers.${system};
-          inherit theme;
-        }
-      );
-
       # Perfil único: hardware detectado por facter + machine.json. La
       # forma impura resuelve la arquitectura con builtins.currentSystem.
       keel = mkGeneric {
@@ -302,15 +275,15 @@
 
       # install.sh lee la copia versionada de la paleta sin pasar por
       # Nix; este check falla si dejó de coincidir con lo que genera
-      # packages/kmscon-palette.nix.
+      # installer/nix/kmscon-palette.nix.
       checks = forAllSystems (
         { pkgs, ... }:
         let
-          palette = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
+          palette = pkgs.callPackage ./installer/nix/kmscon-palette.nix { inherit theme; };
         in
         {
           # Las copias versionadas de generated/ deben coincidir con
-          # lo que generan default.nix y packages/kmscon-palette.nix.
+          # lo que generan default.nix e installer/nix/kmscon-palette.nix.
           neptunia-generated = pkgs.runCommand "check-neptunia-generated" { } ''
             ok=1
             ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" theme.slint} || ok=0
@@ -331,19 +304,19 @@
 
       packages = forAllSystems (
         { system, pkgs }: {
-          installer = installers.${system};
+          installer = installerPackages.${system}.installer;
           setup = setups.${system};
           assist-setup = setupsGui.${system};
           crewd = userd.${system};
           home-init = homeInit.${system};
-          launcher = launchers.${system};
-          default = launchers.${system};
+          launcher = installerPackages.${system}.launcher;
+          default = installerPackages.${system}.launcher;
 
           # The kmscon `--palette*` arguments, generated from the theme.
           # `install.sh` reads the committed copy at
           # kits/neptunia/generated/kmscon-palette; regenerate it with
           # `nix build .#kmscon-palette --print-out-paths`.
-          kmscon-palette = pkgs.callPackage ./packages/kmscon-palette.nix { inherit theme; };
+          kmscon-palette = installerPackages.${system}.kmscon-palette;
 
           # Safe wrapper around nixos-rebuild (packages/nixdots-rebuild.*).
           nixdots-rebuild = pkgs.callPackage ./packages/nixdots-rebuild.nix { };
@@ -357,11 +330,11 @@
         { system, ... }: {
           installer = {
             type = "app";
-            program = "${launchers.${system}}/bin/nixdots-installer";
+            program = "${installerPackages.${system}.launcher}/bin/nixdots-installer";
           };
           default = {
             type = "app";
-            program = "${launchers.${system}}/bin/nixdots-installer";
+            program = "${installerPackages.${system}.launcher}/bin/nixdots-installer";
           };
         }
       );

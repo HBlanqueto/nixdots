@@ -1,4 +1,4 @@
-//! The NixOS logo, embedded from `assets/nixos-logo.ans` and converted to
+//! The NixOS logo, embedded from the ANSI logo shipped next to the crate and converted to
 //! ratatui `Text`.
 //!
 //! The art uses the two official NixOS blues (#5277c3 dark, #7fb7ff light) —
@@ -11,7 +11,7 @@ use ratatui::text::{Line, Span};
 const DARK_RGB: (u8, u8, u8) = (82, 119, 195);
 const LIGHT_RGB: (u8, u8, u8) = (127, 183, 255);
 
-const LOGO: &str = include_str!("../../../assets/nixos-logo.ans");
+const LOGO: &str = include_str!(concat!("../assets/", "nixos-logo.ans"));
 
 fn blue(rgb: (u8, u8, u8), console: bool) -> Color {
     if !console {

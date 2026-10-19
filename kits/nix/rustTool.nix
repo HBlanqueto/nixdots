@@ -26,13 +26,12 @@ let
         (root + "/Cargo.toml")
         (root + "/Cargo.lock")
         (root + "/tools")
+        (root + "/installer")
         (root + "/kits/nixcore")
         (root + "/kits/localekit")
         (root + "/.cargo")
-        # include_str!/include_bytes! de las herramientas.
-        (root + "/assets")
         (root + "/LICENSE")
-        # El test de tools/installer lee la paleta del tema.
+        # El test del instalador lee la paleta del tema.
         (root + "/kits/neptunia/neptunia.nix")
         # Import de tools/setup-gui/ui/theme.slint.
         (root + "/kits/neptunia/generated/neptunia.slint")

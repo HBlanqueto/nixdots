@@ -10,7 +10,7 @@ on:
     branches:
       - master
     paths:
-      - "tools/installer/**"
+      - "installer/**"
       - "kits/nixcore/**"
       - "kits/localekit/**"
       - "Cargo.toml"

@@ -122,7 +122,7 @@ actualiza este archivo en el mismo cambio.
   - `kits/nixcore` — settings, users/<usuario>.toml, machine.toml, hash,
     ejecución de comandos.
   - `kits/localekit` — locales, zonas y teclados embebidos al compilar.
-  - `tools/installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
+  - `installer` — TUI ratatui (`nixdots-installer`). Solo instala el sistema;
     pantallas: Inicio · Licencia · Red · Lenguaje · Teclado · Zona horaria ·
     Equipo · Disco · Cifrado · Resumen · Instalando · Listo. No pide usuario,
     contraseña ni Git, ni escribe `users/*.toml` ni el hash (eso lo hace el

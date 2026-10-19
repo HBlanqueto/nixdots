@@ -5,7 +5,7 @@
 
 ## Installer
 
-`tools/installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
+`installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
 
 There are two ways to run it:
 
@@ -27,7 +27,7 @@ The installed system's TTY uses **only** the XNU (macOS text-console) font, read
   nix run .#installer                     # simulation: no disk, no root
   ```
 
-The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [tools/installer/README.md](../../tools/installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
+The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](../../installer/README.md) for the full flow and options, and `disko.nix` for the disk layout it applies.
 
 ## Secure Boot (Lanzaboote)
 

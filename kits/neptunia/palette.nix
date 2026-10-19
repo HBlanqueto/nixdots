@@ -1,6 +1,6 @@
 # Paleta de la consola (neptunia): única fuente para los 16 colores ANSI de
 # console.colors (user.nix) y para la config/línea de comandos de kmscon
-# (core/console.nix y packages/kmscon-palette.nix). El negro de fondo
+# (core/console.nix y installer/nix/kmscon-palette.nix). El negro de fondo
 # puro se define aquí una sola vez. El tema llega como argumento (se importa una
 # sola vez en flake.nix).
 { theme }:
