@@ -1,8 +1,5 @@
 # Instalación de Keel
 
-> [!NOTE]
-> I am not a Nix expert.
-
 ## Installer
 
 `installer/` contains a text-mode installer (`nixdots-installer`). It is a Rust binary that *orchestrates* existing tools — `disko`, `nixos-facter`, `sbctl`, `nix`, `nixos-install`, `nmcli`, ... — and never reimplements partitioning.
@@ -28,6 +25,11 @@ The installed system's TTY uses **only** the XNU (macOS text-console) font, read
   ```
 
 The flake exposes it as `packages.{x86_64-linux,aarch64-linux}.{installer,default}` and `apps.<system>.{installer,default}`. See [installer/README.md](../../installer/README.md) for the full flow and options, and `system/disko.nix` for the disk layout it applies.
+
+## Setup
+
+> [!NOTE]
+> I am not a Nix expert.
 
 ## Secure Boot (Lanzaboote)
 
