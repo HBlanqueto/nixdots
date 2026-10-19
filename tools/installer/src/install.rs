@@ -1352,7 +1352,6 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
             dest.display()
         ));
         fs::create_dir_all(&dest)?;
-        write_minimum_repo(plan, &dest)?;
         report.log("(simulación) repositorio copiado");
         return Ok(());
     }
@@ -1426,21 +1425,6 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
         "git commit falló",
     )
 }
-
-fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
-    // Enough of a repo for the later (simulated) steps to operate on.
-    fs::create_dir_all(dest.join("core"))?;
-    fs::create_dir_all(dest.join("lib"))?;
-    fs::write(
-        dest.join("lib/defaults.nix"),
-        plan.settings.without_user().render(),
-    )?;
-    fs::write(dest.join("core/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
-    Ok(())
-}
-
-const SNAPSHOT_TEMPLATE: &str =
-    "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
 fn step_license(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // El repo no se toca: locale, zona, teclado y prettyHostName ya van a
