@@ -34,8 +34,7 @@ actualiza este archivo en el mismo cambio.
     keyboardLayout/Variant, autoLoginUser); gana el último en escribir. La
     escritura fusiona sobre el JSON existente. `espUuid` es el UUID de la ESP de
     Windows reutilizada (vacío si se crea nueva); `/boot` se monta por ese UUID
-    en ese caso, y por label `BOOT` en el resto. `otto` (bool, opcional) fuerza
-    la sesión Otto sobre la detección de hardware.
+    en ese caso, y por label `BOOT` en el resto.
   - `facter.json` — informe de hardware.
   - `users/<usuario>.json` — una cuenta por archivo, lo escribe el asistente
     (username, fullName, admin, template, personalConfig, git, colorScheme,
@@ -51,11 +50,8 @@ actualiza este archivo en el mismo cambio.
     (`hashedPasswordFile`), en un directorio `0711` y el archivo `0600`, ambos
     de root. Nunca hashes ni secretos en el repo.
   - `/persist/secrets/nix-access-tokens.conf` — root:wheel `0640`, opcional:
-    `access-tokens = github.com=<token>` (token de GitHub de solo lectura),
-    incluido en nix.conf con `!include` (`core/nix.nix`). Lo usan los inputs
-    privados `github:HBlanqueto/…` (el fork de Otto). Sin el archivo nix arranca
-    igual y el input privado no se descarga: `core/desktop/otto.nix` solo importa
-    el módulo de Otto cuando el token existe.
+    `access-tokens = github.com=<token>`. Hoy no hay inputs privados; el archivo
+    se conserva por si vuelven.
 - `lib/data.nix` es el **único** punto que lee esos archivos (getEnv,
   pathExists, readFile). Los módulos consumen `data` por specialArgs.
 - `settings.nix` solo tiene valores independientes de la máquina (stateVersion,
@@ -95,14 +91,9 @@ actualiza este archivo en el mismo cambio.
 - `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
-- Otto (sesión opcional, `nixdots.desktop.otto`): el paquete y el módulo NixOS
-  vienen del input `otto` del flake (fork privado `github:HBlanqueto/otto`,
-  rama `neptunia`), que `core/desktop/otto.nix` importa **solo con token** y
-  activa con `programs.otto.enable`. Se actualiza con `nix flake update otto`; el
-  acceso a los forks privados va por `/persist/secrets/nix-access-tokens.conf`.
-  Sin token, el módulo no se importa (el input privado ni se descarga) y el
-  sistema evalúa igual; `"otto": true` en machine.json sin token es un error. No
-  hay `packages/otto.nix` ni pines en este repo.
+- Otto (fork `github:HBlanqueto/otto`, con `layers` y `smithay-otto`) salió del
+  sistema y solo se conserva como referencia externa, fuera de este repo: no lo
+  reintroduzcas sin que se pida.
 - Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
   `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
   = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene

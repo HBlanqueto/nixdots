@@ -18,7 +18,7 @@ This NixOS system features the following core components:
 - [x] **iPhone tethering:** USB internet sharing (`usbmuxd` + `ipheth`)
 - [ ] **Agenix:** Secure secrets management
 
-**Otto (optional).** The Wayland desktop session and its NixOS module come from the private input `otto` (fork `HBlanqueto/otto`, branch `neptunia`), so it stays off unless `/persist/secrets/nix-access-tokens.conf` exists (root:wheel `0640`, with `access-tokens = github.com=<token>`). It is enabled from `machine.json` with `"otto": true` (or `false` to force it off) and updated with `nix flake update otto`.
+**Otto.** El compositor Wayland `HBlanqueto/otto` (y sus forks `layers` y `smithay-otto`) se usó como referencia externa; ya no forma parte de este flake.
 
 ### Structure
 
