@@ -25,12 +25,11 @@ This NixOS system features the following core components:
 ```text
 .
 ├── tools/                   # Rust crates (installer, nixdots-common, lists, setup, setup-gui, userd, home-init)
-├── lib/mkHost.nix           # helper: mkHost { system, modules, data }
-├── modules/                 # shared NixOS + home-manager configuration
-│   ├── common/              # users, fish, locale, nix, services, hardware-detect, boot
+├── core/                    # sistema: hardware, boot, consola, servicios, GNOME
 │   ├── desktop/             # GNOME/GDM
-│   ├── hardware/            # boot rollback snapshot helper
-│   └── home/                # home-manager (apps, style, wezterm, yazi…)
+│   └── snapshot.sh          # ayudante de rollback (initrd)
+├── users/                   # cuentas y plantillas de home-manager
+├── lib/                     # mkHost, data, helpers
 ├── overlays/  packages/  share/
 ├── disko.nix                # standalone disk layout applied by the installer
 ├── settings.nix             # machine-independent values (locale, keyboard, stateVersion)
@@ -118,7 +117,7 @@ kernel and initrd before unlocking). The installer asks for a dedicated LUKS
 passphrase on the **Cifrado** screen (separate from the account password, which
 does not exist yet) and early boots ask for it.
 
-`modules/common/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
+`core/luks-tpm.nix` enables Lanzaboote's **Measured Boot**
 (`systemd-pcrlock`) on machines that ask for it. The installer enrolls a bridge
 TPM2 token with no PCRs so Lanzaboote's `autoCryptenroll` can unlock on the
 first boot and re-enroll, this time bound to the firmware, bootloader and
@@ -146,8 +145,8 @@ because the root is ephemeral. A machine without a TPM or without Secure Boot
 
 Two details matter when partitioning by hand (the installer handles them):
 
-- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems (NixOS already marks `/persist` and `/var/log` in `modules/common/filesystems.nix`).
-- For boot rollback, `modules/hardware/snapshot.sh` must mount the Btrfs partition at the top level (`subvolid=5`, via the drive's UUID) so both `@rootfs` and `old_roots/` are visible; expired snapshots are pruned bottom-up (deepest nested subvolume first), because Btrfs refuses to delete a parent subvolume while children exist.
+- Append `neededForBoot = true;` to the `/persist` and `/var/log` file systems (NixOS already marks `/persist` and `/var/log` in `core/filesystems.nix`).
+- For boot rollback, `core/snapshot.sh` must mount the Btrfs partition at the top level (`subvolid=5`, via the drive's UUID) so both `@rootfs` and `old_roots/` are visible; expired snapshots are pruned bottom-up (deepest nested subvolume first), because Btrfs refuses to delete a parent subvolume while children exist.
 
 ## Credits
 

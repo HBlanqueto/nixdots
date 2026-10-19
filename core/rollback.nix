@@ -30,7 +30,7 @@
             ];
             unitConfig.DefaultDependencies = "no";
             serviceConfig.Type = "oneshot";
-            script = builtins.readFile ../modules/hardware/snapshot.sh;
+            script = builtins.readFile ./snapshot.sh;
         };
     };
 }

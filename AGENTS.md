@@ -104,7 +104,7 @@ actualiza este archivo en el mismo cambio.
   en `~/.config/home-manager`; se aplica con `home-manager switch`. Si ese
   directorio es un repo git, `flake.nix`, `home.nix` y `prefs.toml` deben estar
   rastreados (ver `templates/home/README.md`).
-- `modules/hardware/snapshot.sh` (ayudante de rollback) sigue en `modules/`.
+- `core/snapshot.sh` (ayudante de rollback) vive junto a `core/rollback.nix`.
 - Escritorio: **solo GNOME**. SomeWM y Quickshell se quitaron; no los
   reintroduzcas sin que se pida.
 - Otto (fork `github:HBlanqueto/otto`, con `layers` y `smithay-otto`) salió del

@@ -1487,12 +1487,12 @@ fn ensure_repo_ready(plan: &Plan, report: &mut Reporter, repo: &Path) -> Result<
 
 fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
     // Enough of a repo for the later (simulated) steps to operate on.
-    fs::create_dir_all(dest.join("modules/hardware"))?;
+    fs::create_dir_all(dest.join("core"))?;
     fs::write(
         dest.join("settings.nix"),
         plan.settings.without_user().render(),
     )?;
-    fs::write(dest.join("modules/hardware/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
+    fs::write(dest.join("core/snapshot.sh"), SNAPSHOT_TEMPLATE)?;
     Ok(())
 }
 
@@ -1519,12 +1519,12 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
     }
 
     // Repoint the boot rollback at the label instead of a fixed UUID.
-    let snapshot = repo.join("modules/hardware/snapshot.sh");
+    let snapshot = repo.join("core/snapshot.sh");
     if snapshot.exists() {
         let text = fs::read_to_string(&snapshot)?;
         let replaced = replace_by_uuid_with_label(&text);
         if replaced != text {
-            report.log("modules/hardware/snapshot.sh: UUID → /dev/disk/by-label/nixos");
+            report.log("core/snapshot.sh: UUID → /dev/disk/by-label/nixos");
             fs::write(&snapshot, replaced)?;
         }
     }

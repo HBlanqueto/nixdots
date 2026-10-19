@@ -11,7 +11,7 @@
 # (label nixos); otherwise btrfs sits directly on the partition. Either way the
 # filesystem carries the subvolumes @rootfs (/), @nix, @home, @persist and @log
 # (/var/log). A read-only @rootfs-blank template is created right after
-# formatting; modules/hardware/snapshot.sh restores @rootfs from it on every
+# formatting; core/snapshot.sh restores @rootfs from it on every
 # boot, which is what makes the root filesystem ephemeral.
 #
 # The LUKS passphrase comes from a single source: the installer writes the exact
