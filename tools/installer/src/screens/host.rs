@@ -160,6 +160,6 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 pub fn commands(app: &App) -> Vec<String> {
     vec![
         format!("machine.toml: hostName = \"{}\";", app.final_host_name()),
-        format!("lib/defaults.nix: prettyHostName = \"{}\";", app.model),
+        format!("machine.toml: prettyHostName = \"{}\";", app.model),
     ]
 }

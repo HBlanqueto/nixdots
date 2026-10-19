@@ -328,7 +328,7 @@ fn run_steps(plan: &Plan, report: &mut Reporter) -> Result<()> {
     if resume <= Step::Settings {
         report.step(Step::Settings);
         step_repo(plan, report)?;
-        step_settings(plan, report)?;
+        step_license(plan, report)?;
         step_hardware(plan, report, luks.as_ref())?;
         step_persist(plan, report)?;
     }
@@ -1385,64 +1385,6 @@ fn step_repo(plan: &Plan, report: &mut Reporter) -> Result<()> {
     Ok(())
 }
 
-/// Stages everything the installer wrote into the copied repo and commits it,
-/// because a flake only sees git-tracked paths: without this, `lib/defaults.nix`
-/// would be invisible to `nix eval`/`nix build`. The identity and
-/// `safe.directory` are passed per-invocation (`-c`), so nothing is written to
-/// the user's git config; the Git screen's identity is used when provided.
-fn git_snapshot(plan: &Plan, report: &mut Reporter) -> Result<()> {
-    let repo = plan.installed_repo();
-
-    if plan.dry_run {
-        report.log(format!(
-            "$ git -C {} add -A && git commit -m \"machine: {}\"   (simulación)",
-            repo.display(),
-            plan.settings.host_name
-        ));
-        return Ok(());
-    }
-
-    if !repo.join(".git").exists() {
-        report.log("aviso: el repo destino no es un repositorio git; se omite el commit");
-        return Ok(());
-    }
-
-    let (name, email) = plan.git_identity();
-    let name_arg = format!("user.name={name}");
-    let email_arg = format!("user.email={email}");
-    let message = format!("machine: {}", plan.settings.host_name);
-
-    let add =
-        git_cmd(&repo, &["add", "-A"]).with_display(format!("git -C {} add -A", repo.display()));
-    ensure_ok(exec(plan, report, &add, &plan.source)?, "git add falló")?;
-
-    // Nothing staged (e.g. a retry): HEAD already holds what the flake needs.
-    let check = git_cmd(&repo, &["diff", "--cached", "--quiet"])
-        .with_display(format!("git -C {} diff --cached --quiet", repo.display()));
-    if exec(plan, report, &check, &plan.source)? == 0 {
-        report.log("git: sin cambios que confirmar");
-        return Ok(());
-    }
-
-    let commit = git_cmd(
-        &repo,
-        &[
-            "-c",
-            name_arg.as_str(),
-            "-c",
-            email_arg.as_str(),
-            "commit",
-            "-m",
-            message.as_str(),
-        ],
-    )
-    .with_display(format!("git -C {} commit -m \"{message}\"", repo.display()));
-    ensure_ok(
-        exec(plan, report, &commit, &plan.source)?,
-        "git commit falló",
-    )
-}
-
 /// Makes the repo copied into `/mnt` usable by the flake. A snapshot copied from
 /// the ISO (`/etc/nixdots-src`, a read-only store path) arrives read-only and
 /// without `.git`; give it write permission and an initial commit.
@@ -1500,13 +1442,10 @@ fn write_minimum_repo(plan: &Plan, dest: &Path) -> Result<()> {
 const SNAPSHOT_TEMPLATE: &str =
     "#!/bin/sh\nmount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /btrfs_tmp\n";
 
-fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
+fn step_license(plan: &Plan, report: &mut Reporter) -> Result<()> {
+    // El repo no se toca: locale, zona, teclado y prettyHostName ya van a
+    // machine.toml, y el flake lee el resto de lib/defaults.nix tal cual.
     let repo = plan.installed_repo();
-    report.log("escribiendo lib/defaults.nix");
-    report.log(format!("$ escribir {}/lib/defaults.nix", repo.display()));
-    plan.settings.without_user().write(&repo)?;
-
-    // Keep a copy of the license in the installed system.
     let lic_dst = plan.root.join("etc/nixdots");
     let lic_src = repo.join("LICENSE");
     report.log(format!(
@@ -1518,18 +1457,6 @@ fn step_settings(plan: &Plan, report: &mut Reporter) -> Result<()> {
         fs::create_dir_all(&lic_dst)?;
         fs::copy(&lic_src, lic_dst.join("LICENSE"))?;
     }
-
-    // Repoint the boot rollback at the label instead of a fixed UUID.
-    let snapshot = repo.join("core/snapshot.sh");
-    if snapshot.exists() {
-        let text = fs::read_to_string(&snapshot)?;
-        let replaced = replace_by_uuid_with_label(&text);
-        if replaced != text {
-            report.log("core/snapshot.sh: UUID → /dev/disk/by-label/nixos");
-            fs::write(&snapshot, replaced)?;
-        }
-    }
-
     Ok(())
 }
 
@@ -1613,10 +1540,6 @@ fn step_hardware(
 fn step_persist(plan: &Plan, report: &mut Reporter) -> Result<()> {
     let repo = plan.installed_repo();
     let persist = plan.root.join("persist");
-
-    // The flake only sees git-tracked paths, so stage lib/defaults.nix before
-    // evaluating the config.
-    git_snapshot(plan, report)?;
 
     let expr = format!(
         "{}#nixosConfigurations.{}.config.environment.persistence",
@@ -1861,9 +1784,6 @@ fn step_system(plan: &Plan, report: &mut Reporter) -> Result<()> {
     // machine.toml, not in the flake output name.
     let flake = format!("{}#nixdots", repo.display());
     let build = target_build_dir(plan);
-
-    // Make sure the flake sees everything the installer wrote before building.
-    git_snapshot(plan, report)?;
 
     // `nixos-install --flake` builds the system with `--store /mnt`, so the
     // closure lands on the target disk, never in the live ISO's RAM-backed
@@ -2356,24 +2276,6 @@ fn copy_log_to_persist(plan: &Plan, report: &mut Reporter) {
     }
 }
 
-/// Replaces the first `/dev/disk/by-uuid/<uuid>` token with the btrfs label.
-fn replace_by_uuid_with_label(text: &str) -> String {
-    const NEEDLE: &str = "/dev/disk/by-uuid/";
-    let Some(start) = text.find(NEEDLE) else {
-        return text.to_string();
-    };
-    let after = start + NEEDLE.len();
-    let end = text[after..]
-        .find(|c: char| c.is_whitespace() || c == '"' || c == '\'')
-        .map(|i| after + i)
-        .unwrap_or(text.len());
-    let uuid = &text[after..end];
-    if uuid.is_empty() {
-        return text.to_string();
-    }
-    format!("{}/dev/disk/by-label/nixos{}", &text[..start], &text[end..])
-}
-
 fn simulate_build(report: &mut Reporter) {
     // Real package names, so the demo screen never shows a hash or a `.drv`.
     const PKGS: [&str; 8] = [
@@ -2402,21 +2304,6 @@ fn simulate_build(report: &mut Reporter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn replaces_uuid_but_keeps_rest() {
-        let input = "mount -t btrfs -o subvolid=5 /dev/disk/by-uuid/9ddcd09a-903e-4863-94db-bb1ccb5d3236 /btrfs_tmp\n";
-        let out = replace_by_uuid_with_label(input);
-        assert!(out.contains("/dev/disk/by-label/nixos"));
-        assert!(!out.contains("by-uuid"));
-        assert!(out.ends_with("/btrfs_tmp\n"));
-    }
-
-    #[test]
-    fn no_uuid_is_left_alone() {
-        let input = "echo hola\n";
-        assert_eq!(replace_by_uuid_with_label(input), input);
-    }
 
     #[test]
     fn steps_have_labels() {

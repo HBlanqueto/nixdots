@@ -93,9 +93,10 @@ dentro del panel con `↑↓`, `PageUp/PageDown` o `Home/End`.
 - En la consola Linux (`TERM=linux`, la tty de la ISO) no hay truecolor: al
   arrancar se programan los 16 slots con OSC P y se restauran con OSC R al salir,
   también ante un pánico o Ctrl+C.
-- Si se omite el paso **Equipo** se usa el hostname generado del modelo; el
-  instalador lo escribe en `machine.toml` y deja `prettyHostName` en
-  `lib/defaults.nix`.
+- Si se omite el paso **Equipo** se usa el hostname generado del modelo. Todas
+  las elecciones por máquina (hostname, locale, zona, teclado, prettyHostName)
+  van a `machine.toml` bajo `/persist/nixdots`; el instalador no modifica el
+  repo (`lib/defaults.nix` se queda como está).
 - El instalador **no crea la cuenta**: al reiniciar, el asistente de primer
   arranque pide usuario, contraseña y git, escribe la cuenta y el hash, y
   reconstruye el sistema.

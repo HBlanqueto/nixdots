@@ -2639,7 +2639,7 @@ impl App {
                 };
                 format!("{action} · EFI + System HD (btrfs, {cif})")
             }
-            Step::Settings => "lib/defaults.nix · machine.toml".to_string(),
+            Step::Settings => "machine.toml".to_string(),
             Step::System => {
                 if self.install.total > 0 {
                     format!(

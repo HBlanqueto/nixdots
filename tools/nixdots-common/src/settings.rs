@@ -149,25 +149,6 @@ impl Settings {
             git_email = nix_opt(&self.git_email),
         )
     }
-
-    /// Writes `lib/defaults.nix` atomically: a sibling temporary file is fully
-    /// written and synced, then renamed over the original, so an interrupted
-    /// install never leaves a truncated file the flake cannot evaluate.
-    pub fn write(&self, repo: &Path) -> Result<()> {
-        std::fs::create_dir_all(repo.join("lib"))?;
-        let target = repo.join("lib/defaults.nix");
-        let tmp = repo.join("lib/.defaults.nix.tmp");
-        {
-            use std::io::Write;
-            let mut file = std::fs::File::create(&tmp)
-                .wrap_err("no se pudo crear el temporal de lib/defaults.nix")?;
-            file.write_all(self.render().as_bytes())
-                .and_then(|()| file.sync_all())
-                .wrap_err("no se pudo escribir lib/defaults.nix")?;
-        }
-        std::fs::rename(&tmp, &target).wrap_err("no se pudo reemplazar lib/defaults.nix")?;
-        Ok(())
-    }
 }
 
 /// A Nix double-quoted string literal. Besides `\` and `"`, `${` must be

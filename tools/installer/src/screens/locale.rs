@@ -57,7 +57,7 @@ pub fn buttons(_app: &App) -> Vec<(Btn, Action)> {
 
 pub fn commands(app: &App) -> Vec<String> {
     vec![format!(
-        "lib/defaults.nix: defaultLocale = \"{}\";",
+        "machine.toml: defaultLocale = \"{}\";",
         app.settings.default_locale
     )]
 }
