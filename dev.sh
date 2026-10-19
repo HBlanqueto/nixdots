@@ -179,22 +179,18 @@ def pump(sec):
                 return
             buf.extend(d)
 
-def kick():
-    # Force a full repaint so the current screen is emitted contiguously
-    # (crossterm otherwise only writes changed cells).
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 41, 110, 0, 0)); pump(0.15)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 110, 0, 0)); pump(0.15)
-
 def send(s, wait=0.5):
     os.write(fd, s)
     pump(wait)
-    kick()
 
 def wait_for(marker, timeout=15):
+    return wait_for_any([marker], timeout)
+
+def wait_for_any(markers, timeout=15):
     end = time.time() + timeout
     while time.time() < end:
         pump(0.2)
-        if marker.encode() in buf:
+        if any(m.encode() in buf for m in markers):
             return True
     return False
 
@@ -202,7 +198,7 @@ def wait_for(marker, timeout=15):
 wait_for("Continuar")
 send(b"\r")
 # Licencia: Intro abre el diálogo (Acepto enfocado) y otro Intro lo acepta.
-wait_for("Licencia")
+wait_for("Para continuar con la instalación")
 send(b"\r")
 wait_for("Leí y acepto")
 send(b"\r")                       # Acepto -> Red
@@ -213,16 +209,17 @@ wait_for("contraseña")
 for c in b"contrasena-larga":
     send(bytes([c]), 0.05)
 send(b"\r")                       # Conectando
-wait_for("conectado a", 12)       # Conectado
-send(b"\r")                       # Continuar -> Lenguaje
+wait_for("conectando a", 12)      # al conectar avanza solo a Lenguaje
 # Lenguaje -> Teclado -> Zona horaria (elegir la primera entrada de cada lista)
 wait_for("Lenguaje")
 send(b"\x1b[B")
 send(b"\r")
 wait_for("Teclado")
 send(b"\x1b[B")
-send(b"\r")
+send(b"\r")                       # elegir layout -> botones
+send(b"\r")                       # Continuar -> Zona horaria
 wait_for("Zona horaria")
+wait_for_any(["Africa/", "America/", "Europe/", "UTC"])  # lista cargada
 send(b"\x1b[B")
 send(b"\r")                       # -> Equipo
 wait_for("Equipo")
@@ -271,8 +268,8 @@ PY
                 [ -z "$want" ] && continue
                 grep -aq -- "$want" "$out" || { missing="$want"; break; }
             done <<'EOF'
-Inicio
-Licencia
+Welcome
+Para continuar con la instalación
 Red
 Lenguaje
 Teclado
@@ -284,7 +281,7 @@ Resumen
 Instalando
 Reiniciar
 simulación
-conectado a
+conectando a
 Acepto
 clave de recuperación
 La anoté en un lugar seguro
