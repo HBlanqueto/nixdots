@@ -174,7 +174,7 @@
                 });
 
             # Servicio D-Bus de gestión de cuentas y preparación del home.
-            userd = forAllSystems ({ system, pkgs }:
+            userd = forAllSystems ({ system, ... }:
                 mkRustTool system {
                     pname = "nixdots-userd";
                     subdir = "tools/nixdots-userd";

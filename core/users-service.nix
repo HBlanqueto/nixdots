@@ -1,7 +1,7 @@
 # Servicio de gestión de cuentas (crewd) y preparación del home en el primer
 # inicio de sesión (steward-home). También publica la referencia exacta del
 # flake instalado para que crewd reconstruya esa versión y no el repo de trabajo.
-{ config, lib, pkgs, inputs, ... }:
+{ pkgs, inputs, ... }:
 
 let
     system = pkgs.stdenv.hostPlatform.system;
@@ -68,18 +68,21 @@ in
     # Referencia exacta de la versión instalada. `source` es el source del
     # flake; `release` es TOML con el commit (o "dirty" si se construyó con
     # cambios). version/codename se definirán más adelante.
-    environment.etc."keel/source".text = inputs.self.outPath;
-    environment.etc."keel/release".text = ''
-        commit = "${inputs.self.rev or "dirty"}"
-        version = ""
-        codename = ""
-    '';
+    environment = {
+        etc."keel/source".text = inputs.self.outPath;
+        etc."keel/release".text = ''
+            commit = "${inputs.self.rev or "dirty"}"
+            version = ""
+            codename = ""
+        '';
+
+        systemPackages = [ polkitPolicy ];
+    };
 
     # Que el GC no borre la fuente desde la que crewd reconstruye.
     system.extraDependencies = [ inputs.self.outPath ];
 
     security.polkit.enable = true;
-    environment.systemPackages = [ polkitPolicy ];
     services.dbus.packages = [ dbusPolicy ];
 
     systemd.services.crewd = {

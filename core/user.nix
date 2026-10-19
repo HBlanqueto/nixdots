@@ -42,7 +42,6 @@ in
     ];
 
     time.timeZone = lib.mkIf (!timeZoneAuto) timeZone;
-    services.automatic-timezoned.enable = timeZoneAuto;
 
     i18n = {
         inherit defaultLocale;
@@ -62,11 +61,21 @@ in
         };
     };
 
-    programs.dconf.enable = true;
+    programs = {
+        dconf.enable = true;
 
-    services.displayManager.autoLogin = lib.mkIf (autoLoginUser != null) {
-        enable = true;
-        user = autoLoginUser;
+        # Herramientas de administración del sistema. Solo sirven a admins:
+        # todas acaban en sudo/nixos-rebuild. El home solo conserva
+        # `home-update`.
+        fish = {
+            enable = true;
+            shellAliases = {
+                delgen = "sudo nix-collect-garbage --delete-older-than 1d";
+                nix-update = "nixdots-rebuild sw";
+                flake-update-rb = "nixdots-rebuild update-rb";
+                flake-update-sw = "nixdots-rebuild update-sw";
+            };
+        };
     };
 
     networking.hostName = data.hostName;
@@ -76,20 +85,16 @@ in
         mutableUsers = false;
     };
 
-    services.xserver.xkb = {
-        layout = keyboardLayout;
-        variant = keyboardVariant;
-    };
-
-    programs.fish.enable = true;
-
-    # Herramientas de administración del sistema. Solo sirven a admins: todas
-    # acaban en sudo/nixos-rebuild. El home solo conserva `home-update`.
-    programs.fish.shellAliases = {
-        delgen = "sudo nix-collect-garbage --delete-older-than 1d";
-        nix-update = "nixdots-rebuild sw";
-        flake-update-rb = "nixdots-rebuild update-rb";
-        flake-update-sw = "nixdots-rebuild update-sw";
+    services = {
+        automatic-timezoned.enable = timeZoneAuto;
+        displayManager.autoLogin = lib.mkIf (autoLoginUser != null) {
+            enable = true;
+            user = autoLoginUser;
+        };
+        xserver.xkb = {
+            layout = keyboardLayout;
+            variant = keyboardVariant;
+        };
     };
 
     environment = {

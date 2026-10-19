@@ -82,7 +82,7 @@ let
     legacy = readData "user";
     legacyUsers = if legacy ? username then {
         ${legacy.username} = {
-            username = legacy.username;
+            inherit (legacy) username;
             fullName = legacy.fullName or legacy.userdescription or "";
             admin = true;
         };

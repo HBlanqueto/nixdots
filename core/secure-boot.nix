@@ -45,9 +45,11 @@ in
 
         # Sin Secure Boot basta con systemd-boot.
         (lib.mkIf (!m.secureBoot) {
-            boot.loader.systemd-boot.enable = lib.mkDefault true;
-            boot.loader.systemd-boot.configurationLimit = lib.mkDefault 5;
-            boot.loader.systemd-boot.editor = false;
+            boot.loader.systemd-boot = {
+                enable = lib.mkDefault true;
+                configurationLimit = lib.mkDefault 5;
+                editor = false;
+            };
         })
     ];
 }
