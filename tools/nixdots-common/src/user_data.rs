@@ -88,8 +88,7 @@ pub struct Prefs {
 /// `${NIXDOTS_ROOT}/persist/nixdots/users`. Construido como cadena: sin
 /// `NIXDOTS_ROOT` la ruta debe quedar absoluta (`/persist/...`), no relativa.
 pub fn users_dir() -> PathBuf {
-    let root = std::env::var("NIXDOTS_ROOT").unwrap_or_default();
-    PathBuf::from(format!("{root}/persist/nixdots/users"))
+    crate::paths::persist().join("users")
 }
 
 /// `users/<username>.toml`.
@@ -305,8 +304,7 @@ fn owner(username: &str) -> Option<(u32, u32)> {
 
 /// `${NIXDOTS_ROOT}/persist/nixdots/user.json`, el formato antiguo.
 pub fn legacy_path() -> PathBuf {
-    let root = std::env::var("NIXDOTS_ROOT").unwrap_or_default();
-    PathBuf::from(format!("{root}/persist/nixdots/user.json"))
+    crate::paths::persist().join("user.json")
 }
 
 /// Formato antiguo de `user.json` (un único usuario con los campos de sistema

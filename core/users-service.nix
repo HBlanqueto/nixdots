@@ -20,7 +20,12 @@ let
         exec ${setupGui}/bin/nixdots-setup-gui --home-init
     '';
 
-    polkitPolicy = pkgs.writeText "org.nixdots.users.manage.policy" ''
+    # Polkit lee las acciones de XDG_DATA_DIRS (`share/polkit-1`), no de
+    # /etc/polkit-1/actions: se instala como paquete.
+    polkitPolicy = pkgs.writeTextFile {
+        name = "org.nixdots.users.manage.policy";
+        destination = "/share/polkit-1/actions/org.nixdots.users.manage.policy";
+        text = ''
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
           "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
@@ -36,7 +41,29 @@ let
             </defaults>
           </action>
         </policyconfig>
-    '';
+        '';
+    };
+
+    # Política del bus del sistema: root es el dueño del nombre y cualquier
+    # usuario puede llamar (polkit decide si se autoriza).
+    dbusPolicy = pkgs.writeTextFile {
+        name = "org.nixdots.Users1.conf";
+        destination = "/share/dbus-1/system.d/org.nixdots.Users1.conf";
+        text = ''
+            <?xml version="1.0"?>
+            <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+              "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+            <busconfig>
+              <policy user="root">
+                <allow own="org.nixdots.Users1"/>
+              </policy>
+              <policy context="default">
+                <allow send_destination="org.nixdots.Users1"/>
+                <allow receive_sender="org.nixdots.Users1"/>
+              </policy>
+            </busconfig>
+        '';
+    };
 in
 {
     # Referencia exacta de la versión instalada. `flake-ref` es el source del
@@ -48,7 +75,8 @@ in
     system.extraDependencies = [ inputs.self.outPath ];
 
     security.polkit.enable = true;
-    environment.etc."polkit-1/actions/org.nixdots.users.manage.policy".source = polkitPolicy;
+    environment.systemPackages = [ polkitPolicy ];
+    services.dbus.packages = [ dbusPolicy ];
 
     systemd.services.nixdots-userd = {
         description = "nixdots user management service";
@@ -60,7 +88,8 @@ in
         path = with pkgs; [ nixos-rebuild nix git mkpasswd coreutils ];
 
         environment = {
-            NIXDOTS_ROOT = "/persist";
+            # Vacío = /persist (las rutas son ${NIXDOTS_ROOT}/persist/nixdots).
+            NIXDOTS_ROOT = "";
             NIX_CONFIG = "experimental-features = nix-command flakes";
         };
 

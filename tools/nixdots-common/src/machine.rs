@@ -15,8 +15,7 @@ use std::path::{Path, PathBuf};
 
 /// `${NIXDOTS_ROOT}/persist/nixdots/machine.toml`.
 pub fn path() -> PathBuf {
-    let root = std::env::var("NIXDOTS_ROOT").unwrap_or_default();
-    PathBuf::from(format!("{root}/persist/nixdots/machine.toml"))
+    crate::paths::persist().join("machine.toml")
 }
 
 /// Fusiona `fields` (cambiando solo esas claves) sobre el `machine.toml` que

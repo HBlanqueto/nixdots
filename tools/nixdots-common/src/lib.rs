@@ -4,6 +4,8 @@
 
 pub mod crypto;
 pub mod machine;
+pub mod paths;
+pub mod rebuild;
 pub mod runner;
 pub mod settings;
 pub mod store;
