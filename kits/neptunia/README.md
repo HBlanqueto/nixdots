@@ -18,6 +18,7 @@ kits/neptunia/
 ├── generated/         salidas ya generadas, para quien no use Nix (SlintPad, otro repo)
 │   ├── neptunia.slint   globals Theme y Metrics para Slint
 │   ├── neptunia.css     variables CSS (GTK4, web)
+│   ├── Neptunia.qml     singleton QtQuick
 │   └── kmscon-palette   argumentos `--palette*` de kmscon
 └── demo.slint         galería para ajustar a ojo con slint-viewer o SlintPad
 ```
@@ -31,6 +32,7 @@ Nadie escribe un color ni una medida a mano. Si cambia el diseño, cambia
 cd kits/neptunia
 nix eval --raw -f . slint > generated/neptunia.slint
 nix eval --raw -f . css   > generated/neptunia.css
+nix eval --raw -f . qml   > generated/Neptunia.qml
 cp "$(nix build .#kmscon-palette --print-out-paths)" generated/kmscon-palette
 ```
 
@@ -44,6 +46,36 @@ todo el escritorio). El mismo bloque elige el estilo de los semáforos —`macos
 (avisos, error, éxito…) nunca se tintan y `layer-factors` fija cuánto se aclara
 u oscurece cada capa.
 
+## Valores de la shell y del compositor
+
+| Token / medida | Valor | Uso |
+| --- | --- | --- |
+| `traffic-close` / `traffic-min` / `traffic-zoom` | `#ff5f57` / `#febc2e` / `#28c840` | Semáforos estilo macOS, iguales en los tres temas |
+| `traffic-inactive` | `#d3d3d5` claro; `#4e4e50` oscuro y dark-tint | Semáforos sin foco |
+| `traffic-rim` | `#00000033` | Aro de 0,5 px |
+| `traffic-glyph` | `#0000008c` | Glifo de los semáforos |
+| `titlebar-bg` / `titlebar-bg-inactive` | `bg-window` / `bg-sunken` | Barra de título |
+| `titlebar-title` / `titlebar-title-inactive` | `ink-strong` / `ink-muted` | Texto de la barra |
+| `titlebar-line` | `line` | Línea de la barra |
+| `size.titlebar-h` | `44` | Barra de las apps propias |
+| `size.titlebar-ssd-h` | `32` | Barra que dibuja el compositor para apps de terceros con decoración del servidor |
+| `font.families.sans` | `Geist, "Noto Sans CJK SC", system-ui, sans-serif` | Familia de la interfaz |
+| `font.styles.titlebar-title` | 13 px, 17 px de línea, 600 | Título de la barra |
+| `font.weights` | 400, 500, 600, 650, 700 | Pesos usados |
+| `shell-bar` | `#f2f4f7e6` / `#1e1e1ee6` / `#1d1e20e6` | Fondo translúcido de menubar/dock |
+| `shell.menubar` | 28 px; 13/500; margen 10; `shell-bar` / `ink-strong` | Menubar |
+| `shell.dock` | tile 48, gap 6, padding 8, tile-radius 16, radius 24, indicator 4; `bg-control` / `accent` / `on-accent` | Dock |
+| `shell.lock` | título 24/600; campo `text-field`; `scrim` | Lock |
+| `shadow.layers.window` | light 48/18/0.18 + 12/4/0.08; dark y dark-tint 56/22/0.55 + 16/6/0.35 | Sombra de ventana por capas |
+| `shadow.layers.window.unfocused-scale` | `0.5` | Sombra sin foco |
+| `shadow.layers.float` | light 28/10/0.16; dark y dark-tint 32/12/0.50 | Sombra flotante |
+
+**32 px es la barra del compositor para apps de terceros; 44 px es la de las
+apps propias.**
+
+Los colores con alfa se guardan como `#rrggbbaa` en los JSON, Slint y CSS, y
+como `#aarrggbb` en QML.
+
 ## Cómo lo lee cada proyecto
 
 | Proyecto | Cómo se sincroniza |
@@ -51,8 +83,23 @@ u oscurece cada capa.
 | Psamathe y apps Triton (Slint) | `import { Theme, Metrics } from "…/neptunia.slint";`. Desde Nix: `(import ./kits/neptunia).slint`; o copia `generated/neptunia.slint`. Cambiar de tema es `Theme.mode = NeptuniaMode.dark;`. |
 | Instalador (ratatui) | Sigue con la paleta de terminal de `kits/neptunia/neptunia.nix`. Si algún día quiere los grises de interfaz: `serde_json` sobre `tokens.json` con `include_str!`. |
 | GTK4 / web | `neptunia.css` con `data-theme="dark"` o `"dark-tint"` en la raíz. |
+| Qt / QML | `generated/Neptunia.qml` como singleton; los alfa van en `#aarrggbb`. |
 | Home Manager | `xdg.configFile."neptunia".source = (import ./kits/neptunia).files pkgs;` deja los archivos generados y los JSON en `~/.config/neptunia/`, y cualquier app los lee de ahí. |
 | Otro repo futuro | Como input del flake (`inputs.nixdots`) y `import "${inputs.nixdots}/kits/neptunia"`, o leyendo `tokens.json` directamente. Cada proyecto genera lo suyo a su manera; los datos son los mismos. |
+
+## Comprobar las salidas
+
+El flake compara `generated/` con lo que produce `default.nix` y compila
+`demo.slint` con `slint-viewer` bajo Xvfb:
+
+```sh
+nix flake check
+# o, para regenerar:
+cd kits/neptunia
+nix eval --raw -f . slint > generated/neptunia.slint
+nix eval --raw -f . css   > generated/neptunia.css
+nix eval --raw -f . qml   > generated/Neptunia.qml
+```
 
 ## Ajustar una pantalla sin recompilar Rust
 
