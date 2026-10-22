@@ -1,7 +1,7 @@
 {
   "name": "neptunia-components",
   "description": "Medidas y estados de los componentes aprobados. Cada implementación (Slint, GTK, QML, web) debe respetar estos números; los colores son nombres de tokens de tokens.json.",
-  "updated": "2026-10-17",
+  "updated": "2026-10-22",
   "components": {
     "button": {
       "height": 30, "height-lg": 38, "height-sm": 24, "padding-x": 16, "padding-x-lg": 22, "padding-x-sm": 12, "min-width-lg": 112,
@@ -64,7 +64,8 @@
       "radius": "radius.lg", "bg": "bg-window", "titlebar-height": "size.titlebar-h", "sidebar-width": "size.sidebar-w",
       "outer-border": "window-outer", "inner-line": "window-inner",
       "traffic-lights": {
-        "size": 12, "radius": "radius.xs", "gap": 8, "pressed-darken": 0.2,
+        "size": 12, "radius": "radius.xs", "gap": 8, "margin-start": 16, "pressed-darken": 0.2,
+        "rim": { "color": "traffic-rim", "width": 0.5 },
         "colors": ["traffic-close", "traffic-min", "traffic-zoom"],
         "rule": "Mismos colores en todos los temas.",
         "styles": {
@@ -73,15 +74,26 @@
           "accent": { "source": "accent", "close-minimize": "mezcla 28 % hacia negro", "zoom": "mezcla 58 % hacia blanco", "glyph-on-dark": "#ffffffd1", "glyph-on-light": "#000000b0" },
           "wallpaper": { "source": "color dominante del fondo", "rule": "misma fórmula que accent" }
         },
-        "inactive": { "light": "#d3d3d5", "dark": "#4e4e50" },
+        "inactive": { "light": "#d3d3d5", "dark": "#4e4e50", "dark-tint": "#4e4e50" },
         "variants": ["derecha con orden invertido", "solo cerrar en diálogos", "sobre la barra lateral"]
       }
+    },
+    "ssd-titlebar": {
+      "height": "size.titlebar-ssd-h",
+      "title": { "align": "center", "reserve": "margin-start + ancho del grupo de semáforos + 12 px a cada lado", "truncate": "…", "lines": 1 },
+      "corners": "radius.lg",
+      "rule": "Barra que dibuja el compositor para apps de terceros con decoración del servidor. La de las apps propias mide size.titlebar-h = 44."
     },
     "dialog": { "radius": "radius.lg", "bg": "bg-raised", "padding": 20, "scrim": "scrim", "outer-border": "window-outer", "inner-line": "window-inner" },
     "menu-popover": { "radius": "radius.md", "bg": "bg-raised", "item-height": 26, "item-radius": "radius.sm", "outer-border": "window-outer", "inner-line": "window-inner" },
     "progress": { "height": 6, "radius": "radius.pill", "track": "bg-control", "fill": "accent", "ring": { "size": 28, "stroke": 3.5 } },
     "badge": { "height": 20, "padding-x": 8, "radius": "radius.pill", "font": "caption" },
-    "focus-ring": { "width": 2, "offset": 2, "color": "accent-strong", "rule": "Solo al navegar con teclado." }
+    "focus-ring": { "width": 2, "offset": 2, "color": "accent-strong", "rule": "Solo al navegar con teclado." },
+    "shell": {
+      "menubar": { "height": 28, "font": { "size": 13, "weight": 500 }, "margin-x": 10, "bg": "shell-bar", "text": "ink-strong" },
+      "dock": { "tile-size": 48, "gap": 6, "padding": 8, "tile-radius": 16, "radius": 24, "tile": "bg-control", "tile-active": "accent", "tile-text-active": "on-accent", "indicator": 4 },
+      "lock": { "title": { "size": 24, "weight": 600 }, "field": "text-field", "scrim": "scrim" }
+    }
   },
   "appearance": {
     "status": "idea en estudio",
