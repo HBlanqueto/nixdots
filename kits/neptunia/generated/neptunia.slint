@@ -45,6 +45,7 @@ export global Theme {
     out property <color> preview-light-window: mode == NeptuniaMode.dark ? #f2f4f7 : mode == NeptuniaMode.dark-tint ? #f2f4f7 : #f2f4f7;
     out property <color> scrim: mode == NeptuniaMode.dark ? #00000080 : mode == NeptuniaMode.dark-tint ? #00000080 : #0d121947;
     out property <color> shadow-soft: mode == NeptuniaMode.dark ? #0d12192e : mode == NeptuniaMode.dark-tint ? #0d12192e : #0d12192e;
+    out property <color> shell-bar: mode == NeptuniaMode.dark ? #1e1e1ee6 : mode == NeptuniaMode.dark-tint ? #1d1e20e6 : #f2f4f7e6;
     out property <color> success: mode == NeptuniaMode.dark ? #5fcf7c : mode == NeptuniaMode.dark-tint ? #5fcf7c : #1a7f37;
     out property <color> sys-blue: mode == NeptuniaMode.dark ? #2f6fe4 : mode == NeptuniaMode.dark-tint ? #2f6fe4 : #2f6fe4;
     out property <color> sys-cyan: mode == NeptuniaMode.dark ? #0f86b8 : mode == NeptuniaMode.dark-tint ? #0f86b8 : #0f86b8;
@@ -53,9 +54,17 @@ export global Theme {
     out property <color> sys-orange: mode == NeptuniaMode.dark ? #e8780e : mode == NeptuniaMode.dark-tint ? #e8780e : #e8780e;
     out property <color> sys-purple: mode == NeptuniaMode.dark ? #8e5bd8 : mode == NeptuniaMode.dark-tint ? #8e5bd8 : #8e5bd8;
     out property <color> sys-red: mode == NeptuniaMode.dark ? #d6363b : mode == NeptuniaMode.dark-tint ? #d6363b : #d6363b;
-    out property <color> traffic-close: mode == NeptuniaMode.dark ? #e0625d : mode == NeptuniaMode.dark-tint ? #e0625d : #e0625d;
-    out property <color> traffic-min: mode == NeptuniaMode.dark ? #d9a63a : mode == NeptuniaMode.dark-tint ? #d9a63a : #d9a63a;
-    out property <color> traffic-zoom: mode == NeptuniaMode.dark ? #4fae5f : mode == NeptuniaMode.dark-tint ? #4fae5f : #4fae5f;
+    out property <color> titlebar-bg: mode == NeptuniaMode.dark ? #1e1e1e : mode == NeptuniaMode.dark-tint ? #1d1e20 : #f2f4f7;
+    out property <color> titlebar-bg-inactive: mode == NeptuniaMode.dark ? #161616 : mode == NeptuniaMode.dark-tint ? #151617 : #e7ebf1;
+    out property <color> titlebar-line: mode == NeptuniaMode.dark ? #333333 : mode == NeptuniaMode.dark-tint ? #323336 : #d6dce5;
+    out property <color> titlebar-title: mode == NeptuniaMode.dark ? #f5f5f5 : mode == NeptuniaMode.dark-tint ? #f4f5f6 : #0d1219;
+    out property <color> titlebar-title-inactive: mode == NeptuniaMode.dark ? #9b9b9b : mode == NeptuniaMode.dark-tint ? #999ca3 : #55657e;
+    out property <color> traffic-close: mode == NeptuniaMode.dark ? #ff5f57 : mode == NeptuniaMode.dark-tint ? #ff5f57 : #ff5f57;
+    out property <color> traffic-glyph: mode == NeptuniaMode.dark ? #0000008c : mode == NeptuniaMode.dark-tint ? #0000008c : #0000008c;
+    out property <color> traffic-inactive: mode == NeptuniaMode.dark ? #4e4e50 : mode == NeptuniaMode.dark-tint ? #4e4e50 : #d3d3d5;
+    out property <color> traffic-min: mode == NeptuniaMode.dark ? #febc2e : mode == NeptuniaMode.dark-tint ? #febc2e : #febc2e;
+    out property <color> traffic-rim: mode == NeptuniaMode.dark ? #00000033 : mode == NeptuniaMode.dark-tint ? #00000033 : #00000033;
+    out property <color> traffic-zoom: mode == NeptuniaMode.dark ? #28c840 : mode == NeptuniaMode.dark-tint ? #28c840 : #28c840;
     out property <color> wallpaper-fallback: mode == NeptuniaMode.dark ? #2b3038 : mode == NeptuniaMode.dark-tint ? #2b3038 : #2b3038;
     out property <color> wallpaper-glass: mode == NeptuniaMode.dark ? #ffffff3d : mode == NeptuniaMode.dark-tint ? #ffffff3d : #ffffff3d;
     out property <color> wallpaper-glass-border: mode == NeptuniaMode.dark ? #ffffff29 : mode == NeptuniaMode.dark-tint ? #ffffff29 : #ffffff29;
@@ -89,14 +98,16 @@ export global Theme {
     out property <length> control-sm: 24px;
     out property <length> sidebar-w: 220px;
     out property <length> titlebar-h: 44px;
+    out property <length> titlebar-ssd-h: 32px;
     out property <duration> dur-base: 220ms;
     out property <duration> dur-fast: 120ms;
     out property <duration> dur-slow: 420ms;
 
     // Tipografía
-    out property <string> font-sans: "Inter";
+    out property <string> font-sans: "Geist";
     out property <string> font-mono: "SF Mono Ligaturized";
     out property <string> font-script: "Dancing Script";
+    out property <[int]> font-weights: [400, 500, 600, 650, 700];
     out property <length> text-body-size: 13px;
     out property <length> text-callout-size: 12px;
     out property <length> text-caption-size: 11px;
@@ -106,6 +117,7 @@ export global Theme {
     out property <length> text-mono-size: 12px;
     out property <length> text-title-1-size: 20px;
     out property <length> text-title-2-size: 15px;
+    out property <length> text-titlebar-title-size: 13px;
     out property <int> text-body-weight: 400;
     out property <int> text-callout-weight: 400;
     out property <int> text-caption-weight: 500;
@@ -115,6 +127,7 @@ export global Theme {
     out property <int> text-mono-weight: 400;
     out property <int> text-title-1-weight: 650;
     out property <int> text-title-2-weight: 600;
+    out property <int> text-titlebar-title-weight: 600;
 
     // Sombras (Slint admite una por elemento)
     out property <length> shadow-window-offset-y: 18px;
@@ -126,6 +139,36 @@ export global Theme {
     out property <length> shadow-knob-offset-y: 1px;
     out property <length> shadow-knob-blur: 3px;
     out property <color> shadow-knob-color: #0d12194d;
+
+    // Sombras por capas (los textos CSS siguen arriba).
+    out property <float> shadow-window-unfocused-scale: 0.500000;
+out property <length> shadow-window-light-ambient-blur: 48px;
+out property <length> shadow-window-light-ambient-offset-y: 18px;
+out property <float> shadow-window-light-ambient-opacity: 0.180000;
+out property <length> shadow-window-light-contact-blur: 12px;
+out property <length> shadow-window-light-contact-offset-y: 4px;
+out property <float> shadow-window-light-contact-opacity: 0.080000;
+out property <length> shadow-window-dark-ambient-blur: 56px;
+out property <length> shadow-window-dark-ambient-offset-y: 22px;
+out property <float> shadow-window-dark-ambient-opacity: 0.550000;
+out property <length> shadow-window-dark-contact-blur: 16px;
+out property <length> shadow-window-dark-contact-offset-y: 6px;
+out property <float> shadow-window-dark-contact-opacity: 0.350000;
+out property <length> shadow-window-dark-tint-ambient-blur: 56px;
+out property <length> shadow-window-dark-tint-ambient-offset-y: 22px;
+out property <float> shadow-window-dark-tint-ambient-opacity: 0.550000;
+out property <length> shadow-window-dark-tint-contact-blur: 16px;
+out property <length> shadow-window-dark-tint-contact-offset-y: 6px;
+out property <float> shadow-window-dark-tint-contact-opacity: 0.350000;
+out property <length> shadow-float-light-blur: 28px;
+out property <length> shadow-float-light-offset-y: 10px;
+out property <float> shadow-float-light-opacity: 0.160000;
+out property <length> shadow-float-dark-blur: 32px;
+out property <length> shadow-float-dark-offset-y: 12px;
+out property <float> shadow-float-dark-opacity: 0.500000;
+out property <length> shadow-float-dark-tint-blur: 32px;
+out property <length> shadow-float-dark-tint-offset-y: 12px;
+out property <float> shadow-float-dark-tint-opacity: 0.500000;
 
     // Acentos de sistema (GNOME), seleccionables junto al de Neptunia.
     out property <[NeptuniaAccent]> accents: [
@@ -199,12 +242,27 @@ export global Metrics {
     out property <length> segmented-segment-height: 26px;
     out property <length> segmented-segment-padding-x: 12px;
     out property <length> segmented-segment-radius: 6px;
+    out property <length> shell-dock-gap: 6px;
+    out property <length> shell-dock-indicator: 4px;
+    out property <length> shell-dock-padding: 8px;
+    out property <length> shell-dock-radius: 24px;
+    out property <length> shell-dock-tile-radius: 16px;
+    out property <length> shell-dock-tile-size: 48px;
+    out property <length> shell-lock-title-size: 24px;
+    out property <int> shell-lock-title-weight: 600;
+    out property <length> shell-menubar-font-size: 13px;
+    out property <int> shell-menubar-font-weight: 500;
+    out property <length> shell-menubar-height: 28px;
+    out property <length> shell-menubar-margin-x: 10px;
     out property <length> slider-fat-fill-min: 22px;
     out property <length> slider-fat-height: 22px;
     out property <length> slider-fat-lead-icon-x: 8px;
     out property <length> slider-height: 20px;
     out property <length> slider-knob: 20px;
     out property <length> slider-track: 4px;
+    out property <length> ssd-titlebar-corners: 16px;
+    out property <length> ssd-titlebar-height: 32px;
+    out property <int> ssd-titlebar-title-lines: 1;
     out property <float> switch-disabled-opacity: 0.400000;
     out property <length> switch-height: 18px;
     out property <length> switch-inset: 2px;
@@ -237,7 +295,9 @@ export global Metrics {
     out property <length> window-sidebar-width: 220px;
     out property <length> window-titlebar-height: 44px;
     out property <length> window-traffic-lights-gap: 8px;
+    out property <length> window-traffic-lights-margin-start: 16px;
     out property <length> window-traffic-lights-pressed-darken: 0.200000px;
     out property <length> window-traffic-lights-radius: 4px;
+    out property <length> window-traffic-lights-rim-width: 0.500000px;
     out property <length> window-traffic-lights-size: 12px;
 }

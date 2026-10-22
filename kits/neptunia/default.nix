@@ -7,6 +7,7 @@
 #
 #   nix eval --raw -f kits/neptunia slint > generated/neptunia.slint
 #   nix eval --raw -f kits/neptunia css   > generated/neptunia.css
+#   nix eval --raw -f kits/neptunia qml   > generated/Neptunia.qml
 #
 # Desde un módulo: (import ./kits/neptunia).slint, o `files pkgs` para una
 # derivación con los archivos generados.
@@ -32,6 +33,26 @@ let
   colorNames = attrNames tokens.themes.light;
   lines = f: xs: concatStringsSep "\n" (map f xs);
   num = v: if isFloat v then toString v else toString v;
+  ident = s: builtins.replaceStrings [ "-" ] [ "_" ] s;
+  firstFamily = f: let parts = builtins.split "," f; in
+    builtins.replaceStrings [ "\"" ] [ "" ] (builtins.head parts);
+  # QML expects #aarrggbb; the JSON/slint/css use #rrggbbaa.
+  qmlColor = c:
+    if builtins.stringLength c == 9
+    then "#${builtins.substring 7 2 c}${builtins.substring 1 6 c}"
+    else c;
+  layerNames = [
+    "window.light"
+    "window.dark"
+    "window.dark-tint"
+    "float.light"
+    "float.dark"
+    "float.dark-tint"
+  ];
+  layerValue = name: path:
+    let parts = builtins.split "\\." "${name}.${path}";
+        clean = builtins.filter builtins.isString parts;
+    in builtins.foldl' (acc: k: acc.${k}) tokens.shadow.layers clean;
 
   # Medidas numéricas de components.json, aplanadas: switch.small.width → switch-small-width
   flatten =
@@ -72,7 +93,7 @@ let
     m:
     if m.duration then
       "duration"
-    else if match ".*(weight|columns).*" m.name != null then
+    else if match ".*(weight|columns|lines).*" m.name != null then
       "int"
     else if match ".*(opacity|scale).*" m.name != null then
       "float"
@@ -126,9 +147,10 @@ let
     )}
 
         // Tipografía
-        out property <string> font-sans: "Inter";
-        out property <string> font-mono: "SF Mono Ligaturized";
-        out property <string> font-script: "Dancing Script";
+        out property <string> font-sans: "${firstFamily tokens.font.families.sans}";
+        out property <string> font-mono: "${firstFamily tokens.font.families.mono}";
+        out property <string> font-script: "${firstFamily tokens.font.families.script}";
+        out property <[int]> font-weights: [${concatStringsSep ", " (map toString tokens.font.weights)}];
     ${lines (
       s: "    out property <length> text-${s}-size: ${num tokens.font.styles.${s}.size}px;"
     ) styleNames}
@@ -146,6 +168,28 @@ let
         out property <length> shadow-knob-offset-y: ${num sh.knob."offset-y"}px;
         out property <length> shadow-knob-blur: ${num sh.knob.blur}px;
         out property <color> shadow-knob-color: ${sh.knob.color};
+
+        // Sombras por capas (los textos CSS siguen arriba).
+        out property <float> shadow-window-unfocused-scale: ${num tokens.shadow.layers.window.unfocused-scale};
+    ${lines (th: ''
+        out property <length> shadow-window-${th}-ambient-blur: ${num tokens.shadow.layers.window.${th}.ambient.blur}px;
+        out property <length> shadow-window-${th}-ambient-offset-y: ${num tokens.shadow.layers.window.${th}.ambient.y}px;
+        out property <float> shadow-window-${th}-ambient-opacity: ${num tokens.shadow.layers.window.${th}.ambient.opacity};
+        out property <length> shadow-window-${th}-contact-blur: ${num tokens.shadow.layers.window.${th}.contact.blur}px;
+        out property <length> shadow-window-${th}-contact-offset-y: ${num tokens.shadow.layers.window.${th}.contact.y}px;
+        out property <float> shadow-window-${th}-contact-opacity: ${num tokens.shadow.layers.window.${th}.contact.opacity};'') [
+      "light"
+      "dark"
+      "dark-tint"
+    ]}
+    ${lines (th: ''
+        out property <length> shadow-float-${th}-blur: ${num tokens.shadow.layers.float.${th}.blur}px;
+        out property <length> shadow-float-${th}-offset-y: ${num tokens.shadow.layers.float.${th}.y}px;
+        out property <float> shadow-float-${th}-opacity: ${num tokens.shadow.layers.float.${th}.opacity};'') [
+      "light"
+      "dark"
+      "dark-tint"
+    ]}
 
         // Acentos de sistema (GNOME), seleccionables junto al de Neptunia.
         out property <[NeptuniaAccent]> accents: [
@@ -190,6 +234,63 @@ let
       --font-sans: ${tokens.font.families.sans};
       --font-mono: ${tokens.font.families.mono};
       --font-script: ${tokens.font.families.script};
+      --font-weights: ${concatStringsSep " " (map toString tokens.font.weights)};
+    ${lines (s: "  --text-${s}-size: ${num tokens.font.styles.${s}.size}px;") styleNames}
+    ${lines (s: "  --text-${s}-line-height: ${num tokens.font.styles.${s}.line-height}px;") styleNames}
+    ${lines (s: "  --text-${s}-weight: ${num tokens.font.styles.${s}.weight};") styleNames}
+    ${lines (th: ''
+      --shadow-window-${th}-ambient-blur: ${num tokens.shadow.layers.window.${th}.ambient.blur}px;
+      --shadow-window-${th}-ambient-offset-y: ${num tokens.shadow.layers.window.${th}.ambient.y}px;
+      --shadow-window-${th}-ambient-opacity: ${num tokens.shadow.layers.window.${th}.ambient.opacity};
+      --shadow-window-${th}-contact-blur: ${num tokens.shadow.layers.window.${th}.contact.blur}px;
+      --shadow-window-${th}-contact-offset-y: ${num tokens.shadow.layers.window.${th}.contact.y}px;
+      --shadow-window-${th}-contact-opacity: ${num tokens.shadow.layers.window.${th}.contact.opacity};
+      --shadow-float-${th}-blur: ${num tokens.shadow.layers.float.${th}.blur}px;
+      --shadow-float-${th}-offset-y: ${num tokens.shadow.layers.float.${th}.y}px;
+      --shadow-float-${th}-opacity: ${num tokens.shadow.layers.float.${th}.opacity};'') [
+      "light"
+      "dark"
+      "dark-tint"
+    ]}
+      --shadow-window-unfocused-scale: ${num tokens.shadow.layers.window.unfocused-scale};
+    ${lines (m: "  --${m.name}: ${metricValue m};") metrics}
+    }
+  '';
+
+  qml = ''
+    // Generado desde kits/neptunia. No editar a mano.
+    pragma Singleton
+    import QtQuick
+
+    QtObject {
+      readonly property string fontSans: "${firstFamily tokens.font.families.sans}"
+      readonly property string fontMono: "${firstFamily tokens.font.families.mono}"
+      readonly property string fontScript: "${firstFamily tokens.font.families.script}"
+      readonly property var fontWeights: [${concatStringsSep ", " (map toString tokens.font.weights)}]
+    ${lines (th: lines (n: "  readonly property color ${ident th}_${ident n}: ${qmlColor tokens.themes.${th}.${n}};") colorNames) themes}
+    ${lines (n: "  readonly property real radius_${ident n}: ${num tokens.radius.${n}};") (attrNames tokens.radius)}
+    ${lines (n: "  readonly property real space_${ident n}: ${num tokens.space.${n}};") (attrNames tokens.space)}
+    ${lines (n: "  readonly property real size_${ident n}: ${num tokens.size.${n}};") (attrNames tokens.size)}
+    ${lines (n: "  readonly property real duration_${ident n}: ${num tokens.duration.${n}};") (attrNames tokens.duration)}
+    ${lines (s: "  readonly property real text_${ident s}_size: ${num tokens.font.styles.${s}.size};") styleNames}
+    ${lines (s: "  readonly property real text_${ident s}_line_height: ${num tokens.font.styles.${s}.line-height};") styleNames}
+    ${lines (s: "  readonly property int text_${ident s}_weight: ${num tokens.font.styles.${s}.weight};") styleNames}
+    ${lines (th: ''
+      readonly property real shadow_window_${ident th}_ambient_blur: ${num tokens.shadow.layers.window.${th}.ambient.blur};
+      readonly property real shadow_window_${ident th}_ambient_offset_y: ${num tokens.shadow.layers.window.${th}.ambient.y};
+      readonly property real shadow_window_${ident th}_ambient_opacity: ${num tokens.shadow.layers.window.${th}.ambient.opacity};
+      readonly property real shadow_window_${ident th}_contact_blur: ${num tokens.shadow.layers.window.${th}.contact.blur};
+      readonly property real shadow_window_${ident th}_contact_offset_y: ${num tokens.shadow.layers.window.${th}.contact.y};
+      readonly property real shadow_window_${ident th}_contact_opacity: ${num tokens.shadow.layers.window.${th}.contact.opacity};
+      readonly property real shadow_float_${ident th}_blur: ${num tokens.shadow.layers.float.${th}.blur};
+      readonly property real shadow_float_${ident th}_offset_y: ${num tokens.shadow.layers.float.${th}.y};
+      readonly property real shadow_float_${ident th}_opacity: ${num tokens.shadow.layers.float.${th}.opacity};'') [
+      "light"
+      "dark"
+      "dark-tint"
+    ]}
+      readonly property real shadow_window_unfocused_scale: ${num tokens.shadow.layers.window.unfocused-scale};
+    ${lines (m: "  readonly property real ${ident m.name}: ${num m.value};") metrics}
     }
   '';
 
@@ -202,6 +303,7 @@ rec {
     themes
     slint
     css
+    qml
     ;
 
   filecolors = import ./filecolors.nix;
@@ -215,6 +317,7 @@ rec {
       mkdir -p $out
       cp ${pkgs.writeText "neptunia.slint" slint} $out/neptunia.slint
       cp ${pkgs.writeText "neptunia.css" css} $out/neptunia.css
+      cp ${pkgs.writeText "Neptunia.qml" qml} $out/Neptunia.qml
       cp ${./tokens.json} $out/tokens.json
       cp ${./components.json} $out/components.json
     '';
