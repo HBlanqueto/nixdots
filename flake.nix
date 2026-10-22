@@ -216,15 +216,30 @@
             ok=1
             ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/neptunia.slint} ${pkgs.writeText "g.slint" theme.slint} || ok=0
             ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/neptunia.css} ${pkgs.writeText "g.css" theme.css} || ok=0
+            ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/Neptunia.qml} ${pkgs.writeText "g.qml" theme.qml} || ok=0
             ${pkgs.diffutils}/bin/diff -u ${./kits/neptunia/generated/kmscon-palette} ${palette} || ok=0
             if [ "$ok" = 0 ]; then
                 echo "" >&2
                 echo "kits/neptunia/generated está desactualizado. Regéneralo con:" >&2
                 echo "  nix eval --raw -f kits/neptunia slint > kits/neptunia/generated/neptunia.slint" >&2
                 echo "  nix eval --raw -f kits/neptunia css   > kits/neptunia/generated/neptunia.css" >&2
+                echo "  nix eval --raw -f kits/neptunia qml   > kits/neptunia/generated/Neptunia.qml" >&2
                 echo "  cp \$(nix build .#kmscon-palette --print-out-paths) kits/neptunia/generated/kmscon-palette" >&2
                 exit 1
             fi
+            ${pkgs.coreutils}/bin/touch $out
+          '';
+
+          # demo.slint must compile and render. NpButton is the smallest
+          # component with a real size, so it exercises the whole file.
+          slint-demo = pkgs.runCommand "check-slint-demo" {
+            nativeBuildInputs = with pkgs; [ slint-viewer xvfb-run ];
+          } ''
+            export HOME=$TMPDIR
+            cd ${./kits/neptunia}
+            xvfb-run -a slint-viewer demo.slint --component NpButton \
+              --screenshot $TMPDIR/demo.png --backend software
+            test -s $TMPDIR/demo.png
             ${pkgs.coreutils}/bin/touch $out
           '';
         }
@@ -247,7 +262,6 @@
           kmscon-palette = installerPackages.${system}.kmscon-palette;
 
           nixdots-rebuild = systemPackages.${system}.nixdots-rebuild;
-          xnu-console-font = systemPackages.${system}.xnu-console-font;
         }
       );
 
