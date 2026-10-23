@@ -107,6 +107,8 @@ in
       requires = [ "dbus.service" ];
 
       serviceConfig = {
+        Type = "dbus";
+        BusName = "io.github.HBlanqueto.Userd1";
         ExecStart = "${cfg.package}/bin/nixos-userd";
         Restart = "on-failure";
         RestartSec = 2;
