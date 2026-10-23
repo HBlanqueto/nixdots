@@ -1,0 +1,140 @@
+//! Interfaces D-Bus del daemon y conformidad con los XML versionados.
+
+pub mod job;
+pub mod manager;
+
+pub use job::Job;
+pub use manager::Manager;
+
+/// Errores propios, bajo `io.github.HBlanqueto.Userd1.Error`.
+///
+/// El prefijo del derive debe ser literal (limitación de zbus); el test de
+/// conformidad comprueba que coincide con `userd_core::names::ERROR_NAMESPACE`.
+#[derive(Debug, zbus::DBusError)]
+#[zbus(prefix = "io.github.HBlanqueto.Userd1.Error")]
+pub enum DbusError {
+    #[zbus(error)]
+    Zbus(zbus::Error),
+    NotFound(String),
+    PermissionDenied(String),
+    InvalidConfig(String),
+    BackendUnavailable(String),
+    ReadOnly(String),
+    Conflict(String),
+    Failed(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+
+    use userd_core::ids::JobId;
+    use userd_core::names::{ErrorKind, JOB_INTERFACE, MANAGER_INTERFACE};
+    use zbus::object_server::Interface;
+
+    use super::{DbusError, Job, Manager};
+    use crate::config::Config;
+    use crate::jobs::Scheduler;
+    use crate::store::UserStore;
+
+    struct Fixture {
+        manager: Manager,
+        scheduler: Arc<Scheduler>,
+        dir: PathBuf,
+    }
+
+    fn fixture() -> Fixture {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("userd-conformance-{}-{nanos}", std::process::id()));
+        let config = Arc::new(Config {
+            state_dir: dir.join("state"),
+            ..Config::default()
+        });
+        std::fs::create_dir_all(config.users_dir()).expect("users dir");
+        let (_store, _events) = UserStore::open(config.users_dir()).expect("store");
+        let scheduler = Scheduler::open(&config).expect("scheduler");
+        let manager = Manager::new(Arc::clone(&scheduler), Arc::clone(&config), None);
+        Fixture {
+            manager,
+            scheduler,
+            dir,
+        }
+    }
+
+    fn rendered(interface: &impl Interface) -> String {
+        let mut output = String::new();
+        interface.introspect_to_writer(&mut output, 0);
+        output
+    }
+
+    fn normalized(xml: &str) -> String {
+        xml.chars()
+            .filter(|character| !character.is_whitespace())
+            .collect()
+    }
+
+    fn stored(name: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("interfaces")
+            .join(name);
+        std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+    }
+
+    #[test]
+    fn manager_matches_the_xml() {
+        let fixture = fixture();
+        let generated = rendered(&fixture.manager);
+        assert!(
+            generated.contains(MANAGER_INTERFACE),
+            "missing interface name in {generated}"
+        );
+        assert_eq!(
+            normalized(&generated),
+            normalized(&stored("io.github.HBlanqueto.Userd1.Manager.xml"))
+        );
+        std::fs::remove_dir_all(&fixture.dir).ok();
+    }
+
+    #[test]
+    fn job_matches_the_xml() {
+        let fixture = fixture();
+        let job = Job::new(Arc::clone(&fixture.scheduler), JobId::new(1));
+        let generated = rendered(&job);
+        assert!(
+            generated.contains(JOB_INTERFACE),
+            "missing interface name in {generated}"
+        );
+        assert_eq!(
+            normalized(&generated),
+            normalized(&stored("io.github.HBlanqueto.Userd1.Job.xml"))
+        );
+        std::fs::remove_dir_all(&fixture.dir).ok();
+    }
+
+    #[test]
+    fn error_names_use_the_core_namespace() {
+        let error = DbusError::InvalidConfig("test".into());
+        assert_eq!(
+            <DbusError as zbus::DBusError>::name(&error).as_str(),
+            ErrorKind::InvalidConfig.name()
+        );
+    }
+
+    #[test]
+    #[ignore = "escribe la introspección para regenerar interfaces/"]
+    fn dump_interfaces() {
+        let fixture = fixture();
+        let job = Job::new(Arc::clone(&fixture.scheduler), JobId::new(1));
+        println!(
+            "===MANAGER===\n{}===JOB===\n{}",
+            rendered(&fixture.manager),
+            rendered(&job)
+        );
+        std::fs::remove_dir_all(&fixture.dir).ok();
+    }
+}

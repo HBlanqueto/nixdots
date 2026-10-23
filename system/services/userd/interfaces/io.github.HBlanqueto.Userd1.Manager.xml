@@ -1,0 +1,12 @@
+<interface name="io.github.HBlanqueto.Userd1.Manager">
+  <method name="ListJobs">
+    <arg type="ao" direction="out"/>
+  </method>
+  <method name="ListBackends">
+    <arg type="a(ssb)" direction="out"/>
+  </method>
+  <signal name="ConfigRejected">
+    <arg name="name" type="s"/>
+    <arg name="reason" type="s"/>
+  </signal>
+</interface>

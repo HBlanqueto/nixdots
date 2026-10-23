@@ -33,6 +33,7 @@ let
         (root + "/system/services")
         (root + "/kits/nixcore")
         (root + "/kits/localekit")
+        (root + "/kits/userd-core")
         (root + "/.cargo")
         (root + "/LICENSE")
         # El test del instalador lee la paleta del tema.

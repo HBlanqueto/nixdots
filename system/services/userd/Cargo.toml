@@ -1,0 +1,24 @@
+[package]
+name = "userd-daemon"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-2.0-only"
+description = "Daemon D-Bus de nixos-userd"
+
+[[bin]]
+name = "nixos-userd"
+path = "src/main.rs"
+
+[dependencies]
+userd-core = { path = "../../../kits/userd-core" }
+notify = "8"
+redb = "4.4"
+rustix = { version = "0.38", features = ["fs"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "1.0.69"
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1.44"
+tracing-journald = "0.3"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
