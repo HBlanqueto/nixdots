@@ -67,20 +67,8 @@ async fn probe(
         }
         BackendKind::Identity(IdentityBackendKind::Userdb) => probe_userdb(&config.userdb_dir),
         BackendKind::Identity(IdentityBackendKind::Declared) => Availability::Available,
-        BackendKind::Package(PackageBackendKind::NixProfile) => {
-            if Path::new("/nix/var/nix/daemon-socket/socket").exists() {
-                Availability::Available
-            } else {
-                Availability::Unavailable(UnavailableReason::NotRunning)
-            }
-        }
-        BackendKind::Package(PackageBackendKind::HomeManager) => {
-            if config.inputs_json.exists() {
-                Availability::Available
-            } else {
-                Availability::Unavailable(UnavailableReason::NotInstalled)
-            }
-        }
+        BackendKind::Package(PackageBackendKind::NixProfile) => probe_nix_profile(),
+        BackendKind::Package(PackageBackendKind::HomeManager) => probe_home_manager(config),
         BackendKind::Package(PackageBackendKind::Flatpak) => {
             if !in_path("flatpak") {
                 return Availability::Unavailable(UnavailableReason::NotInstalled);
@@ -88,6 +76,29 @@ async fn probe(
             dbus_name(connection, "org.freedesktop.Flatpak.SystemHelper").await
         }
     }
+}
+
+fn probe_nix_profile() -> Availability {
+    if nix_daemon_available() {
+        Availability::Available
+    } else {
+        Availability::Unavailable(UnavailableReason::NotRunning)
+    }
+}
+
+/// home-manager necesita tanto sus inputs como el daemon de Nix.
+fn probe_home_manager(config: &Config) -> Availability {
+    if !config.inputs_json.exists() {
+        Availability::Unavailable(UnavailableReason::NotInstalled)
+    } else if nix_daemon_available() {
+        Availability::Available
+    } else {
+        Availability::Unavailable(UnavailableReason::NotRunning)
+    }
+}
+
+fn nix_daemon_available() -> bool {
+    Path::new("/nix/var/nix/daemon-socket/socket").exists()
 }
 
 /// userdb necesita escribir `/etc/userdb`; si no se puede, queda no disponible.
