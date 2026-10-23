@@ -23,15 +23,33 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
   escalares (bool, número, string o null); arrays y objetos se rechazan.
 - **Nombre de archivo.** `<usuario>.kdl` debe coincidir con el campo `user` del
   documento; si no, el watcher lo rechaza.
-- **Jobs en F0.** El scheduler (actor por usuario con `mpsc` y semáforo global)
-  está completo, pero no hay handlers registrados: un job encolado se queda en
-  `Queued` en vez de inventar una ejecución. `Running` y `Blocked` vuelven a
-  `Queued` al arrancar; la re-evaluación de `Blocked` la hará el handler en F1
-  (vuelve a bloquear si la condición sigue).
-- **Job de prueba.** `nixos-userd seed-job` es el gancho mínimo para que el
-  nixosTest pueda comprobar la reanudación sin `CreateUser`. Es un comando
-  interno, no D-Bus, y se elimina cuando F1 cree jobs de verdad. Usa
-  `JobKind::ModifyUser` como marcador.
+- **Jobs en F0.** `Scheduler::open` despacha los `Queued` al arrancar. Un actor
+  sin handler deja el job en `Queued` (no lo descarta); `register` vuelve a
+  despachar los `Queued` de ese `JobKind`, así que el orden de registro no
+  pierde trabajo. `Running` y `Blocked` vuelven a `Queued` al arrancar; la
+  re-evaluación de `Blocked` la hará el handler en F1 (vuelve a bloquear si la
+  condición sigue). El test de integración `tests/resume.rs` comprueba que un
+  job reanudado se ejecuta de verdad al registrar el handler.
+- **Objetos `Job`.** `enqueue` registra `/Job/<id>` en el object server en el
+  mismo momento de crear el job (el scheduler guarda la `Connection`). Los jobs
+  que ya existían al arrancar se registran tras montar el `Manager`.
+- **Job de prueba.** `nixos-userd seed-job` vive detrás de la feature Cargo
+  `test-hooks`. Solo el paquete `nixos-userd-test`, que usa el nixosTest, la
+  activa; el binario instalado no acepta `seed-job`. Se elimina cuando F1 cree
+  jobs de verdad. Usa `JobKind::ModifyUser` como marcador.
+- **Autorización.** `authz.rs` usa `zbus_polkit` y comprueba la acción
+  `io.github.HBlanqueto.userd.users.manage` en `Job.Cancel`. A partir de F0,
+  cualquier método D-Bus que modifique estado debe pasar por `authz`; las
+  acciones polkit ya están declaradas en `polkit/`.
+- **Journal.** `put` se hace fuera del lock: se clona el registro, se suelta el
+  lock, se persiste y luego se actualiza memoria. Los locks envenenados son
+  `Error::LockPoisoned`, no se ignoran. Los errores de redb son variantes
+  tipadas (`RedbDatabase`, `RedbTransaction`, `RedbTable`, `RedbStorage`,
+  `RedbCommit`) y los de JSON, `Serialization`.
+- **Sondeo de home-manager.** Requiere `inputs.json` y el socket de
+  `nix-daemon`; si falta cualquiera, queda no disponible con su motivo.
+- **Servicio systemd.** `Type = "dbus"` con `BusName`, para que arranque cuando
+  el nombre esté en el bus (se pide después de registrar las interfaces).
 - **Store.** Escritura atómica (temporal en el mismo directorio, fsync del
   archivo, rename y fsync del directorio) con permisos 0600. El watcher inotify
   mantiene en memoria el último estado válido: si un KDL editado a mano no
