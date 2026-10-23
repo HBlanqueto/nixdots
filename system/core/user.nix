@@ -135,7 +135,6 @@ in
       wget
       curl
 
-      neovim
       unzip
       tree
       jq
