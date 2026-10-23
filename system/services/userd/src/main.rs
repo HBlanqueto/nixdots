@@ -2,10 +2,14 @@ use std::path::PathBuf;
 
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
+#[cfg(feature = "test-hooks")]
 use userd_core::ids::{JobId, Username};
+#[cfg(feature = "test-hooks")]
 use userd_core::job::{JobKind, JobRecord, JobState};
+#[cfg(feature = "test-hooks")]
 use userd_core::names::ROOT_PATH;
 use userd_daemon::config::Config;
+#[cfg(feature = "test-hooks")]
 use userd_daemon::jobs::Journal;
 use userd_daemon::{Error, run};
 
@@ -14,13 +18,13 @@ const DEFAULT_CONFIG: &str = "/etc/nixos-userd/config.json";
 fn main() -> Result<(), Error> {
     init_tracing();
 
-    let mut arguments: Vec<String> = std::env::args().skip(1).collect();
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    #[cfg(feature = "test-hooks")]
     if arguments
         .first()
         .is_some_and(|argument| argument == "seed-job")
     {
-        arguments.remove(0);
-        return seed_job(&arguments);
+        return seed_job(&arguments[1..]);
     }
 
     let config = load_config(&arguments)?;
@@ -76,8 +80,10 @@ fn value<'a>(arguments: &'a [String], index: &mut usize, flag: &str) -> Result<&
         .ok_or_else(|| Error::Config(format!("{flag} requires a value")))
 }
 
-/// Engancha un job de prueba en el journal. Es el mínimo necesario para el
-/// nixosTest de F0; desaparece cuando `Manager.CreateUser` cree jobs de verdad.
+/// Engancha un job de prueba en el journal. Solo se compila con la feature
+/// `test-hooks`, que usa el paquete del nixosTest; el binario instalado no lo
+/// incluye. Desaparece cuando `Manager.CreateUser` cree jobs de verdad.
+#[cfg(feature = "test-hooks")]
 fn seed_job(arguments: &[String]) -> Result<(), Error> {
     let mut path = PathBuf::from(DEFAULT_CONFIG);
     let mut state_dir = None;

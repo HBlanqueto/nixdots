@@ -249,7 +249,7 @@
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           userd-f0 = import ./system/services/userd/tests/f0.nix {
             inherit pkgs inputs;
-            daemon = systemPackages.${system}.nixos-userd;
+            daemon = systemPackages.${system}.nixos-userd-test;
           };
         }
       );

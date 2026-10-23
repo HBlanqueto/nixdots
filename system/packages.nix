@@ -15,6 +15,16 @@
     description = "Runtime user management daemon for NixOS";
   };
 
+  # Variante con los ganchos internos (seed-job) que usa el nixosTest.
+  nixos-userd-test = mkRustTool {
+    pname = "nixos-userd";
+    subdir = "system/services/userd";
+    description = "nixos-userd con ganchos de test (solo para la VM de pruebas)";
+    extra = {
+      buildFeatures = [ "test-hooks" ];
+    };
+  };
+
   home-init = mkRustTool {
     pname = "nixdots-home-init";
     subdir = "system/services/home-init";
