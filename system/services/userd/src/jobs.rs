@@ -6,10 +6,10 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use keel_userd_core::ids::JobId;
+use keel_userd_core::job::{JobFailure, JobKind, JobRecord, JobState};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use tokio::sync::{Semaphore, mpsc};
-use userd_core::ids::JobId;
-use userd_core::job::{JobFailure, JobKind, JobRecord, JobState};
 use zbus::Connection;
 
 use crate::Error;
@@ -232,7 +232,7 @@ impl Scheduler {
         connection
             .object_server()
             .at(
-                userd_core::names::job_path(id),
+                keel_userd_core::names::job_path(id),
                 Job::new(Arc::clone(self), id),
             )
             .await?;
@@ -359,7 +359,7 @@ mod tests {
     use std::sync::atomic::AtomicBool;
 
     use super::*;
-    use userd_core::ids::Username;
+    use keel_userd_core::ids::Username;
 
     fn temp_config(label: &str) -> Config {
         let nanos = std::time::SystemTime::now()
@@ -381,7 +381,7 @@ mod tests {
         JobRecord::new(
             JobId::new(id),
             JobKind::ModifyUser,
-            "/io/github/HBlanqueto/Userd1/User/60001",
+            "/io/github/HBlanqueto/Keel/Userd1/User/60001",
             Some(Username::new(name).expect("valid name")),
         )
     }

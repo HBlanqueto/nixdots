@@ -7,18 +7,18 @@
 use crate::ids::JobId;
 
 /// Nombre del servicio en el bus del sistema.
-pub const BUS_NAME: &str = "io.github.HBlanqueto.Userd1";
+pub const BUS_NAME: &str = "io.github.HBlanqueto.Keel.Userd1";
 /// Ruta raíz de los objetos.
-pub const ROOT_PATH: &str = "/io/github/HBlanqueto/Userd1";
+pub const ROOT_PATH: &str = "/io/github/HBlanqueto/Keel/Userd1";
 /// Prefijo de los errores D-Bus propios.
-pub const ERROR_NAMESPACE: &str = "io.github.HBlanqueto.Userd1.Error";
+pub const ERROR_NAMESPACE: &str = "io.github.HBlanqueto.Keel.Userd1.Error";
 /// Prefijo de las acciones polkit.
-pub const POLKIT_PREFIX: &str = "io.github.HBlanqueto.userd";
+pub const POLKIT_PREFIX: &str = "io.github.HBlanqueto.keel.userd";
 
 /// Interfaz del gestor.
-pub const MANAGER_INTERFACE: &str = "io.github.HBlanqueto.Userd1.Manager";
+pub const MANAGER_INTERFACE: &str = "io.github.HBlanqueto.Keel.Userd1.Manager";
 /// Interfaz de un job.
-pub const JOB_INTERFACE: &str = "io.github.HBlanqueto.Userd1.Job";
+pub const JOB_INTERFACE: &str = "io.github.HBlanqueto.Keel.Userd1.Job";
 
 /// Ruta del objeto de un job.
 #[must_use]

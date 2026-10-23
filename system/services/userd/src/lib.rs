@@ -1,6 +1,6 @@
-//! Daemon de nixos-userd (F0: fundaciones).
+//! Daemon de keel-userd (F0: fundaciones).
 //!
-//! Expone `io.github.HBlanqueto.Userd1.Manager` y los objetos `Job`,
+//! Expone `io.github.HBlanqueto.Keel.Userd1.Manager` y los objetos `Job`,
 //! persiste los jobs en redb y mantiene el último KDL válido de cada usuario.
 
 #![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
@@ -15,8 +15,8 @@ pub mod store;
 
 use std::sync::Arc;
 
+use keel_userd_core::names::{BUS_NAME, ROOT_PATH};
 use tokio::signal::unix::{SignalKind, signal};
-use userd_core::names::{BUS_NAME, ROOT_PATH};
 
 pub use config::Config;
 pub use error::Error;
@@ -65,7 +65,7 @@ pub async fn run(config: Config) -> Result<(), Error> {
         }
     });
 
-    tracing::info!(bus = BUS_NAME, "nixos-userd started");
+    tracing::info!(bus = BUS_NAME, "keel-userd started");
 
     let mut terminate = signal(SignalKind::terminate())?;
     tokio::select! {
@@ -73,6 +73,6 @@ pub async fn run(config: Config) -> Result<(), Error> {
         result = tokio::signal::ctrl_c() => { result?; }
     }
 
-    tracing::info!("nixos-userd stopping");
+    tracing::info!("keel-userd stopping");
     Ok(())
 }

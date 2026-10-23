@@ -4,10 +4,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use userd_core::ids::{JobId, Username};
-use userd_core::job::{JobFailure, JobKind, JobRecord, JobState};
-use userd_daemon::config::Config;
-use userd_daemon::jobs::{Handler, Journal, Scheduler};
+use keel_userd::config::Config;
+use keel_userd::jobs::{Handler, Journal, Scheduler};
+use keel_userd_core::ids::{JobId, Username};
+use keel_userd_core::job::{JobFailure, JobKind, JobRecord, JobState};
 
 struct Flag(Arc<AtomicBool>);
 
@@ -42,7 +42,7 @@ async fn resumed_job_runs_after_handler_registration() {
     let mut job = JobRecord::new(
         JobId::new(1),
         JobKind::ModifyUser,
-        "/io/github/HBlanqueto/Userd1/User/60001",
+        "/io/github/HBlanqueto/Keel/Userd1/User/60001",
         Some(Username::new("s4rch").expect("valid name")),
     );
     job.set_state(JobState::Running { progress: None });

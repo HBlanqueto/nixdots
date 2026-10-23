@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use userd_core::names::PolkitAction;
+use keel_userd_core::names::PolkitAction;
 use zbus::Connection;
 use zbus::message::Header;
 use zbus_polkit::policykit1::{AuthorityProxy, CheckAuthorizationFlags, Subject};

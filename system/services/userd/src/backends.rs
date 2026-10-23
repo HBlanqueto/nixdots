@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use rustix::fs::{Access, access};
-use userd_core::backend::{
+use keel_userd_core::backend::{
     Availability, BackendKind, IdentityBackendKind, PackageBackendKind, UnavailableReason,
 };
+use rustix::fs::{Access, access};
 use zbus::Connection;
 use zbus::names::BusName;
 

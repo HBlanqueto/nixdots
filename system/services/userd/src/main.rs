@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 
+use keel_userd::config::Config;
+#[cfg(feature = "test-hooks")]
+use keel_userd::jobs::Journal;
+use keel_userd::{Error, run};
+#[cfg(feature = "test-hooks")]
+use keel_userd_core::ids::{JobId, Username};
+#[cfg(feature = "test-hooks")]
+use keel_userd_core::job::{JobKind, JobRecord, JobState};
+#[cfg(feature = "test-hooks")]
+use keel_userd_core::names::ROOT_PATH;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::prelude::*;
-#[cfg(feature = "test-hooks")]
-use userd_core::ids::{JobId, Username};
-#[cfg(feature = "test-hooks")]
-use userd_core::job::{JobKind, JobRecord, JobState};
-#[cfg(feature = "test-hooks")]
-use userd_core::names::ROOT_PATH;
-use userd_daemon::config::Config;
-#[cfg(feature = "test-hooks")]
-use userd_daemon::jobs::Journal;
-use userd_daemon::{Error, run};
 
-const DEFAULT_CONFIG: &str = "/etc/nixos-userd/config.json";
+const DEFAULT_CONFIG: &str = "/etc/keel/userd.json";
 
 fn main() -> Result<(), Error> {
     init_tracing();
@@ -108,7 +108,7 @@ fn seed_job(arguments: &[String]) -> Result<(), Error> {
     }
 
     let user = user.ok_or_else(|| Error::Config("--user is required".into()))?;
-    let user = Username::new(user).map_err(userd_core::Error::from)?;
+    let user = Username::new(user).map_err(keel_userd_core::Error::from)?;
     std::fs::create_dir_all(&config.state_dir)?;
 
     let journal = Journal::open(&config.journal_path())?;

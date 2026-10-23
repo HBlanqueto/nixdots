@@ -242,7 +242,7 @@ mod tests {
         let mut record = JobRecord::new(
             JobId::new(1),
             JobKind::ApplyHome,
-            "/io/github/HBlanqueto/Userd1/User/60001",
+            "/io/github/HBlanqueto/Keel/Userd1/User/60001",
             Some(Username::new("s4rch").expect("valid name")),
         );
         record.set_state(state);

@@ -1,4 +1,4 @@
-<interface name="io.github.HBlanqueto.Userd1.Manager">
+<interface name="io.github.HBlanqueto.Keel.Userd1.Manager">
   <method name="ListJobs">
     <arg type="ao" direction="out"/>
   </method>

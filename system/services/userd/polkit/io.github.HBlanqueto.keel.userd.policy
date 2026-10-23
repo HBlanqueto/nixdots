@@ -2,8 +2,8 @@
 <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
   "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <vendor>nixos-userd</vendor>
-  <action id="io.github.HBlanqueto.userd.users.manage">
+  <vendor>keel-userd</vendor>
+  <action id="io.github.HBlanqueto.keel.userd.users.manage">
     <description>Gestionar usuarios</description>
     <message>Se requiere autenticación de administrador para gestionar usuarios</message>
     <defaults>
@@ -12,7 +12,7 @@
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
   </action>
-  <action id="io.github.HBlanqueto.userd.home.modify-own">
+  <action id="io.github.HBlanqueto.keel.userd.home.modify-own">
     <description>Modificar el home propio</description>
     <defaults>
       <allow_any>yes</allow_any>
@@ -20,7 +20,7 @@
       <allow_active>yes</allow_active>
     </defaults>
   </action>
-  <action id="io.github.HBlanqueto.userd.home.modify-any">
+  <action id="io.github.HBlanqueto.keel.userd.home.modify-any">
     <description>Modificar el home de otro usuario</description>
     <defaults>
       <allow_any>auth_admin_keep</allow_any>
@@ -28,7 +28,7 @@
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
   </action>
-  <action id="io.github.HBlanqueto.userd.packages.install-own">
+  <action id="io.github.HBlanqueto.keel.userd.packages.install-own">
     <description>Instalar paquetes propios</description>
     <defaults>
       <allow_any>yes</allow_any>
@@ -36,7 +36,7 @@
       <allow_active>yes</allow_active>
     </defaults>
   </action>
-  <action id="io.github.HBlanqueto.userd.packages.install-any">
+  <action id="io.github.HBlanqueto.keel.userd.packages.install-any">
     <description>Instalar paquetes de otro usuario</description>
     <defaults>
       <allow_any>auth_admin_keep</allow_any>
@@ -44,7 +44,7 @@
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
   </action>
-  <action id="io.github.HBlanqueto.userd.capabilities.toggle">
+  <action id="io.github.HBlanqueto.keel.userd.capabilities.toggle">
     <description>Activar o desactivar capacidades</description>
     <defaults>
       <allow_any>auth_admin_keep</allow_any>

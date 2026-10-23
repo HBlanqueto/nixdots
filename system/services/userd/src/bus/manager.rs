@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use userd_core::names::ROOT_PATH;
+use keel_userd_core::names::ROOT_PATH;
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedObjectPath;
 use zbus::{Connection, interface};
@@ -9,7 +9,7 @@ use crate::backends;
 use crate::config::Config;
 use crate::jobs::Scheduler;
 
-/// `io.github.HBlanqueto.Userd1.Manager` en la ruta raíz.
+/// `io.github.HBlanqueto.Keel.Userd1.Manager` en la ruta raíz.
 pub struct Manager {
     pub(crate) scheduler: Arc<Scheduler>,
     pub(crate) config: Arc<Config>,
@@ -31,7 +31,7 @@ impl Manager {
     }
 }
 
-#[interface(name = "io.github.HBlanqueto.Userd1.Manager")]
+#[interface(name = "io.github.HBlanqueto.Keel.Userd1.Manager")]
 impl Manager {
     fn list_jobs(&self) -> Result<Vec<OwnedObjectPath>, super::DbusError> {
         let records = self
@@ -41,7 +41,7 @@ impl Manager {
         Ok(records
             .into_iter()
             .filter_map(|record| {
-                OwnedObjectPath::try_from(userd_core::names::job_path(record.id)).ok()
+                OwnedObjectPath::try_from(keel_userd_core::names::job_path(record.id)).ok()
             })
             .collect())
     }
@@ -71,7 +71,7 @@ pub async fn register_jobs(
     scheduler: &Arc<Scheduler>,
 ) -> Result<(), crate::Error> {
     for record in scheduler.records()? {
-        let path = userd_core::names::job_path(record.id);
+        let path = keel_userd_core::names::job_path(record.id);
         connection
             .object_server()
             .at(path, super::Job::new(Arc::clone(scheduler), record.id))

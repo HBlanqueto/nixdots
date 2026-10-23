@@ -1,4 +1,4 @@
-//! Núcleo de `nixos-userd`: identificadores, especificación KDL, jobs y
+//! Núcleo de `keel-userd`: identificadores, especificación KDL, jobs y
 //! selección de backends. No habla D-Bus ni toca el sistema de archivos.
 
 #![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]

@@ -1,11 +1,11 @@
+use keel_userd_core::ids::JobId;
 use thiserror::Error;
-use userd_core::ids::JobId;
 
 /// Errores internos del daemon.
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    Core(#[from] userd_core::Error),
+    Core(#[from] keel_userd_core::Error),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("journal database error: {0}")]

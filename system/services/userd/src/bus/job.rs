@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use userd_core::ids::JobId;
-use userd_core::job::JobRecord;
-use userd_core::names::PolkitAction;
+use keel_userd_core::ids::JobId;
+use keel_userd_core::job::JobRecord;
+use keel_userd_core::names::PolkitAction;
 use zbus::interface;
 use zbus::message::Header;
 use zbus::object_server::SignalEmitter;
@@ -11,7 +11,7 @@ use crate::authz;
 use crate::bus::DbusError;
 use crate::jobs::Scheduler;
 
-/// `io.github.HBlanqueto.Userd1.Job` en `/…/Job/<id>`.
+/// `io.github.HBlanqueto.Keel.Userd1.Job` en `/…/Job/<id>`.
 pub struct Job {
     scheduler: Arc<Scheduler>,
     id: JobId,
@@ -30,7 +30,7 @@ impl Job {
     }
 }
 
-#[interface(name = "io.github.HBlanqueto.Userd1.Job")]
+#[interface(name = "io.github.HBlanqueto.Keel.Userd1.Job")]
 impl Job {
     #[zbus(property)]
     fn kind(&self) -> zbus::fdo::Result<String> {

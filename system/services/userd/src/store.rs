@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
+use keel_userd_core::ids::Username;
+use keel_userd_core::spec::UserSpec;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use userd_core::ids::Username;
-use userd_core::spec::UserSpec;
 
 use crate::Error;
 
@@ -216,9 +216,9 @@ fn next_temp_id() -> u64 {
 mod tests {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    use userd_core::backend::{IdentityBackendKind, PackageBackendKind};
-    use userd_core::ids::Uid;
-    use userd_core::spec::{IdentitySpec, PackageRef, PackagesSpec};
+    use keel_userd_core::backend::{IdentityBackendKind, PackageBackendKind};
+    use keel_userd_core::ids::Uid;
+    use keel_userd_core::spec::{IdentitySpec, PackageRef, PackagesSpec};
 
     use super::*;
 

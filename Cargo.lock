@@ -2577,6 +2577,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "keel-userd"
+version = "0.1.0"
+dependencies = [
+ "keel-userd-core",
+ "notify",
+ "redb",
+ "rustix 0.38.44",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-journald",
+ "tracing-subscriber",
+ "zbus",
+ "zbus_polkit",
+]
+
+[[package]]
+name = "keel-userd-core"
+version = "0.1.0"
+dependencies = [
+ "kdl",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "keyboard-types"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5610,36 +5640,6 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
-]
-
-[[package]]
-name = "userd-core"
-version = "0.1.0"
-dependencies = [
- "kdl",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "userd-daemon"
-version = "0.1.0"
-dependencies = [
- "notify",
- "redb",
- "rustix 0.38.44",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "tracing-journald",
- "tracing-subscriber",
- "userd-core",
- "zbus",
- "zbus_polkit",
 ]
 
 [[package]]

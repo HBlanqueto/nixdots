@@ -1,9 +1,9 @@
 [package]
-name = "userd-core"
+name = "keel-userd-core"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-2.0-only"
-description = "Tipos, configuración KDL y modelo de jobs de nixos-userd"
+description = "Tipos, configuración KDL y modelo de jobs de keel-userd"
 
 [dependencies]
 kdl = "6.7"

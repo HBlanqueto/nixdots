@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
+use keel_userd_core::backend::{IdentityBackendKind, PackageBackendKind};
 use serde::Deserialize;
-use userd_core::backend::{IdentityBackendKind, PackageBackendKind};
 
 use crate::Error;
 
 /// Configuración generada por el módulo NixOS en
-/// `/etc/nixos-userd/config.json`.
+/// `/etc/keel/userd.json`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -21,9 +21,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            state_dir: PathBuf::from("/var/lib/nixos-userd"),
+            state_dir: PathBuf::from("/var/lib/keel-userd"),
             userdb_dir: PathBuf::from("/etc/userdb"),
-            inputs_json: PathBuf::from("/etc/nixos-userd/inputs.json"),
+            inputs_json: PathBuf::from("/etc/keel/userd-inputs.json"),
             identity_priority: vec![
                 IdentityBackendKind::Homed,
                 IdentityBackendKind::Userdb,

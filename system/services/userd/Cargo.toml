@@ -1,12 +1,12 @@
 [package]
-name = "userd-daemon"
+name = "keel-userd"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-2.0-only"
-description = "Daemon D-Bus de nixos-userd"
+description = "Daemon D-Bus de keel-userd"
 
 [[bin]]
-name = "nixos-userd"
+name = "keel-userd"
 path = "src/main.rs"
 
 [features]
@@ -15,7 +15,7 @@ default = []
 test-hooks = []
 
 [dependencies]
-userd-core = { path = "../../../kits/userd-core" }
+keel-userd-core = { path = "../../../kits/userd-core" }
 notify = "8"
 redb = "4.4"
 rustix = { version = "0.38", features = ["fs"] }

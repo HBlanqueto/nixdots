@@ -6,12 +6,12 @@ pub mod manager;
 pub use job::Job;
 pub use manager::Manager;
 
-/// Errores propios, bajo `io.github.HBlanqueto.Userd1.Error`.
+/// Errores propios, bajo `io.github.HBlanqueto.Keel.Userd1.Error`.
 ///
 /// El prefijo del derive debe ser literal (limitación de zbus); el test de
-/// conformidad comprueba que coincide con `userd_core::names::ERROR_NAMESPACE`.
+/// conformidad comprueba que coincide con `keel_userd_core::names::ERROR_NAMESPACE`.
 #[derive(Debug, zbus::DBusError)]
-#[zbus(prefix = "io.github.HBlanqueto.Userd1.Error")]
+#[zbus(prefix = "io.github.HBlanqueto.Keel.Userd1.Error")]
 pub enum DbusError {
     #[zbus(error)]
     Zbus(zbus::Error),
@@ -29,8 +29,8 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
-    use userd_core::ids::JobId;
-    use userd_core::names::{ErrorKind, JOB_INTERFACE, MANAGER_INTERFACE};
+    use keel_userd_core::ids::JobId;
+    use keel_userd_core::names::{ErrorKind, JOB_INTERFACE, MANAGER_INTERFACE};
     use zbus::object_server::Interface;
 
     use super::{DbusError, Job, Manager};
@@ -95,7 +95,7 @@ mod tests {
         );
         assert_eq!(
             normalized(&generated),
-            normalized(&stored("io.github.HBlanqueto.Userd1.Manager.xml"))
+            normalized(&stored("io.github.HBlanqueto.Keel.Userd1.Manager.xml"))
         );
         std::fs::remove_dir_all(&fixture.dir).ok();
     }
@@ -111,7 +111,7 @@ mod tests {
         );
         assert_eq!(
             normalized(&generated),
-            normalized(&stored("io.github.HBlanqueto.Userd1.Job.xml"))
+            normalized(&stored("io.github.HBlanqueto.Keel.Userd1.Job.xml"))
         );
         std::fs::remove_dir_all(&fixture.dir).ok();
     }

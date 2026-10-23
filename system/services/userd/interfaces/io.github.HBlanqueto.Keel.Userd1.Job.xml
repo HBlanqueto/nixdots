@@ -1,4 +1,4 @@
-<interface name="io.github.HBlanqueto.Userd1.Job">
+<interface name="io.github.HBlanqueto.Keel.Userd1.Job">
   <method name="Cancel">
   </method>
   <signal name="Finished">
