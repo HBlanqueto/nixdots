@@ -33,14 +33,17 @@ impl Manager {
 
 #[interface(name = "io.github.HBlanqueto.Userd1.Manager")]
 impl Manager {
-    fn list_jobs(&self) -> Vec<OwnedObjectPath> {
-        self.scheduler
+    fn list_jobs(&self) -> Result<Vec<OwnedObjectPath>, super::DbusError> {
+        let records = self
+            .scheduler
             .records()
+            .map_err(|error| super::DbusError::Failed(error.to_string()))?;
+        Ok(records
             .into_iter()
             .filter_map(|record| {
                 OwnedObjectPath::try_from(userd_core::names::job_path(record.id)).ok()
             })
-            .collect()
+            .collect())
     }
 
     async fn list_backends(&self) -> Vec<(String, String, bool)> {
@@ -67,7 +70,7 @@ pub async fn register_jobs(
     connection: &Connection,
     scheduler: &Arc<Scheduler>,
 ) -> Result<(), crate::Error> {
-    for record in scheduler.records() {
+    for record in scheduler.records()? {
         let path = userd_core::names::job_path(record.id);
         connection
             .object_server()

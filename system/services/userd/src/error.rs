@@ -8,14 +8,26 @@ pub enum Error {
     Core(#[from] userd_core::Error),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("journal error: {0}")]
-    Journal(String),
+    #[error("journal database error: {0}")]
+    RedbDatabase(#[from] redb::DatabaseError),
+    #[error("journal transaction error: {0}")]
+    RedbTransaction(#[from] redb::TransactionError),
+    #[error("journal table error: {0}")]
+    RedbTable(#[from] redb::TableError),
+    #[error("journal storage error: {0}")]
+    RedbStorage(#[from] redb::StorageError),
+    #[error("journal commit error: {0}")]
+    RedbCommit(#[from] redb::CommitError),
+    #[error("journal serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
     #[error("D-Bus error: {0}")]
     Dbus(#[from] zbus::Error),
     #[error("job {0} not found")]
     JobNotFound(JobId),
     #[error("job {0} cannot be cancelled in its current state")]
     JobNotCancelable(JobId),
+    #[error("lock poisoned: {0}")]
+    LockPoisoned(String),
     #[error("config error: {0}")]
     Config(String),
 }

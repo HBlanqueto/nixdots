@@ -44,7 +44,7 @@ mod tests {
         dir: PathBuf,
     }
 
-    fn fixture() -> Fixture {
+    async fn fixture() -> Fixture {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -57,7 +57,7 @@ mod tests {
         });
         std::fs::create_dir_all(config.users_dir()).expect("users dir");
         let (_store, _events) = UserStore::open(config.users_dir()).expect("store");
-        let scheduler = Scheduler::open(&config).expect("scheduler");
+        let scheduler = Scheduler::open(&config).await.expect("scheduler");
         let manager = Manager::new(Arc::clone(&scheduler), Arc::clone(&config), None);
         Fixture {
             manager,
@@ -85,9 +85,9 @@ mod tests {
         std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
     }
 
-    #[test]
-    fn manager_matches_the_xml() {
-        let fixture = fixture();
+    #[tokio::test]
+    async fn manager_matches_the_xml() {
+        let fixture = fixture().await;
         let generated = rendered(&fixture.manager);
         assert!(
             generated.contains(MANAGER_INTERFACE),
@@ -100,9 +100,9 @@ mod tests {
         std::fs::remove_dir_all(&fixture.dir).ok();
     }
 
-    #[test]
-    fn job_matches_the_xml() {
-        let fixture = fixture();
+    #[tokio::test]
+    async fn job_matches_the_xml() {
+        let fixture = fixture().await;
         let job = Job::new(Arc::clone(&fixture.scheduler), JobId::new(1));
         let generated = rendered(&job);
         assert!(
@@ -125,10 +125,10 @@ mod tests {
         );
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore = "escribe la introspección para regenerar interfaces/"]
-    fn dump_interfaces() {
-        let fixture = fixture();
+    async fn dump_interfaces() {
+        let fixture = fixture().await;
         let job = Job::new(Arc::clone(&fixture.scheduler), JobId::new(1));
         println!(
             "===MANAGER===\n{}===JOB===\n{}",

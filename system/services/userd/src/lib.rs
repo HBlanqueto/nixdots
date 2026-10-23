@@ -5,6 +5,7 @@
 
 #![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
+pub mod authz;
 pub mod backends;
 pub mod bus;
 pub mod config;
@@ -32,9 +33,10 @@ pub async fn run(config: Config) -> Result<(), Error> {
     let store = Arc::new(store);
     store.start_watcher()?;
 
-    let scheduler = Scheduler::open(&config)?;
-
     let connection = zbus::connection::Builder::system()?.build().await?;
+
+    let scheduler = Scheduler::open(&config).await?;
+    scheduler.set_connection(connection.clone())?;
 
     connection
         .object_server()
