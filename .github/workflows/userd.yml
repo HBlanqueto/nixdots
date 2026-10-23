@@ -1,0 +1,58 @@
+name: userd
+
+on:
+  push:
+    paths:
+      - "kits/userd-core/**"
+      - "system/services/userd/**"
+      - "system/core/userd.nix"
+      - "system/core/default.nix"
+      - "system/packages.nix"
+      - "kits/nix/rustTool.nix"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/userd.yml"
+  pull_request:
+    paths:
+      - "kits/userd-core/**"
+      - "system/services/userd/**"
+      - "system/core/userd.nix"
+      - "system/core/default.nix"
+      - "system/packages.nix"
+      - "kits/nix/rustTool.nix"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "flake.nix"
+      - "flake.lock"
+      - ".github/workflows/userd.yml"
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Formato
+        run: cargo fmt -p userd-core -p userd-daemon -- --check
+      - name: Clippy
+        run: cargo clippy -p userd-core -p userd-daemon --all-targets -- -D warnings -W clippy::pedantic
+      - name: Tests
+        run: cargo test -p userd-core -p userd-daemon
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Evaluar el flake
+        run: nix flake check --impure --no-build
+
+      - name: nixosTest de userd
+        run: nix build .#checks.x86_64-linux.userd-f0 --print-build-logs
