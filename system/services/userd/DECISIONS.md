@@ -46,6 +46,12 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
   `Error::LockPoisoned`, no se ignoran. Los errores de redb son variantes
   tipadas (`RedbDatabase`, `RedbTransaction`, `RedbTable`, `RedbStorage`,
   `RedbCommit`) y los de JSON, `Serialization`.
+- **Transiciones.** Todas las escrituras de estado pasan por
+  `Scheduler::transition`, serializado con un `tokio::sync::Mutex`. La sección
+  lee, comprueba el estado esperado, persiste y actualiza memoria; las lecturas
+  usan el `RwLock` y no esperan al disco. Así un `Cancel` que llega mientras el
+  actor espera el semáforo no puede ser sobrescrito por `Running`, y el handler
+  no se ejecuta.
 - **Sondeo de home-manager.** Requiere `inputs.json` y el socket de
   `nix-daemon`; si falta cualquiera, queda no disponible con su motivo.
 - **Servicio systemd.** `Type = "dbus"` con `BusName`, para que arranque cuando

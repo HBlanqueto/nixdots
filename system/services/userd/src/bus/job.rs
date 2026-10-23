@@ -100,6 +100,7 @@ impl Job {
         let record = self
             .scheduler
             .cancel(self.id)
+            .await
             .map_err(|error| match error {
                 crate::Error::JobNotFound(_) => DbusError::NotFound(self.id.to_string()),
                 crate::Error::JobNotCancelable(_) => {

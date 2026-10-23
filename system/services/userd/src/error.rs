@@ -24,6 +24,8 @@ pub enum Error {
     Dbus(#[from] zbus::Error),
     #[error("job {0} not found")]
     JobNotFound(JobId),
+    #[error("job {0} is not in the expected state")]
+    UnexpectedState(JobId),
     #[error("job {0} cannot be cancelled in its current state")]
     JobNotCancelable(JobId),
     #[error("lock poisoned: {0}")]

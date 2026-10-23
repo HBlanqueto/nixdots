@@ -75,6 +75,7 @@ pub struct Scheduler {
     actors: tokio::sync::Mutex<HashMap<String, mpsc::Sender<JobId>>>,
     semaphore: Arc<Semaphore>,
     handlers: RwLock<HashMap<JobKind, Arc<dyn Handler>>>,
+    transitions: tokio::sync::Mutex<()>,
     next_id: AtomicU64,
     connection: RwLock<Option<Connection>>,
 }
@@ -107,6 +108,7 @@ impl Scheduler {
             actors: tokio::sync::Mutex::new(HashMap::new()),
             semaphore: Arc::new(Semaphore::new(config.max_builds.max(1))),
             handlers: RwLock::new(HashMap::new()),
+            transitions: tokio::sync::Mutex::new(()),
             next_id: AtomicU64::new(max_id.saturating_add(1)),
             connection: RwLock::new(None),
         });
@@ -130,7 +132,13 @@ impl Scheduler {
         self.next_id
             .fetch_max(record.id.get().saturating_add(1), Ordering::Relaxed);
         write_lock(&self.jobs, "jobs")?.insert(record.id, record.clone());
-        self.register_object(record.id).await?;
+        if let Err(error) = self.register_object(record.id).await {
+            tracing::warn!(
+                id = record.id.get(),
+                %error,
+                "could not register the job object; dispatching anyway"
+            );
+        }
         self.dispatch(record.id).await
     }
 
@@ -171,24 +179,45 @@ impl Scheduler {
         Ok(read_lock(&self.jobs, "jobs")?.get(&id).cloned())
     }
 
-    /// Solo se cancelan jobs que aún no se están ejecutando.
-    pub fn cancel(&self, id: JobId) -> Result<JobRecord, Error> {
-        let mut record = self.record(id)?.ok_or(Error::JobNotFound(id))?;
-        match record.state {
-            JobState::Queued | JobState::Blocked(_) => record.set_state(JobState::Cancelled),
-            _ => return Err(Error::JobNotCancelable(id)),
+    /// Cambia el estado solo si el actual cumple `expected`.
+    ///
+    /// El mutex de transiciones serializa las escrituras; las lecturas usan el
+    /// `RwLock` y no esperan a que termine el `journal.put`.
+    pub async fn transition(
+        &self,
+        id: JobId,
+        expected: impl Fn(&JobState) -> bool + Send,
+        next: JobState,
+    ) -> Result<JobRecord, Error> {
+        let _guard = self.transitions.lock().await;
+
+        let mut record = {
+            let jobs = read_lock(&self.jobs, "jobs")?;
+            jobs.get(&id).cloned().ok_or(Error::JobNotFound(id))?
+        };
+
+        if !expected(&record.state) {
+            return Err(Error::UnexpectedState(id));
         }
+
+        record.set_state(next);
         self.journal.put(&record)?;
         write_lock(&self.jobs, "jobs")?.insert(id, record.clone());
         Ok(record)
     }
 
-    fn set_state(&self, id: JobId, state: JobState) -> Result<JobRecord, Error> {
-        let mut record = self.record(id)?.ok_or(Error::JobNotFound(id))?;
-        record.set_state(state);
-        self.journal.put(&record)?;
-        write_lock(&self.jobs, "jobs")?.insert(id, record.clone());
-        Ok(record)
+    /// Solo se cancelan jobs que aún no se están ejecutando.
+    pub async fn cancel(&self, id: JobId) -> Result<JobRecord, Error> {
+        self.transition(
+            id,
+            |state| matches!(state, JobState::Queued | JobState::Blocked(_)),
+            JobState::Cancelled,
+        )
+        .await
+        .map_err(|error| match error {
+            Error::UnexpectedState(_) => Error::JobNotCancelable(id),
+            other => other,
+        })
     }
 
     fn handler(&self, kind: JobKind) -> Result<Option<Arc<dyn Handler>>, Error> {
@@ -275,8 +304,19 @@ async fn actor(scheduler: Arc<Scheduler>, mut receiver: mpsc::Receiver<JobId>) {
             break;
         };
 
-        let running = match scheduler.set_state(id, JobState::Running { progress: None }) {
+        let running = match scheduler
+            .transition(
+                id,
+                |state| matches!(state, JobState::Queued),
+                JobState::Running { progress: None },
+            )
+            .await
+        {
             Ok(record) => record,
+            Err(Error::UnexpectedState(_)) => {
+                tracing::debug!(id = id.get(), "job is no longer queued; skipping");
+                continue;
+            }
             Err(error) => {
                 tracing::warn!(%error, id = id.get(), "could not start job");
                 continue;
@@ -288,7 +328,14 @@ async fn actor(scheduler: Arc<Scheduler>, mut receiver: mpsc::Receiver<JobId>) {
             Err(failure) => JobState::Failed(failure),
         };
 
-        if let Err(error) = scheduler.set_state(id, state) {
+        if let Err(error) = scheduler
+            .transition(
+                id,
+                |current| matches!(current, JobState::Running { .. }),
+                state,
+            )
+            .await
+        {
             tracing::warn!(%error, id = id.get(), "could not finish job");
         }
         drop(permit);
@@ -308,6 +355,8 @@ fn write_lock<'a, T>(lock: &'a RwLock<T>, name: &str) -> Result<RwLockWriteGuard
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+
+    use std::sync::atomic::AtomicBool;
 
     use super::*;
     use userd_core::ids::Username;
@@ -394,14 +443,110 @@ mod tests {
         let scheduler = Scheduler::open(&config).await.expect("scheduler");
         scheduler.enqueue(record(3)).await.expect("enqueue");
 
-        let cancelled = scheduler.cancel(JobId::new(3)).expect("cancel");
+        let cancelled = scheduler.cancel(JobId::new(3)).await.expect("cancel");
         assert_eq!(cancelled.state, JobState::Cancelled);
         assert!(matches!(
-            scheduler.cancel(JobId::new(3)),
+            scheduler.cancel(JobId::new(3)).await,
             Err(Error::JobNotCancelable(_))
         ));
 
         std::fs::remove_dir_all(&config.state_dir).ok();
+    }
+
+    #[tokio::test]
+    async fn cancel_while_waiting_for_semaphore_never_runs_handler() {
+        struct Gate {
+            started: Arc<tokio::sync::Notify>,
+            release: Arc<tokio::sync::Notify>,
+            ran_second: Arc<AtomicBool>,
+        }
+
+        impl Handler for Gate {
+            fn run<'a>(
+                &'a self,
+                job: &'a JobRecord,
+            ) -> Pin<Box<dyn Future<Output = Result<(), JobFailure>> + Send + 'a>> {
+                let started = Arc::clone(&self.started);
+                let release = Arc::clone(&self.release);
+                let ran_second = Arc::clone(&self.ran_second);
+                let first = job.id == JobId::new(1);
+                Box::pin(async move {
+                    if first {
+                        started.notify_one();
+                        release.notified().await;
+                    } else {
+                        ran_second.store(true, Ordering::SeqCst);
+                    }
+                    Ok(())
+                })
+            }
+        }
+
+        let config = Config {
+            max_builds: 1,
+            ..temp_config("cancel-waiting")
+        };
+        let scheduler = Scheduler::open(&config).await.expect("scheduler");
+        let gate = Arc::new(Gate {
+            started: Arc::new(tokio::sync::Notify::new()),
+            release: Arc::new(tokio::sync::Notify::new()),
+            ran_second: Arc::new(AtomicBool::new(false)),
+        });
+        scheduler
+            .register(JobKind::ModifyUser, gate.clone())
+            .await
+            .expect("register");
+
+        let started = gate.started.notified();
+        scheduler
+            .enqueue(record_for(1, "u1"))
+            .await
+            .expect("enqueue first");
+        tokio::time::timeout(Duration::from_secs(5), started)
+            .await
+            .expect("first job should start");
+
+        scheduler
+            .enqueue(record_for(2, "u2"))
+            .await
+            .expect("enqueue second");
+        loop {
+            let state = scheduler
+                .record(JobId::new(2))
+                .expect("lock")
+                .expect("job")
+                .state;
+            if matches!(state, JobState::Queued) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        let cancelled = scheduler.cancel(JobId::new(2)).await.expect("cancel");
+        assert_eq!(cancelled.state, JobState::Cancelled);
+
+        gate.release.notify_one();
+        for _ in 0..100 {
+            let first_done = scheduler
+                .record(JobId::new(1))
+                .expect("lock")
+                .is_some_and(|job| matches!(job.state, JobState::Succeeded));
+            if first_done {
+                assert!(!gate.ran_second.load(Ordering::SeqCst));
+                assert_eq!(
+                    scheduler
+                        .record(JobId::new(2))
+                        .expect("lock")
+                        .expect("job")
+                        .state,
+                    JobState::Cancelled
+                );
+                std::fs::remove_dir_all(&config.state_dir).ok();
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("first job did not finish");
     }
 
     #[tokio::test]
