@@ -1,4 +1,4 @@
-# nixos-userd (F0): esqueleto del servicio. Desactivado por defecto para que
+# keel-userd (F0): esqueleto del servicio. Desactivado por defecto para que
 # ningún equipo cambie hasta que F1 sustituya a crewd.
 {
   config,
@@ -9,47 +9,47 @@
 }:
 
 let
-  cfg = config.services.nixos-userd;
+  cfg = config.keel.userd;
   system = pkgs.stdenv.hostPlatform.system;
 
   dbusPolicy = pkgs.writeTextFile {
-    name = "io.github.HBlanqueto.Userd1.conf";
-    destination = "/share/dbus-1/system.d/io.github.HBlanqueto.Userd1.conf";
+    name = "io.github.HBlanqueto.Keel.Userd1.conf";
+    destination = "/share/dbus-1/system.d/io.github.HBlanqueto.Keel.Userd1.conf";
     text = ''
       <?xml version="1.0"?>
       <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
         "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
       <busconfig>
         <policy user="root">
-          <allow own="io.github.HBlanqueto.Userd1"/>
+          <allow own="io.github.HBlanqueto.Keel.Userd1"/>
         </policy>
         <policy context="default">
-          <allow send_destination="io.github.HBlanqueto.Userd1"/>
-          <allow receive_sender="io.github.HBlanqueto.Userd1"/>
+          <allow send_destination="io.github.HBlanqueto.Keel.Userd1"/>
+          <allow receive_sender="io.github.HBlanqueto.Keel.Userd1"/>
         </policy>
       </busconfig>
     '';
   };
 
   polkitPolicy = pkgs.writeTextFile {
-    name = "io.github.HBlanqueto.userd.policy";
-    destination = "/share/polkit-1/actions/io.github.HBlanqueto.userd.policy";
-    text = builtins.readFile ../services/userd/polkit/io.github.HBlanqueto.userd.policy;
+    name = "io.github.HBlanqueto.keel.userd.policy";
+    destination = "/share/polkit-1/actions/io.github.HBlanqueto.keel.userd.policy";
+    text = builtins.readFile ../services/userd/polkit/io.github.HBlanqueto.keel.userd.policy;
   };
 in
 {
-  options.services.nixos-userd = {
-    enable = lib.mkEnableOption "nixos-userd, gestión de usuarios en runtime";
+  options.keel.userd = {
+    enable = lib.mkEnableOption "keel-userd, gestión de usuarios en runtime";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = inputs.self.packages.${system}.nixos-userd;
-      description = "Paquete del daemon nixos-userd.";
+      default = inputs.self.packages.${system}.keel-userd;
+      description = "Paquete del daemon keel-userd.";
     };
 
     stateDir = lib.mkOption {
       type = lib.types.str;
-      default = "/var/lib/nixos-userd";
+      default = "/var/lib/keel-userd";
       description = "Directorio de estado (KDL de usuarios y journal de jobs).";
     };
 
@@ -93,23 +93,23 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.etc."nixos-userd/config.json".text = builtins.toJSON {
+    environment.etc."keel/userd.json".text = builtins.toJSON {
       state_dir = cfg.stateDir;
       userdb_dir = "/etc/userdb";
       identity_priority = cfg.identity.priority;
       package_priority = cfg.packages.priority;
     };
 
-    systemd.services.nixos-userd = {
-      description = "nixos-userd user management daemon";
+    systemd.services.keel-userd = {
+      description = "keel-userd user management daemon";
       wantedBy = [ "multi-user.target" ];
       after = [ "dbus.service" ];
       requires = [ "dbus.service" ];
 
       serviceConfig = {
         Type = "dbus";
-        BusName = "io.github.HBlanqueto.Userd1";
-        ExecStart = "${cfg.package}/bin/nixos-userd";
+        BusName = "io.github.HBlanqueto.Keel.Userd1";
+        ExecStart = "${cfg.package}/bin/keel-userd";
         Restart = "on-failure";
         RestartSec = 2;
       };

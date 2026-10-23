@@ -9,17 +9,17 @@
   };
 
   # Daemon de gestión de usuarios en runtime (F0: fundaciones).
-  nixos-userd = mkRustTool {
-    pname = "nixos-userd";
+  keel-userd = mkRustTool {
+    pname = "keel-userd";
     subdir = "system/services/userd";
     description = "Runtime user management daemon for NixOS";
   };
 
   # Variante con los ganchos internos (seed-job) que usa el nixosTest.
-  nixos-userd-test = mkRustTool {
-    pname = "nixos-userd";
+  keel-userd-test = mkRustTool {
+    pname = "keel-userd";
     subdir = "system/services/userd";
-    description = "nixos-userd con ganchos de test (solo para la VM de pruebas)";
+    description = "keel-userd con ganchos de test (solo para la VM de pruebas)";
     extra = {
       buildFeatures = [ "test-hooks" ];
     };

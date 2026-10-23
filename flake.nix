@@ -249,7 +249,7 @@
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
           userd-f0 = import ./system/services/userd/tests/f0.nix {
             inherit pkgs inputs;
-            daemon = systemPackages.${system}.nixos-userd-test;
+            daemon = systemPackages.${system}.keel-userd-test;
           };
         }
       );
@@ -260,7 +260,7 @@
           setup = welcomePackages.${system}.setup;
           assist-setup = welcomePackages.${system}.assist-setup;
           crewd = systemPackages.${system}.crewd;
-          nixos-userd = systemPackages.${system}.nixos-userd;
+          keel-userd = systemPackages.${system}.keel-userd;
           home-init = systemPackages.${system}.home-init;
           launcher = installerPackages.${system}.launcher;
           default = installerPackages.${system}.launcher;

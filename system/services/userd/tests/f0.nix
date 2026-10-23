@@ -7,7 +7,7 @@
 }:
 
 pkgs.testers.nixosTest {
-  name = "nixos-userd-f0";
+  name = "keel-userd-f0";
 
   nodes.machine =
     { ... }:
@@ -19,7 +19,7 @@ pkgs.testers.nixosTest {
 
       _module.args.inputs = inputs;
 
-      services.nixos-userd = {
+      keel.userd = {
         enable = true;
         package = daemon;
         persistence.enable = false;
@@ -29,13 +29,13 @@ pkgs.testers.nixosTest {
     };
 
   testScript = ''
-    bus = "io.github.HBlanqueto.Userd1"
-    manager = "io.github.HBlanqueto.Userd1.Manager"
-    job = "io.github.HBlanqueto.Userd1.Job"
-    root = "/io/github/HBlanqueto/Userd1"
+    bus = "io.github.HBlanqueto.Keel.Userd1"
+    manager = "io.github.HBlanqueto.Keel.Userd1.Manager"
+    job = "io.github.HBlanqueto.Keel.Userd1.Job"
+    root = "/io/github/HBlanqueto/Keel/Userd1"
 
     machine.start()
-    machine.wait_for_unit("nixos-userd.service")
+    machine.wait_for_unit("keel-userd.service")
     machine.wait_until_succeeds(f"busctl --system status {bus}")
 
     backends = machine.succeed(
@@ -45,13 +45,13 @@ pkgs.testers.nixosTest {
     assert "userdb" in backends, backends
     assert "true" in backends, backends
 
-    machine.succeed("systemctl stop nixos-userd.service")
+    machine.succeed("systemctl stop keel-userd.service")
     machine.succeed(
-        "${daemon}/bin/nixos-userd seed-job"
-        " --state-dir /var/lib/nixos-userd --user test --running"
+        "${daemon}/bin/keel-userd seed-job"
+        " --state-dir /var/lib/keel-userd --user test --running"
     )
-    machine.succeed("systemctl start nixos-userd.service")
-    machine.wait_for_unit("nixos-userd.service")
+    machine.succeed("systemctl start keel-userd.service")
+    machine.wait_for_unit("keel-userd.service")
     machine.wait_until_succeeds(f"busctl --system status {bus}")
 
     jobs = machine.succeed(f"busctl --system call {bus} {root} {manager} ListJobs")
