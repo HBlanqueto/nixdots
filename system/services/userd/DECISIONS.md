@@ -1,4 +1,4 @@
-# Decisiones de nixos-userd
+# Decisiones de keel-userd
 
 Registro de las decisiones que no se explican solas en el código: lo que se
 cerró al implementar F0 y lo que queda pendiente para fases futuras.
@@ -8,7 +8,7 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
 - **Nombres del bus.** Todas las constantes viven en
   `kits/userd-core/src/names.rs` (`BUS_NAME`, `ROOT_PATH`,
   `ERROR_NAMESPACE`, `POLKIT_PREFIX` e interfaces). Es el prefijo
-  `io.github.HBlanqueto.Userd1` en F0; pasar a `org.nixos.*` es cambiar esas
+  `io.github.HBlanqueto.Keel.Userd1` en F0; pasar a `org.nixos.*` es cambiar esas
   constantes. Los XML de `system/services/userd/interfaces/` y el derive
   `DbusError` necesitan literales por limitación de zbus; el test de
   conformidad (`bus.rs`) falla si dejan de coincidir con las constantes.
@@ -33,12 +33,12 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
 - **Objetos `Job`.** `enqueue` registra `/Job/<id>` en el object server en el
   mismo momento de crear el job (el scheduler guarda la `Connection`). Los jobs
   que ya existían al arrancar se registran tras montar el `Manager`.
-- **Job de prueba.** `nixos-userd seed-job` vive detrás de la feature Cargo
-  `test-hooks`. Solo el paquete `nixos-userd-test`, que usa el nixosTest, la
+- **Job de prueba.** `keel-userd seed-job` vive detrás de la feature Cargo
+  `test-hooks`. Solo el paquete `keel-userd-test`, que usa el nixosTest, la
   activa; el binario instalado no acepta `seed-job`. Se elimina cuando F1 cree
   jobs de verdad. Usa `JobKind::ModifyUser` como marcador.
 - **Autorización.** `authz.rs` usa `zbus_polkit` y comprueba la acción
-  `io.github.HBlanqueto.userd.users.manage` en `Job.Cancel`. A partir de F0,
+  `io.github.HBlanqueto.keel.userd.users.manage` en `Job.Cancel`. A partir de F0,
   cualquier método D-Bus que modifique estado debe pasar por `authz`; las
   acciones polkit ya están declaradas en `polkit/`.
 - **Journal.** `put` se hace fuera del lock: se clona el registro, se suelta el
@@ -67,7 +67,7 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
   `flatpak` miran el bus (propietario o activable); `nix-profile` el socket del
   daemon; `home-manager` la presencia de `inputs.json` (que F2 generará).
   `declared` siempre está disponible.
-- **Módulo NixOS.** `services.nixos-userd.enable = false` por defecto: ningún
+- **Módulo NixOS.** `keel.userd.enable = false` por defecto: ningún
   equipo cambia en F0. Con `enable = true`, el módulo añade `stateDir` a
   `environment.persistence."/persist".directories` (si `persistence.enable`,
   que por defecto es `true`) y crea la config, el servicio, la política D-Bus y
@@ -79,7 +79,7 @@ cerró al implementar F0 y lo que queda pendiente para fases futuras.
 
 ## Fases futuras (no implementado)
 
-- **F1 — crewd.** nixos-userd sustituye a crewd: retirar el servicio, los TOML
+- **F1 — crewd.** keel-userd sustituye a crewd: retirar el servicio, los TOML
   de `/persist/keel/users`, `hashedPasswordFile` y su aserción en
   `system/core/user.nix`, y dar un camino de migración para las cuentas
   existentes de la ThinkPad (leer los TOML y crear los usuarios con userdb o

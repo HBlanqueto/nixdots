@@ -1,3 +1,5 @@
+> **nombre definitivo: keel-userd**
+
 # nixos-userd — Plan de desarrollo
 
 Daemon para NixOS que gestiona usuarios, configuración del home, paquetes y capacidades del sistema **en runtime**, sin modificar la configuración del sistema y sin `nixos-rebuild`. Lo consumen apps de configuración y tiendas (propias, de GNOME o de KDE) a través de D-Bus.
