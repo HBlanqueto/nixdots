@@ -26,8 +26,6 @@ nixpkgs.lib.nixosSystem {
 
   modules = [
     ../system/core/desktop
-    # nix.nix aporta el overlay (pkgs.xnu-console-font), que console.nix y
-    # user.nix usan directamente: la XNU es la única fuente de la TTY.
     ../system/core/nix.nix
     ../system/core/console.nix
     ../system/core/first-boot.nix

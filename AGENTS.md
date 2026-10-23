@@ -138,14 +138,13 @@ nunca reescribas código solo para silenciarlos.
 - Otto (fork `github:HBlanqueto/otto`, con `layers` y `smithay-otto`) salió del
   sistema y solo se conserva como referencia externa, fuera de este repo: no lo
   reintroduzcas sin que se pida.
-- Consola: la TTY instalada usa **solo** la fuente XNU (kmscon con el motor
-  `psf`, `font-name` = `xnu-console.psf`, tamaño 32 —al doble—, y `console.font`
-  = `xnu-console.psf` en el kernel: initrd y consola de emergencia). Solo tiene
-  256 glifos Latin-1, así que en la TTY el prompt de fish (starship) y `eza` van
-  sin iconos Nerd Font, y los caracteres fuera de Latin-1 salen como «?». El
-  lanzador del instalador sí abre kmscon con JetBrainsMono Nerd Font Mono 14 y la
-  paleta neptunia. Plymouth usa el tema integrado `spinner` con la fuente
-  Consoleet Darwin (OTF, `pkgs.consoleet-darwin`).
+- Consola: la TTY instalada es la del kernel (sin kmscon), con `console.font` =
+  `Lat2-Terminus16` en initrd y consola de emergencia y los 16 colores ANSI de
+  neptunia. Esa fuente no trae iconos Nerd Font, así que en la TTY el prompt de
+  fish (starship) y `eza` van sin iconos, y los caracteres fuera de Latin-1/2
+  salen como «?». El lanzador del instalador sí abre kmscon con JetBrainsMono
+  Nerd Font Mono 14 y la paleta neptunia. Plymouth usa el tema integrado
+  `spinner`.
 - Workspace Rust (`Cargo.toml` raíz); los crates viven en `installer/`, `welcome/`, `system/services/` y `kits/`:
   - `kits/nixcore` — settings, /persist/keel/users/<usuario>.toml, machine.toml, hash,
     ejecución de comandos.

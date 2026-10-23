@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, ... }:
 
 {
   # Boot settings shared by both hosts. The bootloader lives in
@@ -20,9 +20,6 @@
     plymouth = {
       enable = true;
       theme = "spinner";
-      # Plymouth usa Consoleet Darwin (la fuente de consola de macOS);
-      # consoleet_xnuv.otf es la variante Smooth, que no queremos.
-      font = "${pkgs.consoleet-darwin}/share/fonts/opentype/consoleet_xnu.otf";
     };
 
     # Generic kernel parameters shared by both hosts; the AMD hardware

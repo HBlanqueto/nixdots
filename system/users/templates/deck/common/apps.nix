@@ -14,8 +14,8 @@ let
   palette = import ../../../../../kits/neptunia/palette.nix { inherit theme; };
   rgba = hex: alpha: "rgba(${palette.rgb hex},${alpha})";
 
-  # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
-  # fuente XNU solo tiene los 256 glifos Latin-1.
+  # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, que
+  # no tiene glifos Nerd Font.
   starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
     ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
   '';
@@ -250,7 +250,7 @@ in
         set -g fish_greeting
         set -g fish_color_command --bold green
 
-        # La TTY usa la XNU (solo Latin-1): el prompt va sin iconos,
+        # La TTY no tiene iconos Nerd Font: el prompt va sin iconos,
         # pero eza decide con --icons=auto (no dibuja los que no
         # existen en la fuente).
         if test "$XDG_SESSION_TYPE" = tty

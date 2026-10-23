@@ -43,8 +43,5 @@ in
       # facter ya carga amdgpu en el initrd; aquí solo el monitor.
       systemPackages = lib.optional hasAmdGpu pkgs.radeontop;
     };
-
-    # virtio-gpu no necesita (ni gana con) la aceleración 3D de kmscon.
-    keel.console.hwRender = lib.mkIf isQemu false;
   };
 }

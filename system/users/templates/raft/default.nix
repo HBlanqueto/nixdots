@@ -2,8 +2,8 @@
 { config, pkgs, ... }:
 
 let
-  # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, cuya
-  # fuente XNU solo tiene los 256 glifos Latin-1.
+  # starship sin iconos (preset oficial `plain-text-symbols`) para la TTY, que
+  # no tiene glifos Nerd Font.
   starshipPlain = pkgs.runCommand "starship-plain-text-symbols.toml" { } ''
     ${pkgs.starship}/bin/starship preset plain-text-symbols -o $out
   '';
