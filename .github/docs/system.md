@@ -61,7 +61,6 @@ Las prestaciones opcionales se declaran en `system/core/extras.nix` bajo
 - `epson`: impresora/escáner Epson L3250.
 - `trezor`: cartera Trezor (`trezord`).
 - `chime`: sonido de arranque.
-- `libvirt`: libvirt + virt-manager (y el grupo `libvirtd` para los admins).
 - `brightnessctl`: brillo y reglas udev para las teclas del panel.
 - `remoteAccess`: clientes Remmina y RustDesk.
 - `iphoneTethering`: tethering USB del iPhone.
