@@ -171,6 +171,9 @@ nunca reescribas código solo para silenciarlos.
     protección de usuarios que `nixdots-rebuild` (`kits/nixcore::rebuild`);
     un código 4 de `nixos-rebuild` no revierte, solo avisa de las unidades en
     fallo. `NIXDOTS_ROOT` va vacío (`/persist`).
+  - `kits/userd-core` + `system/services/userd` — nixos-userd (F0), el
+    sustituto de crewd para gestionar cuentas en runtime. Decisiones de diseño
+    y trabajo pendiente por fase: `system/services/userd/DECISIONS.md`.
   - `system/services/home-init` — servicio de usuario: si falta
     `~/.config/home-manager`, lo crea fijando `nixdots` a
     `github:HBlanqueto/nixdots` en la rev de `/etc/nixdots/rev` (o `path:` si la

@@ -8,6 +8,13 @@
     description = "D-Bus user management service for Keel";
   };
 
+  # Daemon de gestión de usuarios en runtime (F0: fundaciones).
+  nixos-userd = mkRustTool {
+    pname = "nixos-userd";
+    subdir = "system/services/userd";
+    description = "Runtime user management daemon for NixOS";
+  };
+
   home-init = mkRustTool {
     pname = "nixdots-home-init";
     subdir = "system/services/home-init";

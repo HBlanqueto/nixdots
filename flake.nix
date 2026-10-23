@@ -205,7 +205,7 @@
       # Nix; este check falla si dejó de coincidir con lo que genera
       # installer/nix/kmscon-palette.nix.
       checks = forAllSystems (
-        { pkgs, ... }:
+        { system, pkgs }:
         let
           palette = pkgs.callPackage ./installer/nix/kmscon-palette.nix { inherit theme; };
         in
@@ -243,6 +243,15 @@
             ${pkgs.coreutils}/bin/touch $out
           '';
         }
+        # Arranca el daemon en una VM, consulta el bus y comprueba que un job
+        # sobrevive a un reinicio del servicio. Solo x86_64: el runner de CI y
+        # las máquinas del repo no emulan aarch64.
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          userd-f0 = import ./system/services/userd/tests/f0.nix {
+            inherit pkgs inputs;
+            daemon = systemPackages.${system}.nixos-userd;
+          };
+        }
       );
 
       packages = forAllSystems (
@@ -251,6 +260,7 @@
           setup = welcomePackages.${system}.setup;
           assist-setup = welcomePackages.${system}.assist-setup;
           crewd = systemPackages.${system}.crewd;
+          nixos-userd = systemPackages.${system}.nixos-userd;
           home-init = systemPackages.${system}.home-init;
           launcher = installerPackages.${system}.launcher;
           default = installerPackages.${system}.launcher;
