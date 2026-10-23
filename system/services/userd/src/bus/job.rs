@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use userd_core::ids::JobId;
-use userd_core::job::JobState;
 use zbus::interface;
 use zbus::object_server::SignalEmitter;
 
@@ -94,10 +93,4 @@ impl Job {
 
     #[zbus(signal)]
     pub async fn finished(emitter: &SignalEmitter<'_>, state: &str) -> zbus::Result<()>;
-}
-
-/// Estado de un job sin el prefijo de variante, útil para señales.
-#[must_use]
-pub fn state_name(state: &JobState) -> &'static str {
-    state.as_str()
 }

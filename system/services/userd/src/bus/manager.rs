@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use userd_core::names::{JOB_INTERFACE, MANAGER_INTERFACE, ROOT_PATH};
+use userd_core::names::ROOT_PATH;
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedObjectPath;
 use zbus::{Connection, interface};
@@ -76,12 +76,6 @@ pub async fn register_jobs(
             .map_err(crate::Error::Dbus)?;
     }
     Ok(())
-}
-
-/// Comprueba que los nombres de las interfaces coinciden con los del núcleo.
-#[must_use]
-pub fn interface_names() -> (&'static str, &'static str, &'static str) {
-    (ROOT_PATH, MANAGER_INTERFACE, JOB_INTERFACE)
 }
 
 pub(crate) async fn reject(connection: &Connection, name: &str, reason: &str) -> zbus::Result<()> {
