@@ -39,9 +39,13 @@ jobs:
       - name: Formato
         run: cargo fmt -p userd-core -p userd-daemon -- --check
       - name: Clippy
-        run: cargo clippy -p userd-core -p userd-daemon --all-targets -- -D warnings -W clippy::pedantic
+        run: |
+          cargo clippy -p userd-core -p userd-daemon --all-targets -- -D warnings -W clippy::pedantic
+          cargo clippy -p userd-daemon --all-targets --features test-hooks -- -D warnings -W clippy::pedantic
       - name: Tests
-        run: cargo test -p userd-core -p userd-daemon
+        run: |
+          cargo test -p userd-core -p userd-daemon
+          cargo test -p userd-daemon --features test-hooks
 
   nix:
     runs-on: ubuntu-latest
