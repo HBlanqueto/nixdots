@@ -139,3 +139,28 @@ fn in_path(program: &str) -> bool {
         std::env::split_paths(&paths).any(|directory| directory.join(program).is_file())
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+
+    #[test]
+    fn userdb_requires_a_writable_directory() {
+        assert!(matches!(
+            probe_userdb(Path::new("/nonexistent-userd-userdb")),
+            Availability::Unavailable(_)
+        ));
+
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("userd-userdb-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("temp dir");
+        assert_eq!(probe_userdb(&directory), Availability::Available);
+        std::fs::remove_dir_all(&directory).ok();
+    }
+}
